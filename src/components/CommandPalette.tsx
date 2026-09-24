@@ -385,6 +385,79 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
       { id: "eyedropper", title: "Tool eyedropper (I)", run: () => s.setTool("eyedropper") },
       { id: "shape-rect", title: "Tool rectangle shape (U)", run: () => s.setTool("shape-rect") },
       { id: "about", title: "About AVERO STUDIO", run: () => alert("AVERO STUDIO v2.0.0. Offline, non-destruktif, open source.") },
+      {
+        id: "native-info",
+        title: "Info native engine C/C++/Rust",
+        run: async () => {
+          try {
+            const { nativeInfo, isTauri } = await import("../io/nativeEngine");
+            if (!isTauri()) {
+              alert("Native engine hanya di aplikasi desktop.");
+              return;
+            }
+            const info = await nativeInfo();
+            alert(
+              `Engine: ${info.c_engine} / ${info.cpp_engine}\nBahasa: ${info.languages.join(", ")}\nReady: ${info.ready}`,
+            );
+          } catch (e) {
+            alert(String(e));
+          }
+        },
+      },
+      {
+        id: "native-gray",
+        title: "Native C: grayscale layer aktif",
+        run: async () => {
+          try {
+            const { isTauri, nativeProcessCanvas } = await import("../io/nativeEngine");
+            const { layerManager } = await import("../engine/layerManager");
+            const st = useEditorStore.getState();
+            const id = st.activeLayerId;
+            if (!isTauri() || !id) return;
+            const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height);
+            await nativeProcessCanvas(c, "op", { op: "gray" });
+            st.markDirty();
+          } catch (e) {
+            alert(String(e));
+          }
+        },
+      },
+      {
+        id: "native-box",
+        title: "Native C++: box blur layer aktif",
+        run: async () => {
+          try {
+            const { isTauri, nativeProcessCanvas } = await import("../io/nativeEngine");
+            const { layerManager } = await import("../engine/layerManager");
+            const st = useEditorStore.getState();
+            const id = st.activeLayerId;
+            if (!isTauri() || !id) return;
+            const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height);
+            await nativeProcessCanvas(c, "filter", { op: "boxBlur", radius: 4 });
+            st.markDirty();
+          } catch (e) {
+            alert(String(e));
+          }
+        },
+      },
+      {
+        id: "native-sharpen",
+        title: "Native C++: sharpen layer aktif",
+        run: async () => {
+          try {
+            const { isTauri, nativeProcessCanvas } = await import("../io/nativeEngine");
+            const { layerManager } = await import("../engine/layerManager");
+            const st = useEditorStore.getState();
+            const id = st.activeLayerId;
+            if (!isTauri() || !id) return;
+            const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height);
+            await nativeProcessCanvas(c, "filter", { op: "sharpen", amount: 1.2 });
+            st.markDirty();
+          } catch (e) {
+            alert(String(e));
+          }
+        },
+      },
     ];
   }, []);
 

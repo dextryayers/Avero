@@ -1,6 +1,10 @@
+import { useEffect, useState } from "react";
 import { useProStore, type AdjustmentType } from "../stores/useProStore";
 import { useAutomationStore } from "../stores/useAutomationStore";
-import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
+import { useEditorStore } from "../stores/useEditorStore";
+import { layerManager } from "../engine/layerManager";
+import { isTauri, nativeProcessCanvas, type NativeInfo, nativeInfo } from "../io/nativeEngine";
+import { ChevronDown, ChevronUp, Cpu, Plus, Trash2 } from "lucide-react";
 
 const addable: { id: AdjustmentType; label: string }[] = [
   { id: "brightnessContrast", label: "Brightness" },
@@ -63,9 +67,80 @@ export default function AdjustPanel() {
   const updateAdjustmentParams = useProStore((s) => s.updateAdjustmentParams);
   const removeAdjustment = useProStore((s) => s.removeAdjustment);
   const moveAdjustment = useProStore((s) => s.moveAdjustment);
+  const [nat, setNat] = useState<NativeInfo | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    nativeInfo()
+      .then(setNat)
+      .catch(() => setNat(null));
+  }, []);
+
+  async function runNativeOp(kind: "gray" | "invert" | "brightness" | "contrast" | "desaturate") {
+    if (busy || !isTauri()) return;
+    const st = useEditorStore.getState();
+    const id = st.activeLayerId;
+    if (!id) return;
+    setBusy(kind);
+    try {
+      const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height);
+      const op =
+        kind === "gray"
+          ? { op: "gray" as const }
+          : kind === "invert"
+            ? { op: "invert" as const }
+            : kind === "brightness"
+              ? { op: "brightness" as const, amount: 20 }
+              : kind === "contrast"
+                ? { op: "contrast" as const, amount: 25 }
+                : { op: "desaturate" as const, amount: 80 };
+      await nativeProcessCanvas(c, "op", op);
+      st.markDirty();
+      useProStore.getState().bumpHistogram();
+      useAutomationStore
+        .getState()
+        .pushStep(`Native ${kind}`, { type: "adjustment/add", payload: { kind } });
+    } catch (e) {
+      alert(`Native C gagal: ${String(e)}`);
+    } finally {
+      setBusy(null);
+    }
+  }
 
   return (
     <div className="space-y-2 p-2 text-[12px]">
+      <div className="rounded-md border border-[#2c2c31] bg-[#161618] p-2">
+        <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-white">
+          <Cpu size={12} className="text-[#8fb6f5]" /> Native C ops
+          <span className="ml-auto font-mono text-[10px] text-[#6e6e78]">
+            {nat ? nat.c_engine : isTauri() ? "memuat..." : "web only"}
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {(
+            [
+              ["gray", "Gray C"],
+              ["invert", "Invert C"],
+              ["brightness", "Brightness C"],
+              ["contrast", "Contrast C"],
+              ["desaturate", "Desat C"],
+            ] as const
+          ).map(([k, label]) => (
+            <button
+              key={k}
+              disabled={!isTauri() || busy !== null}
+              onClick={() => runNativeOp(k)}
+              className="flex items-center gap-1 rounded-md border border-[#2c2c31] bg-[#232327] px-2 py-1 text-[10px] font-semibold text-white hover:bg-[#2c2c31] disabled:opacity-40"
+            >
+              {busy === k ? "..." : label}
+            </button>
+          ))}
+        </div>
+        <div className="mt-1 text-[10px] text-[#6e6e78]">
+          In-place ke layer aktif lewat FFI C. Berbeda dengan stack adjustment non-destruktif.
+        </div>
+      </div>
       <div className="flex flex-wrap gap-1">
         {addable.map((a) => (
           <button

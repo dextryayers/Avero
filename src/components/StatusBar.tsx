@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useEditorStore } from "../stores/useEditorStore";
 import { useProStore } from "../stores/useProStore";
+import { isTauri, nativeInfo, type NativeInfo } from "../io/nativeEngine";
 
 export default function StatusBar() {
   const zoom = useEditorStore((s) => s.zoom);
@@ -17,6 +18,14 @@ export default function StatusBar() {
   const showGuides = useProStore((s) => s.showGuides);
   const layers = useEditorStore((s) => s.layers);
   const [mem, setMem] = useState<string>("");
+  const [nat, setNat] = useState<NativeInfo | null>(null);
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    nativeInfo()
+      .then(setNat)
+      .catch(() => setNat(null));
+  }, []);
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -110,6 +119,14 @@ export default function StatusBar() {
         Guides {showGuides ? "on" : "off"}
       </button>
       {mem && <span className="hidden font-mono xl:block">{mem}</span>}
+      <span
+        className={`hidden rounded px-1.5 py-0.5 font-mono md:block ${
+          nat?.ready ? "bg-[#232327] text-[#8fb6f5]" : "text-[#6e6e78]"
+        }`}
+        title={nat ? `C: ${nat.c_engine} | C++: ${nat.cpp_engine} | Rust FFI | TS invoke` : "Native engine"}
+      >
+        {nat?.ready ? "C/C++/Rust/TS" : "Rust/TS"}
+      </span>
       <span
         className="ml-auto hidden max-w-[300px] truncate md:block font-mono"
         title={backendInfo}

@@ -100,6 +100,10 @@ const MENUS: Record<string, { label: string; hint?: string; action: string }[]> 
   ],
   Filter: [
     { label: "Gaussian Blur", hint: "", action: "f-blur" },
+    { label: "Native Box Blur (C++)", hint: "", action: "f-native-box" },
+    { label: "Native Sharpen (C++)", hint: "", action: "f-native-sharpen" },
+    { label: "Native Unsharp (C++)", hint: "", action: "f-native-unsharp" },
+    { label: "Native Emboss (C++)", hint: "", action: "f-native-emboss" },
     { label: "Motion Blur", hint: "", action: "f-motion" },
     { label: "Box Blur", hint: "", action: "f-box" },
     { label: "Sharpen", hint: "", action: "f-sharpen" },
@@ -119,6 +123,9 @@ const MENUS: Record<string, { label: string; hint?: string; action: string }[]> 
     { label: "Filter Gallery", hint: "", action: "filter-gallery" },
   ],
   Adjust: [
+    { label: "Native Grayscale (C)", hint: "", action: "a-native-gray" },
+    { label: "Native Invert (C)", hint: "", action: "a-native-invert" },
+    { label: "Native Contrast (C)", hint: "", action: "a-native-contrast" },
     { label: "Brightness/Contrast", hint: "", action: "a-bc" },
     { label: "Levels", hint: "Ctrl+L", action: "a-levels" },
     { label: "Curves", hint: "Ctrl+M", action: "a-curves" },
@@ -555,6 +562,55 @@ export default function TitleBar({
         break;
       case "f-chroma":
         pro.addFilter("chromaticAberration");
+        break;
+      case "f-native-box":
+      case "f-native-sharpen":
+      case "f-native-unsharp":
+      case "f-native-emboss":
+        void (async () => {
+          try {
+            const { isTauri, nativeProcessCanvas } = await import("../io/nativeEngine");
+            const id = ed.activeLayerId;
+            if (!isTauri() || !id) return;
+            const c = layerManager.get(id) ?? layerManager.ensure(id, ed.doc.width, ed.doc.height);
+            const filter =
+              a === "f-native-box"
+                ? { op: "boxBlur" as const, radius: 4 }
+                : a === "f-native-sharpen"
+                  ? { op: "sharpen" as const, amount: 1.2 }
+                  : a === "f-native-unsharp"
+                    ? { op: "unsharp" as const, amount: 1.5, radius: 2 }
+                    : { op: "emboss" as const };
+            await nativeProcessCanvas(c, "filter", filter);
+            ed.markDirty();
+            pro.bumpHistogram();
+          } catch (e) {
+            alert(`Native C++ gagal: ${String(e)}`);
+          }
+        })();
+        break;
+      case "a-native-gray":
+      case "a-native-invert":
+      case "a-native-contrast":
+        void (async () => {
+          try {
+            const { isTauri, nativeProcessCanvas } = await import("../io/nativeEngine");
+            const id = ed.activeLayerId;
+            if (!isTauri() || !id) return;
+            const c = layerManager.get(id) ?? layerManager.ensure(id, ed.doc.width, ed.doc.height);
+            const op =
+              a === "a-native-gray"
+                ? { op: "gray" as const }
+                : a === "a-native-invert"
+                  ? { op: "invert" as const }
+                  : { op: "contrast" as const, amount: 25 };
+            await nativeProcessCanvas(c, "op", op);
+            ed.markDirty();
+            pro.bumpHistogram();
+          } catch (e) {
+            alert(`Native C gagal: ${String(e)}`);
+          }
+        })();
         break;
       case "a-bc":
         pro.addAdjustment("brightnessContrast");

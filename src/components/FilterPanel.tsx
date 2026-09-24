@@ -1,6 +1,10 @@
+import { useEffect, useState } from "react";
 import { useProStore, type FilterType } from "../stores/useProStore";
 import { useAutomationStore } from "../stores/useAutomationStore";
-import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
+import { useEditorStore } from "../stores/useEditorStore";
+import { layerManager } from "../engine/layerManager";
+import { nativeInfo, nativeProcessCanvas, isTauri, type NativeInfo } from "../io/nativeEngine";
+import { ChevronDown, ChevronUp, Cpu, Plus, Trash2 } from "lucide-react";
 
 const addable: { id: FilterType; label: string }[] = [
   { id: "gaussianBlur", label: "Gaussian" },
@@ -38,9 +42,80 @@ export default function FilterPanel() {
   const updateFilterParams = useProStore((s) => s.updateFilterParams);
   const removeFilter = useProStore((s) => s.removeFilter);
   const moveFilter = useProStore((s) => s.moveFilter);
+  const [nat, setNat] = useState<NativeInfo | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    nativeInfo()
+      .then(setNat)
+      .catch(() => setNat(null));
+  }, []);
+
+  async function runNative(kind: "boxBlur" | "sharpen" | "unsharp" | "emboss" | "motionBlur") {
+    if (busy || !isTauri()) return;
+    const st = useEditorStore.getState();
+    const id = st.activeLayerId;
+    if (!id) return;
+    setBusy(true);
+    try {
+      const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height);
+      const filter =
+        kind === "boxBlur"
+          ? { op: "boxBlur" as const, radius: 4 }
+          : kind === "sharpen"
+            ? { op: "sharpen" as const, amount: 1.2 }
+            : kind === "unsharp"
+              ? { op: "unsharp" as const, amount: 1.5, radius: 2 }
+              : kind === "emboss"
+                ? { op: "emboss" as const }
+                : { op: "motionBlur" as const, radius: 12, angle: 0 };
+      await nativeProcessCanvas(c, "filter", filter);
+      st.markDirty();
+      useProStore.getState().bumpHistogram();
+      useAutomationStore
+        .getState()
+        .pushStep(`Native ${kind}`, { type: "filter/add", payload: { kind } });
+    } catch (e) {
+      alert(`Native C++ gagal: ${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <div className="space-y-2 p-2 text-[12px]">
+      <div className="rounded-md border border-[#2c2c31] bg-[#161618] p-2">
+        <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-white">
+          <Cpu size={12} className="text-[#8fb6f5]" /> Native engine
+          <span className="ml-auto font-mono text-[10px] text-[#6e6e78]">
+            {nat ? `${nat.c_engine} / ${nat.cpp_engine}` : isTauri() ? "memuat..." : "web only"}
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {(
+            [
+              ["boxBlur", "BoxBlur C++"],
+              ["sharpen", "Sharpen C++"],
+              ["unsharp", "Unsharp C++"],
+              ["emboss", "Emboss C++"],
+              ["motionBlur", "Motion C++"],
+            ] as const
+          ).map(([k, label]) => (
+            <button
+              key={k}
+              disabled={!isTauri() || busy}
+              onClick={() => runNative(k)}
+              className="flex items-center gap-1 rounded-md border border-[#2c2c31] bg-[#232327] px-2 py-1 text-[10px] font-semibold text-white hover:bg-[#2c2c31] disabled:opacity-40"
+            >
+              {busy ? "..." : label}
+            </button>
+          ))}
+        </div>
+        <div className="mt-1 text-[10px] text-[#6e6e78]">
+          Terapkan langsung ke layer aktif. C untuk op pixel, C++ untuk filter konvolusi.
+        </div>
+      </div>
       <div className="flex flex-wrap gap-1">
         {addable.map((f) => (
           <button

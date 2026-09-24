@@ -30,6 +30,15 @@ Terima kasih ingin berkontribusi ke editor foto open source untuk Linux dan Wind
 - `src/components`: panel per fase
 - `src-tauri/src`: commands, io, pro, ai, document
 
+## Build rilis yang benar
+- Jangan rilis binary dari `cargo build --release` polos TANPA feature
+  `custom-protocol`: binary akan memuat devUrl localhost dan tidak meng-embed
+  frontend (insiden v0.1.0: user dapat halaman Edge ERR_CONNECTION_REFUSED).
+  `src-tauri/Cargo.toml` sudah mengaktifkan `tauri/features = ["custom-protocol"]`,
+  jangan dihapus. Cara rilis resmi tetap `npx tauri build`.
+- Portable `.exe` = `src-tauri/target/release/psd-studio.exe`, jalan offline
+  penuh via protokol `tauri.localhost`, butuh WebView2 (bawaan Win10/11).
+
 ## Pull request
 - Satu PR satu fitur, sertakan cara uji manual
 - Update QA checklist di `docs/QA-CHECKLIST.md` bila tambah fitur

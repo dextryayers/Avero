@@ -28,7 +28,11 @@ pub fn run() {
             pro::cmd_image_histogram,
             native::cmd_native_info,
             native::cmd_native_apply_op,
-            native::cmd_native_apply_filter
+            native::cmd_native_apply_filter,
+            native::cmd_native_histogram,
+            native::cmd_native_stats,
+            native::cmd_native_pipeline,
+            native::cmd_native_benchmark
         ])
         .run(tauri::generate_context!())
         .expect("error while running AVERO STUDIO");

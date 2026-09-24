@@ -9,6 +9,8 @@ fn main() {
     c.file("native/image_ops.c")
         .include("native")
         .warnings(true)
+        .opt_level(3)
+        .flag_if_supported("-O3")
         .cargo_metadata(true);
     if cfg!(target_os = "windows") {
         c.define("NOMINMAX", None).define("WIN32_LEAN_AND_MEAN", None);
@@ -20,6 +22,9 @@ fn main() {
         .include("native")
         .cpp(true)
         .std("c++17")
+        .opt_level(3)
+        .flag_if_supported("-O3")
+        .flag_if_supported("-march=native")
         .cargo_metadata(true);
     if cfg!(target_os = "windows") {
         cpp.define("NOMINMAX", None).define("WIN32_LEAN_AND_MEAN", None);

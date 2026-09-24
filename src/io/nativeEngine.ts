@@ -1,25 +1,87 @@
 import { invoke } from "@tauri-apps/api/core";
 
+// --- C ops (18) ---
 export type NativeOp =
   | { op: "gray" }
   | { op: "invert" }
   | { op: "brightness"; amount: number }
   | { op: "contrast"; amount: number }
   | { op: "threshold"; level: number }
-  | { op: "desaturate"; amount: number };
+  | { op: "desaturate"; amount: number }
+  | { op: "exposure"; ev: number }
+  | { op: "gamma"; gamma: number }
+  | { op: "vibrance"; amount: number }
+  | { op: "warmth"; warmth: number }
+  | { op: "posterize"; levels: number }
+  | { op: "sepia"; amount: number }
+  | { op: "colorBalance"; cr: number; mg: number; yb: number }
+  | { op: "shadowsHighlights"; shadows: number; highlights: number }
+  | { op: "hueShift"; hueDeg: number }
+  | { op: "autoLevels" }
+  | { op: "autoContrast" }
+  | { op: "opacity"; opacity: number };
 
+// --- C++ filters (16) ---
 export type NativeFilterOp =
   | { op: "boxBlur"; radius: number }
   | { op: "sharpen"; amount: number }
   | { op: "unsharp"; amount: number; radius: number }
   | { op: "emboss" }
-  | { op: "motionBlur"; radius: number; angle: number };
+  | { op: "motionBlur"; radius: number; angle: number }
+  | { op: "gaussian"; sigma: number }
+  | { op: "median"; radius: number }
+  | { op: "sobel" }
+  | { op: "vignette"; amount: number }
+  | { op: "chroma"; amount: number }
+  | { op: "grain"; amount: number; seed?: number }
+  | { op: "halftone"; size: number }
+  | { op: "tiltShift"; blur: number; focusY: number; focusH: number }
+  | { op: "oilPaint"; radius: number; intensity: number }
+  | { op: "findEdges" }
+  | { op: "pixelate"; size: number };
 
 export interface NativeInfo {
   c_engine: string;
+  c_version: string;
   cpp_engine: string;
+  cpp_version: string;
+  rust_version: string;
   languages: string[];
+  features: string[];
   ready: boolean;
+}
+
+export interface NativeHistogram {
+  r: number[];
+  g: number[];
+  b: number[];
+  lum: number[];
+  width: number;
+  height: number;
+  total: number;
+}
+
+export interface NativeStats {
+  mean_r: number;
+  mean_g: number;
+  mean_b: number;
+  std_r: number;
+  std_g: number;
+  std_b: number;
+  min_r: number;
+  max_r: number;
+  min_g: number;
+  max_g: number;
+  min_b: number;
+  max_b: number;
+  pixels: number;
+}
+
+export interface BenchmarkResult {
+  ops: string;
+  pixels: number;
+  millis: number;
+  mpix_per_sec: number;
 }
 
 export function isTauri(): boolean {
@@ -34,27 +96,58 @@ export async function nativeInfo(): Promise<NativeInfo> {
   return invoke<NativeInfo>("cmd_native_info");
 }
 
-function clampSize(len: number): boolean {
-  return len > 0 && len % 4 === 0;
+export async function nativeHistogram(
+  rgba: Uint8ClampedArray | Uint8Array,
+  width: number,
+  height: number,
+): Promise<NativeHistogram> {
+  return invoke<NativeHistogram>("cmd_native_histogram", {
+    rgba: Array.from(rgba),
+    width,
+    height,
+  });
 }
 
-/** Operasi C in-place. Return buffer RGBA8 baru dari backend. */
-export async function nativeApplyOp(
+export async function nativeStats(rgba: Uint8ClampedArray | Uint8Array): Promise<NativeStats> {
+  return invoke<NativeStats>("cmd_native_stats", { rgba: Array.from(rgba) });
+}
+
+export async function nativeBenchmark(
+  width: number,
+  height: number,
+  iterations?: number,
+): Promise<BenchmarkResult> {
+  return invoke<BenchmarkResult>("cmd_native_benchmark", { width, height, iterations });
+}
+
+export async function nativePipeline(
   rgba: Uint8ClampedArray | Uint8Array,
-  op: NativeOp,
+  width: number,
+  height: number,
+  ops: NativeOp[],
+  filters: NativeFilterOp[],
 ): Promise<Uint8ClampedArray> {
-  if (!isTauri() || !clampSize(rgba.length)) {
-    throw new Error("Native C engine tidak tersedia atau buffer tidak valid");
-  }
-  const out = await invoke<number[] | Uint8Array>("cmd_native_apply_op", {
-    rgba: Array.from(rgba),
-    op,
+  const out = await invoke<number[] | Uint8Array>("cmd_native_pipeline", {
+    req: { rgba: Array.from(rgba), width, height, ops, filters },
   });
   const arr = out instanceof Uint8Array ? out : Uint8Array.from(out as number[]);
   return new Uint8ClampedArray(arr.buffer, arr.byteOffset, arr.length);
 }
 
-/** Filter C++ dua-pass. width*height harus cocok dengan buffer. */
+function clampSize(len: number): boolean {
+  return len > 0 && len % 4 === 0;
+}
+
+export async function nativeApplyOp(
+  rgba: Uint8ClampedArray | Uint8Array,
+  op: NativeOp,
+): Promise<Uint8ClampedArray> {
+  if (!isTauri() || !clampSize(rgba.length)) throw new Error("Native C tidak tersedia atau buffer tidak valid");
+  const out = await invoke<number[] | Uint8Array>("cmd_native_apply_op", { rgba: Array.from(rgba), op });
+  const arr = out instanceof Uint8Array ? out : Uint8Array.from(out as number[]);
+  return new Uint8ClampedArray(arr.buffer, arr.byteOffset, arr.length);
+}
+
 export async function nativeApplyFilter(
   rgba: Uint8ClampedArray | Uint8Array,
   width: number,
@@ -62,20 +155,14 @@ export async function nativeApplyFilter(
   op: NativeFilterOp,
 ): Promise<Uint8ClampedArray> {
   const need = width * height * 4;
-  if (!isTauri() || rgba.length !== need) {
-    throw new Error("Native C++ engine tidak tersedia atau dimensi tidak cocok");
-  }
+  if (!isTauri() || rgba.length !== need) throw new Error("Native C++ tidak tersedia atau dimensi tidak cocok");
   const out = await invoke<number[] | Uint8Array>("cmd_native_apply_filter", {
-    rgba: Array.from(rgba),
-    width,
-    height,
-    op,
+    rgba: Array.from(rgba), width, height, op,
   });
   const arr = out instanceof Uint8Array ? out : Uint8Array.from(out as number[]);
   return new Uint8ClampedArray(arr.buffer, arr.byteOffset, arr.length);
 }
 
-/** Baca ImageData dari canvas, proses native, tulis balik. */
 export async function nativeProcessCanvas(
   canvas: HTMLCanvasElement,
   kind: "op",
@@ -92,50 +179,22 @@ export async function nativeProcessCanvas(
   op: NativeOp | NativeFilterOp,
 ): Promise<void> {
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
-  if (!ctx) throw new Error("Canvas 2d context gagal");
+  if (!ctx) throw new Error("Canvas 2d gagal");
   const id = ctx.getImageData(0, 0, canvas.width, canvas.height);
   let out: Uint8ClampedArray;
-  if (kind === "op") {
-    out = await nativeApplyOp(id.data, op as NativeOp);
-  } else {
-    out = await nativeApplyFilter(id.data, canvas.width, canvas.height, op as NativeFilterOp);
-  }
-  const next = new ImageData(out, canvas.width, canvas.height);
-  ctx.putImageData(next, 0, 0);
+  if (kind === "op") out = await nativeApplyOp(id.data, op as NativeOp);
+  else out = await nativeApplyFilter(id.data, canvas.width, canvas.height, op as NativeFilterOp);
+  ctx.putImageData(new ImageData(out, canvas.width, canvas.height), 0, 0);
 }
 
-/** Ubah data URL gambar lewat native (encode PNG by browser setelah proses). */
-export async function nativeApplyOpToDataUrl(
-  dataUrl: string,
-  op: NativeOp,
-): Promise<string> {
-  const img = await loadImage(dataUrl);
-  const c = document.createElement("canvas");
-  c.width = img.naturalWidth;
-  c.height = img.naturalHeight;
-  await nativeProcessCanvas(c, "op", op);
-  return c.toDataURL("image/png");
-}
-
-export async function nativeApplyFilterToDataUrl(
-  dataUrl: string,
-  op: NativeFilterOp,
-): Promise<string> {
-  const img = await loadImage(dataUrl);
-  const c = document.createElement("canvas");
-  c.width = img.naturalWidth;
-  c.height = img.naturalHeight;
-  const ctx = c.getContext("2d")!;
-  ctx.drawImage(img, 0, 0);
-  await nativeProcessCanvas(c, "filter", op);
-  return c.toDataURL("image/png");
-}
-
-function loadImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error("Gambar gagal dimuat"));
-    img.src = src;
-  });
+export async function nativePipelineCanvas(
+  canvas: HTMLCanvasElement,
+  ops: NativeOp[],
+  filters: NativeFilterOp[],
+): Promise<void> {
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) throw new Error("Canvas 2d gagal");
+  const id = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const out = await nativePipeline(id.data, canvas.width, canvas.height, ops, filters);
+  ctx.putImageData(new ImageData(out, canvas.width, canvas.height), 0, 0);
 }

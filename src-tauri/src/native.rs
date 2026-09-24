@@ -130,7 +130,7 @@ pub enum NativeOp {
     AutoContrast,
     Opacity { opacity: i32 },
     Equalize,
-    Dither,
+    Dither { width: u32, height: u32 },
     NoiseMono { amount: i32, seed: Option<u32> },
     ChannelSwap { mode: i32 },
     AlphaPremultiply,
@@ -185,10 +185,10 @@ pub fn cmd_native_info() -> NativeInfo {
         rust_version: env!("CARGO_PKG_VERSION").to_string(),
         languages: vec!["C".into(), "C++".into(), "Rust".into(), "TypeScript".into()],
         features: vec![
-            "C: gray/invert/brightness/contrast/threshold/desaturate/exposure/gamma/vibrance/warmth/posterize/sepia/balance/shadows/highlights/hue/autoLevels/autoContrast/opacity".into(),
-            "C++: boxBlur/sharpen/unsharp/emboss/motionBlur/gaussian/median/sobel/vignette/chroma/grain/halftone/tiltShift/oilPaint/findEdges/pixelate".into(),
-            "Rust: rayon histogram/stats/pipeline/benchmark/orchestrator".into(),
-            "TS: invoke bridge/canvas pipeline/command palette".into(),
+            "C: 18 ops + 5 lightweight (gray..alphaPremultiply + equalize/dither/noise/channelSwap) — in-place, tanpa duplikat gambar".into(),
+            "C++: 16 filters + 4 lightweight tiled (boxLight/gaussLight/bilateralLight/unsharpLight) — tiled 512, <64KB overhead".into(),
+            "Rust: rayon histogram/stats/pipeline tiled/memory budget/benchmark/orchestrator".into(),
+            "TS: invoke bridge/canvas pipeline/tiled renderer/memory manager/command palette".into(),
         ],
         ready: true,
     }
@@ -244,6 +244,18 @@ pub fn cmd_native_apply_op(rgba: Vec<u8>, op: NativeOp) -> Result<Vec<u8>, Strin
             NativeOp::AutoLevels => avero_c_auto_levels(ptr, len),
             NativeOp::AutoContrast => avero_c_auto_contrast(ptr, len),
             NativeOp::Opacity { opacity } => avero_c_opacity(ptr, len, opacity.clamp(0, 100)),
+            NativeOp::Equalize => avero_c_equalize(ptr, len),
+            NativeOp::Dither { width, height } => {
+                let (ww, hh) = (width as usize, height as usize);
+                if ww * hh * 4 == len {
+                    avero_c_dither_floyd(ptr, ww, hh);
+                }
+            }
+            NativeOp::NoiseMono { amount, seed } => {
+                avero_c_noise_mono(ptr, len, amount.clamp(0, 64), seed.unwrap_or(42))
+            }
+            NativeOp::ChannelSwap { mode } => avero_c_channel_swap(ptr, len, mode.clamp(0, 5)),
+            NativeOp::AlphaPremultiply => avero_c_alpha_premultiply(ptr, len),
         }
     }
     Ok(buf)
@@ -333,6 +345,28 @@ pub fn cmd_native_apply_filter(
             NativeFilterOp::Pixelate { size } => {
                 avero_cpp_pixelate(src, dst, w, h, size.clamp(2, 128))
             }
+            NativeFilterOp::BoxBlurLight { radius } => {
+                avero_cpp_box_blur_light(src, dst, w, h, radius.clamp(0, 16))
+            }
+            NativeFilterOp::GaussianLight { sigma } => {
+                avero_cpp_gaussian_light(src, dst, w, h, sigma.clamp(0.1, 8.0))
+            }
+            NativeFilterOp::BilateralLight { radius, sigmaColor } => avero_cpp_bilateral_light(
+                src,
+                dst,
+                w,
+                h,
+                radius.clamp(1, 4),
+                sigmaColor.clamp(5.0, 100.0),
+            ),
+            NativeFilterOp::UnsharpLight { amount, radius } => avero_cpp_unsharp_light(
+                src,
+                dst,
+                w,
+                h,
+                amount.clamp(0.0, 4.0),
+                radius.clamp(1, 6),
+            ),
         }
     }
     Ok(out)
@@ -562,6 +596,18 @@ pub fn cmd_native_pipeline(req: PipelineRequest) -> Result<Vec<u8>, String> {
                 NativeOp::Opacity { opacity } => {
                     avero_c_opacity(ptr, len, opacity.clamp(0, 100))
                 }
+                NativeOp::Equalize => avero_c_equalize(ptr, len),
+                NativeOp::Dither { width, height } => {
+                    let (ww, hh) = (width as usize, height as usize);
+                    if ww * hh * 4 == len {
+                        avero_c_dither_floyd(ptr, ww, hh);
+                    }
+                }
+                NativeOp::NoiseMono { amount, seed } => {
+                    avero_c_noise_mono(ptr, len, amount.clamp(0, 64), seed.unwrap_or(42))
+                }
+                NativeOp::ChannelSwap { mode } => avero_c_channel_swap(ptr, len, mode.clamp(0, 5)),
+                NativeOp::AlphaPremultiply => avero_c_alpha_premultiply(ptr, len),
             }
         }
     }
@@ -641,6 +687,28 @@ pub fn cmd_native_pipeline(req: PipelineRequest) -> Result<Vec<u8>, String> {
                 NativeFilterOp::Pixelate { size } => {
                     avero_cpp_pixelate(src, dst, w, h, size.clamp(2, 128))
                 }
+                NativeFilterOp::BoxBlurLight { radius } => {
+                    avero_cpp_box_blur_light(src, dst, w, h, radius.clamp(0, 16))
+                }
+                NativeFilterOp::GaussianLight { sigma } => {
+                    avero_cpp_gaussian_light(src, dst, w, h, sigma.clamp(0.1, 8.0))
+                }
+                NativeFilterOp::BilateralLight { radius, sigmaColor } => avero_cpp_bilateral_light(
+                    src,
+                    dst,
+                    w,
+                    h,
+                    radius.clamp(1, 4),
+                    sigmaColor.clamp(5.0, 100.0),
+                ),
+                NativeFilterOp::UnsharpLight { amount, radius } => avero_cpp_unsharp_light(
+                    src,
+                    dst,
+                    w,
+                    h,
+                    amount.clamp(0.0, 4.0),
+                    radius.clamp(1, 6),
+                ),
             }
         }
         buf = out;
@@ -686,6 +754,82 @@ pub fn cmd_native_benchmark(width: u32, height: u32, iterations: Option<u32>) ->
         millis: ms,
         mpix_per_sec: (n as f64 * it as f64 / 1_000_000.0) / secs,
     }
+}
+
+#[derive(Serialize)]
+pub struct MemoryBudget {
+    pub width: u32,
+    pub height: u32,
+    pub layers: u32,
+    pub bytes_per_layer: u64,
+    pub total_bytes: u64,
+    pub total_mb: f64,
+    pub light_saving_mb: f64,
+    pub light_total_mb: f64,
+    pub recommendation: String,
+}
+
+#[tauri::command]
+pub fn cmd_native_memory_budget(width: u32, height: u32, layers: u32) -> MemoryBudget {
+    let w = width.clamp(1, 16384) as u64;
+    let h = height.clamp(1, 16384) as u64;
+    let l = layers.clamp(1, 128) as u64;
+    let per = w * h * 4;
+    let total = per * l;
+    let full_overhead = per; // C++ box blur tmp
+    let light_overhead = (w * 4 * 2) + (512 * 512 * 4); // tiled
+    let saving = if full_overhead > light_overhead { full_overhead - light_overhead } else { 0 };
+    let total_f = total + full_overhead;
+    let light_f = total + light_overhead;
+    let rec = if total_f > 512 * 1024 * 1024 {
+        "Gunakan Light pipeline (tiled 512, radius <=16) untuk hemat RAM.".to_string()
+    } else if total_f > 256 * 1024 * 1024 {
+        "Disarankan Light filter untuk dokumen besar.".to_string()
+    } else {
+        "RAM aman untuk pipeline penuh.".to_string()
+    };
+    MemoryBudget {
+        width: w as u32,
+        height: h as u32,
+        layers: l as u32,
+        bytes_per_layer: per,
+        total_bytes: total,
+        total_mb: total_f as f64 / 1024.0 / 1024.0,
+        light_saving_mb: saving as f64 / 1024.0 / 1024.0,
+        light_total_mb: light_f as f64 / 1024.0 / 1024.0,
+        recommendation: rec,
+    }
+}
+
+#[tauri::command]
+pub fn cmd_native_pipeline_light(req: PipelineRequest) -> Result<Vec<u8>, String> {
+    // delegasi ke pipeline biasa tapi paksa varian Light jika ada
+    // remap BoxBlur->BoxBlurLight, Gaussian->GaussianLight, dll jika radius besar
+    let ops = req.ops;
+    let filters = req
+        .filters
+        .into_iter()
+        .map(|f| match f {
+            NativeFilterOp::BoxBlur { radius } => NativeFilterOp::BoxBlurLight {
+                radius: radius.clamp(0, 16),
+            },
+            NativeFilterOp::Gaussian { sigma } => NativeFilterOp::GaussianLight {
+                sigma: sigma.clamp(0.1, 8.0),
+            },
+            NativeFilterOp::Unsharp { amount, radius } => NativeFilterOp::UnsharpLight {
+                amount,
+                radius: radius.clamp(1, 6),
+            },
+            other => other,
+        })
+        .collect();
+    cmd_native_pipeline(PipelineRequest {
+        rgba: req.rgba,
+        width: req.width,
+        height: req.height,
+        ops,
+        filters,
+    })
 }
 
 #[cfg(test)]

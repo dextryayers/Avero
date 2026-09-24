@@ -32,6 +32,8 @@ pub fn run() {
             native::cmd_native_histogram,
             native::cmd_native_stats,
             native::cmd_native_pipeline,
+            native::cmd_native_pipeline_light,
+            native::cmd_native_memory_budget,
             native::cmd_native_benchmark
         ])
         .run(tauri::generate_context!())

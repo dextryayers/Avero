@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useEditorStore } from "../stores/useEditorStore";
 import { useProStore } from "../stores/useProStore";
-import { isTauri, nativeInfo, type NativeInfo } from "../io/nativeEngine";
+import { isTauri, nativeBenchmark, nativeInfo, nativeStats, type NativeInfo } from "../io/nativeEngine";
+import { layerManager } from "../engine/layerManager";
 
 export default function StatusBar() {
   const zoom = useEditorStore((s) => s.zoom);
@@ -19,13 +20,36 @@ export default function StatusBar() {
   const layers = useEditorStore((s) => s.layers);
   const [mem, setMem] = useState<string>("");
   const [nat, setNat] = useState<NativeInfo | null>(null);
+  const [bench, setBench] = useState<string>("");
 
   useEffect(() => {
     if (!isTauri()) return;
-    nativeInfo()
-      .then(setNat)
-      .catch(() => setNat(null));
+    nativeInfo().then(setNat).catch(() => setNat(null));
   }, []);
+
+  async function runStats() {
+    if (!isTauri()) { alert("Stats hanya di desktop."); return; }
+    const st = useEditorStore.getState();
+    const id = st.activeLayerId ?? st.layers[0]?.id;
+    if (!id) return;
+    const c = layerManager.get(id);
+    if (!c) return;
+    const ctx = c.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return;
+    const d = ctx.getImageData(0, 0, c.width, c.height);
+    const s = await nativeStats(d.data);
+    alert(`Mean R ${s.mean_r.toFixed(1)} G ${s.mean_g.toFixed(1)} B ${s.mean_b.toFixed(1)}\nStd R ${s.std_r.toFixed(1)} G ${s.std_g.toFixed(1)} B ${s.std_b.toFixed(1)}\nPixels ${s.pixels}`);
+  }
+
+  async function runBench() {
+    if (!isTauri()) return;
+    setBench("bench...");
+    try {
+      const r = await nativeBenchmark(1920, 1080, 20);
+      setBench(`${r.mpix_per_sec.toFixed(1)} MP/s`);
+      setTimeout(() => setBench(""), 4000);
+    } catch { setBench("gagal"); setTimeout(() => setBench(""), 2000); }
+  }
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -119,13 +143,27 @@ export default function StatusBar() {
         Guides {showGuides ? "on" : "off"}
       </button>
       {mem && <span className="hidden font-mono xl:block">{mem}</span>}
-      <span
-        className={`hidden rounded px-1.5 py-0.5 font-mono md:block ${
-          nat?.ready ? "bg-[#232327] text-[#8fb6f5]" : "text-[#6e6e78]"
-        }`}
-        title={nat ? `C: ${nat.c_engine} | C++: ${nat.cpp_engine} | Rust FFI | TS invoke` : "Native engine"}
+      <button
+        onClick={runStats}
+        className="hidden rounded border border-[#2c2c31] bg-[#232327] px-1.5 py-0.5 font-mono text-[#a7a7b0] hover:text-white md:block"
+        title="Native Rust stats (rayon) layer aktif"
       >
-        {nat?.ready ? "C/C++/Rust/TS" : "Rust/TS"}
+        Stats
+      </button>
+      <button
+        onClick={runBench}
+        className="hidden rounded border border-[#2c2c31] bg-[#232327] px-1.5 py-0.5 font-mono text-[#a7a7b0] hover:text-white md:block"
+        title="Benchmark C/C++ + Rust"
+      >
+        {bench || "Bench"}
+      </button>
+      <span
+        className={`hidden max-w-[220px] truncate rounded border px-1.5 py-0.5 font-mono md:block ${
+          nat?.ready ? "border-[#2c2c31] bg-[#232327] text-[#8fb6f5]" : "border-[#2c2c31] text-[#6e6e78]"
+        }`}
+        title={nat ? `${nat.c_engine} ${nat.c_version} | ${nat.cpp_engine} ${nat.cpp_version} | Rust ${nat.rust_version}` : "Native engine"}
+      >
+        {nat?.ready ? `C ${nat.c_version} • C++ ${nat.cpp_version} • Rust ${nat.rust_version}` : "Rust/TS"}
       </span>
       <span
         className="ml-auto hidden max-w-[300px] truncate md:block font-mono"

@@ -6,9 +6,10 @@ const MODULES = [
   "Workspace dan shortcut",
   "Layer manager",
   "Brush engine",
-  "Native C core",
-  "Native C++ filters",
-  "Rust FFI bridge",
+  "Native C core v2 — 18 ops",
+  "Native C++ filters v2 — 16 filters",
+  "Rust rayon histogram dan stats",
+  "Rust pipeline orchestrator",
   "Adjustment pipeline",
   "Filter stack",
   "Color management",
@@ -18,14 +19,14 @@ const MODULES = [
 ];
 
 const TIPS = [
-  "Ctrl+K membuka semua perintah.",
-  "Ctrl+S simpan proyek .avx utuh.",
-  "Ctrl+E export PNG, JPG, WEBP, BMP, SVG, TIFF.",
-  "Alt+klik menentukan sumber Clone Stamp.",
-  "Seret file gambar ke kanvas untuk membuka.",
-  "Adjust dan Filter tersimpan non-destruktif.",
-  "Tombol V untuk move layer bebas di kanvas.",
-  "Space+seret untuk pan, scroll untuk zoom.",
+  "Ctrl+K membuka semua perintah. Native C/C++ ada di Adjust dan Filter.",
+  "Ctrl+S simpan proyek .avx utuh. Layer dan edit kembali utuh.",
+  "Ctrl+E export PNG, JPG, WEBP, BMP, SVG, TIFF. Matte putih untuk JPG.",
+  "Native pipeline: antrekan ops C + filter C++ lalu jalankan satu IPC Rust.",
+  "Alt+klik menentukan sumber Clone Stamp. Space+seret untuk pan.",
+  "StatusBar: klik Stats untuk mean/std rayon, Bench untuk MP/s.",
+  "Tombol V untuk move layer bebas di kanvas. Tahan Shift untuk snap.",
+  "Space+seret untuk pan, scroll untuk zoom. Ruler di View menu.",
 ];
 
 export default function BootSplash({ onDone }: { onDone: () => void }) {

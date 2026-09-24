@@ -98,6 +98,7 @@ fn check_wh(width: u32, height: u32, len: usize) -> Result<(i32, i32), String> {
 }
 
 /// Operasi in-place C pada buffer RGBA8. Dipanggil sekali IPC per operasi.
+#[allow(non_snake_case)]
 #[derive(Debug, Deserialize)]
 #[serde(tag = "op", rename_all = "camelCase")]
 pub enum NativeOp {
@@ -122,6 +123,7 @@ pub enum NativeOp {
 }
 
 /// Operasi C++ dua-pass (src -> dst).
+#[allow(non_snake_case)]
 #[derive(Debug, Deserialize)]
 #[serde(tag = "op", rename_all = "camelCase")]
 pub enum NativeFilterOp {
@@ -342,7 +344,7 @@ pub fn cmd_native_histogram(rgba: Vec<u8>, width: u32, height: u32) -> Result<Na
             let g = px[1] as usize;
             let b = px[2] as usize;
             let lum = (0.299 * px[0] as f32 + 0.587 * px[1] as f32 + 0.114 * px[2] as f32) as usize;
-            let mut bins = [0u32; 4];
+            let bins = [0u32; 4];
             // di-map bertahap via fold di bawah, jadi penanda saja
             // kita pakai per-thread histogram lalu reduce
             let _ = (r, g, b, lum);

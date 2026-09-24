@@ -121,6 +121,17 @@ export default function SelectionPanel() {
           Deselect
         </button>
       </div>
+      <button
+        onClick={() => {
+          expandContractSelection(-1);
+          featherSelection(1);
+          setTick((t) => t + 1);
+        }}
+        title="Haluskan tepi: ciutkan 1px lalu feather 1px"
+        className="w-full rounded bg-[#0a84ff] px-2 py-1.5 text-[11px] text-white hover:bg-[#0070e0]"
+      >
+        Refine edge (haluskan)
+      </button>
       <div className="rounded border border-[#3e3e42] bg-[#2d2d2d] p-2 text-[11px] text-[#a0a0a0]">
         {hasSelection() || tick >= 0
           ? "Brush otomatis menghormati seleksi. Area luar seleksi dilindungi."

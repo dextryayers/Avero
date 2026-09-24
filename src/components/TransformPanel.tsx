@@ -80,7 +80,7 @@ export default function TransformPanel() {
           className="w-full"
         />
       </div>
-      <div className="grid grid-cols-2 gap-1">
+      <div className="grid grid-cols-3 gap-1">
         <button
           onClick={() =>
             updateTransform(activeLayerId, { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 })
@@ -94,6 +94,32 @@ export default function TransformPanel() {
           className="rounded bg-[#3e3e42] px-2 py-1 text-[11px] hover:bg-[#505050]"
         >
           Flip H
+        </button>
+        <button
+          onClick={() => updateTransform(activeLayerId, { scaleY: v.scaleY * -1 })}
+          className="rounded bg-[#3e3e42] px-2 py-1 text-[11px] hover:bg-[#505050]"
+        >
+          Flip V
+        </button>
+        <button
+          onClick={() => updateTransform(activeLayerId, { rotation: (v.rotation + 90) % 360 })}
+          className="rounded bg-[#3e3e42] px-2 py-1 text-[11px] hover:bg-[#505050]"
+        >
+          Putar +90°
+        </button>
+        <button
+          onClick={() => updateTransform(activeLayerId, { rotation: (v.rotation - 90) % 360 })}
+          className="rounded bg-[#3e3e42] px-2 py-1 text-[11px] hover:bg-[#505050]"
+        >
+          Putar -90°
+        </button>
+        <button
+          onClick={() =>
+            updateTransform(activeLayerId, { scaleX: Math.abs(v.scaleX), scaleY: Math.abs(v.scaleY) })
+          }
+          className="rounded bg-[#3e3e42] px-2 py-1 text-[11px] hover:bg-[#505050]"
+        >
+          Unflip
         </button>
       </div>
       <p className="text-[10px] text-[#a0a0a0]">

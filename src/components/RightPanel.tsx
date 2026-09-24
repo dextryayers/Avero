@@ -9,6 +9,9 @@ import {
   ChevronDown,
   Undo2,
   Redo2,
+  Copy,
+  ArrowDownToLine,
+  Layers,
 } from "lucide-react";
 import { makeLayer, useEditorStore } from "../stores/useEditorStore";
 import { useShallow } from "zustand/shallow";
@@ -114,6 +117,103 @@ export default function RightPanel() {
     if (entry) useEditorStore.getState().markDirty();
   }
 
+  function duplicateLayer(id: string) {
+    const st = useEditorStore.getState();
+    const pro = useProStore.getState();
+    const src = st.layers.find((l) => l.id === id);
+    if (!src) return;
+    const l = makeLayer(`${src.name} copy`);
+    const nl = { ...l, opacity: src.opacity, blendMode: src.blendMode, kind: src.kind, locked: false };
+    const sc = layerManager.get(id);
+    const dc = layerManager.ensure(nl.id, st.doc.width, st.doc.height);
+    if (sc) dc.getContext("2d")!.drawImage(sc, 0, 0);
+    const sm = layerManager.getMask(id);
+    if (sm) {
+      const dm = layerManager.ensureMask(nl.id, st.doc.width, st.doc.height);
+      dm.getContext("2d")!.drawImage(sm, 0, 0);
+      pro.ensureMask(nl.id);
+      const mc = pro.masks[id];
+      if (mc) pro.updateMask(nl.id, { ...mc });
+    }
+    const t = pro.transforms[id];
+    if (t) {
+      pro.ensureTransform(nl.id);
+      pro.updateTransform(nl.id, { ...t });
+    }
+    const ts = pro.textSpecs[id];
+    if (ts) pro.setTextSpec(nl.id, { ...ts });
+    const ss = pro.shapeSpecs[id];
+    if (ss) pro.setShapeSpec(nl.id, { ...ss });
+    st.addLayer(nl);
+  }
+
+  function mergeDown(id: string) {
+    const st = useEditorStore.getState();
+    const idx = st.layers.findIndex((l) => l.id === id);
+    if (idx <= 0) {
+      alert("Tidak ada layer di bawahnya untuk digabung.");
+      return;
+    }
+    const top = st.layers[idx];
+    const below = st.layers[idx - 1];
+    if (!window.confirm(`Gabung "${top.name}" ke "${below.name}"? (destruktif, tidak bisa undo)`)) return;
+    const bc = layerManager.get(below.id);
+    const tc = layerManager.get(id);
+    if (bc && tc) {
+      const bctx = bc.getContext("2d")!;
+      bctx.save();
+      bctx.globalAlpha = top.opacity / 100;
+      try {
+        bctx.globalCompositeOperation = top.blendMode as GlobalCompositeOperation;
+      } catch {
+        bctx.globalCompositeOperation = "source-over";
+      }
+      bctx.drawImage(tc, 0, 0);
+      bctx.restore();
+    }
+    layerManager.remove(id);
+    layerManager.removeMask(id);
+    useProStore.getState().removeMaskEntry(id);
+    useProStore.getState().removeTransform(id);
+    st.removeLayer(id);
+    st.setActiveLayer(below.id);
+    st.markDirty();
+    useProStore.getState().bumpHistogram();
+  }
+
+  function flattenImage() {
+    const st = useEditorStore.getState();
+    if (st.layers.length <= 1) return;
+    if (!window.confirm(`Gabung ${st.layers.length} layer jadi satu? (destruktif, tidak bisa undo)`)) return;
+    const bottom = st.layers[0];
+    const bc = layerManager.ensure(bottom.id, st.doc.width, st.doc.height);
+    const bctx = bc.getContext("2d")!;
+    for (let i = 1; i < st.layers.length; i++) {
+      const l = st.layers[i];
+      if (!l.visible) continue;
+      const c = layerManager.get(l.id);
+      if (!c) continue;
+      bctx.save();
+      bctx.globalAlpha = l.opacity / 100;
+      try {
+        bctx.globalCompositeOperation = l.blendMode as GlobalCompositeOperation;
+      } catch {
+        bctx.globalCompositeOperation = "source-over";
+      }
+      bctx.drawImage(c, 0, 0);
+      bctx.restore();
+    }
+    st.layers.slice(1).forEach((l) => {
+      layerManager.remove(l.id);
+      layerManager.removeMask(l.id);
+      useProStore.getState().removeMaskEntry(l.id);
+      useProStore.getState().removeTransform(l.id);
+    });
+    useEditorStore.setState({ layers: [bottom], activeLayerId: bottom.id });
+    st.markDirty();
+    useProStore.getState().bumpHistogram();
+  }
+
   return (
     <div className="flex w-[300px] shrink-0 flex-col border-l border-[#3e3e42] bg-[#252526]">
       <div className="flex overflow-x-auto border-b border-[#3e3e42] text-[10px]">
@@ -155,9 +255,26 @@ export default function RightPanel() {
               <button
                 onClick={() => activeLayerId && removeLayer(activeLayerId)}
                 disabled={layers.length <= 1}
+                title="Hapus layer"
                 className="flex items-center gap-1 rounded bg-[#3e3e42] px-2 py-1 text-[11px] text-white disabled:opacity-40"
               >
                 <Trash2 size={13} />
+              </button>
+              <button
+                onClick={() => activeLayerId && mergeDown(activeLayerId)}
+                disabled={layers.length <= 1}
+                title="Merge down (gabung ke bawah)"
+                className="rounded bg-[#3e3e42] px-2 py-1 text-white disabled:opacity-40"
+              >
+                <ArrowDownToLine size={13} />
+              </button>
+              <button
+                onClick={flattenImage}
+                disabled={layers.length <= 1}
+                title="Flatten image (gabung semua)"
+                className="rounded bg-[#3e3e42] px-2 py-1 text-white disabled:opacity-40"
+              >
+                <Layers size={13} />
               </button>
               <div className="ml-auto flex gap-1">
                 <button
@@ -248,6 +365,16 @@ export default function RightPanel() {
                         Clip
                       </label>
                       <div className="flex gap-1">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            duplicateLayer(l.id);
+                          }}
+                          title="Duplikat layer"
+                          className="rounded p-1 hover:bg-[#3e3e42]"
+                        >
+                          <Copy size={12} />
+                        </button>
                         <button
                           onClick={() => moveLayer(l.id, 1)}
                           title="Move up"

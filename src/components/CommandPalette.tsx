@@ -116,10 +116,80 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
       { id: "zoom-in", title: "Zoom in", run: () => s.setZoom(s.zoom + 25) },
       { id: "zoom-out", title: "Zoom out", run: () => s.setZoom(s.zoom - 25) },
       { id: "zoom-100", title: "Zoom 100 percent", run: () => s.setZoom(100) },
+      {
+        id: "zoom-fit",
+        title: "Zoom fit ke layar",
+        run: () => window.dispatchEvent(new Event("avero:fit-zoom")),
+      },
       { id: "rulers", title: "Toggle rulers", run: () => s.toggleRulers() },
+      {
+        id: "guides-toggle",
+        title: "Toggle guides",
+        run: () => useProStore.getState().toggleGuides(),
+      },
+      {
+        id: "guides-h",
+        title: "Tambah guide horizontal tengah",
+        run: () =>
+          useProStore.getState().addGuide("h", Math.round(useEditorStore.getState().doc.height / 2)),
+      },
+      {
+        id: "guides-v",
+        title: "Tambah guide vertikal tengah",
+        run: () =>
+          useProStore.getState().addGuide("v", Math.round(useEditorStore.getState().doc.width / 2)),
+      },
+      { id: "guides-clear", title: "Hapus semua guides", run: () => useProStore.getState().clearGuides() },
       { id: "brush", title: "Tool brush", run: () => s.setTool("brush") },
       { id: "eraser", title: "Tool eraser", run: () => s.setTool("eraser") },
+      { id: "clone", title: "Tool clone stamp", run: () => s.setTool("clone") },
+      { id: "crop", title: "Tool crop", run: () => s.setTool("crop") },
+      { id: "gradient", title: "Tool gradient", run: () => s.setTool("gradient") },
       { id: "move", title: "Tool move / transform", run: () => s.setTool("move") },
+      {
+        id: "layer-duplicate",
+        title: "Duplikat layer aktif",
+        run: () => {
+          const st = useEditorStore.getState();
+          const pro = useProStore.getState();
+          const id = st.activeLayerId;
+          const src = st.layers.find((l) => l.id === id);
+          if (!id || !src) return;
+          const l = makeLayer(`${src.name} copy`);
+          const nl = { ...l, opacity: src.opacity, blendMode: src.blendMode, kind: src.kind };
+          const sc = layerManager.get(id);
+          const dc = layerManager.ensure(nl.id, st.doc.width, st.doc.height);
+          if (sc) dc.getContext("2d")!.drawImage(sc, 0, 0);
+          st.addLayer(nl);
+          void pro;
+        },
+      },
+      {
+        id: "transform-flipv",
+        title: "Flip vertikal layer aktif",
+        run: () => {
+          const st = useEditorStore.getState();
+          const id = st.activeLayerId;
+          if (!id) return;
+          const pro = useProStore.getState();
+          pro.ensureTransform(id);
+          const t = pro.transforms[id] ?? { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 };
+          pro.updateTransform(id, { scaleY: t.scaleY * -1 });
+        },
+      },
+      {
+        id: "transform-rot90",
+        title: "Putar layer aktif +90 derajat",
+        run: () => {
+          const st = useEditorStore.getState();
+          const id = st.activeLayerId;
+          if (!id) return;
+          const pro = useProStore.getState();
+          pro.ensureTransform(id);
+          const t = pro.transforms[id] ?? { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 };
+          pro.updateTransform(id, { rotation: (t.rotation + 90) % 360 });
+        },
+      },
       {
         id: "sel-rect",
         title: "Tool rect select",

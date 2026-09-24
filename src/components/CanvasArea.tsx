@@ -84,6 +84,9 @@ export default function CanvasArea() {
   const guidesH = useProStore((s) => s.guidesH);
   const guidesV = useProStore((s) => s.guidesV);
   const showGuides = useProStore((s) => s.showGuides);
+  const showGrid = useProStore((s) => s.showGrid);
+  const gridSize = useProStore((s) => s.gridSize);
+  const snapEnabled = useProStore((s) => s.snapEnabled);
 
   useEffect(() => {
     layers.forEach((l) => layerManager.ensure(l.id, doc.width, doc.height));
@@ -414,6 +417,29 @@ export default function CanvasArea() {
       ctx.restore();
     }
 
+    // 7b. Grid pro ala Photoshop
+    if (showGrid) {
+      ctx.save();
+      ctx.strokeStyle = "rgba(56,160,255,0.16)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      const gs = Math.max(8, gridSize) * s;
+      const startX = ox % gs;
+      for (let x = ox - startX; x <= ox + dw + gs; x += gs) {
+        if (x < ox - 1 || x > ox + dw + 1) continue;
+        ctx.moveTo(Math.round(x) + 0.5, oy);
+        ctx.lineTo(Math.round(x) + 0.5, oy + dh);
+      }
+      const startY = oy % gs;
+      for (let y = oy - startY; y <= oy + dh + gs; y += gs) {
+        if (y < oy - 1 || y > oy + dh + 1) continue;
+        ctx.moveTo(ox, Math.round(y) + 0.5);
+        ctx.lineTo(ox + dw, Math.round(y) + 0.5);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+
     // 8. Guides
     if (showGuides && (guidesH.length > 0 || guidesV.length > 0)) {
       ctx.save();
@@ -429,6 +455,15 @@ export default function CanvasArea() {
         ctx.lineTo(ox + gx * s, oy + dh);
       });
       ctx.stroke();
+      // label guide
+      ctx.fillStyle = "rgba(56,225,255,0.9)";
+      ctx.font = "10px JetBrains Mono, monospace";
+      guidesV.forEach((gx) => {
+        ctx.fillText(`${Math.round(gx)}`, ox + gx * s + 4, oy + 12);
+      });
+      guidesH.forEach((gy) => {
+        ctx.fillText(`${Math.round(gy)}`, ox + 4, oy + gy * s - 4);
+      });
       ctx.restore();
     }
 

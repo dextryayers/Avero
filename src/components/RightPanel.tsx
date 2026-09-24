@@ -12,6 +12,20 @@ import {
   Copy,
   ArrowDownToLine,
   Layers,
+  Scan,
+  Mask,
+  Sliders,
+  Filter,
+  FlaskConical,
+  Type,
+  Palette,
+  Camera,
+  Package,
+  GitBranch,
+  Layout,
+  Puzzle,
+  Box,
+  History,
 } from "lucide-react";
 import { makeLayer, useEditorStore } from "../stores/useEditorStore";
 import { useShallow } from "zustand/shallow";
@@ -51,22 +65,22 @@ type Tab =
   | "mockup"
   | "history";
 
-const tabs: { id: Tab; label: string }[] = [
-  { id: "layers", label: "Layers" },
-  { id: "select", label: "Select" },
-  { id: "mask", label: "Mask" },
-  { id: "adjust", label: "Adjust" },
-  { id: "filter", label: "Filter" },
-  { id: "lab", label: "Lab" },
-  { id: "text", label: "Text" },
-  { id: "color", label: "Color" },
-  { id: "raw", label: "RAW" },
-  { id: "batch", label: "Batch" },
-  { id: "git", label: "Git" },
-  { id: "art", label: "Art" },
-  { id: "plugin", label: "Plug" },
-  { id: "mockup", label: "Mock" },
-  { id: "history", label: "Hist" },
+const tabs: { id: Tab; label: string; icon: any }[] = [
+  { id: "layers", label: "Layers", icon: Layers },
+  { id: "select", label: "Select", icon: Scan },
+  { id: "mask", label: "Mask", icon: Mask },
+  { id: "adjust", label: "Adjust", icon: Sliders },
+  { id: "filter", label: "Filter", icon: Filter },
+  { id: "lab", label: "Lab", icon: FlaskConical },
+  { id: "text", label: "Text", icon: Type },
+  { id: "color", label: "Color", icon: Palette },
+  { id: "raw", label: "RAW", icon: Camera },
+  { id: "batch", label: "Batch", icon: Package },
+  { id: "git", label: "Git", icon: GitBranch },
+  { id: "art", label: "Art", icon: Layout },
+  { id: "plugin", label: "Plug", icon: Puzzle },
+  { id: "mockup", label: "Mock", icon: Box },
+  { id: "history", label: "Hist", icon: History },
 ];
 
 export default function RightPanel() {
@@ -216,23 +230,32 @@ export default function RightPanel() {
 
   return (
     <div className="flex w-[300px] shrink-0 flex-col border-l border-[#2c2c31] bg-[#1c1c1f]">
-      <div className="flex overflow-x-auto border-b border-[#2c2c31] bg-[#161618] text-[10px]">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            title={t.label}
-            className={clsx(
-              "shrink-0 px-2.5 py-2",
-              tab === t.id
-                ? "bg-[#232327] font-semibold text-white shadow-[inset_0_-2px_0_#2f7cf6]"
-                : "text-[#6e6e78] hover:text-white",
-            )}
-          >
-            {t.label}
-            {t.id === "adjust" && adjustments.length > 0 ? ` ${adjustments.length}` : ""}
-            {t.id === "filter" && filters.length > 0 ? ` ${filters.length}` : ""}
-            {t.id === "history" && history.length > 0 ? ` ${history.length}` : ""}
+      <div className="flex overflow-x-auto border-b border-[#2c2c31] bg-[#161618] text-[10px] scrollbar-thin">
+        {tabs.map((t) => {
+          const Icon = t.icon;
+          return (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              title={t.label}
+              className={clsx(
+                "flex shrink-0 flex-col items-center gap-0.5 px-2.5 py-2 transition-colors",
+                tab === t.id
+                  ? "bg-[#232327] font-semibold text-white shadow-[inset_0_-2px_0_#2f7cf6]"
+                  : "text-[#6e6e78] hover:bg-[#1c1c1f] hover:text-white",
+              )}
+            >
+              <Icon size={12} />
+              <span>{t.label}</span>
+              {(t.id === "adjust" && adjustments.length > 0) || (t.id === "filter" && filters.length > 0) || (t.id === "history" && history.length > 0) ? (
+                <span className="rounded-full bg-[#2f7cf6] px-1 py-0 text-[9px] leading-none text-white">
+                  {t.id === "adjust" ? adjustments.length : t.id === "filter" ? filters.length : history.length}
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
           </button>
         ))}
       </div>

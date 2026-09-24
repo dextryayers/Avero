@@ -463,29 +463,27 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
 
   if (!open) return null;
   return (
-    <div
-      className="fixed inset-0 z-50 grid place-items-start justify-center bg-black/60 p-10"
-      onClick={onClose}
-    >
-      <div
-        className="w-[520px] overflow-hidden rounded-md border border-[#2c2c31] bg-[#1c1c1f]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <input
-          autoFocus
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Ketik perintah: avx, export, blur, layer..."
-          className="w-full border-b border-[#2c2c31] bg-transparent px-4 py-3 text-[13px] text-white outline-none"
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && filtered[0]) {
-              filtered[0].run();
-              onClose();
-            }
-            if (e.key === "Escape") onClose();
-          }}
-        />
-        <div className="max-h-[320px] overflow-y-auto p-1">
+    <div className="fixed inset-0 z-50 grid place-items-start justify-center bg-black/60 p-10 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-[560px] overflow-hidden rounded-xl border border-white/10 bg-[#1c1c1f]/95 shadow-[0_20px_60px_rgba(0,0,0,0.6)] backdrop-blur-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2 border-b border-[#2c2c31] px-4 py-2.5">
+          <span className="grid h-7 w-7 place-items-center rounded-full bg-[#2f7cf6] text-white">⌘</span>
+          <input
+            autoFocus
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Ketik perintah: avx, export, blur, layer, native..."
+            className="flex-1 bg-transparent text-[13px] text-white outline-none placeholder:text-[#6e6e78]"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && filtered[0]) {
+                filtered[0].run();
+                onClose();
+              }
+              if (e.key === "Escape") onClose();
+            }}
+          />
+          <span className="rounded-full bg-[#232327] px-2 py-0.5 font-mono text-[10px] text-[#a7a7b0]">Ctrl+K</span>
+        </div>
+        <div className="max-h-[360px] overflow-y-auto p-1.5">
           {filtered.map((a) => (
             <button
               key={a.id}
@@ -493,15 +491,17 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
                 a.run();
                 onClose();
               }}
-              className="flex w-full items-center justify-between rounded px-3 py-2 text-left text-[12px] text-[#c9c9d1] hover:bg-[#2f7cf6] hover:text-white"
+              className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-[12px] text-[#c9c9d1] hover:bg-[#2f7cf6] hover:text-white transition-colors"
             >
-              {a.title}
-              <span className="font-mono text-[10px] opacity-60">Enter</span>
+              <span className="truncate pr-2">{a.title}</span>
+              <span className="shrink-0 rounded-full bg-white/10 px-1.5 py-0.5 font-mono text-[10px] opacity-60 group-hover:bg-white/20">Enter</span>
             </button>
           ))}
-          {filtered.length === 0 && (
-            <div className="p-4 text-center text-[12px] text-[#a7a7b0]">Tidak ada aksi cocok</div>
-          )}
+          {filtered.length === 0 && <div className="p-6 text-center text-[12px] text-[#a7a7b0]">Tidak ada aksi cocok untuk "{q}"</div>}
+        </div>
+        <div className="flex items-center justify-between border-t border-[#2c2c31] bg-[#161618] px-3 py-2 font-mono text-[10px] text-[#6e6e78]">
+          <span>↑↓ navigasi • Enter jalankan • Esc tutup</span>
+          <span>{filtered.length} aksi</span>
         </div>
       </div>
     </div>

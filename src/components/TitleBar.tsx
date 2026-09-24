@@ -693,17 +693,17 @@ export default function TitleBar({
   }
 
   return (
-    <div className="flex h-11 shrink-0 items-center gap-2 border-b border-[#2c2c31] bg-[#1c1c1f] px-3">
+    <div className="sticky top-0 z-30 flex h-11 shrink-0 items-center gap-2 border-b border-[#2c2c31] bg-[#1c1c1f]/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-[#1c1c1f]/80">
       <div className="flex items-center gap-2">
-        <button onClick={onHome} title="Home">
-          <img src="/logo.png" alt="AVERO" className="h-7 w-7 rounded-md object-cover hover:ring-2 hover:ring-[#2f7cf6]" />
+        <button onClick={onHome} title="Home" className="group">
+          <img src="/logo.png" alt="AVERO" className="h-7 w-7 rounded-md object-cover ring-1 ring-white/10 group-hover:ring-[#2f7cf6]/50 transition" />
         </button>
         <button onClick={onHome} title="Home" className="hidden items-center gap-1.5 sm:flex">
           <span className="text-[12.5px] font-bold tracking-wide text-white">AVERO STUDIO</span>
-          <House size={13} className="text-[#6e6e78]" />
+          <House size={13} className="text-[#6e6e78] group-hover:text-white" />
         </button>
-        <span className="rounded border border-[#2c2c31] bg-[#161618] px-1.5 py-0.5 font-mono text-[9.5px] text-[#a7a7b0]">
-          v2.0.0
+        <span className="hidden items-center gap-1 rounded-full border border-[#2c2c31] bg-[#161618] px-2 py-0.5 font-mono text-[9.5px] text-[#a7a7b0] sm:flex">
+          v2.0.0 <span className="h-1 w-1 rounded-full bg-[#7ad69e]" />
         </span>
       </div>
 
@@ -716,19 +716,19 @@ export default function TitleBar({
                 if (openMenu) setOpenMenu(m);
               }}
               className={clsx(
-                "rounded-md px-2.5 py-1.5",
-                openMenu === m ? "bg-[#232327] text-white" : "text-[#a7a7b0] hover:bg-[#232327] hover:text-white",
+                "rounded-full px-2.5 py-1.5 transition-colors",
+                openMenu === m ? "bg-[#232327] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]" : "text-[#a7a7b0] hover:bg-[#232327] hover:text-white",
               )}
             >
               {m}
             </button>
             {openMenu === m && (
-              <div className="absolute left-0 top-full z-50 mt-1 w-[220px] overflow-hidden rounded-md border border-[#2c2c31] bg-[#1c1c1f]">
+              <div className="absolute left-0 top-full z-50 mt-1 max-h-[70vh] w-[240px] overflow-y-auto rounded-xl border border-[#2c2c31] bg-[#1c1c1f] p-1 shadow-[0_12px_32px_rgba(0,0,0,0.5)]">
                 {MENUS[m].map((it) => (
                   <button
                     key={it.label}
                     onClick={() => runAction(it.action)}
-                    className="flex w-full items-center justify-between px-3 py-2 text-left text-[12px] text-[#c9c9d1] hover:bg-[#2f7cf6] hover:text-white"
+                    className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[12px] text-[#c9c9d1] hover:bg-[#2f7cf6] hover:text-white"
                   >
                     <span>{it.label}</span>
                     {it.hint && <span className="font-mono text-[10px] opacity-60">{it.hint}</span>}
@@ -742,17 +742,19 @@ export default function TitleBar({
 
       <button
         onClick={onOpenCommand}
-        className="ml-2 hidden items-center gap-1.5 rounded-md border border-[#2c2c31] bg-[#161618] px-2.5 py-1.5 text-[11.5px] text-[#6e6e78] hover:border-[#3a3a41] hover:text-white md:flex"
+        className="ml-2 hidden items-center gap-1.5 rounded-full border border-[#2c2c31] bg-[#161618] px-3 py-1.5 text-[11.5px] text-[#6e6e78] hover:border-[#3a3a41] hover:text-white md:flex transition-colors"
       >
         <Search size={13} /> Ctrl+K semua aksi
       </button>
 
       <div className="ml-auto flex items-center gap-2 text-[11px]">
-        <span className="hidden max-w-[280px] truncate rounded border border-[#2c2c31] bg-[#161618] px-2 py-1 font-mono text-[#a7a7b0] xl:block">
+        <span className="hidden max-w-[280px] truncate rounded-full border border-[#2c2c31] bg-[#161618] px-2.5 py-1 font-mono text-[#a7a7b0] xl:flex items-center gap-1.5">
+          <span className={`h-1.5 w-1.5 rounded-full ${doc.dirty ? "bg-[#d9a441] animate-pulse" : "bg-[#7ad69e]"}`} />
           {doc.name}
-          {doc.dirty ? " *" : ""} {doc.width}x{doc.height}
+          {doc.dirty ? " *" : ""} • {doc.width}x{doc.height}
         </span>
-        <span className={doc.dirty ? "text-[#d9a441]" : "text-[#6e6e78]"}>
+        <span className={clsx("hidden items-center gap-1 rounded-full px-2 py-1 font-mono text-[10px] sm:flex", doc.dirty ? "bg-[#3a2f14] text-amber-200" : "bg-[#1a2b1f] text-[#7ad69e]")}>
+          <span className={`h-1 w-1 rounded-full ${doc.dirty ? "bg-amber-300" : "bg-[#7ad69e]"}`} />
           {doc.dirty ? "Belum disimpan" : "Tersimpan"}
         </span>
       </div>

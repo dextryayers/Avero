@@ -198,10 +198,6 @@ export default function App() {
           if (id) {
             const c = layerManager.get(id);
             if (c) {
-              const sel = (window as any).__avero_hasSelection?.() ? null : null;
-              // jika ada seleksi, hapus di dalam seleksi, else clear penuh via mask
-              // sederhana: clear 1 tile di tengah untuk feedback
-              // sebenarnya CanvasArea sudah handle Delete untuk selection, ini fallback
               clearSelectionMask();
               window.dispatchEvent(new Event("avero:selection-changed"));
             }

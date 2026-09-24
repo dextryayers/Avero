@@ -183,10 +183,24 @@ export async function saveAvxProject(saveAs = false): Promise<string | null> {
     doc: { ...s.doc, projectPath: isTauri() ? path : s.doc.projectPath, dirty: false },
   }));
   const short = (isTauri() ? path : doc.name).split(/[/\\]/).pop() ?? doc.name;
+  // thumbnail untuk recent: komposit ringan
+  let thumb: string | null = null;
+  try {
+    const comp = getCompositeCanvas();
+    if (comp) thumb = thumbOf(comp);
+    if (!thumb) {
+      const tmp = document.createElement("canvas");
+      tmp.width = Math.min(320, doc.width);
+      tmp.height = Math.max(1, Math.round((tmp.width * doc.height) / Math.max(1, doc.width)));
+      const c = layerManager.get(ed.layers[0]?.id ?? "");
+      if (c) tmp.getContext("2d")!.drawImage(c, 0, 0, tmp.width, tmp.height);
+      thumb = tmp.toDataURL("image/jpeg", 0.6);
+    }
+  } catch { thumb = null; }
   useHomeStore.getState().pushRecent({
     name: short,
     path: isTauri() ? path : null,
-    thumb: null,
+    thumb,
     full: null,
     w: doc.width,
     h: doc.height,

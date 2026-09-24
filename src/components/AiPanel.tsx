@@ -61,13 +61,11 @@ export default function AiPanel() {
               if (!active) throw new Error("Tidak ada layer");
               const snap = layerManager.snapshot(active.id);
               if (snap)
-                useEditorStore
-                  .getState()
-                  .pushHistory({
-                    label: "AI background remove",
-                    layerId: active.id,
-                    snapshot: snap,
-                  });
+                useEditorStore.getState().pushHistory({
+                  label: "AI background remove",
+                  layerId: active.id,
+                  snapshot: snap,
+                });
               updateJob(job.id, { progress: 6 });
               const out = await backgroundRemoveAlpha(active.canvas, tol, (p) =>
                 updateJob(job.id, { progress: p }),
@@ -199,13 +197,11 @@ export default function AiPanel() {
                 if (!active) throw new Error("Tidak ada layer");
                 const snap = layerManager.snapshot(active.id);
                 if (snap)
-                  useEditorStore
-                    .getState()
-                    .pushHistory({
-                      label: "AI color transfer",
-                      layerId: active.id,
-                      snapshot: snap,
-                    });
+                  useEditorStore.getState().pushHistory({
+                    label: "AI color transfer",
+                    layerId: active.id,
+                    snapshot: snap,
+                  });
                 const id = active.canvas
                   .getContext("2d", { willReadFrequently: true })!
                   .getImageData(0, 0, active.canvas.width, active.canvas.height);

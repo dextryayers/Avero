@@ -95,7 +95,7 @@ export default function CanvasArea() {
     const z = fitZoom(doc.width, doc.height, r.width - 80, r.height - 80);
     setZoom(Math.max(10, Math.min(100, z)));
     setPan(0, 0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // deps render komposit disengaja
   }, [doc.width, doc.height]);
 
   // Marching ants animation
@@ -337,7 +337,7 @@ export default function CanvasArea() {
       ctx.stroke();
       ctx.restore();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // deps render komposit disengaja
   }, [
     layers,
     activeLayerId,

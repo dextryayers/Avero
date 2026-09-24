@@ -58,9 +58,9 @@
   },
   "plugins": {
     "updater": {
-      "active": true,
+      "active": false,
       "endpoints": ["https://github.com/psdstudio/psd-studio/releases/latest/download/latest.json"],
-      "dialog": true,
+      "dialog": false,
       "pubkey": "TODO-REPLACE-WITH-UPDATE-PUBKEY"
     }
   }

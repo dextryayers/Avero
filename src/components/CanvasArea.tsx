@@ -1024,7 +1024,7 @@ export default function CanvasArea() {
     useProStore.getState().bumpHistogram();
   }
 
-  // Enter terapkan crop, Esc batal — hanya saat tool crop aktif
+  // Enter terapkan crop, Esc batal. Hanya saat tool crop aktif.
   useEffect(() => {
     if (tool !== "crop" || !cropDrag) return;
     function onKey(e: KeyboardEvent) {

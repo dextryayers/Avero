@@ -197,7 +197,7 @@ export default function FilterPanel() {
               </>
             )}
             {(f.type === "emboss" || f.type === "findEdges") && (
-              <div className="text-[10px] text-[#8a94a6]">Tanpa parameter berat — atur via Opacity.</div>
+              <div className="text-[10px] text-[#8a94a6]">Tanpa parameter. Atur via Opacity.</div>
             )}
             <label className="text-[11px] text-[#a0a0a0]">Opacity {f.opacity}%</label>
             <input

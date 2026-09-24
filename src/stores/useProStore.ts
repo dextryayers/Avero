@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-// Adjustment non-destructive — super lengkap ala Photoshop
+// Adjustment non-destructive lengkap ala Photoshop
 export type AdjustmentType =
   | "brightnessContrast"
   | "levels"
@@ -30,7 +30,7 @@ export interface AdjustmentEntry {
   params: Record<string, number>;
 }
 
-// Filter stack — super lengkap
+// Filter stack lengkap
 export type FilterType =
   | "gaussianBlur"
   | "boxBlur"

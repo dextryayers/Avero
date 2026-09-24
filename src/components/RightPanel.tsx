@@ -67,11 +67,13 @@ const tabs: { id: Tab; label: string }[] = [
 
 let __rpCount = 0;
 export default function RightPanel() {
-  __rpCount++;
-  if (__rpCount < 12) console.log(`[BISECT] RightPanel render #${__rpCount}`);
   const [tab, setTab] = useState<Tab>("history");
   const workspaceTab = useWorkspaceStore((s) => s.rightTab);
+  __rpCount++;
+  if (__rpCount <= 8 || __rpCount % 25 === 0)
+    console.log(`[BISECT] render #${__rpCount} tab=${tab} workspaceTab=${workspaceTab}`);
   useEffect(() => {
+    console.log(`[BISECT] RightPanel effect workspaceTab=${workspaceTab}`);
     if (workspaceTab && (tabs as { id: string }[]).some((t) => t.id === workspaceTab)) {
       setTab(workspaceTab as Tab);
       useWorkspaceStore.getState().setRightTab(null);

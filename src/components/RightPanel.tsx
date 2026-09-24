@@ -65,8 +65,11 @@ const tabs: { id: Tab; label: string }[] = [
   { id: "history", label: "Hist" },
 ];
 
+let __rpCount = 0;
 export default function RightPanel() {
-  const [tab, setTab] = useState<Tab>("layers");
+  __rpCount++;
+  if (__rpCount < 12) console.log(`[BISECT] RightPanel render #${__rpCount}`);
+  const [tab, setTab] = useState<Tab>("history");
   const workspaceTab = useWorkspaceStore((s) => s.rightTab);
   useEffect(() => {
     if (workspaceTab && (tabs as { id: string }[]).some((t) => t.id === workspaceTab)) {

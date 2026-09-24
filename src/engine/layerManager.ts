@@ -76,7 +76,7 @@ class LayerManager {
     id: string,
     feather: number,
     density: number,
-    enabled: boolean
+    enabled: boolean,
   ): HTMLCanvasElement | undefined {
     const src = this.canvases.get(id);
     if (!src) return undefined;

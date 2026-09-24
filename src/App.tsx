@@ -5,23 +5,25 @@ import CanvasArea from "./components/CanvasArea";
 import RightPanel from "./components/RightPanel";
 import StatusBar from "./components/StatusBar";
 import CommandPalette from "./components/CommandPalette";
+import PsdInfo from "./components/PsdInfo";
 import { useEditorStore } from "./stores/useEditorStore";
+import { useProStore } from "./stores/useProStore";
 import { layerManager } from "./engine/layerManager";
+import { clearSelectionMask } from "./engine/selection";
 
 export default function App() {
   const [palette, setPalette] = useState(false);
   const newDocument = useEditorStore((s) => s.newDocument);
 
-  // init dokumen default sekali
   useEffect(() => {
     const s = useEditorStore.getState();
     if (s.layers.length > 0 && !s.activeLayerId) {
       useEditorStore.setState({ activeLayerId: s.layers[0].id });
     }
     layerManager.ensure(s.layers[0].id, s.doc.width, s.doc.height);
+    useProStore.getState().ensureTransform(s.layers[0].id);
   }, []);
 
-  // shortcut global profesional
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const mod = e.ctrlKey || e.metaKey;
@@ -29,12 +31,17 @@ export default function App() {
         e.preventDefault();
         setPalette((v) => !v);
       }
+      if (mod && e.key.toLowerCase() === "d") {
+        e.preventDefault();
+        clearSelectionMask();
+      }
       if (mod && e.key.toLowerCase() === "z" && !e.shiftKey) {
         e.preventDefault();
         const entry = useEditorStore.getState().undoMeta();
         if (entry) {
           layerManager.restore(entry.layerId, entry.snapshot);
           useEditorStore.getState().markDirty();
+          useProStore.getState().bumpHistogram();
         }
       }
       if (
@@ -49,9 +56,14 @@ export default function App() {
         const map: Record<string, any> = {
           v: "move",
           m: "select-rect",
+          l: "select-lasso",
+          w: "wand",
           b: "brush",
           e: "eraser",
           i: "eyedropper",
+          t: "text",
+          u: "shape-rect",
+          o: "shape-ellipse",
           h: "pan",
           z: "zoom",
         };
@@ -61,11 +73,10 @@ export default function App() {
           document.activeElement?.tagName !== "TEXTAREA"
         ) {
           useEditorStore.getState().setTool(map[t]);
+          if (t === "m" || t === "l" || t === "w") {
+            useProStore.getState().setSelKind(t === "m" ? "rect" : t === "l" ? "lasso" : "wand");
+          }
         }
-      }
-      if (e.key === " ") {
-        // tahan spasi untuk pan sementara: ubah cursor via tool pan
-        // sederhana: tidak ubah tool permanen, hanya flag di CanvasArea via key state global
       }
     }
     window.addEventListener("keydown", onKey);
@@ -75,6 +86,7 @@ export default function App() {
   return (
     <div className="flex h-full flex-col bg-[#1e1e1e] text-[#e0e0e0]">
       <TitleBar onOpenCommand={() => setPalette(true)} />
+      <PsdInfo />
       <div className="flex min-h-0 flex-1">
         <ToolBar />
         <CanvasArea />
@@ -83,15 +95,19 @@ export default function App() {
       <StatusBar />
       <CommandPalette open={palette} onClose={() => setPalette(false)} />
 
-      {/* Hint bar Fase 1 */}
       <div className="flex items-center gap-2 border-t border-[#3e3e42] bg-[#1a1a1a] px-3 py-1 text-[10px] text-[#a0a0a0]">
         <span>
-          Fase 0 selesai: installer shell + Rust IPC. Fase 1 MVP: brush, layer, undo, open PNG JPG
-          PSD, export. Tekan Ctrl+K untuk semua aksi.
+          Fase 2: select, mask, adjust 9, filter 6, text, shape, transform. Fase 3: color space,
+          histogram, proofing, RAW develop. Ctrl+K semua aksi, Ctrl+D deselect.
         </span>
         <button
-          onClick={() => newDocument("Untitled", 1920, 1080)}
-          className="ml-auto rounded bg-[#2d2d2d] px-2 py-0.5 hover:bg-[#3e3e42] hover:text-white"
+          onClick={() => {
+            layerManager.clear();
+            newDocument("Untitled", 1920, 1080);
+            clearSelectionMask();
+            useProStore.getState().bumpHistogram();
+          }}
+          className="ml-auto shrink-0 rounded bg-[#2d2d2d] px-2 py-0.5 hover:bg-[#3e3e42] hover:text-white"
         >
           New 1920x1080
         </button>

@@ -52,7 +52,7 @@ export default function ToolBar() {
               "grid h-9 w-9 shrink-0 place-items-center rounded-md transition-colors",
               active
                 ? "bg-[#0a84ff] text-white"
-                : "text-[#c5c5c5] hover:bg-[#3e3e42] hover:text-white"
+                : "text-[#c5c5c5] hover:bg-[#3e3e42] hover:text-white",
             )}
           >
             <Icon size={17} strokeWidth={1.8} />

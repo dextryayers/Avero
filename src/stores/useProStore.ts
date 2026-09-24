@@ -22,7 +22,8 @@ export interface AdjustmentEntry {
 }
 
 // Fase 2.5: Filter stack
-export type FilterType = "gaussianBlur" | "boxBlur" | "motionBlur" | "sharpen" | "noise" | "pixelate";
+export type FilterType =
+  "gaussianBlur" | "boxBlur" | "motionBlur" | "sharpen" | "noise" | "pixelate";
 
 export interface FilterEntry {
   id: string;
@@ -77,11 +78,36 @@ interface ProState {
   masks: Record<string, { enabled: boolean; feather: number; density: number; hasMask: boolean }>;
   paintMask: boolean;
   // transform per layer
-  transforms: Record<string, { x: number; y: number; scaleX: number; scaleY: number; rotation: number }>;
+  transforms: Record<
+    string,
+    { x: number; y: number; scaleX: number; scaleY: number; rotation: number }
+  >;
   color: ColorState;
   raw: RawState;
-  textSpecs: Record<string, { text: string; fontFamily: string; fontSize: number; color: string; bold: boolean; italic: boolean; tracking: number; leading: number }>;
-  shapeSpecs: Record<string, { kind: "rect" | "ellipse" | "polygon"; fill: string; stroke: string; strokeWidth: number; sides: number; rotation: number }>;
+  textSpecs: Record<
+    string,
+    {
+      text: string;
+      fontFamily: string;
+      fontSize: number;
+      color: string;
+      bold: boolean;
+      italic: boolean;
+      tracking: number;
+      leading: number;
+    }
+  >;
+  shapeSpecs: Record<
+    string,
+    {
+      kind: "rect" | "ellipse" | "polygon";
+      fill: string;
+      stroke: string;
+      strokeWidth: number;
+      sides: number;
+      rotation: number;
+    }
+  >;
   setTextSpec: (layerId: string, spec: ProState["textSpecs"][string]) => void;
   setShapeSpec: (layerId: string, spec: ProState["shapeSpecs"][string]) => void;
 
@@ -169,8 +195,25 @@ export const useProStore = create<ProState>((set) => ({
   masks: {},
   paintMask: false,
   transforms: {},
-  color: { workingSpace: "sRGB", bitDepth: 8, proofEnabled: false, proofProfile: "CMYK US Web Coated", gamutWarning: false },
-  raw: { isRaw: false, fileName: null, exposure: 0, temperature: 5500, tint: 0, highlights: 0, shadows: 0, whites: 0, blacks: 0, vibrance: 0 },
+  color: {
+    workingSpace: "sRGB",
+    bitDepth: 8,
+    proofEnabled: false,
+    proofProfile: "CMYK US Web Coated",
+    gamutWarning: false,
+  },
+  raw: {
+    isRaw: false,
+    fileName: null,
+    exposure: 0,
+    temperature: 5500,
+    tint: 0,
+    highlights: 0,
+    shadows: 0,
+    whites: 0,
+    blacks: 0,
+    vibrance: 0,
+  },
   textSpecs: {},
   shapeSpecs: {},
   histogramTick: 0,
@@ -182,13 +225,24 @@ export const useProStore = create<ProState>((set) => ({
     set((s) => ({
       adjustments: [
         ...s.adjustments,
-        { id: uid("adj"), type, name: adjNames[type], enabled: true, opacity: 100, params: { ...defaultParams[type] } },
+        {
+          id: uid("adj"),
+          type,
+          name: adjNames[type],
+          enabled: true,
+          opacity: 100,
+          params: { ...defaultParams[type] },
+        },
       ],
     })),
   updateAdjustment: (id, p) =>
     set((s) => ({ adjustments: s.adjustments.map((a) => (a.id === id ? { ...a, ...p } : a)) })),
   updateAdjustmentParams: (id, params) =>
-    set((s) => ({ adjustments: s.adjustments.map((a) => (a.id === id ? { ...a, params: { ...a.params, ...params } } : a)) })),
+    set((s) => ({
+      adjustments: s.adjustments.map((a) =>
+        a.id === id ? { ...a, params: { ...a.params, ...params } } : a,
+      ),
+    })),
   removeAdjustment: (id) => set((s) => ({ adjustments: s.adjustments.filter((a) => a.id !== id) })),
   moveAdjustment: (id, dir) =>
     set((s) => {
@@ -203,11 +257,26 @@ export const useProStore = create<ProState>((set) => ({
 
   addFilter: (type) =>
     set((s) => ({
-      filters: [...s.filters, { id: uid("flt"), type, name: filterNames[type], enabled: true, opacity: 100, params: { ...filterParams[type] } }],
+      filters: [
+        ...s.filters,
+        {
+          id: uid("flt"),
+          type,
+          name: filterNames[type],
+          enabled: true,
+          opacity: 100,
+          params: { ...filterParams[type] },
+        },
+      ],
     })),
-  updateFilter: (id, p) => set((s) => ({ filters: s.filters.map((f) => (f.id === id ? { ...f, ...p } : f)) })),
+  updateFilter: (id, p) =>
+    set((s) => ({ filters: s.filters.map((f) => (f.id === id ? { ...f, ...p } : f)) })),
   updateFilterParams: (id, params) =>
-    set((s) => ({ filters: s.filters.map((f) => (f.id === id ? { ...f, params: { ...f.params, ...params } } : f)) })),
+    set((s) => ({
+      filters: s.filters.map((f) =>
+        f.id === id ? { ...f, params: { ...f.params, ...params } } : f,
+      ),
+    })),
   removeFilter: (id) => set((s) => ({ filters: s.filters.filter((f) => f.id !== id) })),
   moveFilter: (id, dir) =>
     set((s) => {
@@ -222,10 +291,15 @@ export const useProStore = create<ProState>((set) => ({
 
   ensureMask: (layerId) =>
     set((s) => ({
-      masks: { ...s.masks, [layerId]: s.masks[layerId] ?? { enabled: true, feather: 0, density: 100, hasMask: true } },
+      masks: {
+        ...s.masks,
+        [layerId]: s.masks[layerId] ?? { enabled: true, feather: 0, density: 100, hasMask: true },
+      },
     })),
   updateMask: (layerId, p) =>
-    set((s) => ({ masks: { ...s.masks, [layerId]: { ...s.masks[layerId], ...p } as ProState["masks"][string] } })),
+    set((s) => ({
+      masks: { ...s.masks, [layerId]: { ...s.masks[layerId], ...p } as ProState["masks"][string] },
+    })),
   removeMaskEntry: (layerId) =>
     set((s) => {
       const m = { ...s.masks };
@@ -236,19 +310,38 @@ export const useProStore = create<ProState>((set) => ({
 
   ensureTransform: (layerId) =>
     set((s) => ({
-      transforms: { ...s.transforms, [layerId]: s.transforms[layerId] ?? { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 } },
+      transforms: {
+        ...s.transforms,
+        [layerId]: s.transforms[layerId] ?? { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
+      },
     })),
   updateTransform: (layerId, p) =>
-    set((s) => ({ transforms: { ...s.transforms, [layerId]: { ...s.transforms[layerId], ...p } as ProState["transforms"][string] } })),
+    set((s) => ({
+      transforms: {
+        ...s.transforms,
+        [layerId]: { ...s.transforms[layerId], ...p } as ProState["transforms"][string],
+      },
+    })),
 
   setColor: (p) => set((s) => ({ color: { ...s.color, ...p } })),
   setRaw: (p) => set((s) => ({ raw: { ...s.raw, ...p } })),
   resetRaw: () =>
     set((s) => ({
-      raw: { ...s.raw, exposure: 0, temperature: 5500, tint: 0, highlights: 0, shadows: 0, whites: 0, blacks: 0, vibrance: 0 },
+      raw: {
+        ...s.raw,
+        exposure: 0,
+        temperature: 5500,
+        tint: 0,
+        highlights: 0,
+        shadows: 0,
+        whites: 0,
+        blacks: 0,
+        vibrance: 0,
+      },
     })),
   setTextSpec: (layerId, spec) => set((s) => ({ textSpecs: { ...s.textSpecs, [layerId]: spec } })),
-  setShapeSpec: (layerId, spec) => set((s) => ({ shapeSpecs: { ...s.shapeSpecs, [layerId]: spec } })),
+  setShapeSpec: (layerId, spec) =>
+    set((s) => ({ shapeSpecs: { ...s.shapeSpecs, [layerId]: spec } })),
   bumpHistogram: () => set((s) => ({ histogramTick: s.histogramTick + 1 })),
 }));
 

@@ -83,7 +83,7 @@ export function wandFromImage(
   img: ImageData,
   sx: number,
   sy: number,
-  tolerance: number
+  tolerance: number,
 ) {
   const c = ensureSel(w, h);
   const ctx = c.getContext("2d")!;

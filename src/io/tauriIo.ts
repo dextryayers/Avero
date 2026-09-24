@@ -16,7 +16,23 @@ export async function pickImageToOpen(): Promise<string | null> {
       filters: [
         {
           name: "Image",
-          extensions: ["png", "jpg", "jpeg", "webp", "bmp", "tiff", "tif", "gif", "psd"],
+          extensions: [
+            "png",
+            "jpg",
+            "jpeg",
+            "webp",
+            "bmp",
+            "tiff",
+            "tif",
+            "gif",
+            "psd",
+            "cr2",
+            "cr3",
+            "nef",
+            "arw",
+            "raf",
+            "dng",
+          ],
         },
       ],
     });
@@ -58,6 +74,31 @@ export async function rustDecodeToDataUrl(path: string, maxSide = 2048): Promise
 
 export async function rustSaveDataUrl(dataUrl: string, path: string): Promise<void> {
   await invoke("cmd_save_dataurl_to_file", { dataUrl: dataUrl, path });
+}
+
+export interface PsdLayerInfo {
+  index: number;
+  name: string;
+  width: number;
+  height: number;
+  opacity: number;
+  visible: boolean;
+  kind: string;
+}
+
+export async function rustPsdLayers(path: string): Promise<PsdLayerInfo[]> {
+  return invoke<PsdLayerInfo[]>("cmd_psd_layer_list", { path });
+}
+
+export interface RawInfo {
+  is_raw: boolean;
+  format: string;
+  file_size: number;
+  note: string;
+}
+
+export async function rustRawInfo(path: string): Promise<RawInfo> {
+  return invoke<RawInfo>("cmd_raw_info", { path });
 }
 
 export async function checkBackend(): Promise<{ ok: boolean; info: string }> {

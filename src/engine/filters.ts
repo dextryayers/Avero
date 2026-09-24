@@ -3,7 +3,10 @@ import type { FilterEntry } from "../stores/useProStore";
 // Fase 2.5: Filter stack. Gunakan ctx.filter GPU browser untuk blur,
 // convolution manual untuk sharpen, noise additive, pixelate via downscale.
 
-export function applyFilterToCanvas(src: HTMLCanvasElement, filter: FilterEntry): HTMLCanvasElement {
+export function applyFilterToCanvas(
+  src: HTMLCanvasElement,
+  filter: FilterEntry,
+): HTMLCanvasElement {
   if (!filter.enabled || filter.opacity <= 0) return src;
   const p = filter.params;
   const out = document.createElement("canvas");

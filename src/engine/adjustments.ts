@@ -70,7 +70,11 @@ export function applyAdjustmentToImageData(img: ImageData, adj: AdjustmentEntry)
       const lAdd = (p.lightness ?? 0) * 2.55;
       for (let i = 0; i < d.length; i += 4) {
         const [h, s, l] = rgbToHsl(d[i], d[i + 1], d[i + 2]);
-        const [r, g, b] = hslToRgb((h + hShift + 1) % 1, Math.min(1, Math.max(0, s * sMul)), Math.min(1, Math.max(0, l + lAdd / 255)));
+        const [r, g, b] = hslToRgb(
+          (h + hShift + 1) % 1,
+          Math.min(1, Math.max(0, s * sMul)),
+          Math.min(1, Math.max(0, l + lAdd / 255)),
+        );
         d[i] = r;
         d[i + 1] = g;
         d[i + 2] = b;
@@ -110,9 +114,9 @@ export function applyAdjustmentToImageData(img: ImageData, adj: AdjustmentEntry)
       const lv = Math.max(2, Math.min(16, Math.round(p.levels ?? 4)));
       const step = 255 / (lv - 1);
       for (let i = 0; i < d.length; i += 4) {
-        d[i] = Math.round(Math.round(d[i] / 255 * (lv - 1)) * step);
-        d[i + 1] = Math.round(Math.round(d[i + 1] / 255 * (lv - 1)) * step);
-        d[i + 2] = Math.round(Math.round(d[i + 2] / 255 * (lv - 1)) * step);
+        d[i] = Math.round(Math.round((d[i] / 255) * (lv - 1)) * step);
+        d[i + 1] = Math.round(Math.round((d[i + 1] / 255) * (lv - 1)) * step);
+        d[i + 2] = Math.round(Math.round((d[i + 2] / 255) * (lv - 1)) * step);
       }
       break;
     }
@@ -155,7 +159,18 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
 }
 
 // Terapkan RAW develop sebagai kombinasi exposure + WB sederhana.
-export function applyRawDevelop(img: ImageData, raw: { exposure: number; temperature: number; tint: number; highlights: number; shadows: number; whites: number; blacks: number }) {
+export function applyRawDevelop(
+  img: ImageData,
+  raw: {
+    exposure: number;
+    temperature: number;
+    tint: number;
+    highlights: number;
+    shadows: number;
+    whites: number;
+    blacks: number;
+  },
+) {
   const d = img.data;
   const evMul = Math.pow(2, raw.exposure);
   const tempShift = (raw.temperature - 5500) / 5500; // -1..1

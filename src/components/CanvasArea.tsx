@@ -28,7 +28,9 @@ export default function CanvasArea() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [cursor, setCursor] = useState("0, 0");
   const [isPainting, setIsPainting] = useState(false);
-  const [selDrag, setSelDrag] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
+  const [selDrag, setSelDrag] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(
+    null,
+  );
   const [lassoPts, setLassoPts] = useState<{ x: number; y: number }[]>([]);
   const [ants, setAnts] = useState(0);
   const lastPos = useRef<{ x: number; y: number } | null>(null);
@@ -37,8 +39,7 @@ export default function CanvasArea() {
 
   const doc = useEditorStore((s) => s.doc);
   const layers = useEditorStore((s) => s.layers);
-  const activeLayerId =
-    useEditorStore((s) => s.activeLayerId ?? s.layers[s.layers.length - 1]?.id);
+  const activeLayerId = useEditorStore((s) => s.activeLayerId ?? s.layers[s.layers.length - 1]?.id);
   const tool = useEditorStore((s) => s.tool);
   const zoom = useEditorStore((s) => s.zoom);
   const panX = useEditorStore((s) => s.panX);
@@ -68,8 +69,7 @@ export default function CanvasArea() {
   useEffect(() => {
     function onOpened(e: Event) {
       const detail = (e as CustomEvent).detail as { dataUrl: string; w: number; h: number };
-      const id =
-        useEditorStore.getState().activeLayerId ?? useEditorStore.getState().layers[0]?.id;
+      const id = useEditorStore.getState().activeLayerId ?? useEditorStore.getState().layers[0]?.id;
       if (!id) return;
       const img = new Image();
       img.onload = () => {
@@ -146,7 +146,7 @@ export default function CanvasArea() {
         l.id,
         m?.feather ?? 0,
         m?.density ?? 100,
-        !!m?.hasMask && !!m?.enabled
+        !!m?.hasMask && !!m?.enabled,
       );
       if (!src) return;
       const t = transforms[l.id];
@@ -454,7 +454,16 @@ export default function CanvasArea() {
     const l = makeLayer(`Text ${st.layers.length + 1}`);
     (l as any).kind = "text";
     layerManager.ensure(l.id, doc.width, doc.height);
-    const spec = { text: "Edit teks di panel", fontFamily: "Inter", fontSize: Math.max(24, Math.round(doc.width / 24)), color: "#ffffff", bold: true, italic: false, tracking: 0, leading: 1.25 };
+    const spec = {
+      text: "Edit teks di panel",
+      fontFamily: "Inter",
+      fontSize: Math.max(24, Math.round(doc.width / 24)),
+      color: "#ffffff",
+      bold: true,
+      italic: false,
+      tracking: 0,
+      leading: 1.25,
+    };
     pro.setTextSpec(l.id, spec);
     const c = layerManager.ensure(l.id, doc.width, doc.height);
     renderTextToLayer(c, spec, Math.round(p.x), Math.round(p.y));
@@ -468,7 +477,14 @@ export default function CanvasArea() {
     const pro = useProStore.getState();
     const l = makeLayer(`Shape ${st.layers.length + 1}`);
     layerManager.ensure(l.id, doc.width, doc.height);
-    const spec = { kind, fill: "#0a84ff", stroke: "#ffffff", strokeWidth: 3, sides: 6, rotation: 0 };
+    const spec = {
+      kind,
+      fill: "#0a84ff",
+      stroke: "#ffffff",
+      strokeWidth: 3,
+      sides: 6,
+      rotation: 0,
+    };
     pro.setShapeSpec(l.id, spec);
     renderShapeToLayer(layerManager.ensure(l.id, doc.width, doc.height), spec);
     st.addLayer({ ...l, kind: "shape" });
@@ -578,7 +594,7 @@ export default function CanvasArea() {
           if (panning.current) {
             setPan(
               panning.current.px + (e.clientX - panning.current.sx),
-              panning.current.py + (e.clientY - panning.current.sy)
+              panning.current.py + (e.clientY - panning.current.sy),
             );
             return;
           }
@@ -589,7 +605,10 @@ export default function CanvasArea() {
             useProStore.getState().ensureTransform(activeLayerId);
             useProStore
               .getState()
-              .updateTransform(activeLayerId, { x: moveDrag.current.ox + dx, y: moveDrag.current.oy + dy });
+              .updateTransform(activeLayerId, {
+                x: moveDrag.current.ox + dx,
+                y: moveDrag.current.oy + dy,
+              });
             return;
           }
           if (selDrag) {

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useEditorStore, makeLayer } from "../stores/useEditorStore";
+import { useProStore } from "../stores/useProStore";
 import { layerManager } from "../engine/layerManager";
+import { getCompositeCanvas } from "./CanvasArea";
 import {
   pickImageToOpen,
   pickSavePath,
@@ -61,23 +63,28 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
       },
       {
         id: "save",
-        title: "Export composite PNG JPG WEBP",
+        title: "Export composite PNG JPG WEBP (dengan adjust+filter)",
         run: async () => {
           const st = useEditorStore.getState();
-          const out = document.createElement("canvas");
-          out.width = st.doc.width;
-          out.height = st.doc.height;
-          const ctx = out.getContext("2d")!;
-          st.layers.forEach((l) => {
-            if (!l.visible) return;
-            const lc = layerManager.get(l.id);
-            if (!lc) return;
-            ctx.save();
-            ctx.globalAlpha = l.opacity / 100;
-            ctx.drawImage(lc, 0, 0);
-            ctx.restore();
-          });
-          const dataUrl = out.toDataURL("image/png");
+          const comp = getCompositeCanvas();
+          const dataUrl = comp
+            ? comp.toDataURL("image/png")
+            : (() => {
+                const out = document.createElement("canvas");
+                out.width = st.doc.width;
+                out.height = st.doc.height;
+                const ctx = out.getContext("2d")!;
+                st.layers.forEach((l) => {
+                  if (!l.visible) return;
+                  const lc = layerManager.get(l.id);
+                  if (!lc) return;
+                  ctx.save();
+                  ctx.globalAlpha = l.opacity / 100;
+                  ctx.drawImage(lc, 0, 0);
+                  ctx.restore();
+                });
+                return out.toDataURL("image/png");
+              })();
           const path = await pickSavePath(`${st.doc.name || "psd-studio"}.png`);
           if (!path) return;
           await rustSaveDataUrl(dataUrl, path);
@@ -100,7 +107,65 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
       { id: "rulers", title: "Toggle rulers", run: () => s.toggleRulers() },
       { id: "brush", title: "Tool brush", run: () => s.setTool("brush") },
       { id: "eraser", title: "Tool eraser", run: () => s.setTool("eraser") },
-      { id: "move", title: "Tool move", run: () => s.setTool("move") },
+      { id: "move", title: "Tool move / transform", run: () => s.setTool("move") },
+      {
+        id: "sel-rect",
+        title: "Tool rect select",
+        run: () => {
+          s.setTool("select-rect");
+          useProStore.getState().setSelKind("rect");
+        },
+      },
+      {
+        id: "sel-lasso",
+        title: "Tool lasso select",
+        run: () => {
+          s.setTool("select-lasso");
+          useProStore.getState().setSelKind("lasso");
+        },
+      },
+      {
+        id: "wand",
+        title: "Tool magic wand",
+        run: () => {
+          s.setTool("wand");
+          useProStore.getState().setSelKind("wand");
+        },
+      },
+      { id: "text", title: "Tool text", run: () => s.setTool("text") },
+      {
+        id: "add-adjust-bc",
+        title: "Add adjustment brightness/contrast",
+        run: () => useProStore.getState().addAdjustment("brightnessContrast"),
+      },
+      {
+        id: "add-adjust-levels",
+        title: "Add adjustment levels",
+        run: () => useProStore.getState().addAdjustment("levels"),
+      },
+      {
+        id: "add-adjust-exposure",
+        title: "Add adjustment exposure",
+        run: () => useProStore.getState().addAdjustment("exposure"),
+      },
+      {
+        id: "add-filter-gauss",
+        title: "Add filter gaussian blur",
+        run: () => useProStore.getState().addFilter("gaussianBlur"),
+      },
+      {
+        id: "add-filter-sharpen",
+        title: "Add filter sharpen",
+        run: () => useProStore.getState().addFilter("sharpen"),
+      },
+      {
+        id: "proof",
+        title: "Toggle soft proofing CMYK",
+        run: () => {
+          const c = useProStore.getState().color;
+          useProStore.getState().setColor({ proofEnabled: !c.proofEnabled });
+        },
+      },
     ];
   }, []);
 

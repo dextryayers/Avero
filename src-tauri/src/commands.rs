@@ -22,16 +22,27 @@ pub fn app_ping() -> AppInfo {
 pub fn document_info() -> serde_json::Value {
     serde_json::json!({
         "maxCanvas": 16384,
-        "supportedImport": ["png","jpg","jpeg","webp","bmp","tiff","tif","gif","psd"],
+        "supportedImport": ["png","jpg","jpeg","webp","bmp","tiff","tif","gif","psd","cr2","nef","arw","raf","dng"],
         "supportedExport": ["png","jpg","webp","tiff","bmp"],
-        "colorModes": ["8bit-sRGB"],
-        "phase": "fase-1-mvp"
+        "colorModes": ["8bit-sRGB","8bit-AdobeRGB","8bit-ProPhoto","16bit-sim"],
+        "phase": "fase-3-color-raw"
     })
 }
 
 #[tauri::command]
 pub fn list_fonts_system() -> Vec<String> {
-    // Fase 1 stub: enumerasi font penuh masuk Fase 2.
-    // Kembalikan list kosong agar frontend fallback ke system-ui.
-    Vec::new()
+    // Fase 2: daftar font umum lintas platform. Enumerasi OS penuh via fontconfig/directwrite masuk 1.0.
+    vec![
+        "Inter".into(),
+        "system-ui".into(),
+        "Arial".into(),
+        "Helvetica".into(),
+        "Segoe UI".into(),
+        "Ubuntu".into(),
+        "Noto Sans".into(),
+        "JetBrains Mono".into(),
+        "Consolas".into(),
+        "Georgia".into(),
+        "Times New Roman".into(),
+    ]
 }

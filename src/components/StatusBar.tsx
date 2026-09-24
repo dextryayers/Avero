@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { useEditorStore } from "../stores/useEditorStore";
+import { useProStore } from "../stores/useProStore";
 
 export default function StatusBar() {
   const zoom = useEditorStore((s) => s.zoom);
@@ -7,8 +9,29 @@ export default function StatusBar() {
   const backendInfo = useEditorStore((s) => s.backendInfo);
   const toggleRulers = useEditorStore((s) => s.toggleRulers);
   const showRulers = useEditorStore((s) => s.showRulers);
+  const color = useProStore((s) => s.color);
+  const layers = useEditorStore((s) => s.layers);
+  const [mem, setMem] = useState<string>("");
 
-  const mp = ((doc.width * doc.height * 4) / 1024 / 1024).toFixed(1);
+  useEffect(() => {
+    const t = setInterval(() => {
+      try {
+        const perf: any = performance as any;
+        if (perf.memory) {
+          const mb = perf.memory.usedJSHeapSize / 1024 / 1024;
+          setMem(`${mb.toFixed(0)}MB heap`);
+        } else {
+          setMem("");
+        }
+      } catch {
+        setMem("");
+      }
+    }, 2500);
+    return () => clearInterval(t);
+  }, []);
+
+  const mp = ((doc.width * doc.height * 4 * Math.max(1, layers.length)) / 1024 / 1024).toFixed(1);
+  const tiles = Math.ceil(doc.width / 256) * Math.ceil(doc.height / 256);
 
   return (
     <div className="flex h-7 items-center gap-3 border-t border-[#3e3e42] bg-[#252526] px-3 text-[11px] text-[#a0a0a0]">
@@ -29,7 +52,8 @@ export default function StatusBar() {
         </button>
       </div>
       <span className="font-mono">
-        {doc.width}x{doc.height} • {mp} MB • sRGB 8bit
+        {doc.width}x{doc.height} • {mp} MB • {tiles} tiles • {color.workingSpace} {color.bitDepth}
+        -bit
       </span>
       <button
         onClick={toggleRulers}
@@ -37,6 +61,7 @@ export default function StatusBar() {
       >
         Rulers {showRulers ? "on" : "off"}
       </button>
+      {mem && <span className="font-mono">{mem}</span>}
       <span className="ml-auto max-w-[420px] truncate" title={backendInfo}>
         {backendInfo}
       </span>

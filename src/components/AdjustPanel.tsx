@@ -11,7 +11,7 @@ import {
   type NativeInfo,
   type NativeOp,
 } from "../io/nativeEngine";
-import { ChevronDown, ChevronUp, Cpu, Layers, Plus, Trash2, Zap } from "lucide-react";
+import { ChevronDown, ChevronUp, Cpu, Layers, Leaf, Plus, Trash2, Zap } from "lucide-react";
 
 const addable: { id: AdjustmentType; label: string }[] = [
   { id: "brightnessContrast", label: "Brightness" },
@@ -121,7 +121,10 @@ export default function AdjustPanel() {
     highlights: 30,
     hue: 30,
     opacity: 100,
+    noise: 16,
+    channelMode: 1,
   });
+  const [light, setLight] = useState(false);
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -155,7 +158,7 @@ export default function AdjustPanel() {
     setBusy("pipeline");
     try {
       const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height);
-      await nativePipelineCanvas(c, queue, []);
+      await nativePipelineCanvas(c, queue, [], light);
       st.markDirty();
       useProStore.getState().bumpHistogram();
       useAutomationStore.getState().pushStep(`Pipeline ${queue.length} ops`, { type: "pipeline/native", payload: { n: queue.length } });
@@ -258,10 +261,33 @@ export default function AdjustPanel() {
         </div>
       </div>
 
+      {/* Advance ringan RAM */}
+      <div className="space-y-2">
+        <div className="avero-micro flex items-center gap-1.5"><Leaf size={11} className="text-[#7ad69e]" /> Advance ringan RAM</div>
+        <div className="grid gap-2">
+          <NativeRow label="Equalize" desc="histogram equalize 256 bins, tanpa alloc gambar" busy={busy === "equalize"} onApply={() => runOp({ op: "equalize" }, "equalize")} />
+          <NativeRow label="Dither Floyd" desc="error diffusion, 2 row buffer" busy={busy === "dither"} onApply={() => {
+            const st = useEditorStore.getState();
+            runOp({ op: "dither", width: st.doc.width, height: st.doc.height }, "dither");
+          }} />
+          <NativeRow label="Noise Mono" desc="in-place, seed acak" busy={busy === "noise"} onApply={() => runOp({ op: "noiseMono", amount: p.noise }, "noise")}>
+            <Slider label="Amount" value={p.noise} min={0} max={64} onChange={(v) => setP({ ...p, noise: v })} />
+          </NativeRow>
+          <NativeRow label="Channel Swap" desc="permute RGB 0..5" busy={busy === "swap"} onApply={() => runOp({ op: "channelSwap", mode: p.channelMode }, "swap")}>
+            <Slider label="Mode" value={p.channelMode} min={0} max={5} onChange={(v) => setP({ ...p, channelMode: v })} />
+          </NativeRow>
+          <NativeRow label="Alpha Premultiply" desc="RGB * A, in-place" busy={busy === "premul"} onApply={() => runOp({ op: "alphaPremultiply" }, "premul")} />
+        </div>
+        <div className="rounded-md bg-[#1a2b1f] px-2 py-1.5 text-[10px] text-[#7ad69e]">Hanya LUT 256 atau histogram 1KB, tanpa duplikat full image.</div>
+      </div>
+
       {/* Pipeline */}
       <div className="avero-card space-y-2 p-3">
         <div className="flex items-center gap-1.5 text-[11px] font-semibold text-white"><Zap size={12} className="text-[#8fb6f5]" /> Studio pipeline</div>
-        <div className="text-[10px] text-[#6e6e78]">Antrekan beberapa operasi C, jalankan sekaligus dalam satu IPC Rust (tanpa round-trip).</div>
+        <div className="text-[10px] text-[#6e6e78]">Antrekan beberapa operasi C, jalankan sekaligus dalam satu IPC Rust (tanpa round-trip). Centang ringan untuk tiled 512.</div>
+        <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-[#a7a7b0]">
+          <input type="checkbox" checked={light} onChange={(e) => setLight(e.target.checked)} className="accent-[#2f7cf6]" /> Mode ringan (hemat RAM)
+        </label>
         <div className="flex flex-wrap gap-1">
           {[
             { k: "brightness", op: { op: "brightness" as const, amount: p.brightness } },

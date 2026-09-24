@@ -50,7 +50,16 @@ export default function ToolOptionsBar({
   }
 
   const retouchHint: Partial<Record<string, string>> = {
-    "spot-heal": "Klik atau lukis pada noda. J ganti Clone. Size dan Str mengatur kekuatan.",
+    "spot-heal": "Klik atau lukis pada noda. J ganti Healing Brush / Patch / Red Eye.",
+    "healing-brush": "Alt+klik sumber, lalu lukis untuk healing presisi.",
+    patch: "Seret area sumber ke target untuk patch.",
+    "content-move": "Seret objek, konten mengisi otomatis.",
+    "red-eye": "Klik mata merah untuk koreksi.",
+    clone: "Alt+klik menentukan sumber, lalu lukis untuk mengklon.",
+    "history-brush": "Lukis untuk mengembalikan ke history.",
+    brush: "Lukis bebas. B ganti Pencil dan Mixer Brush.",
+    pencil: "Garis keras tanpa anti-alias.",
+    "mixer-brush": "Campur warna seperti cat minyak.",
     blur: "Lukis untuk menghaluskan. R ganti Sharpen dan Smudge.",
     sharpen: "Lukis untuk mempertajam detail.",
     smudge: "Klik dulu untuk mengambil warna, lalu seret.",
@@ -58,9 +67,18 @@ export default function ToolOptionsBar({
     burn: "Lukis untuk menggelapkan.",
     sponge: "Lukis untuk menjenuhkan warna lokal.",
     fill: "Klik area untuk isi warna brush. Menghormati seleksi. G kembali ke Gradient.",
-    pen: "Seret untuk garis bebas. P ganti Line.",
+    pen: "Seret untuk garis bebas. P ganti Curvature Pen dan Line.",
+    "curvature-pen": "Klik untuk titik lengkung, seret untuk handle.",
     line: "Seret untuk garis lurus. Shift mengunci 45 derajat.",
-    clone: "Alt+klik menentukan sumber, lalu lukis untuk mengklon.",
+    "select-polygon": "Klik titik polygon, double-klik tutup.",
+    "quick-select": "Seret untuk seleksi cepat.",
+    frame: "Seret untuk membuat frame placeholder.",
+    ruler: "Seret untuk mengukur jarak dan sudut.",
+    note: "Klik untuk menempel catatan.",
+    count: "Klik untuk menambah hitungan.",
+    "color-sampler": "Klik untuk sampel warna, drag untuk info.",
+    eraser: "Hapus piksel atau mask. E ganti Background Eraser.",
+    "background-eraser": "Hapus background dengan sampling warna.",
   };
 
   if (retouchHint[tool]) {

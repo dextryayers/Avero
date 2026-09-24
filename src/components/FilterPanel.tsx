@@ -11,7 +11,7 @@ import {
   type NativeInfo,
   type NativeFilterOp,
 } from "../io/nativeEngine";
-import { ChevronDown, ChevronUp, Cpu, Layers, Plus, Trash2, Zap } from "lucide-react";
+import { ChevronDown, ChevronUp, Cpu, Layers, Leaf, Plus, Trash2, Zap } from "lucide-react";
 
 const addable: { id: FilterType; label: string }[] = [
   { id: "gaussianBlur", label: "Gaussian" },
@@ -66,6 +66,7 @@ export default function FilterPanel() {
   const [nat, setNat] = useState<NativeInfo | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [queue, setQueue] = useState<NativeFilterOp[]>([]);
+  const [light, setLight] = useState(false);
   const [p, setP] = useState({
     box: 4, sigma: 2.0, median: 2, amount: 1.2, unsharpAmt: 1.5, unsharpRad: 2,
     motionR: 12, motionA: 0, vignette: 0.45, chroma: 4, grain: 16, halftone: 6,
@@ -100,7 +101,7 @@ export default function FilterPanel() {
     setBusy("pipeline");
     try {
       const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height);
-      await nativePipelineCanvas(c, [], queue);
+      await nativePipelineCanvas(c, [], queue, light);
       st.markDirty();
       useProStore.getState().bumpHistogram();
       useAutomationStore.getState().pushStep(`Pipeline ${queue.length} filters`, { type: "pipeline/native", payload: { n: queue.length } });
@@ -193,9 +194,32 @@ export default function FilterPanel() {
         </div>
       </div>
 
+      <div className="space-y-2">
+        <div className="avero-micro flex items-center gap-1.5"><Leaf size={11} className="text-[#7ad69e]" /> Ringan RAM tiled 512</div>
+        <div className="grid gap-2">
+          <NativeFRow label="Box Blur Light" desc="tiled, <64KB overhead" busy={busy === "boxLight"} onApply={() => runFilter({ op: "boxBlurLight", radius: p.box }, "boxLight")}>
+            <Row label="Radius" value={p.box} min={0} max={16} onChange={(v) => setP({ ...p, box: v })} />
+          </NativeFRow>
+          <NativeFRow label="Gaussian Light" desc="sigma 0.1..8, tiled" busy={busy === "gaussLight"} onApply={() => runFilter({ op: "gaussianLight", sigma: p.sigma }, "gaussLight")}>
+            <Row label="Sigma" value={p.sigma} min={0.1} max={8} step={0.1} onChange={(v) => setP({ ...p, sigma: v })} />
+          </NativeFRow>
+          <NativeFRow label="Bilateral Light" desc="edge-preserving ringan" busy={busy === "bilat"} onApply={() => runFilter({ op: "bilateralLight", radius: p.median, sigmaColor: 30 }, "bilat")}>
+            <Row label="Radius" value={p.median} min={1} max={4} onChange={(v) => setP({ ...p, median: v })} />
+          </NativeFRow>
+          <NativeFRow label="Unsharp Light" desc="tiled unsharp" busy={busy === "unsharpLight"} onApply={() => runFilter({ op: "unsharpLight", amount: p.unsharpAmt, radius: p.unsharpRad }, "unsharpLight")}>
+            <Row label="Amount" value={p.unsharpAmt} min={0} max={4} step={0.1} onChange={(v) => setP({ ...p, unsharpAmt: v })} />
+            <Row label="Radius" value={p.unsharpRad} min={1} max={6} onChange={(v) => setP({ ...p, unsharpRad: v })} />
+          </NativeFRow>
+        </div>
+        <div className="rounded-md bg-[#1a2b1f] px-2 py-1.5 text-[10px] text-[#7ad69e]">Hanya 2 scanline buffer, bukan full duplicate. Untuk 8K hemat ~100MB.</div>
+      </div>
+
       <div className="avero-card space-y-2 p-3">
         <div className="flex items-center gap-1.5 text-[11px] font-semibold text-white"><Zap size={12} className="text-[#8fb6f5]" /> Studio pipeline</div>
-        <div className="text-[10px] text-[#6e6e78]">Antrekan filter C++ dan jalankan satu IPC.</div>
+        <div className="text-[10px] text-[#6e6e78]">Antrekan filter C++ dan jalankan satu IPC. Centang ringan untuk tiled hemat RAM.</div>
+        <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-[#a7a7b0]">
+          <input type="checkbox" checked={light} onChange={(e) => setLight(e.target.checked)} className="accent-[#2f7cf6]" /> Mode ringan tiled 512
+        </label>
         <div className="flex flex-wrap gap-1">
           {[
             { k: "gaussian", op: { op: "gaussian" as const, sigma: p.sigma } },

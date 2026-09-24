@@ -31,6 +31,7 @@ import GitPanel from "./GitPanel";
 import ArtboardPanel from "./ArtboardPanel";
 import PluginPanel from "./PluginPanel";
 import MockupPanel from "./MockupPanel";
+import NativeLabPanel from "./NativeLabPanel";
 import { useWorkspaceStore } from "../stores/useWorkspaceStore";
 
 type Tab =
@@ -39,6 +40,7 @@ type Tab =
   | "mask"
   | "adjust"
   | "filter"
+  | "lab"
   | "text"
   | "color"
   | "raw"
@@ -55,6 +57,7 @@ const tabs: { id: Tab; label: string }[] = [
   { id: "mask", label: "Mask" },
   { id: "adjust", label: "Adjust" },
   { id: "filter", label: "Filter" },
+  { id: "lab", label: "Lab" },
   { id: "text", label: "Text" },
   { id: "color", label: "Color" },
   { id: "raw", label: "RAW" },
@@ -435,6 +438,7 @@ export default function RightPanel() {
         {tab === "mask" && <MaskPanel />}
         {tab === "adjust" && <AdjustPanel />}
         {tab === "filter" && <FilterPanel />}
+        {tab === "lab" && <NativeLabPanel />}
         {tab === "text" && <TextShapePanel />}
         {tab === "color" && <ColorPanel />}
         {tab === "raw" && <RawPanel />}

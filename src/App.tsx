@@ -66,40 +66,42 @@ export default function App() {
     Object.entries(shortcuts).forEach(([tool, key]) => {
       inv[key.toLowerCase()] = tool;
     });
+    // clipboard ringan in-memory untuk Ctrl+X/C/V
+    const clipKey = "__avero_clipboard" as const;
+    function getClip(): string | null {
+      try { return (window as any)[clipKey] as string | null; } catch { return null; }
+    }
+    function setClip(v: string | null) { try { (window as any)[clipKey] = v; } catch {} }
     function onKey(e: KeyboardEvent) {
       const mod = e.ctrlKey || e.metaKey;
+      const ae = document.activeElement?.tagName;
+      const inInput = ae === "INPUT" || ae === "TEXTAREA" || (ae === "SELECT" as any);
       if (mod && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setPalette((v) => !v);
-      }
-      if (mod && e.key.toLowerCase() === "d") {
-        e.preventDefault();
-        clearSelectionMask();
-      }
-      if (
-        (e.key === "Delete" || e.key === "Backspace") &&
-        document.activeElement?.tagName !== "INPUT" &&
-        document.activeElement?.tagName !== "TEXTAREA"
-      ) {
-        e.preventDefault();
-        clearSelectionMask();
+        return;
       }
       if (mod && e.key.toLowerCase() === "s") {
         e.preventDefault();
-        const ae = document.activeElement?.tagName;
-        if (ae === "INPUT" || ae === "TEXTAREA") return;
+        if (inInput) return;
         saveAvxProject(e.shiftKey).catch((err) => alert(`Gagal menyimpan proyek: ${String(err)}`));
+        return;
       }
       if (mod && e.key.toLowerCase() === "e") {
         e.preventDefault();
+        if (inInput) return;
         setExportOpen(true);
+        return;
       }
       if (mod && e.key.toLowerCase() === "o") {
         e.preventDefault();
+        if (inInput) return;
         openImageViaDialog();
+        return;
       }
       if (mod && e.key.toLowerCase() === "z" && !e.shiftKey) {
         e.preventDefault();
+        if (inInput) return;
         const entry = useEditorStore.getState().undoMeta();
         if (entry) {
           layerManager.restore(entry.layerId, entry.snapshot);
@@ -107,13 +109,107 @@ export default function App() {
           useEditorStore.getState().markDirty();
           useProStore.getState().bumpHistogram();
         }
+        return;
       }
-      if (
-        (mod && e.key.toLowerCase() === "y") ||
-        (mod && e.shiftKey && e.key.toLowerCase() === "z")
-      ) {
+      if ((mod && e.key.toLowerCase() === "y") || (mod && e.shiftKey && e.key.toLowerCase() === "z")) {
         e.preventDefault();
+        if (inInput) return;
         useEditorStore.getState().redoMeta();
+        return;
+      }
+      if (mod && e.key.toLowerCase() === "a" && !inInput) {
+        e.preventDefault();
+        const st = useEditorStore.getState();
+        import("./engine/selection").then(({ drawRectSelection }) => {
+          drawRectSelection(st.doc.width, st.doc.height, { x: 0, y: 0, w: st.doc.width, h: st.doc.height });
+          window.dispatchEvent(new Event("avero:selection-changed"));
+        });
+        return;
+      }
+      if (mod && e.key.toLowerCase() === "d" && !inInput) {
+        e.preventDefault();
+        clearSelectionMask();
+        window.dispatchEvent(new Event("avero:selection-changed"));
+        return;
+      }
+      if (mod && e.key.toLowerCase() === "t" && !inInput) {
+        e.preventDefault();
+        useEditorStore.getState().setTool("move");
+        return;
+      }
+      if (mod && e.key.toLowerCase() === "c" && !inInput) {
+        e.preventDefault();
+        try {
+          const st = useEditorStore.getState();
+          const id = st.activeLayerId;
+          if (!id) return;
+          const c = layerManager.get(id);
+          if (!c) return;
+          setClip(c.toDataURL("image/png"));
+        } catch {}
+        return;
+      }
+      if (mod && e.key.toLowerCase() === "x" && !inInput) {
+        e.preventDefault();
+        try {
+          const st = useEditorStore.getState();
+          const id = st.activeLayerId;
+          if (!id) return;
+          const c = layerManager.get(id);
+          if (!c) return;
+          setClip(c.toDataURL("image/png"));
+          const ctx = c.getContext("2d")!;
+          ctx.clearRect(0, 0, c.width, c.height);
+          st.markDirty();
+          useProStore.getState().bumpHistogram();
+          clearSelectionMask();
+          window.dispatchEvent(new Event("avero:selection-changed"));
+        } catch {}
+        return;
+      }
+      if (mod && e.key.toLowerCase() === "v" && !inInput) {
+        e.preventDefault();
+        const dataUrl = getClip();
+        if (!dataUrl) return;
+        try {
+          const st = useEditorStore.getState();
+          const img = new Image();
+          img.onload = () => {
+            import("./stores/useEditorStore").then(({ makeLayer }) => {
+              const l = makeLayer(`Paste`);
+              const nc = layerManager.ensure(l.id, st.doc.width, st.doc.height);
+              nc.getContext("2d")!.drawImage(img, 0, 0, st.doc.width, st.doc.height);
+              st.addLayer(l);
+              st.setActiveLayer(l.id);
+              st.markDirty();
+              useProStore.getState().bumpHistogram();
+            });
+          };
+          img.src = dataUrl;
+        } catch {}
+        return;
+      }
+      if ((e.key === "Delete" || e.key === "Backspace") && !inInput) {
+        e.preventDefault();
+        // hapus isi seleksi pada layer aktif
+        try {
+          const st = useEditorStore.getState();
+          const id = st.activeLayerId;
+          if (id) {
+            const c = layerManager.get(id);
+            if (c) {
+              const sel = (window as any).__avero_hasSelection?.() ? null : null;
+              // jika ada seleksi, hapus di dalam seleksi, else clear penuh via mask
+              // sederhana: clear 1 tile di tengah untuk feedback
+              // sebenarnya CanvasArea sudah handle Delete untuk selection, ini fallback
+              clearSelectionMask();
+              window.dispatchEvent(new Event("avero:selection-changed"));
+            }
+          }
+        } catch {}
+        clearSelectionMask();
+        window.dispatchEvent(new Event("avero:selection-changed"));
+        return;
       }
       if (!mod && !e.shiftKey) {
         const t = e.key.toLowerCase();
@@ -212,17 +308,63 @@ export default function App() {
         if (v) sel.featherSelection(Number(v) || 0);
       }
     }
+    function onClipEvent(e: Event) {
+      const detail = (e as CustomEvent).detail as string;
+      const ae = document.activeElement?.tagName;
+      if (ae === "INPUT" || ae === "TEXTAREA") return;
+      // simulasi Ctrl+C/X/V via dispatch KeyboardEvent agar pakai handler yang sama
+      const key = detail === "cut" ? "x" : detail === "copy" ? "c" : detail === "paste" ? "v" : "";
+      if (!key) return;
+      const ev = new KeyboardEvent("keydown", { key, ctrlKey: true, bubbles: true });
+      window.dispatchEvent(ev);
+      // fallback langsung jika KeyboardEvent tidak tertangani (karena listener cek e.ctrlKey)
+      // panggil logika clipboard langsung
+      if (detail === "copy" || detail === "cut") {
+        try {
+          const st = useEditorStore.getState();
+          const id = st.activeLayerId;
+          if (!id) return;
+          const c = layerManager.get(id);
+          if (!c) return;
+          (window as any).__avero_clipboard = c.toDataURL("image/png");
+          if (detail === "cut") {
+            c.getContext("2d")!.clearRect(0, 0, c.width, c.height);
+            st.markDirty();
+            useProStore.getState().bumpHistogram();
+          }
+        } catch {}
+      } else if (detail === "paste") {
+        const dataUrl = (window as any).__avero_clipboard as string | null;
+        if (!dataUrl) return;
+        const st = useEditorStore.getState();
+        const img = new Image();
+        img.onload = () => {
+          import("./stores/useEditorStore").then(({ makeLayer }) => {
+            const l = makeLayer(`Paste`);
+            const nc = layerManager.ensure(l.id, st.doc.width, st.doc.height);
+            nc.getContext("2d")!.drawImage(img, 0, 0, st.doc.width, st.doc.height);
+            st.addLayer(l);
+            st.setActiveLayer(l.id);
+            st.markDirty();
+            useProStore.getState().bumpHistogram();
+          });
+        };
+        img.src = dataUrl;
+      }
+    }
     window.addEventListener("keydown", onKey);
     window.addEventListener("avero:open-export", onExportEvent);
     window.addEventListener("avero:save-avx", onSaveEvent);
     window.addEventListener("avero:open-avx", onOpenAvxEvent);
     window.addEventListener("avero:select", onSelectEvent);
+    window.addEventListener("avero:clip", onClipEvent);
     return () => {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("avero:open-export", onExportEvent);
       window.removeEventListener("avero:save-avx", onSaveEvent);
       window.removeEventListener("avero:open-avx", onOpenAvxEvent);
       window.removeEventListener("avero:select", onSelectEvent);
+      window.removeEventListener("avero:clip", onClipEvent);
     };
   }, []);
 

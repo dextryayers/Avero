@@ -400,9 +400,6 @@ export default function TitleBar({
       case "color-range":
       case "select-subject":
       case "content-aware":
-      case "cut":
-      case "copy":
-      case "paste":
       case "clear-fill":
       case "fill-fg":
       case "fill-bg":
@@ -426,6 +423,15 @@ export default function TitleBar({
         pro.setColor({ proofEnabled: !c.proofEnabled });
         break;
       }
+      case "cut":
+        window.dispatchEvent(new CustomEvent("avero:clip", { detail: "cut" }));
+        break;
+      case "copy":
+        window.dispatchEvent(new CustomEvent("avero:clip", { detail: "copy" }));
+        break;
+      case "paste":
+        window.dispatchEvent(new CustomEvent("avero:clip", { detail: "paste" }));
+        break;
       case "auto-tone":
       case "auto-contrast":
       case "auto-color":

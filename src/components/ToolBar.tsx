@@ -7,6 +7,7 @@ import {
   Hand,
   Hexagon,
   Lasso,
+  Layers,
   MousePointer2,
   Move,
   Pipette,

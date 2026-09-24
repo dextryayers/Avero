@@ -3,11 +3,14 @@ import { create } from "zustand";
 export type ToolId =
   | "move"
   | "select-rect"
+  | "select-lasso"
+  | "wand"
   | "brush"
   | "eraser"
   | "eyedropper"
   | "text"
   | "shape-rect"
+  | "shape-ellipse"
   | "gradient"
   | "crop"
   | "zoom"
@@ -23,7 +26,8 @@ export interface LayerMeta {
   locked: boolean;
   opacity: number; // 0-100
   blendMode: BlendMode;
-  kind: "raster" | "background";
+  kind: "raster" | "background" | "text" | "shape";
+  clipped?: boolean;
 }
 
 export interface HistoryEntry {

@@ -43,7 +43,7 @@ export const EXAMPLE_PLUGINS: PluginDef[] = [
     id: "plug-duotone",
     name: "Duotone Biru",
     version: "1.0.0",
-    author: "PSD Studio",
+    author: "AVERO STUDIO",
     description: "Map luminance ke gradient biru tua ke cyan. Contoh 18 baris.",
     params: [{ key: "strength", label: "Strength", min: 0, max: 100, def: 80 }],
     code: `
@@ -59,7 +59,7 @@ export const EXAMPLE_PLUGINS: PluginDef[] = [
     id: "plug-vignette",
     name: "Vignette Halus",
     version: "1.0.0",
-    author: "PSD Studio",
+    author: "AVERO STUDIO",
     description: "Gelapkan tepi radial. Contoh 14 baris.",
     params: [{ key: "amount", label: "Amount", min: 0, max: 100, def: 55 }],
     code: `

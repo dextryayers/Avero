@@ -1,4 +1,4 @@
-// PSD Studio - Core Engine entry point
+// AVERO STUDIO - Core Engine entry point
 // Fase 0-3: shell, IO, PSD, color, RAW.
 // Fase 4: AI model dir + status offline.
 // Fase 5-6: stabilisasi, test, rilis.
@@ -32,5 +32,5 @@ pub fn run() {
             ai::cmd_ai_models_status
         ])
         .run(tauri::generate_context!())
-        .expect("error while running PSD Studio");
+        .expect("error while running AVERO STUDIO");
 }

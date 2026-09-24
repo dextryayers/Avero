@@ -1,9 +1,9 @@
 {
-  "name": "psd-studio",
+  "name": "avero-studio",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "PSD Studio - Open source professional photo editor for Linux and Windows",
+  "description": "AVERO STUDIO - Open source professional photo editor for Linux and Windows",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",

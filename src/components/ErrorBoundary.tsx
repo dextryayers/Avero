@@ -29,7 +29,7 @@ export default class ErrorBoundary extends React.Component<Props, State> {
       return (
         <div className="grid h-full place-items-center bg-[#1e1e1e] p-8 text-[#e0e0e0]">
           <div className="w-[560px] max-w-full rounded-lg border border-red-800 bg-[#2a1f1f] p-5">
-            <h2 className="text-[15px] font-bold text-red-200">PSD Studio menemui error render</h2>
+            <h2 className="text-[15px] font-bold text-red-200">AVERO STUDIO menemui error render</h2>
             <p className="mt-1 font-mono text-[11px] text-red-100/80">{this.state.error.message}</p>
             <pre className="mt-2 max-h-44 overflow-auto rounded bg-black/50 p-2 font-mono text-[10px] text-[#c5c5c5]">
               {this.state.stack}

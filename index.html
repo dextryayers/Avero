@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PSD Studio - Open Source Photo Editor</title>
+    <title>AVERO STUDIO - Open Source Photo Editor</title>
     <style>
       html, body { margin: 0; height: 100%; background: #1e1e1e; }
       #boot-fallback {
@@ -24,7 +24,7 @@
     <div id="root"></div>
     <div id="boot-fallback">
       <div>
-        <div style="font-weight: 700; font-size: 15px; margin-bottom: 8px;">PSD Studio gagal memuat UI</div>
+        <div style="font-weight: 700; font-size: 15px; margin-bottom: 8px;">AVERO STUDIO gagal memuat UI</div>
         <div id="boot-msg">Modul frontend tidak berjalan. Coba muat ulang aplikasi.</div>
         <button
           onclick="window.location.reload()"
@@ -38,12 +38,12 @@
       // Pengaman anti blank screen: jika React tidak mount dalam 10 detik,
       // tampilkan pesan (ErrorBoundary hanya tangkap error render, bukan gagal load).
       setTimeout(function () {
-        if (!window.__psd_mounted) {
+        if (!window.__avero_mounted) {
           document.getElementById("boot-fallback").style.display = "grid";
         }
       }, 10000);
       window.addEventListener("error", function (e) {
-        if (!window.__psd_mounted) {
+        if (!window.__avero_mounted) {
           var m = document.getElementById("boot-msg");
           if (m && e && e.message) m.textContent = "Error: " + e.message;
           document.getElementById("boot-fallback").style.display = "grid";

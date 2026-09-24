@@ -10,18 +10,24 @@ import WorkspaceBar from "./components/WorkspaceBar";
 import PromptBar from "./components/PromptBar";
 import NodeGraph from "./components/NodeGraph";
 import Onboarding from "./components/Onboarding";
+import BootSplash from "./components/BootSplash";
+import HomeScreen from "./components/HomeScreen";
 import { useEditorStore } from "./stores/useEditorStore";
 import { useProStore } from "./stores/useProStore";
 import { useWorkspaceStore, loadShortcuts } from "./stores/useWorkspaceStore";
+import { useHomeStore } from "./stores/useHomeStore";
 import { layerManager } from "./engine/layerManager";
 import { clearSelectionMask } from "./engine/selection";
 import { loadRecovery, saveRecovery, clearRecovery } from "./engine/recovery";
 
 export default function App() {
   const [palette, setPalette] = useState(false);
+  const [booted, setBooted] = useState(false);
   const [recovery, setRecovery] = useState<ReturnType<typeof loadRecovery>>(null);
   const newDocument = useEditorStore((s) => s.newDocument);
   const showPrompt = useWorkspaceStore((s) => s.showPrompt);
+  const homeOpen = useHomeStore((s) => s.homeOpen);
+  const setHome = useHomeStore((s) => s.setHome);
 
   useEffect(() => {
     const s = useEditorStore.getState();
@@ -119,12 +125,13 @@ export default function App() {
 
   return (
     <div className="flex h-full flex-col bg-[#1e1e1e] text-[#e0e0e0]">
-      <TitleBar onOpenCommand={() => setPalette(true)} />
+      {!booted && <BootSplash onDone={() => setBooted(true)} />}
+      <TitleBar onOpenCommand={() => setPalette(true)} onHome={() => setHome(true)} />
       <WorkspaceBar />
-      {showPrompt && <PromptBar />}
-      <PsdInfo />
-      <NodeGraph />
-      {recovery && (
+      {showPrompt && !homeOpen && <PromptBar />}
+      {!homeOpen && <PsdInfo />}
+      {!homeOpen && <NodeGraph />}
+      {recovery && !homeOpen && (
         <div className="flex items-center gap-2 border-b border-amber-600 bg-[#3a2f14] px-3 py-1.5 text-[11px] text-amber-100">
           <span>
             Ditemukan autosave {recovery.docName} {recovery.width}x{recovery.height}. Lanjutkan atau
@@ -144,19 +151,22 @@ export default function App() {
           </button>
         </div>
       )}
-      <div className="flex min-h-0 flex-1">
-        <ToolBar />
-        <CanvasArea />
-        <RightPanel />
-      </div>
+      {homeOpen ? (
+        <HomeScreen />
+      ) : (
+        <div className="flex min-h-0 flex-1">
+          <ToolBar />
+          <CanvasArea />
+          <RightPanel />
+        </div>
+      )}
       <StatusBar />
       <CommandPalette open={palette} onClose={() => setPalette(false)} />
-      <Onboarding />
+      {booted && <Onboarding />}
 
       <div className="flex items-center gap-2 border-t border-[#3e3e42] bg-[#1a1a1a] px-3 py-1 text-[10px] text-[#a0a0a0]">
         <span>
-          Fase 4 AI offline + batch. Fase 5 node, git snapshot, artboard, plugin, mockup. Fase 6
-          workspace, shortcut, onboarding, autosave. Ctrl+K semua aksi.
+          AVERO STUDIO v0.1.0 • AI offline • non-destruktif • Ctrl+K semua aksi • Del hapus seleksi
         </span>
         <button
           onClick={() => {
@@ -165,6 +175,7 @@ export default function App() {
             clearSelectionMask();
             clearRecovery();
             useProStore.getState().bumpHistogram();
+            setHome(false);
           }}
           className="ml-auto shrink-0 rounded bg-[#2d2d2d] px-2 py-0.5 hover:bg-[#3e3e42] hover:text-white"
         >

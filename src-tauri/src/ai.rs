@@ -19,9 +19,9 @@ fn dirs_fallback() -> PathBuf {
         .or_else(|| std::env::var_os("HOME"))
         .map(PathBuf::from)
     {
-        home.join(".psd-studio").join("models")
+        home.join(".avero-studio").join("models")
     } else {
-        PathBuf::from(".psd-studio-models")
+        PathBuf::from(".avero-studio-models")
     }
 }
 

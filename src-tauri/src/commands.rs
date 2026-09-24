@@ -11,7 +11,7 @@ pub struct AppInfo {
 #[tauri::command]
 pub fn app_ping() -> AppInfo {
     AppInfo {
-        name: "PSD Studio".to_string(),
+        name: "AVERO STUDIO".to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
         os: std::env::consts::OS.to_string(),
         arch: std::env::consts::ARCH.to_string(),

@@ -1,4 +1,4 @@
-# Plan Pengembangan Open Source Photo Editor Professional
+﻿# Plan Pengembangan Open Source Photo Editor Professional
 ## Cross Platform Installer Native Linux dan Windows
 
 **Stack Utama:** Rust + TypeScript via Tauri v2  

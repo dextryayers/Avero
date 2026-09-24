@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useEditorStore } from "../stores/useEditorStore";
 import { useProStore } from "../stores/useProStore";
+import { useHomeStore } from "../stores/useHomeStore";
 import { layerManager } from "../engine/layerManager";
 import { fitZoom } from "../engine/canvasMath";
 import {
@@ -20,7 +21,7 @@ import { renderShapeToLayer, renderTextToLayer } from "../engine/textShape";
 import { makeLayer } from "../stores/useEditorStore";
 
 export function getCompositeCanvas(): HTMLCanvasElement | null {
-  return (window as any).__psd_comp ?? null;
+  return (window as any).__avero_comp ?? null;
 }
 
 export default function CanvasArea() {
@@ -83,8 +84,8 @@ export default function CanvasArea() {
       };
       img.src = detail.dataUrl;
     }
-    window.addEventListener("psd:opened-image", onOpened);
-    return () => window.removeEventListener("psd:opened-image", onOpened);
+    window.addEventListener("avero:opened-image", onOpened);
+    return () => window.removeEventListener("avero:opened-image", onOpened);
   }, []);
 
   useEffect(() => {
@@ -109,8 +110,8 @@ export default function CanvasArea() {
 
   // Tombol Fit di status bar memicu event ini
   useEffect(() => {
-    window.addEventListener("psd:fit-zoom", fitToView);
-    return () => window.removeEventListener("psd:fit-zoom", fitToView);
+    window.addEventListener("avero:fit-zoom", fitToView);
+    return () => window.removeEventListener("avero:fit-zoom", fitToView);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -124,6 +125,37 @@ export default function CanvasArea() {
       const bmp = await createImageBitmap(f);
       const st = useEditorStore.getState();
       st.openDocument(f.name, bmp.width, bmp.height, null, f.size);
+      // thumb recent dari bitmap (kecil), full hanya bila file di bawah 2MB
+      let thumb: string | null = null;
+      let full: string | null = null;
+      try {
+        const t = document.createElement("canvas");
+        const sc = Math.min(1, 480 / Math.max(bmp.width, bmp.height));
+        t.width = Math.max(1, Math.round(bmp.width * sc));
+        t.height = Math.max(1, Math.round(bmp.height * sc));
+        t.getContext("2d")!.drawImage(bmp, 0, 0, t.width, t.height);
+        thumb = t.toDataURL("image/jpeg", 0.72);
+        if (f.size < 2_000_000) {
+          full = await new Promise((resolve) => {
+            const r = new FileReader();
+            r.onload = () => resolve(r.result as string);
+            r.onerror = () => resolve(null);
+            r.readAsDataURL(f);
+          });
+        }
+      } catch {
+        /* abaikan */
+      }
+      useHomeStore.getState().pushRecent({
+        name: f.name,
+        path: null,
+        thumb,
+        full,
+        w: bmp.width,
+        h: bmp.height,
+        size: f.size,
+      });
+      useHomeStore.getState().setHome(false);
       setTimeout(() => {
         const id =
           useEditorStore.getState().activeLayerId ?? useEditorStore.getState().layers[0]?.id;
@@ -276,7 +308,7 @@ export default function CanvasArea() {
       /* abaikan */
     }
 
-    (window as any).__psd_comp = filtered;
+    (window as any).__avero_comp = filtered;
 
     // 6. Gambar ke layar
     ctx.save();

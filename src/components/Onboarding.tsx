@@ -1,6 +1,7 @@
 import { useWorkspaceStore } from "../stores/useWorkspaceStore";
 import { useEditorStore, makeLayer } from "../stores/useEditorStore";
 import { useProStore } from "../stores/useProStore";
+import { useHomeStore } from "../stores/useHomeStore";
 import { layerManager } from "../engine/layerManager";
 import { clearSelectionMask } from "../engine/selection";
 import { renderTextToLayer } from "../engine/textShape";
@@ -52,12 +53,16 @@ export default function Onboarding() {
     useProStore.getState().bumpHistogram();
     clearSelectionMask();
     setOnboarding(true);
+    useHomeStore.getState().setHome(false);
   }
 
   return (
     <div className="fixed inset-0 z-[60] grid place-items-center bg-black/70 p-6">
       <div className="w-[560px] max-w-full rounded-xl border border-[#3e3e42] bg-[#252526] p-5">
-        <h2 className="text-[18px] font-bold text-white">Selamat datang di PSD Studio</h2>
+                <div className="mb-3 flex items-center gap-3">
+          <img src="/logo.png" alt="AVERO" className="h-12 w-12 rounded-lg object-cover" />
+          <h2 className="text-[18px] font-bold text-white">Selamat datang di AVERO STUDIO</h2>
+        </div>
         <p className="mt-1 text-[12px] text-[#c5c5c5]">
           Editor foto open source, installer native Linux dan Windows, offline-first. 30 detik untuk
           mulai: buka foto, retouch dengan brush dan adjustment, coba AI lokal, export.

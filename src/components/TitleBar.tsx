@@ -1,10 +1,17 @@
 import { useEditorStore } from "../stores/useEditorStore";
 import { checkBackend, pickImageToOpen, rustDecodeToDataUrl, rustImageInfo } from "../io/tauriIo";
 import { layerManager } from "../engine/layerManager";
+import { useHomeStore } from "../stores/useHomeStore";
 import { useEffect, useState } from "react";
-import { Bell, CloudOff, Cpu } from "lucide-react";
+import { Bell, CloudOff, Cpu, House } from "lucide-react";
 
-export default function TitleBar({ onOpenCommand }: { onOpenCommand: () => void }) {
+export default function TitleBar({
+  onOpenCommand,
+  onHome,
+}: {
+  onOpenCommand: () => void;
+  onHome: () => void;
+}) {
   const doc = useEditorStore((s) => s.doc);
   const backendStatus = useEditorStore((s) => s.backendStatus);
   const backendInfo = useEditorStore((s) => s.backendInfo);
@@ -18,23 +25,55 @@ export default function TitleBar({ onOpenCommand }: { onOpenCommand: () => void 
     });
   }, [setBackend]);
 
+  async function openPath(path: string) {
+    const info = await rustImageInfo(path);
+    const dataUrl = await rustDecodeToDataUrl(path, 2048);
+    const img = new Image();
+    img.src = dataUrl;
+    await img.decode();
+    const name = path.split(/[/\\]/).pop() ?? "Opened image";
+    openDocument(name, info.width, info.height, path, info.file_size);
+    useHomeStore.getState().pushRecent({
+      name,
+      path,
+      thumb: dataUrl,
+      full: dataUrl.length < 2_500_000 ? dataUrl : null,
+      w: info.width,
+      h: info.height,
+      size: info.file_size,
+    });
+    useHomeStore.getState().setHome(false);
+    // gambar dibuka akan digambar oleh CanvasArea via event custom
+    window.dispatchEvent(
+      new CustomEvent("avero:opened-image", { detail: { dataUrl, w: info.width, h: info.height } }),
+    );
+  }
+
+  // Home screen / recents bisa minta buka path tanpa dialog
+  useEffect(() => {
+    function onOpenPath(e: Event) {
+      const path = (e as CustomEvent).detail as string;
+      if (!path || busy) return;
+      setBusy(true);
+      openPath(path)
+        .catch((err) => {
+          console.error(err);
+          alert(`Gagal membuka gambar: ${String(err)}`);
+        })
+        .finally(() => setBusy(false));
+    }
+    window.addEventListener("avero:open-path", onOpenPath);
+    return () => window.removeEventListener("avero:open-path", onOpenPath);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busy]);
+
   async function handleOpen() {
     if (busy) return;
     setBusy(true);
     try {
       const path = await pickImageToOpen();
       if (!path) return;
-      const info = await rustImageInfo(path);
-      const dataUrl = await rustDecodeToDataUrl(path, 2048);
-      const img = new Image();
-      img.src = dataUrl;
-      await img.decode();
-      const name = path.split(/[/\\]/).pop() ?? "Opened image";
-      openDocument(name, info.width, info.height, path, info.file_size);
-      // gambar dibuka akan digambar oleh CanvasArea via event custom
-      window.dispatchEvent(
-        new CustomEvent("psd:opened-image", { detail: { dataUrl, w: info.width, h: info.height } }),
-      );
+      await openPath(path);
     } catch (e) {
       console.error(e);
       alert(`Gagal membuka gambar: ${String(e)}`);
@@ -46,10 +85,13 @@ export default function TitleBar({ onOpenCommand }: { onOpenCommand: () => void 
   return (
     <div className="flex h-10 items-center gap-2 border-b border-[#3e3e42] bg-[#252526] px-3">
       <div className="flex items-center gap-2">
-        <div className="grid h-6 w-6 place-items-center rounded-md bg-[#0a84ff] text-[11px] font-bold text-white">
-          PS
-        </div>
-        <span className="text-[13px] font-semibold text-[#e0e0e0]">PSD Studio</span>
+        <button onClick={onHome} title="Home (layar awal)">
+          <img src="/logo.png" alt="AVERO" className="h-6 w-6 rounded-md object-cover hover:ring-2 hover:ring-[#0a84ff]" />
+        </button>
+        <button onClick={onHome} title="Home (layar awal)" className="flex items-center gap-1.5">
+          <span className="text-[13px] font-semibold tracking-wide text-[#e0e0e0] hover:text-white">AVERO STUDIO</span>
+          <House size={13} className="text-[#8a94a6]" />
+        </button>
         <span className="rounded bg-[#2d2d2d] px-1.5 py-0.5 text-[10px] text-[#a0a0a0]">
           v0.1.0
         </span>
@@ -108,7 +150,7 @@ export function useTitleBarOpen() {
     openDocument(name, info.width, info.height, path, info.file_size);
     layerManager.clear();
     window.dispatchEvent(
-      new CustomEvent("psd:opened-image", { detail: { dataUrl, w: info.width, h: info.height } }),
+      new CustomEvent("avero:opened-image", { detail: { dataUrl, w: info.width, h: info.height } }),
     );
   };
 }

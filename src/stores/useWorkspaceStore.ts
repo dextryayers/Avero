@@ -17,7 +17,7 @@ interface WorkspaceState {
 
 const saved = (() => {
   try {
-    return localStorage.getItem("psd-workspace") as WorkspaceId | null;
+    return localStorage.getItem("avero-workspace") as WorkspaceId | null;
   } catch {
     return null;
   }
@@ -30,14 +30,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   showNode: false,
   onboardingDone: (() => {
     try {
-      return localStorage.getItem("psd-onboarding") === "done";
+      return localStorage.getItem("avero-onboarding") === "done";
     } catch {
       return false;
     }
   })(),
   setWorkspace: (active) => {
     try {
-      localStorage.setItem("psd-workspace", active);
+      localStorage.setItem("avero-workspace", active);
     } catch {
       /* abaikan */
     }
@@ -56,7 +56,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   setShowNode: (showNode) => set({ showNode }),
   setOnboarding: (onboardingDone) => {
     try {
-      localStorage.setItem("psd-onboarding", onboardingDone ? "done" : "");
+      localStorage.setItem("avero-onboarding", onboardingDone ? "done" : "");
     } catch {
       /* abaikan */
     }
@@ -83,7 +83,7 @@ const DEFAULT_SHORTCUTS: ShortcutMap = {
 
 export function loadShortcuts(): ShortcutMap {
   try {
-    const raw = localStorage.getItem("psd-shortcuts");
+    const raw = localStorage.getItem("avero-shortcuts");
     if (raw) return { ...DEFAULT_SHORTCUTS, ...JSON.parse(raw) };
   } catch {
     /* abaikan */
@@ -93,7 +93,7 @@ export function loadShortcuts(): ShortcutMap {
 
 export function saveShortcuts(m: ShortcutMap) {
   try {
-    localStorage.setItem("psd-shortcuts", JSON.stringify(m));
+    localStorage.setItem("avero-shortcuts", JSON.stringify(m));
   } catch {
     /* abaikan */
   }

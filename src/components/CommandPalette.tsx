@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useEditorStore, makeLayer } from "../stores/useEditorStore";
 import { useProStore } from "../stores/useProStore";
+import { useHomeStore } from "../stores/useHomeStore";
 import { layerManager } from "../engine/layerManager";
 import { getCompositeCanvas } from "./CanvasArea";
 import {
@@ -27,7 +28,13 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
         run: () => {
           layerManager.clear();
           s.newDocument("Untitled", 1920, 1080);
+          useHomeStore.getState().setHome(false);
         },
+      },
+      {
+        id: "home",
+        title: "Go to Home screen",
+        run: () => useHomeStore.getState().setHome(true),
       },
       {
         id: "open",
@@ -37,13 +44,18 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
           if (!path) return;
           const info = await rustImageInfo(path);
           const dataUrl = await rustDecodeToDataUrl(path, 2048);
-          s.openDocument(
-            path.split(/[/\\]/).pop() ?? "Image",
-            info.width,
-            info.height,
+          const name = path.split(/[/\\]/).pop() ?? "Image";
+          s.openDocument(name, info.width, info.height, path, info.file_size);
+          useHomeStore.getState().pushRecent({
+            name,
             path,
-            info.file_size,
-          );
+            thumb: dataUrl,
+            full: dataUrl.length < 2_500_000 ? dataUrl : null,
+            w: info.width,
+            h: info.height,
+            size: info.file_size,
+          });
+          useHomeStore.getState().setHome(false);
           layerManager.clear();
           // tunggu layer dibuat oleh store
           setTimeout(() => {
@@ -85,7 +97,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
                 });
                 return out.toDataURL("image/png");
               })();
-          const path = await pickSavePath(`${st.doc.name || "psd-studio"}.png`);
+          const path = await pickSavePath(`${st.doc.name || "avero-studio"}.png`);
           if (!path) return;
           await rustSaveDataUrl(dataUrl, path);
           st.markClean();

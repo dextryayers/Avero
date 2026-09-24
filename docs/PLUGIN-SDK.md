@@ -1,4 +1,4 @@
-# Plugin SDK 1.0 (JS)
+﻿# Plugin SDK 1.0 (JS)
 
 Plugin adalah fungsi murni tanpa DOM.
 

@@ -1,4 +1,4 @@
-# QA Checklist 1.0
+﻿# QA Checklist 1.0
 
 ## Installer
 - [ ] Windows .msi/.exe terinstall dan dibuka offline

@@ -13,4 +13,4 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
 );
 
 // Tandai mount sukses untuk pengaman boot di index.html
-(window as unknown as { __psd_mounted: boolean }).__psd_mounted = true;
+(window as unknown as { __avero_mounted: boolean }).__avero_mounted = true;

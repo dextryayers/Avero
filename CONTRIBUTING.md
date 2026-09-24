@@ -1,4 +1,4 @@
-# Contributing ke PSD Studio
+﻿# Contributing ke AVERO STUDIO
 
 Terima kasih ingin berkontribusi ke editor foto open source untuk Linux dan Windows.
 
@@ -19,7 +19,7 @@ Terima kasih ingin berkontribusi ke editor foto open source untuk Linux dan Wind
 - Error render tidak boleh jadi layar hitam: ErrorBoundary global +
   boot fallback di index.html wajib dipertahankan
 - Semua edit gambar harus non-destructive: tambah adjustment/filter/mask, jangan mutasi pixel asli tanpa history
-- AI harus offline-first: heuristik lokal jalan tanpa internet, model ONNX opsional di `~/.psd-studio/models`
+- AI harus offline-first: heuristik lokal jalan tanpa internet, model ONNX opsional di `~/.avero-studio/models`
 - Plugin JS hanya boleh pakai `(d, params, W, H)`, tanpa DOM, tanpa fetch, timeout 5 detik
 - UI dark profesional, Tailwind, ikon Lucide, teks ringkas
 
@@ -36,7 +36,7 @@ Terima kasih ingin berkontribusi ke editor foto open source untuk Linux dan Wind
   frontend (insiden v0.1.0: user dapat halaman Edge ERR_CONNECTION_REFUSED).
   `src-tauri/Cargo.toml` sudah mengaktifkan `tauri/features = ["custom-protocol"]`,
   jangan dihapus. Cara rilis resmi tetap `npx tauri build`.
-- Portable `.exe` = `src-tauri/target/release/psd-studio.exe`, jalan offline
+- Portable `.exe` = `src-tauri/target/release/avero-studio.exe`, jalan offline
   penuh via protokol `tauri.localhost`, butuh WebView2 (bawaan Win10/11).
 
 ## Pull request

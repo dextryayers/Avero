@@ -2,7 +2,7 @@
 // Simpan thumbnail composite + metadata tiap 2 menit ke localStorage.
 // Saat start, jika ada sesi kotor, tawarkan recovery banner.
 
-const KEY = "psd-recovery-v1";
+const KEY = "avero-recovery-v1";
 
 export interface RecoveryData {
   time: number;

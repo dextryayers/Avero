@@ -7,6 +7,7 @@ import StatusBar from "./components/StatusBar";
 import CommandPalette from "./components/CommandPalette";
 import PsdInfo from "./components/PsdInfo";
 import WorkspaceBar from "./components/WorkspaceBar";
+import QuickExportBar from "./components/QuickExportBar";
 import NodeGraph from "./components/NodeGraph";
 import Onboarding from "./components/Onboarding";
 import BootSplash from "./components/BootSplash";
@@ -373,6 +374,7 @@ export default function App() {
         onHome={() => setHome(true)}
       />
       <WorkspaceBar />
+      {!homeOpen && <QuickExportBar onOpenExport={() => setExportOpen(true)} />}
       {!homeOpen && <PsdInfo />}
       {!homeOpen && <NodeGraph />}
       {recovery && !homeOpen && (

@@ -58,10 +58,10 @@ export default function CanvasArea() {
   const activeLayerId = useEditorStore((s) => s.activeLayerId ?? s.layers[s.layers.length - 1]?.id);
   const tool = useEditorStore((s) => s.tool);
   // normalisasi tool lengkap ke perilaku dasar agar ringan dan proper, tanpa duplikasi logic
-  const isBrush = tool === "brush" || tool === "pencil" || tool === "mixer-brush" || tool === "history-brush";
-  const isEraser = tool === "eraser" || tool === "background-eraser";
+  const isBrush = tool === "brush" || tool === "pencil" || tool === "mixer-brush" || tool === "history-brush" || tool === "art-history-brush" || tool === "color-replacement";
+  const isEraser = tool === "eraser" || tool === "background-eraser" || tool === "magic-eraser";
   const isHeal = tool === "spot-heal" || tool === "healing-brush" || tool === "patch" || tool === "red-eye" || tool === "content-move";
-  const isClone = tool === "clone" || tool === "healing-brush" || tool === "patch";
+  const isClone = tool === "clone" || tool === "healing-brush" || tool === "patch" || tool === "pattern-stamp";
   const isEyedropper = tool === "eyedropper" || tool === "color-sampler";
   const isCrop = tool === "crop" || tool === "frame";
   const zoom = useEditorStore((s) => s.zoom);
@@ -1227,7 +1227,14 @@ export default function CanvasArea() {
             setGradDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
             return;
           }
-          if (tool === "select-rect" || tool === "select-ellipse" || tool === "select-polygon" || tool === "quick-select") {
+          if (tool === "select-rect" || tool === "select-ellipse" || tool === "select-polygon" || tool === "quick-select" || tool === "single-row" || tool === "single-column" || tool === "object-select") {
+            // single row/column: 1px strip
+            if (tool === "single-row") setSelDrag({ x0: 0, y0: p.y, x1: doc.width, y1: p.y + 1 });
+            else if (tool === "single-column") setSelDrag({ x0: p.x, y0: 0, x1: p.x + 1, y1: doc.height });
+            else setSelDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
+            return;
+          }
+          if (tool === "slice" || tool === "slice-select" || tool === "artboard") {
             setSelDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
             return;
           }

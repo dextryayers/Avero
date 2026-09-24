@@ -106,15 +106,28 @@ export default function App() {
       }
       if (!mod) {
         const t = e.key.toLowerCase();
+        const ae = document.activeElement?.tagName;
+        if (ae === "INPUT" || ae === "TEXTAREA") return;
+        const ed = useEditorStore.getState();
+        const pro = useProStore.getState();
+        // M bolak-balik rect/ellipse, U putar rect/ellipse/polygon
+        if (t === "m") {
+          const next = ed.tool === "select-rect" ? "select-ellipse" : "select-rect";
+          ed.setTool(next);
+          pro.setSelKind(next === "select-rect" ? "rect" : "ellipse");
+          return;
+        }
+        if (t === "u") {
+          const order = ["shape-rect", "shape-ellipse", "shape-polygon"] as const;
+          const i = order.indexOf(ed.tool as (typeof order)[number]);
+          ed.setTool(order[(i + 1) % order.length]);
+          return;
+        }
         const tool = inv[t];
-        if (
-          tool &&
-          document.activeElement?.tagName !== "INPUT" &&
-          document.activeElement?.tagName !== "TEXTAREA"
-        ) {
-          useEditorStore.getState().setTool(tool as any);
-          if (t === "m" || t === "l" || t === "w") {
-            useProStore.getState().setSelKind(t === "m" ? "rect" : t === "l" ? "lasso" : "wand");
+        if (tool) {
+          ed.setTool(tool as any);
+          if (t === "l" || t === "w") {
+            pro.setSelKind(t === "l" ? "lasso" : "wand");
           }
         }
       }

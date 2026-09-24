@@ -39,6 +39,9 @@ export default function CanvasArea() {
   const lastPos = useRef<{ x: number; y: number } | null>(null);
   const panning = useRef<{ sx: number; sy: number; px: number; py: number } | null>(null);
   const moveDrag = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null);
+  const spriteCache = useRef(new Map<string, HTMLCanvasElement>());
+  const cloneRef = useRef<{ x: number; y: number } | null>(null);
+  const cloneOrigin = useRef<{ x: number; y: number } | null>(null);
 
   const doc = useEditorStore((s) => s.doc);
   const layers = useEditorStore((s) => s.layers);
@@ -448,11 +451,62 @@ export default function CanvasArea() {
     return { x: (sx - ox) / s, y: (sy - oy) / s, sx, sy };
   }
 
+  // Brush engine: sprite radial sesuai hardness, di-stamp sepanjang stroke.
+  // Hardness 100 = cakram solid, 0 = gaussian lembut.
+  function brushSprite(size: number, hardness: number, color: string): HTMLCanvasElement {
+    const key = `${Math.round(size)}|${Math.round(hardness)}|${color}`;
+    let sp = spriteCache.current.get(key);
+    if (sp) return sp;
+    const s = Math.max(1, Math.round(size));
+    sp = document.createElement("canvas");
+    sp.width = s;
+    sp.height = s;
+    const ctx = sp.getContext("2d")!;
+    const hard = Math.max(0, Math.min(100, hardness)) / 100;
+    const inner = (s / 2) * (0.15 + 0.85 * hard);
+    const ga = ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+    ga.addColorStop(0, "rgba(255,255,255,1)");
+    ga.addColorStop(Math.min(0.99, inner / (s / 2)), "rgba(255,255,255,1)");
+    ga.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = ga;
+    ctx.fillRect(0, 0, s, s);
+    ctx.globalCompositeOperation = "source-in";
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, s, s);
+    ctx.globalCompositeOperation = "source-over";
+    if (spriteCache.current.size > 40) spriteCache.current.clear();
+    spriteCache.current.set(key, sp);
+    return sp;
+  }
+
+  function stampLine(
+    ctx: CanvasRenderingContext2D,
+    sprite: HTMLCanvasElement,
+    size: number,
+    x0: number,
+    y0: number,
+    x1: number,
+    y1: number,
+    checkSel: boolean,
+  ) {
+    const dx = x1 - x0;
+    const dy = y1 - y0;
+    const dist = Math.hypot(dx, dy);
+    const spacing = Math.max(1, size * 0.18);
+    const steps = Math.max(1, Math.floor(dist / spacing));
+    for (let i = 0; i <= steps; i++) {
+      const px = x0 + (dx * i) / steps;
+      const py = y0 + (dy * i) / steps;
+      if (checkSel && !isPointInSelection(px, py)) continue;
+      ctx.drawImage(sprite, px - size / 2, py - size / 2, size, size);
+    }
+  }
+
   function paintTo(x: number, y: number, erase: boolean) {
     if (!activeLayerId) return;
-    if (!isPointInSelection(x, y)) return;
     const meta = layers.find((l) => l.id === activeLayerId);
     if (!meta || meta.locked || !meta.visible) return;
+    const last = lastPos.current ?? { x, y };
 
     // Mode paint mask
     const m = masks[activeLayerId];
@@ -460,22 +514,9 @@ export default function CanvasArea() {
       const mc = layerManager.ensureMask(activeLayerId, doc.width, doc.height);
       const ctx = mc.getContext("2d")!;
       ctx.save();
-      ctx.globalCompositeOperation = "source-over";
-      ctx.strokeStyle = erase ? "#000000" : "#ffffff";
       ctx.globalAlpha = brushOpacity / 100;
-      ctx.lineWidth = brushSize;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      const last = lastPos.current;
-      ctx.beginPath();
-      if (last) {
-        ctx.moveTo(last.x, last.y);
-        ctx.lineTo(x, y);
-      } else {
-        ctx.moveTo(x, y);
-        ctx.lineTo(x + 0.1, y + 0.1);
-      }
-      ctx.stroke();
+      const sp = brushSprite(brushSize, brushHardness, erase ? "#000000" : "#ffffff");
+      stampLine(ctx, sp, brushSize, last.x, last.y, x, y, true);
       ctx.restore();
       lastPos.current = { x, y };
       markDirty();
@@ -488,23 +529,63 @@ export default function CanvasArea() {
     ctx.save();
     ctx.globalCompositeOperation = erase ? "destination-out" : "source-over";
     ctx.globalAlpha = (erase ? 100 : brushOpacity) / 100;
-    ctx.strokeStyle = erase ? "rgba(0,0,0,1)" : brushColor;
-    ctx.lineWidth = brushSize;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    const last = lastPos.current;
-    ctx.beginPath();
-    if (last) {
-      ctx.moveTo(last.x, last.y);
-      ctx.lineTo(x, y);
-    } else {
-      ctx.moveTo(x, y);
-      ctx.lineTo(x + 0.1, y + 0.1);
-    }
-    ctx.stroke();
+    const sp = brushSprite(brushSize, brushHardness, erase ? "#000000" : brushColor);
+    stampLine(ctx, sp, brushSize, last.x, last.y, x, y, true);
     ctx.restore();
     lastPos.current = { x, y };
     markDirty();
+  }
+
+  // Clone stamp: Alt+klik tentukan sumber, lukis untuk salin.
+  function cloneTo(x: number, y: number) {
+    if (!activeLayerId) return;
+    const meta = layers.find((l) => l.id === activeLayerId);
+    if (!meta || meta.locked || !meta.visible) return;
+    const src = cloneRef.current;
+    if (!src) {
+      setCursor("Alt+klik tentukan sumber");
+      return;
+    }
+    if (!cloneOrigin.current) cloneOrigin.current = { x, y };
+    const ox = cloneOrigin.current.x - src.x;
+    const oy = cloneOrigin.current.y - src.y;
+    const c = layerManager.ensure(activeLayerId, doc.width, doc.height);
+    const ctx = c.getContext("2d")!;
+    const r = brushSize / 2;
+    const last = lastPos.current ?? { x, y };
+    const dx = x - last.x;
+    const dy = y - last.y;
+    const dist = Math.hypot(dx, dy);
+    const steps = Math.max(1, Math.floor(dist / Math.max(1, brushSize * 0.18)));
+    ctx.save();
+    ctx.globalAlpha = brushOpacity / 100;
+    for (let i = 0; i <= steps; i++) {
+      const px = last.x + (dx * i) / steps;
+      const py = last.y + (dy * i) / steps;
+      if (!isPointInSelection(px, py)) continue;
+      ctx.drawImage(c, px - ox - r, py - oy - r, r * 2, r * 2, px - r, py - r, r * 2, r * 2);
+    }
+    ctx.restore();
+    lastPos.current = { x, y };
+    markDirty();
+  }
+
+  // Eyedropper: ambil warna dari komposit lalu kembali ke brush.
+  function pickColor(p: { x: number; y: number }) {
+    const comp = getCompositeCanvas();
+    if (!comp) return;
+    const ix = Math.max(0, Math.min(comp.width - 1, Math.floor(p.x)));
+    const iy = Math.max(0, Math.min(comp.height - 1, Math.floor(p.y)));
+    try {
+      const d = comp.getContext("2d", { willReadFrequently: true })!.getImageData(ix, iy, 1, 1).data;
+      const hex = `#${[d[0], d[1], d[2]].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+      const st = useEditorStore.getState();
+      st.setBrush({ color: hex });
+      st.setTool("brush");
+      setCursor(`Warna ${hex}`);
+    } catch {
+      /* abaikan */
+    }
   }
 
   function handleWandClick(p: { x: number; y: number }) {
@@ -616,8 +697,29 @@ export default function CanvasArea() {
             moveDrag.current = { sx: e.clientX, sy: e.clientY, ox: t?.x ?? 0, oy: t?.y ?? 0 };
             return;
           }
-          if (tool === "select-rect") {
+          if (tool === "select-rect" || tool === "select-ellipse") {
             setSelDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
+            return;
+          }
+          if (tool === "eyedropper") {
+            pickColor(p);
+            return;
+          }
+          if (tool === "clone") {
+            if (e.altKey) {
+              cloneRef.current = { x: p.x, y: p.y };
+              cloneOrigin.current = null;
+              setCursor(`Sumber ${Math.round(p.x)}, ${Math.round(p.y)}`);
+              return;
+            }
+            const snap = layerManager.snapshot(activeLayerId ?? "");
+            if (snap && activeLayerId) {
+              pushHistory({ label: "Clone stamp", layerId: activeLayerId, snapshot: snap });
+            }
+            setIsPainting(true);
+            lastPos.current = null;
+            cloneOrigin.current = null;
+            cloneTo(p.x, p.y);
             return;
           }
           if (tool === "select-lasso") {
@@ -638,6 +740,10 @@ export default function CanvasArea() {
           }
           if (tool === "shape-ellipse") {
             createShapeLayer("ellipse");
+            return;
+          }
+          if (tool === "shape-polygon") {
+            createShapeLayer("polygon");
             return;
           }
           if (tool === "brush" || tool === "eraser") {
@@ -690,7 +796,8 @@ export default function CanvasArea() {
             return;
           }
           if (isPainting) {
-            paintTo(p.x, p.y, tool === "eraser");
+            if (tool === "clone") cloneTo(p.x, p.y);
+            else paintTo(p.x, p.y, tool === "eraser");
           }
         }}
         onMouseUp={() => {
@@ -702,7 +809,8 @@ export default function CanvasArea() {
               h: selDrag.y1 - selDrag.y0,
             };
             if (Math.abs(r.w) > 4 && Math.abs(r.h) > 4) {
-              drawRectSelection(doc.width, doc.height, r);
+              if (tool === "select-ellipse") drawEllipseSelection(doc.width, doc.height, r);
+              else drawRectSelection(doc.width, doc.height, r);
               const feather = useProStore.getState().selFeather;
               if (feather > 0) featherSelection(feather);
             }
@@ -722,6 +830,7 @@ export default function CanvasArea() {
           setIsPainting(false);
           lastPos.current = null;
           panning.current = null;
+          cloneOrigin.current = null;
           if (isPainting) bumpHistogram();
         }}
         onMouseLeave={() => {
@@ -729,6 +838,7 @@ export default function CanvasArea() {
           lastPos.current = null;
           panning.current = null;
           moveDrag.current = null;
+          cloneOrigin.current = null;
         }}
       >
         <canvas
@@ -738,9 +848,15 @@ export default function CanvasArea() {
             cursor:
               tool === "pan"
                 ? "grab"
-                : tool === "brush" || tool === "eraser"
+                : tool === "brush" ||
+                    tool === "eraser" ||
+                    tool === "clone" ||
+                    tool === "eyedropper"
                   ? "crosshair"
-                  : tool === "select-rect" || tool === "select-lasso"
+                  : tool === "select-rect" ||
+                      tool === "select-ellipse" ||
+                      tool === "select-lasso" ||
+                      tool === "wand"
                     ? "crosshair"
                     : "default",
           }}

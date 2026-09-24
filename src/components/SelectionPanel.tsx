@@ -24,10 +24,11 @@ export default function SelectionPanel() {
     <div className="space-y-3 p-3 text-[12px]">
       <div>
         <h4 className="mb-1.5 font-semibold text-white">Selection tool</h4>
-        <div className="grid grid-cols-3 gap-1">
+        <div className="grid grid-cols-4 gap-1">
           {(
             [
               ["rect", "Rect (M)", "select-rect"],
+              ["ellipse", "Ellipse (M)", "select-ellipse"],
               ["lasso", "Lasso (L)", "select-lasso"],
               ["wand", "Wand (W)", "wand"],
             ] as const

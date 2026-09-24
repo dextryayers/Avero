@@ -19,6 +19,7 @@ import { applyAdjustmentToImageData, applyRawDevelop } from "../engine/adjustmen
 import { applyFilterToCanvas } from "../engine/filters";
 import { applySoftProof, convertWorkingSpace } from "../engine/color";
 import { renderShapeToLayer, renderTextToLayer } from "../engine/textShape";
+import ToolOptionsBar from "./ToolOptionsBar";
 import { makeLayer } from "../stores/useEditorStore";
 
 export function getCompositeCanvas(): HTMLCanvasElement | null {
@@ -33,6 +34,13 @@ export default function CanvasArea() {
   const [selDrag, setSelDrag] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(
     null,
   );
+  const [cropDrag, setCropDrag] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(
+    null,
+  );
+  const [gradDrag, setGradDrag] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(
+    null,
+  );
+  const guideDrag = useRef<{ kind: "h" | "v"; index: number } | null>(null);
   const [lassoPts, setLassoPts] = useState<{ x: number; y: number }[]>([]);
   const [ants, setAnts] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -70,6 +78,10 @@ export default function CanvasArea() {
   const bumpHistogram = useProStore((s) => s.bumpHistogram);
   const historyLen = useEditorStore((s) => s.history.length);
   const isFresh = !doc.filePath && historyLen === 0;
+  const gradTo = useProStore((s) => s.gradTo);
+  const guidesH = useProStore((s) => s.guidesH);
+  const guidesV = useProStore((s) => s.guidesV);
+  const showGuides = useProStore((s) => s.showGuides);
 
   useEffect(() => {
     layers.forEach((l) => layerManager.ensure(l.id, doc.width, doc.height));
@@ -400,6 +412,67 @@ export default function CanvasArea() {
       ctx.restore();
     }
 
+    // 8. Guides
+    if (showGuides && (guidesH.length > 0 || guidesV.length > 0)) {
+      ctx.save();
+      ctx.strokeStyle = "rgba(56,225,255,0.85)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      guidesH.forEach((gy) => {
+        ctx.moveTo(ox, oy + gy * s);
+        ctx.lineTo(ox + dw, oy + gy * s);
+      });
+      guidesV.forEach((gx) => {
+        ctx.moveTo(ox + gx * s, oy);
+        ctx.lineTo(ox + gx * s, oy + dh);
+      });
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // 9. Crop preview: gelapkan luar area + bingkai
+    if (cropDrag) {
+      const x = ox + Math.min(cropDrag.x0, cropDrag.x1) * s;
+      const y = oy + Math.min(cropDrag.y0, cropDrag.y1) * s;
+      const wpx = Math.abs(cropDrag.x1 - cropDrag.x0) * s;
+      const hpx = Math.abs(cropDrag.y1 - cropDrag.y0) * s;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(ox, oy, dw, dh);
+      ctx.rect(x, y, wpx, hpx);
+      ctx.fillStyle = "rgba(0,0,0,0.55)";
+      ctx.fill("evenodd");
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x, y, wpx, hpx);
+      ctx.fillStyle = "#0a84ff";
+      const hs = 8;
+      [
+        [x, y],
+        [x + wpx, y],
+        [x, y + hpx],
+        [x + wpx, y + hpx],
+      ].forEach(([hx, hy]) => ctx.fillRect(hx - hs / 2, hy - hs / 2, hs, hs));
+      ctx.restore();
+    }
+
+    // 10. Gradient preview line
+    if (gradDrag) {
+      ctx.save();
+      ctx.setLineDash([5, 4]);
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(ox + gradDrag.x0 * s, oy + gradDrag.y0 * s);
+      ctx.lineTo(ox + gradDrag.x1 * s, oy + gradDrag.y1 * s);
+      ctx.stroke();
+      ctx.fillStyle = "#0a84ff";
+      ctx.beginPath();
+      ctx.arc(ox + gradDrag.x0 * s, oy + gradDrag.y0 * s, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
     if (zoom >= 400) {
       ctx.save();
       ctx.strokeStyle = "rgba(255,255,255,0.06)";
@@ -429,6 +502,11 @@ export default function CanvasArea() {
     ants,
     selDrag,
     lassoPts,
+    cropDrag,
+    gradDrag,
+    guidesH,
+    guidesV,
+    showGuides,
     adjustments,
     filters,
     masks,
@@ -570,6 +648,106 @@ export default function CanvasArea() {
     markDirty();
   }
 
+  function applyCrop() {
+    const st = useEditorStore.getState();
+    if (!cropDrag) return;
+    const x = Math.max(0, Math.floor(Math.min(cropDrag.x0, cropDrag.x1)));
+    const y = Math.max(0, Math.floor(Math.min(cropDrag.y0, cropDrag.y1)));
+    const w = Math.min(st.doc.width - x, Math.floor(Math.abs(cropDrag.x1 - cropDrag.x0)));
+    const h = Math.min(st.doc.height - y, Math.floor(Math.abs(cropDrag.y1 - cropDrag.y0)));
+    if (w < 2 || h < 2) {
+      setCropDrag(null);
+      return;
+    }
+    // snapshot semua layer agar crop bisa di-undo per layer
+    st.layers.forEach((l) => {
+      const snap = layerManager.snapshot(l.id);
+      if (snap) st.pushHistory({ label: "Crop", layerId: l.id, snapshot: snap });
+    });
+    st.layers.forEach((l) => {
+      const c = layerManager.get(l.id);
+      if (c) {
+        const tmp = document.createElement("canvas");
+        tmp.width = w;
+        tmp.height = h;
+        tmp.getContext("2d")!.drawImage(c, x, y, w, h, 0, 0, w, h);
+        c.width = w;
+        c.height = h;
+        c.getContext("2d")!.drawImage(tmp, 0, 0);
+      }
+      const mc = layerManager.getMask(l.id);
+      if (mc) {
+        const tmp = document.createElement("canvas");
+        tmp.width = w;
+        tmp.height = h;
+        tmp.getContext("2d")!.drawImage(mc, x, y, w, h, 0, 0, w, h);
+        mc.width = w;
+        mc.height = h;
+        mc.getContext("2d")!.drawImage(tmp, 0, 0);
+      }
+      // transform di-reset karena origin dokumen berubah
+      useProStore.getState().updateTransform(l.id, { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 });
+    });
+    st.setDocSize(w, h);
+    clearSelectionMask();
+    st.markDirty();
+    setCropDrag(null);
+    useProStore.getState().bumpHistogram();
+    fitToView();
+  }
+
+  function applyGradient(x0: number, y0: number, x1: number, y1: number) {
+    const st = useEditorStore.getState();
+    const id = st.activeLayerId;
+    if (!id) return;
+    const meta = st.layers.find((l) => l.id === id);
+    if (!meta || meta.locked || !meta.visible) return;
+    const snap = layerManager.snapshot(id);
+    if (snap) st.pushHistory({ label: "Gradient", layerId: id, snapshot: snap });
+    const c = layerManager.ensure(id, st.doc.width, st.doc.height);
+    const ctx = c.getContext("2d")!;
+    const to =
+      gradTo === "white" ? "#ffffff" : gradTo === "black" ? "#000000" : "rgba(0,0,0,0)";
+    const from = st.brushColor;
+    const g = ctx.createLinearGradient(x0, y0, x1, y1);
+    if (gradTo === "transparent") {
+      g.addColorStop(0, from);
+      const r = parseInt(from.slice(1, 3), 16);
+      const gg = parseInt(from.slice(3, 5), 16);
+      const b = parseInt(from.slice(5, 7), 16);
+      g.addColorStop(1, `rgba(${r},${gg},${b},0)`);
+    } else {
+      g.addColorStop(0, from);
+      g.addColorStop(1, to);
+    }
+    ctx.save();
+    ctx.globalAlpha = st.brushOpacity / 100;
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, c.width, c.height);
+    // hormati seleksi: potong ke mask seleksi
+    const sel = selectionMaskCanvas();
+    if (sel && hasSelection()) {
+      ctx.globalCompositeOperation = "destination-in";
+      ctx.globalAlpha = 1;
+      ctx.drawImage(sel, 0, 0);
+    }
+    ctx.restore();
+    st.markDirty();
+    useProStore.getState().bumpHistogram();
+  }
+
+  // Enter terapkan crop, Esc batal — hanya saat tool crop aktif
+  useEffect(() => {
+    if (tool !== "crop" || !cropDrag) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Enter") applyCrop();
+      if (e.key === "Escape") setCropDrag(null);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tool, cropDrag]);
+
   // Eyedropper: ambil warna dari komposit lalu kembali ke brush.
   function pickColor(p: { x: number; y: number }) {
     const comp = getCompositeCanvas();
@@ -693,8 +871,33 @@ export default function CanvasArea() {
           }
           const p = toDocCoords(e);
           if (tool === "move") {
+            // dahulukan drag guide ala Photoshop bila kena garis
+            if (showGuides) {
+              const thr = 7 / (zoom / 100);
+              let best: { kind: "h" | "v"; index: number; d: number } | null = null;
+              guidesV.forEach((gx, i) => {
+                const d = Math.abs(p.x - gx);
+                if (d < thr && (!best || d < best.d)) best = { kind: "v", index: i, d };
+              });
+              guidesH.forEach((gy, i) => {
+                const d = Math.abs(p.y - gy);
+                if (d < thr && (!best || d < best.d)) best = { kind: "h", index: i, d };
+              });
+              if (best) {
+                guideDrag.current = { kind: best.kind, index: best.index };
+                return;
+              }
+            }
             const t = transforms[activeLayerId ?? ""];
             moveDrag.current = { sx: e.clientX, sy: e.clientY, ox: t?.x ?? 0, oy: t?.y ?? 0 };
+            return;
+          }
+          if (tool === "crop") {
+            setCropDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
+            return;
+          }
+          if (tool === "gradient") {
+            setGradDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
             return;
           }
           if (tool === "select-rect" || tool === "select-ellipse") {
@@ -787,6 +990,33 @@ export default function CanvasArea() {
             });
             return;
           }
+          if (guideDrag.current) {
+            const pro = useProStore.getState();
+            if (guideDrag.current.kind === "v")
+              pro.moveGuide("v", guideDrag.current.index, Math.round(Math.max(0, Math.min(doc.width, p.x))));
+            else
+              pro.moveGuide("h", guideDrag.current.index, Math.round(Math.max(0, Math.min(doc.height, p.y))));
+            return;
+          }
+          if (cropDrag) {
+            setCropDrag({ ...cropDrag, x1: p.x, y1: p.y });
+            return;
+          }
+          if (gradDrag) {
+            let x1 = p.x;
+            let y1 = p.y;
+            if (e.shiftKey) {
+              // kunci sudut 45 derajat
+              const dx = x1 - gradDrag.x0;
+              const dy = y1 - gradDrag.y0;
+              const ang = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4);
+              const len = Math.hypot(dx, dy);
+              x1 = gradDrag.x0 + Math.cos(ang) * len;
+              y1 = gradDrag.y0 + Math.sin(ang) * len;
+            }
+            setGradDrag({ ...gradDrag, x1, y1 });
+            return;
+          }
           if (selDrag) {
             setSelDrag({ ...selDrag, x1: p.x, y1: p.y });
             return;
@@ -801,6 +1031,13 @@ export default function CanvasArea() {
           }
         }}
         onMouseUp={() => {
+          if (gradDrag) {
+            const dx = gradDrag.x1 - gradDrag.x0;
+            const dy = gradDrag.y1 - gradDrag.y0;
+            if (Math.hypot(dx, dy) > 6) applyGradient(gradDrag.x0, gradDrag.y0, gradDrag.x1, gradDrag.y1);
+            setGradDrag(null);
+          }
+          if (guideDrag.current) guideDrag.current = null;
           if (selDrag) {
             const r = {
               x: selDrag.x0,
@@ -861,6 +1098,7 @@ export default function CanvasArea() {
                     : "default",
           }}
         />
+        <ToolOptionsBar onApplyCrop={applyCrop} onCancelCrop={() => setCropDrag(null)} />
         <div className="pointer-events-none absolute bottom-2 left-2 rounded bg-black/60 px-2 py-1 font-mono text-[10px] text-white/80">
           {cursor} • {tool} • {Math.ceil(doc.width / 256) * Math.ceil(doc.height / 256)} tiles
           {hasSelection() ? " • SEL" : ""}

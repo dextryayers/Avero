@@ -88,6 +88,7 @@ interface EditorState {
   ) => void;
   markClean: () => void;
   markDirty: () => void;
+  setDocSize: (w: number, h: number) => void;
   addLayer: (l: LayerMeta) => void;
   removeLayer: (id: string) => void;
   updateLayer: (id: string, p: Partial<LayerMeta>) => void;
@@ -186,6 +187,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   markClean: () => set((s) => ({ doc: { ...s.doc, dirty: false } })),
   markDirty: () => set((s) => ({ doc: { ...s.doc, dirty: true } })),
+  setDocSize: (w, h) =>
+    set((s) => ({
+      doc: {
+        ...s.doc,
+        width: Math.max(1, Math.min(16384, Math.round(w))),
+        height: Math.max(1, Math.min(16384, Math.round(h))),
+        dirty: true,
+      },
+    })),
 
   addLayer: (l) =>
     set((s) => ({ layers: [...s.layers, l], activeLayerId: l.id, doc: { ...s.doc, dirty: true } })),

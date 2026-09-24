@@ -110,6 +110,17 @@ interface ProState {
   >;
   setTextSpec: (layerId: string, spec: ProState["textSpecs"][string]) => void;
   setShapeSpec: (layerId: string, spec: ProState["shapeSpecs"][string]) => void;
+  gradTo: "transparent" | "white" | "black";
+  setGradTo: (v: ProState["gradTo"]) => void;
+  guidesH: number[];
+  guidesV: number[];
+  showGuides: boolean;
+  addGuide: (kind: "h" | "v", pos: number) => void;
+  moveGuide: (kind: "h" | "v", index: number, pos: number) => void;
+  removeGuide: (kind: "h" | "v", index: number) => void;
+  clearGuides: () => void;
+  toggleGuides: () => void;
+  removeTransform: (layerId: string) => void;
 
   setSelKind: (k: ProState["selKind"]) => void;
   setSelParams: (p: Partial<Pick<ProState, "selFeather" | "selTolerance" | "selExpand">>) => void;
@@ -217,9 +228,37 @@ export const useProStore = create<ProState>((set) => ({
   textSpecs: {},
   shapeSpecs: {},
   histogramTick: 0,
+  gradTo: "transparent",
+  guidesH: [],
+  guidesV: [],
+  showGuides: true,
 
   setSelKind: (selKind) => set({ selKind }),
   setSelParams: (p) => set(p),
+  setGradTo: (gradTo) => set({ gradTo }),
+  addGuide: (kind, pos) =>
+    set((s) => ({
+      guidesH: kind === "h" ? [...s.guidesH, pos] : s.guidesH,
+      guidesV: kind === "v" ? [...s.guidesV, pos] : s.guidesV,
+    })),
+  moveGuide: (kind, index, pos) =>
+    set((s) => ({
+      guidesH: kind === "h" ? s.guidesH.map((g, i) => (i === index ? pos : g)) : s.guidesH,
+      guidesV: kind === "v" ? s.guidesV.map((g, i) => (i === index ? pos : g)) : s.guidesV,
+    })),
+  removeGuide: (kind, index) =>
+    set((s) => ({
+      guidesH: kind === "h" ? s.guidesH.filter((_, i) => i !== index) : s.guidesH,
+      guidesV: kind === "v" ? s.guidesV.filter((_, i) => i !== index) : s.guidesV,
+    })),
+  clearGuides: () => set({ guidesH: [], guidesV: [] }),
+  toggleGuides: () => set((s) => ({ showGuides: !s.showGuides })),
+  removeTransform: (layerId) =>
+    set((s) => {
+      const t = { ...s.transforms };
+      delete t[layerId];
+      return { transforms: t };
+    }),
 
   addAdjustment: (type) =>
     set((s) => ({

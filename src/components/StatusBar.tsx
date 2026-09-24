@@ -9,7 +9,12 @@ export default function StatusBar() {
   const backendInfo = useEditorStore((s) => s.backendInfo);
   const toggleRulers = useEditorStore((s) => s.toggleRulers);
   const showRulers = useEditorStore((s) => s.showRulers);
+  const tool = useEditorStore((s) => s.tool);
   const color = useProStore((s) => s.color);
+  const showGrid = useProStore((s) => s.showGrid);
+  const gridSize = useProStore((s) => s.gridSize);
+  const snapEnabled = useProStore((s) => s.snapEnabled);
+  const showGuides = useProStore((s) => s.showGuides);
   const layers = useEditorStore((s) => s.layers);
   const [mem, setMem] = useState<string>("");
 

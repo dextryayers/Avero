@@ -566,6 +566,8 @@ export default function CanvasArea() {
     guidesH,
     guidesV,
     showGuides,
+    showGrid,
+    gridSize,
     adjustments,
     filters,
     masks,
@@ -1113,18 +1115,40 @@ export default function CanvasArea() {
   }
 
   return (
-    <div className="relative flex min-w-0 flex-1 flex-col bg-[#141414]">
+    <div className="relative flex min-w-0 flex-1 flex-col bg-[#07090d]">
       {showRulers && (
-        <div className="flex h-6 shrink-0 items-stretch border-b border-[#3e3e42] bg-[#252526] text-[10px] text-[#a0a0a0]">
-          <div className="grid w-6 place-items-center border-r border-[#3e3e42]">px</div>
-          <div className="flex flex-1 items-center justify-between px-3 font-mono">
-            <span>
-              W {doc.width} {paintMask ? "• paint MASK" : ""}
+        <div className="flex h-7 shrink-0 items-stretch border-b border-[#1c2333] bg-[#0e1219] text-[10px] text-[#8a94a6]">
+          <div className="grid w-10 shrink-0 place-items-center border-r border-[#1c2333] font-mono text-[#38a0ff]">px</div>
+          <div className="flex flex-1 items-center gap-3 overflow-x-auto px-3 font-mono">
+            <span className="whitespace-nowrap text-white">
+              W {doc.width} × H {doc.height} {paintMask ? "• paint MASK" : ""}
             </span>
-            <span>H {doc.height}</span>
-            <span>
+            <span className="whitespace-nowrap">
               Zoom {zoom}% • Adj {adjustments.filter((a) => a.enabled).length} • Flt{" "}
               {filters.filter((f) => f.enabled).length} • {color.workingSpace}
+            </span>
+            <span className="ml-auto flex shrink-0 items-center gap-1.5">
+              <button
+                onClick={() => useProStore.getState().toggleGrid()}
+                title="Toggle grid"
+                className={`rounded px-1.5 py-0.5 ${showGrid ? "bg-[#0a84ff] text-white" : "hover:bg-white/10 hover:text-white"}`}
+              >
+                Grid
+              </button>
+              <button
+                onClick={() => useProStore.getState().toggleSnap()}
+                title="Toggle snap (Alt tahan untuk bypass)"
+                className={`rounded px-1.5 py-0.5 ${snapEnabled ? "bg-[#0a84ff] text-white" : "hover:bg-white/10 hover:text-white"}`}
+              >
+                Snap
+              </button>
+              <button
+                onClick={() => useProStore.getState().toggleGuides()}
+                title="Toggle guides"
+                className={`rounded px-1.5 py-0.5 ${showGuides ? "bg-[#0a84ff] text-white" : "hover:bg-white/10 hover:text-white"}`}
+              >
+                Guides
+              </button>
             </span>
           </div>
         </div>
@@ -1314,8 +1338,46 @@ export default function CanvasArea() {
           }
           if (moveDrag.current && activeLayerId) {
             const s = zoom / 100;
-            const dx = (e.clientX - moveDrag.current.sx) / s;
-            const dy = (e.clientY - moveDrag.current.sy) / s;
+            let dx = (e.clientX - moveDrag.current.sx) / s;
+            let dy = (e.clientY - moveDrag.current.sy) / s;
+            const pro0 = useProStore.getState();
+            // Snap ala Photoshop: ke guides + grid + center dokumen
+            if (pro0.snapEnabled && !e.altKey) {
+              const thr = 10 / s + 3;
+              let nx = moveDrag.current.ox + dx;
+              let ny = moveDrag.current.oy + dy;
+              // snap ke guides (posisi layer center)
+              const cx = doc.width / 2 + nx;
+              const cy = doc.height / 2 + ny;
+              for (const gx of pro0.guidesV) {
+                if (Math.abs(cx - gx) < thr) {
+                  nx = gx - doc.width / 2;
+                  break;
+                }
+              }
+              for (const gy of pro0.guidesH) {
+                if (Math.abs(cy - gy) < thr) {
+                  ny = gy - doc.height / 2;
+                  break;
+                }
+              }
+              // snap ke grid
+              if (pro0.showGrid) {
+                const gs = pro0.gridSize;
+                const sx = Math.round(cx / gs) * gs;
+                const sy = Math.round(cy / gs) * gs;
+                if (Math.abs(cx - sx) < thr) nx = sx - doc.width / 2;
+                if (Math.abs(cy - sy) < thr) ny = sy - doc.height / 2;
+              }
+              // snap ke tengah dokumen
+              if (Math.abs(nx) < thr) nx = 0;
+              if (Math.abs(ny) < thr) ny = 0;
+              dx = nx - moveDrag.current.ox;
+              dy = ny - moveDrag.current.oy;
+              if (Math.abs(dx - (e.clientX - moveDrag.current.sx) / s) > 0.5) {
+                setCursor(`Snap ${Math.round(nx)}, ${Math.round(ny)}`);
+              }
+            }
             useProStore.getState().ensureTransform(activeLayerId);
             useProStore.getState().updateTransform(activeLayerId, {
               x: moveDrag.current.ox + dx,

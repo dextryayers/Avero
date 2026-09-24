@@ -114,6 +114,28 @@ class LayerManager {
     }
   }
 
+  snapshotMask(id: string): ImageData | null {
+    const m = this.masks.get(id);
+    if (!m) return null;
+    try {
+      return m
+        .getContext("2d", { willReadFrequently: true })!
+        .getImageData(0, 0, m.width, m.height);
+    } catch {
+      return null;
+    }
+  }
+
+  restoreMask(id: string, snap: ImageData | null) {
+    const m = this.masks.get(id);
+    if (!m || !snap) return;
+    if (m.width !== snap.width || m.height !== snap.height) {
+      m.width = snap.width;
+      m.height = snap.height;
+    }
+    m.getContext("2d")!.putImageData(snap, 0, 0);
+  }
+
   restore(id: string, snap: ImageData | null) {
     const c = this.canvases.get(id);
     if (!c || !snap) return;

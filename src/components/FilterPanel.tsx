@@ -1,4 +1,5 @@
 import { useProStore, type FilterType } from "../stores/useProStore";
+import { useAutomationStore } from "../stores/useAutomationStore";
 import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
 
 const addable: { id: FilterType; label: string }[] = [
@@ -24,7 +25,12 @@ export default function FilterPanel() {
         {addable.map((f) => (
           <button
             key={f.id}
-            onClick={() => addFilter(f.id)}
+            onClick={() => {
+              addFilter(f.id);
+              useAutomationStore
+                .getState()
+                .pushStep(`Add ${f.label}`, { type: "filter/add", payload: { kind: f.id } });
+            }}
             className="flex items-center gap-1 rounded bg-[#7a4fd0] px-2 py-1 text-[10px] text-white hover:bg-[#6840b8]"
           >
             <Plus size={11} /> {f.label}

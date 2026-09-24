@@ -7,7 +7,7 @@ export async function inpaintSelection(
   layer: HTMLCanvasElement,
   selMask: HTMLCanvasElement | null,
   radius = 6,
-  onProgress?: (p: number) => void
+  onProgress?: (p: number) => void,
 ): Promise<void> {
   const w = layer.width;
   const h = layer.height;
@@ -20,7 +20,8 @@ export async function inpaintSelection(
     maskA = new Uint8ClampedArray(w * h);
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
-        if (x < mid.width && y < mid.height) maskA[y * w + x] = mid.data[(y * mid.width + x) * 4 + 3];
+        if (x < mid.width && y < mid.height)
+          maskA[y * w + x] = mid.data[(y * mid.width + x) * 4 + 3];
         else maskA[y * w + x] = 0;
       }
     }
@@ -78,7 +79,7 @@ export async function inpaintSelection(
 export async function upscaleLayer(
   src: HTMLCanvasElement,
   scale: 2 | 4,
-  onProgress?: (p: number) => void
+  onProgress?: (p: number) => void,
 ): Promise<HTMLCanvasElement> {
   onProgress?.(8);
   await yieldToUI(1);
@@ -119,9 +120,13 @@ export function colorTransfer(src: ImageData, ref: ImageData) {
   const d = src.data;
   for (let i = 0; i < d.length; i += 4) {
     // ruang sederhana: geser per channel berdasar mean/std
-    d[i] = clamp8(((d[i] - sMean.m[0]) * (rMean.s[0] / Math.max(1, sMean.s[0])) + rMean.m[0]));
-    d[i + 1] = clamp8(((d[i + 1] - sMean.m[1]) * (rMean.s[1] / Math.max(1, sMean.s[1])) + rMean.m[1]));
-    d[i + 2] = clamp8(((d[i + 2] - sMean.m[2]) * (rMean.s[2] / Math.max(1, sMean.s[2])) + rMean.m[2]));
+    d[i] = clamp8((d[i] - sMean.m[0]) * (rMean.s[0] / Math.max(1, sMean.s[0])) + rMean.m[0]);
+    d[i + 1] = clamp8(
+      (d[i + 1] - sMean.m[1]) * (rMean.s[1] / Math.max(1, sMean.s[1])) + rMean.m[1],
+    );
+    d[i + 2] = clamp8(
+      (d[i + 2] - sMean.m[2]) * (rMean.s[2] / Math.max(1, sMean.s[2])) + rMean.m[2],
+    );
   }
 }
 

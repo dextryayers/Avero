@@ -13,10 +13,19 @@ function edgeColors(img: ImageData, samples = 240): { r: number; g: number; b: n
     const t = Math.floor((i / samples) * (2 * w + 2 * h));
     let x = 0;
     let y = 0;
-    if (t < w) { x = t; y = 2; }
-    else if (t < w + h) { x = w - 3; y = t - w; }
-    else if (t < 2 * w + h) { x = t - w - h; y = h - 3; }
-    else { x = 2; y = t - 2 * w - h; }
+    if (t < w) {
+      x = t;
+      y = 2;
+    } else if (t < w + h) {
+      x = w - 3;
+      y = t - w;
+    } else if (t < 2 * w + h) {
+      x = t - w - h;
+      y = h - 3;
+    } else {
+      x = 2;
+      y = t - 2 * w - h;
+    }
     x = Math.max(0, Math.min(w - 1, x));
     y = Math.max(0, Math.min(h - 1, y));
     const idx = (y * w + x) * 4;
@@ -36,7 +45,7 @@ export async function backgroundRemoveAlpha(
   src: HTMLCanvasElement,
   tolerance = 42,
   onProgress?: (p: number) => void,
-  cancelled?: () => boolean
+  cancelled?: () => boolean,
 ): Promise<HTMLCanvasElement> {
   const w = src.width;
   const h = src.height;
@@ -93,7 +102,7 @@ export async function backgroundRemoveAlpha(
 // Auto select subject: buat selection mask dari saliency kontras + posisi tengah.
 export async function autoSubjectMask(
   comp: HTMLCanvasElement,
-  onProgress?: (p: number) => void
+  onProgress?: (p: number) => void,
 ): Promise<HTMLCanvasElement> {
   const w = comp.width;
   const h = comp.height;

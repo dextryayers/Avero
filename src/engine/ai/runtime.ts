@@ -16,11 +16,51 @@ export interface AiModelInfo {
 }
 
 const MODELS: AiModelInfo[] = [
-  { id: "u2net", label: "Background Remover", file: "u2net.onnx", sizeMB: 176, loaded: "heuristic", progress: 100, note: "Heuristik saliency+edge aktif. Taruh u2net.onnx di folder model untuk akurasi penuh." },
-  { id: "sam-mobile", label: "Select Subject", file: "sam-mobile.onnx", sizeMB: 98, loaded: "heuristic", progress: 100, note: "Heuristik kontras+tengah aktif. SAM ONNX opsional." },
-  { id: "lama", label: "Inpaint Erase", file: "lama.onnx", sizeMB: 210, loaded: "heuristic", progress: 100, note: "Inpaint difusi tetangga aktif. Lama ONNX opsional." },
-  { id: "esrgan-x4", label: "Upscale 4x", file: "esrgan-x4.onnx", sizeMB: 64, loaded: "heuristic", progress: 100, note: "Upscale bicubic+sharpen aktif. RealESRGAN ONNX opsional." },
-  { id: "color-grade", label: "Color Transfer", file: "color-grade.onnx", sizeMB: 12, loaded: "heuristic", progress: 100, note: "Transfer Reinhard lokal aktif, tanpa model." },
+  {
+    id: "u2net",
+    label: "Background Remover",
+    file: "u2net.onnx",
+    sizeMB: 176,
+    loaded: "heuristic",
+    progress: 100,
+    note: "Heuristik saliency+edge aktif. Taruh u2net.onnx di folder model untuk akurasi penuh.",
+  },
+  {
+    id: "sam-mobile",
+    label: "Select Subject",
+    file: "sam-mobile.onnx",
+    sizeMB: 98,
+    loaded: "heuristic",
+    progress: 100,
+    note: "Heuristik kontras+tengah aktif. SAM ONNX opsional.",
+  },
+  {
+    id: "lama",
+    label: "Inpaint Erase",
+    file: "lama.onnx",
+    sizeMB: 210,
+    loaded: "heuristic",
+    progress: 100,
+    note: "Inpaint difusi tetangga aktif. Lama ONNX opsional.",
+  },
+  {
+    id: "esrgan-x4",
+    label: "Upscale 4x",
+    file: "esrgan-x4.onnx",
+    sizeMB: 64,
+    loaded: "heuristic",
+    progress: 100,
+    note: "Upscale bicubic+sharpen aktif. RealESRGAN ONNX opsional.",
+  },
+  {
+    id: "color-grade",
+    label: "Color Transfer",
+    file: "color-grade.onnx",
+    sizeMB: 12,
+    loaded: "heuristic",
+    progress: 100,
+    note: "Transfer Reinhard lokal aktif, tanpa model.",
+  },
 ];
 
 export function listAiModels(): AiModelInfo[] {

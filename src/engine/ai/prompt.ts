@@ -15,11 +15,26 @@ export function parsePromptToActions(prompt: string): PromptAction[] {
   const has = (...keys: string[]) => keys.some((k) => q.includes(k));
 
   if (has("sunset", "senja", "hangat", "warm", "golden")) {
-    out.push({ kind: "adjustment", id: "hueSaturation", label: "Hangatkan tone", params: { hue: 8, saturation: 24, lightness: 0 } });
-    out.push({ kind: "adjustment", id: "exposure", label: "Golden exposure", params: { exposure: 0.25 } });
+    out.push({
+      kind: "adjustment",
+      id: "hueSaturation",
+      label: "Hangatkan tone",
+      params: { hue: 8, saturation: 24, lightness: 0 },
+    });
+    out.push({
+      kind: "adjustment",
+      id: "exposure",
+      label: "Golden exposure",
+      params: { exposure: 0.25 },
+    });
   }
   if (has("dramatis", "dramatic", "kontras", "contrast", "punch")) {
-    out.push({ kind: "adjustment", id: "brightnessContrast", label: "Dramatic contrast", params: { brightness: 0, contrast: 28 } });
+    out.push({
+      kind: "adjustment",
+      id: "brightnessContrast",
+      label: "Dramatic contrast",
+      params: { brightness: 0, contrast: 28 },
+    });
   }
   if (has("hitam putih", "black and white", "bw", "monokrom", "grayscale")) {
     out.push({ kind: "adjustment", id: "blackWhite", label: "Black and White", params: {} });
@@ -28,7 +43,12 @@ export function parsePromptToActions(prompt: string): PromptAction[] {
     out.push({ kind: "adjustment", id: "exposure", label: "Cerahkan", params: { exposure: 0.6 } });
   }
   if (has("gelap", "dark", "moody")) {
-    out.push({ kind: "adjustment", id: "exposure", label: "Moody gelap", params: { exposure: -0.5 } });
+    out.push({
+      kind: "adjustment",
+      id: "exposure",
+      label: "Moody gelap",
+      params: { exposure: -0.5 },
+    });
   }
   if (has("tajam", "sharp", "detail", "jelas")) {
     out.push({ kind: "filter", id: "sharpen", label: "Sharpen detail", params: { amount: 80 } });
@@ -49,20 +69,45 @@ export function parsePromptToActions(prompt: string): PromptAction[] {
     out.push({ kind: "ai", id: "upscale-2x", label: "Upscale 2x" });
   }
   if (has("langit", "sky", "biru")) {
-    out.push({ kind: "adjustment", id: "hueSaturation", label: "Langit biru", params: { hue: -8, saturation: 26, lightness: 4 } });
+    out.push({
+      kind: "adjustment",
+      id: "hueSaturation",
+      label: "Langit biru",
+      params: { hue: -8, saturation: 26, lightness: 4 },
+    });
   }
   if (has("kulit", "skin", "wajah", "portrait", "potret")) {
-    out.push({ kind: "adjustment", id: "brightnessContrast", label: "Kulit lembut", params: { brightness: 6, contrast: -8 } });
+    out.push({
+      kind: "adjustment",
+      id: "brightnessContrast",
+      label: "Kulit lembut",
+      params: { brightness: 6, contrast: -8 },
+    });
   }
   if (has("vintage", "retro", "film", "jadul")) {
-    out.push({ kind: "adjustment", id: "curves", label: "Film lift", params: { lift: 14, gain: -6 } });
-    out.push({ kind: "adjustment", id: "hueSaturation", label: "Film tone", params: { hue: 0, saturation: -18, lightness: 0 } });
+    out.push({
+      kind: "adjustment",
+      id: "curves",
+      label: "Film lift",
+      params: { lift: 14, gain: -6 },
+    });
+    out.push({
+      kind: "adjustment",
+      id: "hueSaturation",
+      label: "Film tone",
+      params: { hue: 0, saturation: -18, lightness: 0 },
+    });
   }
   if (has("cmyk", "proof", "cetak", "print")) {
     out.push({ kind: "color", id: "proof-on", label: "Aktifkan soft proof" });
   }
   if (out.length === 0) {
-    out.push({ kind: "adjustment", id: "brightnessContrast", label: "Auto enhance ringan", params: { brightness: 4, contrast: 12 } });
+    out.push({
+      kind: "adjustment",
+      id: "brightnessContrast",
+      label: "Auto enhance ringan",
+      params: { brightness: 4, contrast: 12 },
+    });
     out.push({ kind: "filter", id: "sharpen", label: "Sharpen ringan", params: { amount: 35 } });
   }
   return out;

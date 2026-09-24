@@ -560,24 +560,14 @@ export default function CanvasArea() {
           }
           if (tool === "brush" || tool === "eraser") {
             const snap = layerManager.snapshot(activeLayerId ?? "");
+            const maskSnap = paintMask ? layerManager.snapshotMask(activeLayerId ?? "") : null;
             if (snap && activeLayerId) {
               pushHistory({
                 label: paintMask ? "Paint mask" : tool === "brush" ? "Brush stroke" : "Eraser",
                 layerId: activeLayerId,
                 snapshot: snap,
+                maskSnapshot: maskSnap,
               });
-              if (paintMask) {
-                const mc = layerManager.getMask(activeLayerId);
-                if (mc) {
-                  try {
-                    const mctx = mc.getContext("2d", { willReadFrequently: true })!;
-                    const mid = mctx.getImageData(0, 0, mc.width, mc.height);
-                    (window as any).__mask_snap = { id: activeLayerId, data: mid };
-                  } catch {
-                    /* abaikan */
-                  }
-                }
-              }
             }
             setIsPainting(true);
             lastPos.current = null;
@@ -603,12 +593,10 @@ export default function CanvasArea() {
             const dx = (e.clientX - moveDrag.current.sx) / s;
             const dy = (e.clientY - moveDrag.current.sy) / s;
             useProStore.getState().ensureTransform(activeLayerId);
-            useProStore
-              .getState()
-              .updateTransform(activeLayerId, {
-                x: moveDrag.current.ox + dx,
-                y: moveDrag.current.oy + dy,
-              });
+            useProStore.getState().updateTransform(activeLayerId, {
+              x: moveDrag.current.ox + dx,
+              y: moveDrag.current.oy + dy,
+            });
             return;
           }
           if (selDrag) {

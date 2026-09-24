@@ -45,17 +45,42 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
       id: "preset-produk",
       name: "Produk marketplace cerah",
       steps: [
-        { id: "s1", label: "Exposure +0.4", time: Date.now(), action: { type: "adjustment/exposure", payload: { exposure: 0.4 } } },
-        { id: "s2", label: "Contrast +14", time: Date.now(), action: { type: "adjustment/contrast", payload: { contrast: 14 } } },
-        { id: "s3", label: "Sharpen 40", time: Date.now(), action: { type: "filter/sharpen", payload: { amount: 40 } } },
+        {
+          id: "s1",
+          label: "Exposure +0.4",
+          time: Date.now(),
+          action: { type: "adjustment/exposure", payload: { exposure: 0.4 } },
+        },
+        {
+          id: "s2",
+          label: "Contrast +14",
+          time: Date.now(),
+          action: { type: "adjustment/contrast", payload: { contrast: 14 } },
+        },
+        {
+          id: "s3",
+          label: "Sharpen 40",
+          time: Date.now(),
+          action: { type: "filter/sharpen", payload: { amount: 40 } },
+        },
       ],
     },
     {
       id: "preset-portrait",
       name: "Portrait lembut",
       steps: [
-        { id: "s1", label: "Brightness +6 contrast -8", time: Date.now(), action: { type: "adjustment/bc", payload: { brightness: 6, contrast: -8 } } },
-        { id: "s2", label: "Saturation -6", time: Date.now(), action: { type: "adjustment/hsl", payload: { saturation: -6 } } },
+        {
+          id: "s1",
+          label: "Brightness +6 contrast -8",
+          time: Date.now(),
+          action: { type: "adjustment/bc", payload: { brightness: 6, contrast: -8 } },
+        },
+        {
+          id: "s2",
+          label: "Saturation -6",
+          time: Date.now(),
+          action: { type: "adjustment/hsl", payload: { saturation: -6 } },
+        },
       ],
     },
   ],
@@ -68,11 +93,28 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
   },
   clearMacro: () => set({ macro: [] }),
   savePreset: (name) =>
-    set((s) => ({ presets: [...s.presets, { id: uid("preset"), name, steps: [...s.macro] }], macro: [], recording: false })),
+    set((s) => ({
+      presets: [...s.presets, { id: uid("preset"), name, steps: [...s.macro] }],
+      macro: [],
+      recording: false,
+    })),
   applyPresetSteps: (id) => get().presets.find((p) => p.id === id)?.steps ?? [],
   enqueueBatch: (files) =>
-    set((s) => ({ batch: [...s.batch, ...files.map((f) => ({ id: uid("job"), path: f.path, name: f.name, status: "queued" as const, log: "Antre" }))] })),
+    set((s) => ({
+      batch: [
+        ...s.batch,
+        ...files.map((f) => ({
+          id: uid("job"),
+          path: f.path,
+          name: f.name,
+          status: "queued" as const,
+          log: "Antre",
+        })),
+      ],
+    })),
   setBatchStatus: (id, status, log) =>
-    set((s) => ({ batch: s.batch.map((b) => (b.id === id ? { ...b, status, log: log ?? b.log } : b)) })),
+    set((s) => ({
+      batch: s.batch.map((b) => (b.id === id ? { ...b, status, log: log ?? b.log } : b)),
+    })),
   clearBatch: () => set({ batch: [] }),
 }));

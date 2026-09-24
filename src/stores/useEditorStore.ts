@@ -35,6 +35,7 @@ export interface HistoryEntry {
   label: string;
   layerId: string;
   snapshot: ImageData | null;
+  maskSnapshot?: ImageData | null;
   time: number;
 }
 

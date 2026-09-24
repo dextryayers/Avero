@@ -2,19 +2,29 @@
 // Hitung homografi dari rect sumber ke quad tujuan, terapkan via sampling invers.
 
 export interface Quad {
-  x0: number; y0: number;
-  x1: number; y1: number;
-  x2: number; y2: number;
-  x3: number; y3: number;
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  x3: number;
+  y3: number;
 }
 
 function homography(srcW: number, srcH: number, q: Quad): number[] {
   // Selesaikan H 3x3 dengan DLT 4 titik (sumber rect -> quad).
   const src = [
-    [0, 0], [srcW, 0], [srcW, srcH], [0, srcH],
+    [0, 0],
+    [srcW, 0],
+    [srcW, srcH],
+    [0, srcH],
   ];
   const dst = [
-    [q.x0, q.y0], [q.x1, q.y1], [q.x2, q.y2], [q.x3, q.y3],
+    [q.x0, q.y0],
+    [q.x1, q.y1],
+    [q.x2, q.y2],
+    [q.x3, q.y3],
   ];
   const A: number[][] = [];
   const b: number[] = [];
@@ -48,7 +58,12 @@ function solve8(A: number[][], b: number[]): number[] {
   return [...h, 1];
 }
 
-export function warpToQuad(src: HTMLCanvasElement, dstW: number, dstH: number, q: Quad): HTMLCanvasElement {
+export function warpToQuad(
+  src: HTMLCanvasElement,
+  dstW: number,
+  dstH: number,
+  q: Quad,
+): HTMLCanvasElement {
   const out = document.createElement("canvas");
   out.width = Math.max(1, Math.round(dstW));
   out.height = Math.max(1, Math.round(dstH));
@@ -61,9 +76,15 @@ export function warpToQuad(src: HTMLCanvasElement, dstW: number, dstH: number, q
   const [a, b, c, d, e, f, g, h] = H;
   const det = a * (e * 1 - f * h) - b * (d * 1 - f * g) + c * (d * h - e * g);
   const inv = [
-    (e - f * h) / det, (c * h - b) / det, (b * f - c * e) / det,
-    (f * g - d) / det, (a - c * g) / det, (c * d - a * f) / det,
-    (d * h - e * g) / det, (b * g - a * h) / det, (a * e - b * d) / det,
+    (e - f * h) / det,
+    (c * h - b) / det,
+    (b * f - c * e) / det,
+    (f * g - d) / det,
+    (a - c * g) / det,
+    (c * d - a * f) / det,
+    (d * h - e * g) / det,
+    (b * g - a * h) / det,
+    (a * e - b * d) / det,
   ];
   const sd = simg.data;
   const od = oid.data;
@@ -93,9 +114,13 @@ export function warpToQuad(src: HTMLCanvasElement, dstW: number, dstH: number, q
 // Deteksi quad otomatis sederhana: area kontras terbesar di tengah.
 export function autoQuad(w: number, h: number): Quad {
   return {
-    x0: w * 0.24, y0: h * 0.3,
-    x1: w * 0.76, y1: h * 0.24,
-    x2: w * 0.8, y2: h * 0.78,
-    x3: w * 0.2, y3: h * 0.72,
+    x0: w * 0.24,
+    y0: h * 0.3,
+    x1: w * 0.76,
+    y1: h * 0.24,
+    x2: w * 0.8,
+    y2: h * 0.78,
+    x3: w * 0.2,
+    y3: h * 0.72,
   };
 }

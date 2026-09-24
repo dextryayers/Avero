@@ -78,11 +78,15 @@ export default function App() {
         const entry = useEditorStore.getState().undoMeta();
         if (entry) {
           layerManager.restore(entry.layerId, entry.snapshot);
+          if (entry.maskSnapshot) layerManager.restoreMask(entry.layerId, entry.maskSnapshot);
           useEditorStore.getState().markDirty();
           useProStore.getState().bumpHistogram();
         }
       }
-      if ((mod && e.key.toLowerCase() === "y") || (mod && e.shiftKey && e.key.toLowerCase() === "z")) {
+      if (
+        (mod && e.key.toLowerCase() === "y") ||
+        (mod && e.shiftKey && e.key.toLowerCase() === "z")
+      ) {
         e.preventDefault();
         useEditorStore.getState().redoMeta();
       }
@@ -115,9 +119,12 @@ export default function App() {
       {recovery && (
         <div className="flex items-center gap-2 border-b border-amber-600 bg-[#3a2f14] px-3 py-1.5 text-[11px] text-amber-100">
           <span>
-            Ditemukan autosave {recovery.docName} {recovery.width}x{recovery.height}. Lanjutkan atau abaikan.
+            Ditemukan autosave {recovery.docName} {recovery.width}x{recovery.height}. Lanjutkan atau
+            abaikan.
           </span>
-          <button onClick={() => setRecovery(null)} className="rounded bg-[#5a4a1a] px-2 py-0.5">Lanjut sesi ini</button>
+          <button onClick={() => setRecovery(null)} className="rounded bg-[#5a4a1a] px-2 py-0.5">
+            Lanjut sesi ini
+          </button>
           <button
             onClick={() => {
               clearRecovery();
@@ -140,7 +147,8 @@ export default function App() {
 
       <div className="flex items-center gap-2 border-t border-[#3e3e42] bg-[#1a1a1a] px-3 py-1 text-[10px] text-[#a0a0a0]">
         <span>
-          Fase 4 AI offline + batch. Fase 5 node, git snapshot, artboard, plugin, mockup. Fase 6 workspace, shortcut, onboarding, autosave. Ctrl+K semua aksi.
+          Fase 4 AI offline + batch. Fase 5 node, git snapshot, artboard, plugin, mockup. Fase 6
+          workspace, shortcut, onboarding, autosave. Ctrl+K semua aksi.
         </span>
         <button
           onClick={() => {

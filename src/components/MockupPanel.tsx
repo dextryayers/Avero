@@ -47,13 +47,25 @@ export default function MockupPanel() {
         {(["x0", "y0", "x1", "y1", "x2", "y2", "x3", "y3"] as const).map((k) => (
           <label key={k} className="text-[11px] text-[#a0a0a0]">
             {k}
-            <input type="number" value={Math.round(quad[k])} onChange={(e) => setQuad({ ...quad, [k]: Number(e.target.value) })} className="mt-0.5 w-full rounded bg-[#1e1e1e] px-2 py-1 font-mono text-white" />
+            <input
+              type="number"
+              value={Math.round(quad[k])}
+              onChange={(e) => setQuad({ ...quad, [k]: Number(e.target.value) })}
+              className="mt-0.5 w-full rounded bg-[#1e1e1e] px-2 py-1 font-mono text-white"
+            />
           </label>
         ))}
       </div>
       <div className="grid grid-cols-2 gap-1.5">
-        <button onClick={() => setQuad(autoQuad(1920, 1080))} className="rounded bg-[#3e3e42] px-2 py-1.5">Auto deteksi</button>
-        <button onClick={apply} className="rounded bg-[#0a84ff] px-2 py-1.5 text-white">Apply mockup</button>
+        <button
+          onClick={() => setQuad(autoQuad(1920, 1080))}
+          className="rounded bg-[#3e3e42] px-2 py-1.5"
+        >
+          Auto deteksi
+        </button>
+        <button onClick={apply} className="rounded bg-[#0a84ff] px-2 py-1.5 text-white">
+          Apply mockup
+        </button>
       </div>
       {log && <div className="rounded bg-[#1f3a24] p-2 text-[11px] text-[#bfe6c6]">{log}</div>}
     </div>

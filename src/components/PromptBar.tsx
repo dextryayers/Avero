@@ -17,8 +17,10 @@ export default function PromptBar() {
     actions.forEach((a) => {
       if (a.kind === "adjustment") {
         pro.addAdjustment(a.id as any);
-        const last = useProStore.getState().adjustments[useProStore.getState().adjustments.length - 1];
-        if (last && a.params) pro.updateAdjustmentParams(last.id, a.params as Record<string, number>);
+        const last =
+          useProStore.getState().adjustments[useProStore.getState().adjustments.length - 1];
+        if (last && a.params)
+          pro.updateAdjustmentParams(last.id, a.params as Record<string, number>);
         applied++;
       } else if (a.kind === "filter") {
         pro.addFilter(a.id as any);
@@ -55,7 +57,10 @@ export default function PromptBar() {
           placeholder='Prompt to edit, contoh: "buat langit sunset dramatis" atau "hapus background"'
           className="w-full rounded bg-[#141a22] px-2.5 py-1.5 text-[12px] text-white outline-none placeholder:text-[#7a8aa0]"
         />
-        <button onClick={run} className="shrink-0 rounded bg-[#0a84ff] px-3 py-1.5 text-[11px] text-white hover:bg-[#0070e0]">
+        <button
+          onClick={run}
+          className="shrink-0 rounded bg-[#0a84ff] px-3 py-1.5 text-[11px] text-white hover:bg-[#0070e0]"
+        >
           Apply
         </button>
       </div>

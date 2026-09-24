@@ -98,6 +98,7 @@ export default function RightPanel() {
     const entry = useEditorStore.getState().undoMeta();
     if (entry) {
       layerManager.restore(entry.layerId, entry.snapshot);
+      if (entry.maskSnapshot) layerManager.restoreMask(entry.layerId, entry.maskSnapshot);
       useEditorStore.getState().markDirty();
       useProStore.getState().bumpHistogram();
     }

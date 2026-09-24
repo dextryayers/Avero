@@ -20,16 +20,27 @@ export default function WorkspaceBar() {
         <button
           key={w.id}
           onClick={() => setWorkspace(w.id as any)}
-          className={clsx("rounded px-2.5 py-1", active === w.id ? "bg-[#0a84ff] text-white" : "bg-[#2d2d2d] text-[#c5c5c5] hover:bg-[#3e3e42]")}
+          className={clsx(
+            "rounded px-2.5 py-1",
+            active === w.id
+              ? "bg-[#0a84ff] text-white"
+              : "bg-[#2d2d2d] text-[#c5c5c5] hover:bg-[#3e3e42]",
+          )}
         >
           {w.label}
         </button>
       ))}
       <label className="ml-2 flex items-center gap-1.5 text-[#a0a0a0]">
-        <input type="checkbox" checked={showPrompt} onChange={(e) => setShowPrompt(e.target.checked)} />
+        <input
+          type="checkbox"
+          checked={showPrompt}
+          onChange={(e) => setShowPrompt(e.target.checked)}
+        />
         Prompt bar
       </label>
-      <span className="ml-auto hidden font-mono text-[10px] text-[#606060] md:block">Workspace tersimpan lokal • Ctrl+K semua aksi</span>
+      <span className="ml-auto hidden font-mono text-[10px] text-[#606060] md:block">
+        Workspace tersimpan lokal • Ctrl+K semua aksi
+      </span>
     </div>
   );
 }

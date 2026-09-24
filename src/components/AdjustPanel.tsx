@@ -1,4 +1,5 @@
 import { useProStore, type AdjustmentType } from "../stores/useProStore";
+import { useAutomationStore } from "../stores/useAutomationStore";
 import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
 
 const addable: { id: AdjustmentType; label: string }[] = [
@@ -60,7 +61,12 @@ export default function AdjustPanel() {
         {addable.map((a) => (
           <button
             key={a.id}
-            onClick={() => addAdjustment(a.id)}
+            onClick={() => {
+              addAdjustment(a.id);
+              useAutomationStore
+                .getState()
+                .pushStep(`Add ${a.label}`, { type: "adjustment/add", payload: { kind: a.id } });
+            }}
             className="flex items-center gap-1 rounded bg-[#0a84ff] px-2 py-1 text-[10px] text-white hover:bg-[#0070e0]"
           >
             <Plus size={11} /> {a.label}

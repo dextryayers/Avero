@@ -6,7 +6,7 @@ import { layerManager } from "../engine/layerManager";
 import { createJob } from "../engine/ai/runtime";
 import { backgroundRemoveAlpha, autoSubjectMask } from "../engine/ai/segment";
 import { inpaintSelection, upscaleLayer, colorTransfer } from "../engine/ai/restore";
-import { selectionMaskCanvas } from "../engine/selection";
+import { selectionMaskCanvas, drawRectSelection } from "../engine/selection";
 import { getCompositeCanvas } from "./CanvasArea";
 
 function useActiveLayerCanvas() {
@@ -48,7 +48,8 @@ export default function AiPanel() {
   return (
     <div className="space-y-3 p-3 text-[12px]">
       <div className="rounded border border-[#3e3e42] bg-[#202b33] p-2 text-[11px] text-[#bcd2e2]">
-        AI lokal 100% offline. Heuristik aktif tanpa download. Slot ONNX siap di folder model untuk akurasi setara cloud.
+        AI lokal 100% offline. Heuristik aktif tanpa download. Slot ONNX siap di folder model untuk
+        akurasi setara cloud.
       </div>
 
       <div className="grid grid-cols-1 gap-1.5">
@@ -59,9 +60,18 @@ export default function AiPanel() {
               const active = useActiveLayerCanvas();
               if (!active) throw new Error("Tidak ada layer");
               const snap = layerManager.snapshot(active.id);
-              if (snap) useEditorStore.getState().pushHistory({ label: "AI background remove", layerId: active.id, snapshot: snap });
+              if (snap)
+                useEditorStore
+                  .getState()
+                  .pushHistory({
+                    label: "AI background remove",
+                    layerId: active.id,
+                    snapshot: snap,
+                  });
               updateJob(job.id, { progress: 6 });
-              const out = await backgroundRemoveAlpha(active.canvas, tol, (p) => updateJob(job.id, { progress: p }));
+              const out = await backgroundRemoveAlpha(active.canvas, tol, (p) =>
+                updateJob(job.id, { progress: p }),
+              );
               const ctx = active.canvas.getContext("2d")!;
               ctx.clearRect(0, 0, active.canvas.width, active.canvas.height);
               ctx.drawImage(out, 0, 0);
@@ -76,7 +86,14 @@ export default function AiPanel() {
         <label className="flex justify-between text-[11px] text-[#a0a0a0]">
           Toleransi <span className="font-mono text-white">{tol}</span>
         </label>
-        <input type="range" min={12} max={110} value={tol} onChange={(e) => setTol(Number(e.target.value))} className="w-full" />
+        <input
+          type="range"
+          min={12}
+          max={110}
+          value={tol}
+          onChange={(e) => setTol(Number(e.target.value))}
+          className="w-full"
+        />
 
         <div className="grid grid-cols-2 gap-1.5">
           <button
@@ -87,24 +104,25 @@ export default function AiPanel() {
                 if (!comp) throw new Error("Composite belum siap");
                 updateJob(job.id, { progress: 10 });
                 const mask = await autoSubjectMask(comp, (p) => updateJob(job.id, { progress: p }));
-                // tulis ke selection mask global via drawImage
                 const sel = selectionMaskCanvas();
-                const { drawLassoSelection } = await import("../engine/selection");
-                void drawLassoSelection;
-                if (sel) {
+                const doc = useEditorStore.getState().doc;
+                if (sel && sel.width === doc.width && sel.height === doc.height) {
                   const sctx = sel.getContext("2d")!;
-                  const doc = useEditorStore.getState().doc;
-                  if (sel.width !== doc.width || sel.height !== doc.height) {
-                    sel.width = doc.width;
-                    sel.height = doc.height;
-                  }
                   sctx.clearRect(0, 0, sel.width, sel.height);
                   sctx.drawImage(mask, 0, 0, sel.width, sel.height);
                 } else {
-                  // fallback: buat seleksi rect tengah
-                  const { drawRectSelection } = await import("../engine/selection");
-                  const doc = useEditorStore.getState().doc;
-                  drawRectSelection(doc.width, doc.height, { x: doc.width * 0.2, y: doc.height * 0.15, w: doc.width * 0.6, h: doc.height * 0.7 });
+                  drawRectSelection(doc.width, doc.height, {
+                    x: doc.width * 0.2,
+                    y: doc.height * 0.15,
+                    w: doc.width * 0.6,
+                    h: doc.height * 0.7,
+                  });
+                  const sel2 = selectionMaskCanvas();
+                  if (sel2) {
+                    const sctx = sel2.getContext("2d")!;
+                    sctx.clearRect(0, 0, sel2.width, sel2.height);
+                    sctx.drawImage(mask, 0, 0, sel2.width, sel2.height);
+                  }
                 }
                 return "Subjek diseleksi. Brush kini terlindungi di luar subjek.";
               })
@@ -120,8 +138,13 @@ export default function AiPanel() {
                 const active = useActiveLayerCanvas();
                 if (!active) throw new Error("Tidak ada layer");
                 const snap = layerManager.snapshot(active.id);
-                if (snap) useEditorStore.getState().pushHistory({ label: "AI inpaint", layerId: active.id, snapshot: snap });
-                await inpaintSelection(active.canvas, selectionMaskCanvas(), 6, (p) => updateJob(job.id, { progress: p }));
+                if (snap)
+                  useEditorStore
+                    .getState()
+                    .pushHistory({ label: "AI inpaint", layerId: active.id, snapshot: snap });
+                await inpaintSelection(active.canvas, selectionMaskCanvas(), 6, (p) =>
+                  updateJob(job.id, { progress: p }),
+                );
                 useEditorStore.getState().markDirty();
                 return "Area seleksi/transparan diisi dari tetangga.";
               })
@@ -137,7 +160,9 @@ export default function AiPanel() {
                 const st = useEditorStore.getState();
                 const active = useActiveLayerCanvas();
                 if (!active) throw new Error("Tidak ada layer");
-                const up = await upscaleLayer(active.canvas, 2, (p) => updateJob(job.id, { progress: p }));
+                const up = await upscaleLayer(active.canvas, 2, (p) =>
+                  updateJob(job.id, { progress: p }),
+                );
                 const l = makeLayer(`Upscale 2x ${st.layers.length + 1}`);
                 // dokumen tetap, taruh hasil upscale sebagai layer baru di-scale fit
                 layerManager.ensure(l.id, st.doc.width, st.doc.height);
@@ -167,12 +192,23 @@ export default function AiPanel() {
                 tmp.width = 256;
                 tmp.height = 256;
                 tmp.getContext("2d")!.drawImage(refImg, 0, 0, 256, 256);
-                const refData = tmp.getContext("2d", { willReadFrequently: true })!.getImageData(0, 0, 256, 256);
+                const refData = tmp
+                  .getContext("2d", { willReadFrequently: true })!
+                  .getImageData(0, 0, 256, 256);
                 const active = useActiveLayerCanvas();
                 if (!active) throw new Error("Tidak ada layer");
                 const snap = layerManager.snapshot(active.id);
-                if (snap) useEditorStore.getState().pushHistory({ label: "AI color transfer", layerId: active.id, snapshot: snap });
-                const id = active.canvas.getContext("2d", { willReadFrequently: true })!.getImageData(0, 0, active.canvas.width, active.canvas.height);
+                if (snap)
+                  useEditorStore
+                    .getState()
+                    .pushHistory({
+                      label: "AI color transfer",
+                      layerId: active.id,
+                      snapshot: snap,
+                    });
+                const id = active.canvas
+                  .getContext("2d", { willReadFrequently: true })!
+                  .getImageData(0, 0, active.canvas.width, active.canvas.height);
                 colorTransfer(id, refData);
                 active.canvas.getContext("2d")!.putImageData(id, 0, 0);
                 updateJob(job.id, { progress: 100 });
@@ -206,21 +242,33 @@ export default function AiPanel() {
         <div className="space-y-1">
           {jobs.map((j) => (
             <div key={j.id} className="rounded bg-[#2a2a2a] p-2">
-              <div className="flex justify-between text-[11px]"><span>{j.label}</span><span className="font-mono">{j.progress}%</span></div>
-              <div className="mt-1 h-1.5 overflow-hidden rounded bg-[#1e1e1e]"><div className="h-full bg-[#0a84ff]" style={{ width: `${j.progress}%` }} /></div>
+              <div className="flex justify-between text-[11px]">
+                <span>{j.label}</span>
+                <span className="font-mono">{j.progress}%</span>
+              </div>
+              <div className="mt-1 h-1.5 overflow-hidden rounded bg-[#1e1e1e]">
+                <div className="h-full bg-[#0a84ff]" style={{ width: `${j.progress}%` }} />
+              </div>
             </div>
           ))}
         </div>
       )}
-      {lastResult && <div className="rounded bg-[#1f3a24] p-2 text-[11px] text-[#bfe6c6]">{lastResult}</div>}
+      {lastResult && (
+        <div className="rounded bg-[#1f3a24] p-2 text-[11px] text-[#bfe6c6]">{lastResult}</div>
+      )}
 
       <div className="space-y-1">
         <h4 className="font-semibold text-white">Model manager</h4>
         {models.map((m) => (
           <div key={m.id} className="rounded border border-[#3e3e42] bg-[#2a2a2a] p-2 text-[11px]">
-            <div className="flex justify-between"><span className="text-white">{m.label}</span><span className="font-mono text-emerald-300">heuristic 100%</span></div>
+            <div className="flex justify-between">
+              <span className="text-white">{m.label}</span>
+              <span className="font-mono text-emerald-300">heuristic 100%</span>
+            </div>
             <div className="text-[#a0a0a0]">{m.note}</div>
-            <div className="font-mono text-[10px] text-[#a0a0a0]">{m.file} • {m.sizeMB}MB opsional</div>
+            <div className="font-mono text-[10px] text-[#a0a0a0]">
+              {m.file} • {m.sizeMB}MB opsional
+            </div>
           </div>
         ))}
       </div>

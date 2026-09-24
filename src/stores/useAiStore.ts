@@ -22,7 +22,8 @@ export const useAiStore = create<AiState>((set) => ({
   autoColorRef: null,
   refreshModels: () => set({ models: listAiModels() }),
   pushJob: (j) => set((s) => ({ jobs: [...s.jobs, j] })),
-  updateJob: (id, p) => set((s) => ({ jobs: s.jobs.map((j) => (j.id === id ? { ...j, ...p } : j)) })),
+  updateJob: (id, p) =>
+    set((s) => ({ jobs: s.jobs.map((j) => (j.id === id ? { ...j, ...p } : j)) })),
   removeJob: (id) => set((s) => ({ jobs: s.jobs.filter((j) => j.id !== id) })),
   setResult: (lastResult) => set({ lastResult }),
   setColorRef: (autoColorRef) => set({ autoColorRef }),

@@ -33,13 +33,29 @@ function uid(p: string) {
 }
 
 export const useArtboardStore = create<ArtState>((set) => ({
-  boards: [{ id: uid("art"), name: "Artboard 1", x: 0, y: 0, w: 1080, h: 1080, preset: "IG Post 1080" }],
+  boards: [
+    { id: uid("art"), name: "Artboard 1", x: 0, y: 0, w: 1080, h: 1080, preset: "IG Post 1080" },
+  ],
   add: (preset = "IG Post 1080") =>
     set((s) => {
       const size = PRESETS[preset] ?? PRESETS.Custom;
-      return { boards: [...s.boards, { id: uid("art"), name: `Artboard ${s.boards.length + 1}`, x: s.boards.length * 60, y: 0, w: size.w, h: size.h, preset }] };
+      return {
+        boards: [
+          ...s.boards,
+          {
+            id: uid("art"),
+            name: `Artboard ${s.boards.length + 1}`,
+            x: s.boards.length * 60,
+            y: 0,
+            w: size.w,
+            h: size.h,
+            preset,
+          },
+        ],
+      };
     }),
-  update: (id, p) => set((s) => ({ boards: s.boards.map((b) => (b.id === id ? { ...b, ...p } : b)) })),
+  update: (id, p) =>
+    set((s) => ({ boards: s.boards.map((b) => (b.id === id ? { ...b, ...p } : b)) })),
   remove: (id) => set((s) => ({ boards: s.boards.filter((b) => b.id !== id) })),
 }));
 

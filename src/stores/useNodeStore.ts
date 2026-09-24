@@ -53,7 +53,14 @@ export const useNodeStore = create<NodeState>((set, get) => ({
     const nodes: PNode[] = [];
     const edges: PEdge[] = [];
     layers.forEach((l: any, i: number) => {
-      nodes.push({ id: `n-input-${l.id}`, kind: "input", label: l.name.slice(0, 14), x: 40, y: 40 + i * 86, refId: l.id });
+      nodes.push({
+        id: `n-input-${l.id}`,
+        kind: "input",
+        label: l.name.slice(0, 14),
+        x: 40,
+        y: 40 + i * 86,
+        refId: l.id,
+      });
     });
     let y = 40;
     let prev = nodes.length > 0 ? nodes[nodes.length - 1].id : null;
@@ -70,7 +77,14 @@ export const useNodeStore = create<NodeState>((set, get) => ({
       .filter((f: any) => f.enabled)
       .forEach((f: any) => {
         const id = `n-flt-${f.id}`;
-        nodes.push({ id, kind: "filter", label: f.name.slice(0, 14), x: 520, y: y - 40, refId: f.id });
+        nodes.push({
+          id,
+          kind: "filter",
+          label: f.name.slice(0, 14),
+          x: 520,
+          y: y - 40,
+          refId: f.id,
+        });
         if (prev) edges.push({ id: uid("e"), from: prev, to: id });
         prev = id;
       });
@@ -80,9 +94,19 @@ export const useNodeStore = create<NodeState>((set, get) => ({
     set({ nodes, edges });
   },
   addNode: (kind, label) =>
-    set((s) => ({ nodes: [...s.nodes, { id: uid("n"), kind, label, x: 120 + s.nodes.length * 24, y: 120 + s.nodes.length * 24 }] })),
-  moveNode: (id, x, y) => set((s) => ({ nodes: s.nodes.map((n) => (n.id === id ? { ...n, x, y } : n)) })),
-  removeNode: (id) => set((s) => ({ nodes: s.nodes.filter((n) => n.id !== id), edges: s.edges.filter((e) => e.from !== id && e.to !== id) })),
+    set((s) => ({
+      nodes: [
+        ...s.nodes,
+        { id: uid("n"), kind, label, x: 120 + s.nodes.length * 24, y: 120 + s.nodes.length * 24 },
+      ],
+    })),
+  moveNode: (id, x, y) =>
+    set((s) => ({ nodes: s.nodes.map((n) => (n.id === id ? { ...n, x, y } : n)) })),
+  removeNode: (id) =>
+    set((s) => ({
+      nodes: s.nodes.filter((n) => n.id !== id),
+      edges: s.edges.filter((e) => e.from !== id && e.to !== id),
+    })),
   connect: (from, to) => {
     if (from === to) return;
     const exists = get().edges.some((e) => e.from === from && e.to === to);

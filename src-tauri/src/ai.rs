@@ -29,13 +29,20 @@ fn dirs_fallback() -> PathBuf {
 pub fn cmd_ai_model_dir() -> Result<String, String> {
     let dir = model_dir();
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    dir.to_str().map(|s| s.to_string()).ok_or("Invalid path".into())
+    dir.to_str()
+        .map(|s| s.to_string())
+        .ok_or("Invalid path".into())
 }
 
 #[tauri::command]
 pub fn cmd_ai_models_status() -> Result<Vec<AiModelStatus>, String> {
     let dir = model_dir();
-    let files = ["u2net.onnx", "sam-mobile.onnx", "lama.onnx", "esrgan-x4.onnx"];
+    let files = [
+        "u2net.onnx",
+        "sam-mobile.onnx",
+        "lama.onnx",
+        "esrgan-x4.onnx",
+    ];
     let mut out = Vec::new();
     for f in files {
         let p = dir.join(f);

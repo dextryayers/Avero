@@ -35,12 +35,18 @@ export const useGitStore = create<GitState>((set) => ({
   compareA: null,
   compareB: null,
   snapshot: (label, thumb, layersCount) =>
-    set((s) => ({ snaps: [...s.snaps.slice(-29), { id: uid("snap"), branch: s.activeBranch, label, time: Date.now(), thumb, layersCount }] })),
+    set((s) => ({
+      snaps: [
+        ...s.snaps.slice(-29),
+        { id: uid("snap"), branch: s.activeBranch, label, time: Date.now(), thumb, layersCount },
+      ],
+    })),
   createBranch: (name) => {
     const n = name.trim() || `varian-${Date.now().toString(36)}`;
     set((s) => ({ branches: [...new Set([...s.branches, n])], activeBranch: n }));
   },
   switchBranch: (activeBranch) => set({ activeBranch }),
   setCompare: (compareA, compareB) => set({ compareA, compareB }),
-  clear: () => set({ snaps: [], branches: ["main"], activeBranch: "main", compareA: null, compareB: null }),
+  clear: () =>
+    set({ snaps: [], branches: ["main"], activeBranch: "main", compareA: null, compareB: null }),
 }));

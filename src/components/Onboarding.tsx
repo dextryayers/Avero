@@ -1,7 +1,9 @@
 import { useWorkspaceStore } from "../stores/useWorkspaceStore";
 import { useEditorStore, makeLayer } from "../stores/useEditorStore";
+import { useProStore } from "../stores/useProStore";
 import { layerManager } from "../engine/layerManager";
 import { clearSelectionMask } from "../engine/selection";
+import { renderTextToLayer } from "../engine/textShape";
 
 export default function Onboarding() {
   const done = useWorkspaceStore((s) => s.onboardingDone);
@@ -34,14 +36,20 @@ export default function Onboarding() {
     const l2 = makeLayer("Teks Judul");
     layerManager.ensure(l2.id, 1600, 1000);
     st.addLayer({ ...l2, kind: "text" });
-    import("../stores/useProStore").then((m) => {
-      m.useProStore.getState().setTextSpec(l2.id, { text: "Coba AI hapus background", fontFamily: "Inter", fontSize: 72, color: "#ffffff", bold: true, italic: false, tracking: 1, leading: 1.2 });
-      import("../engine/textShape").then((t) => {
-        const cc = layerManager.get(l2.id);
-        if (cc) t.renderTextToLayer(cc, { text: "Coba AI hapus background", fontFamily: "Inter", fontSize: 72, color: "#ffffff", bold: true, italic: false, tracking: 1, leading: 1.2 }, 180, 120);
-        m.useProStore.getState().bumpHistogram();
-      });
-    });
+    const spec = {
+      text: "Coba AI hapus background",
+      fontFamily: "Inter",
+      fontSize: 72,
+      color: "#ffffff",
+      bold: true,
+      italic: false,
+      tracking: 1,
+      leading: 1.2,
+    };
+    useProStore.getState().setTextSpec(l2.id, spec);
+    const cc = layerManager.get(l2.id);
+    if (cc) renderTextToLayer(cc, spec, 180, 120);
+    useProStore.getState().bumpHistogram();
     clearSelectionMask();
     setOnboarding(true);
   }
@@ -51,8 +59,8 @@ export default function Onboarding() {
       <div className="w-[560px] max-w-full rounded-xl border border-[#3e3e42] bg-[#252526] p-5">
         <h2 className="text-[18px] font-bold text-white">Selamat datang di PSD Studio</h2>
         <p className="mt-1 text-[12px] text-[#c5c5c5]">
-          Editor foto open source, installer native Linux dan Windows, offline-first. 30 detik untuk mulai:
-          buka foto, retouch dengan brush dan adjustment, coba AI lokal, export.
+          Editor foto open source, installer native Linux dan Windows, offline-first. 30 detik untuk
+          mulai: buka foto, retouch dengan brush dan adjustment, coba AI lokal, export.
         </p>
         <ol className="mt-3 list-decimal space-y-1 pl-5 text-[12px] text-[#e0e0e0]">
           <li>Ctrl+K lalu Open image PNG JPG PSD RAW.</li>
@@ -61,10 +69,16 @@ export default function Onboarding() {
           <li>Snapshot di tab Git untuk 3 varian edit.</li>
         </ol>
         <div className="mt-4 grid grid-cols-2 gap-2">
-          <button onClick={sampleProject} className="rounded bg-[#0a84ff] px-3 py-2 text-white hover:bg-[#0070e0]">
+          <button
+            onClick={sampleProject}
+            className="rounded bg-[#0a84ff] px-3 py-2 text-white hover:bg-[#0070e0]"
+          >
             Buat sample project
           </button>
-          <button onClick={() => setOnboarding(true)} className="rounded bg-[#3e3e42] px-3 py-2 hover:bg-[#505050]">
+          <button
+            onClick={() => setOnboarding(true)}
+            className="rounded bg-[#3e3e42] px-3 py-2 hover:bg-[#505050]"
+          >
             Lewati, mulai kosong
           </button>
         </div>

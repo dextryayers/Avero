@@ -20,7 +20,11 @@ export interface PluginDef {
   code: string; // body fungsi (d, params, W, H)
 }
 
-export function runPlugin(def: PluginDef, img: ImageData, params: Record<string, number>): ImageData {
+export function runPlugin(
+  def: PluginDef,
+  img: ImageData,
+  params: Record<string, number>,
+): ImageData {
   const out = new ImageData(new Uint8ClampedArray(img.data), img.width, img.height);
   const fn = new Function("d", "params", "W", "H", `"use strict";\n${def.code}`);
   const timer = setTimeout(() => {

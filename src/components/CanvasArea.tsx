@@ -50,6 +50,8 @@ export default function CanvasArea() {
   const spriteCache = useRef(new Map<string, HTMLCanvasElement>());
   const cloneRef = useRef<{ x: number; y: number } | null>(null);
   const cloneOrigin = useRef<{ x: number; y: number } | null>(null);
+  const [penDrag, setPenDrag] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
+  const smudgeColor = useRef<string | null>(null);
 
   const doc = useEditorStore((s) => s.doc);
   const layers = useEditorStore((s) => s.layers);
@@ -473,6 +475,27 @@ export default function CanvasArea() {
       ctx.restore();
     }
 
+    // 10b. Pen/Line preview
+    if (penDrag) {
+      ctx.save();
+      ctx.strokeStyle = "#38e1ff";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([7, 4]);
+      ctx.beginPath();
+      ctx.moveTo(ox + penDrag.x0 * s, oy + penDrag.y0 * s);
+      ctx.lineTo(ox + penDrag.x1 * s, oy + penDrag.y1 * s);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#0a84ff";
+      [penDrag.x0, penDrag.x1].forEach((px, i) => {
+        const py = i === 0 ? penDrag.y0 : penDrag.y1;
+        ctx.beginPath();
+        ctx.arc(ox + px * s, oy + py * s, 4, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.restore();
+    }
+
     if (zoom >= 400) {
       ctx.save();
       ctx.strokeStyle = "rgba(255,255,255,0.06)";
@@ -504,6 +527,7 @@ export default function CanvasArea() {
     lassoPts,
     cropDrag,
     gradDrag,
+    penDrag,
     guidesH,
     guidesV,
     showGuides,
@@ -646,6 +670,233 @@ export default function CanvasArea() {
     ctx.restore();
     lastPos.current = { x, y };
     markDirty();
+  }
+
+  // ===== Retouch pro engine (dodge/burn/sponge/blur/sharpen/smudge/heal) =====
+  function dabPath(x0: number, y0: number, x1: number, y1: number): { px: number; py: number }[] {
+    const dx = x1 - x0;
+    const dy = y1 - y0;
+    const dist = Math.hypot(dx, dy);
+    const steps = Math.max(1, Math.floor(dist / Math.max(1, brushSize * 0.22)));
+    const pts: { px: number; py: number }[] = [];
+    for (let i = 0; i <= steps; i++) pts.push({ px: x0 + (dx * i) / steps, py: y0 + (dy * i) / steps });
+    return pts;
+  }
+
+  function retouchTo(x: number, y: number, mode: "dodge" | "burn" | "sponge" | "blur" | "sharpen" | "heal" | "smudge") {
+    if (!activeLayerId) return;
+    const meta = layers.find((l) => l.id === activeLayerId);
+    if (!meta || meta.locked || !meta.visible) return;
+    const last = lastPos.current ?? { x, y };
+    const c = layerManager.ensure(activeLayerId, doc.width, doc.height);
+    const ctx = c.getContext("2d", { willReadFrequently: true })!;
+    const strength = brushOpacity / 100;
+    const r = Math.max(1, brushSize / 2);
+    for (const { px, py } of dabPath(last.x, last.y, x, y)) {
+      if (!isPointInSelection(px, py)) continue;
+      const sx = Math.round(px - r);
+      const sy = Math.round(py - r);
+      const s = Math.round(r * 2);
+      if (sx < 0 || sy < 0 || sx + s > c.width || sy + s > c.height) continue;
+      try {
+        if (mode === "dodge" || mode === "burn") {
+          ctx.save();
+          ctx.globalAlpha = 0.16 * strength + 0.04;
+          ctx.fillStyle = mode === "dodge" ? "#ffffff" : "#000000";
+          ctx.beginPath();
+          ctx.arc(px, py, r * (brushHardness / 130 + 0.35), 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        } else if (mode === "blur" || mode === "heal") {
+          const tmp = document.createElement("canvas");
+          tmp.width = s;
+          tmp.height = s;
+          const tctx = tmp.getContext("2d")!;
+          tctx.filter = `blur(${Math.max(1, r / 3)}px)`;
+          tctx.drawImage(c, sx, sy, s, s, 0, 0, s, s);
+          tctx.filter = "none";
+          ctx.save();
+          ctx.globalAlpha = mode === "heal" ? 0.85 * strength + 0.15 : 0.55 * strength + 0.1;
+          ctx.drawImage(tmp, sx, sy);
+          ctx.restore();
+        } else if (mode === "sharpen") {
+          const id = ctx.getImageData(sx, sy, s, s);
+          const d = id.data;
+          const amt = 0.35 * strength + 0.1;
+          for (let i = 0; i < d.length; i += 4) {
+            const avg = (d[i] + d[i + 1] + d[i + 2]) / 3;
+            d[i] = Math.max(0, Math.min(255, d[i] + (d[i] - avg) * amt));
+            d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + (d[i + 1] - avg) * amt));
+            d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + (d[i + 2] - avg) * amt));
+          }
+          ctx.putImageData(id, sx, sy);
+        } else if (mode === "sponge") {
+          const id = ctx.getImageData(sx, sy, s, s);
+          const d = id.data;
+          const amt = 0.25 * strength + 0.05;
+          for (let i = 0; i < d.length; i += 4) {
+            const avg = (d[i] + d[i + 1] + d[i + 2]) / 3;
+            d[i] = Math.max(0, Math.min(255, avg + (d[i] - avg) * (1 + amt)));
+            d[i + 1] = Math.max(0, Math.min(255, avg + (d[i + 1] - avg) * (1 + amt)));
+            d[i + 2] = Math.max(0, Math.min(255, avg + (d[i + 2] - avg) * (1 + amt)));
+          }
+          ctx.putImageData(id, sx, sy);
+        } else if (mode === "smudge") {
+          const col = smudgeColor.current ?? brushColor;
+          ctx.save();
+          ctx.globalAlpha = 0.28 * strength + 0.08;
+          ctx.fillStyle = col;
+          ctx.beginPath();
+          ctx.arc(px, py, r * 0.7, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+      } catch {
+        /* abaikan tepi */
+      }
+    }
+    lastPos.current = { x, y };
+    markDirty();
+  }
+
+  function pickSmudgeColor(p: { x: number; y: number }) {
+    try {
+      const c = layerManager.get(activeLayerId ?? "");
+      if (!c) return;
+      const ix = Math.max(0, Math.min(c.width - 1, Math.floor(p.x)));
+      const iy = Math.max(0, Math.min(c.height - 1, Math.floor(p.y)));
+      const d = c.getContext("2d", { willReadFrequently: true })!.getImageData(ix, iy, 1, 1).data;
+      smudgeColor.current = `#${[d[0], d[1], d[2]].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+    } catch {
+      /* abaikan */
+    }
+  }
+
+  function floodFillAt(x: number, y: number) {
+    const st = useEditorStore.getState();
+    const id = st.activeLayerId;
+    if (!id) return;
+    const meta = st.layers.find((l) => l.id === id);
+    if (!meta || meta.locked || !meta.visible) return;
+    const snap = layerManager.snapshot(id);
+    if (snap) st.pushHistory({ label: "Paint bucket fill", layerId: id, snapshot: snap });
+    const c = layerManager.ensure(id, st.doc.width, st.doc.height);
+    const ctx = c.getContext("2d", { willReadFrequently: true })!;
+    const ix = Math.max(0, Math.min(c.width - 1, Math.floor(x)));
+    const iy = Math.max(0, Math.min(c.height - 1, Math.floor(y)));
+    // Jika ada seleksi, isi seleksi dengan warna (cepat, ala Photoshop fill selection)
+    try {
+      const selOn = isPointInSelection(ix, iy);
+      if (hasSelection() && selOn) {
+        ctx.save();
+        ctx.globalAlpha = st.brushOpacity / 100;
+        ctx.fillStyle = st.brushColor;
+        ctx.fillRect(0, 0, c.width, c.height);
+        const sel = selectionMaskCanvas();
+        if (sel) {
+          ctx.globalCompositeOperation = "destination-in";
+          ctx.globalAlpha = 1;
+          ctx.drawImage(sel, 0, 0);
+        }
+        ctx.restore();
+        st.markDirty();
+        useProStore.getState().bumpHistogram();
+        return;
+      }
+    } catch {
+      /* lanjut flood fill */
+    }
+    // Flood fill toleran sederhana
+    try {
+      const img = ctx.getImageData(0, 0, c.width, c.height);
+      const d = img.data;
+      const W = c.width;
+      const H = c.height;
+      const start = (iy * W + ix) * 4;
+      const sr = d[start];
+      const sg = d[start + 1];
+      const sb = d[start + 2];
+      const sa = d[start + 3];
+      const hex = st.brushColor;
+      const fr = parseInt(hex.slice(1, 3), 16);
+      const fg = parseInt(hex.slice(3, 5), 16);
+      const fb = parseInt(hex.slice(5, 7), 16);
+      if (Math.abs(sr - fr) < 4 && Math.abs(sg - fg) < 4 && Math.abs(sb - fb) < 4 && sa === 255) {
+        return;
+      }
+      const tol = 42;
+      const visited = new Uint8Array(W * H);
+      const stack: number[] = [iy * W + ix];
+      visited[iy * W + ix] = 1;
+      let filled = 0;
+      while (stack.length && filled < 900000) {
+        const cur = stack.pop()!;
+        const cx = cur % W;
+        const cy = Math.floor(cur / W);
+        const o = cur * 4;
+        const dr = Math.abs(d[o] - sr);
+        const dg = Math.abs(d[o + 1] - sg);
+        const db = Math.abs(d[o + 2] - sb);
+        if (dr + dg + db > tol * 3) continue;
+        if (!isPointInSelection(cx, cy)) continue;
+        d[o] = fr;
+        d[o + 1] = fg;
+        d[o + 2] = fb;
+        d[o + 3] = 255;
+        filled++;
+        if (cx > 0 && !visited[cur - 1]) {
+          visited[cur - 1] = 1;
+          stack.push(cur - 1);
+        }
+        if (cx < W - 1 && !visited[cur + 1]) {
+          visited[cur + 1] = 1;
+          stack.push(cur + 1);
+        }
+        if (cy > 0 && !visited[cur - W]) {
+          visited[cur - W] = 1;
+          stack.push(cur - W);
+        }
+        if (cy < H - 1 && !visited[cur + W]) {
+          visited[cur + W] = 1;
+          stack.push(cur + W);
+        }
+      }
+      ctx.putImageData(img, 0, 0);
+      st.markDirty();
+      useProStore.getState().bumpHistogram();
+    } catch {
+      /* abaikan */
+    }
+  }
+
+  function applyPenLine(x0: number, y0: number, x1: number, y1: number) {
+    const st = useEditorStore.getState();
+    const id = st.activeLayerId;
+    if (!id) return;
+    const meta = st.layers.find((l) => l.id === id);
+    if (!meta || meta.locked || !meta.visible) return;
+    const snap = layerManager.snapshot(id);
+    if (snap) st.pushHistory({ label: tool === "pen" ? "Pen stroke" : "Line", layerId: id, snapshot: snap });
+    const c = layerManager.ensure(id, st.doc.width, st.doc.height);
+    const ctx = c.getContext("2d")!;
+    ctx.save();
+    ctx.globalAlpha = st.brushOpacity / 100;
+    ctx.strokeStyle = st.brushColor;
+    ctx.lineWidth = Math.max(1, st.brushSize / 4);
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    if (tool === "line") {
+      ctx.lineTo(x1, y1);
+    } else {
+      const mx = (x0 + x1) / 2;
+      ctx.quadraticCurveTo(x0, y0, mx, (y0 + y1) / 2);
+      ctx.lineTo(x1, y1);
+    }
+    ctx.stroke();
+    ctx.restore();
+    st.markDirty();
+    useProStore.getState().bumpHistogram();
   }
 
   function applyCrop() {
@@ -959,12 +1210,41 @@ export default function CanvasArea() {
             createShapeLayer("polygon");
             return;
           }
-          if (tool === "brush" || tool === "eraser") {
+          if (tool === "fill") {
+            floodFillAt(p.x, p.y);
+            return;
+          }
+          if (tool === "pen" || tool === "line") {
+            setPenDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
+            return;
+          }
+          if (
+            tool === "brush" ||
+            tool === "eraser" ||
+            tool === "dodge" ||
+            tool === "burn" ||
+            tool === "sponge" ||
+            tool === "blur" ||
+            tool === "sharpen" ||
+            tool === "smudge" ||
+            tool === "spot-heal"
+          ) {
             const snap = layerManager.snapshot(activeLayerId ?? "");
             const maskSnap = paintMask ? layerManager.snapshotMask(activeLayerId ?? "") : null;
             if (snap && activeLayerId) {
+              const labels: Record<string, string> = {
+                brush: "Brush stroke",
+                eraser: "Eraser",
+                dodge: "Dodge",
+                burn: "Burn",
+                sponge: "Sponge",
+                blur: "Blur",
+                sharpen: "Sharpen",
+                smudge: "Smudge",
+                "spot-heal": "Spot heal",
+              };
               pushHistory({
-                label: paintMask ? "Paint mask" : tool === "brush" ? "Brush stroke" : "Eraser",
+                label: paintMask ? "Paint mask" : (labels[tool] ?? tool),
                 layerId: activeLayerId,
                 snapshot: snap,
                 maskSnapshot: maskSnap,
@@ -972,7 +1252,15 @@ export default function CanvasArea() {
             }
             setIsPainting(true);
             lastPos.current = null;
-            paintTo(p.x, p.y, tool === "eraser");
+            if (tool === "smudge") pickSmudgeColor(p);
+            if (tool === "brush" || tool === "eraser") paintTo(p.x, p.y, tool === "eraser");
+            else
+              retouchTo(
+                p.x,
+                p.y,
+                tool as "dodge" | "burn" | "sponge" | "blur" | "sharpen" | "smudge" | "heal",
+              );
+            if (tool === "spot-heal") retouchTo(p.x, p.y, "heal");
             setCursor(`${Math.round(p.x)}, ${Math.round(p.y)}`);
           }
           if (tool === "zoom") {
@@ -1035,12 +1323,44 @@ export default function CanvasArea() {
             setLassoPts((pts) => [...pts.slice(-800), { x: p.x, y: p.y }]);
             return;
           }
+          if (penDrag) {
+            let x1 = p.x;
+            let y1 = p.y;
+            if (tool === "line" && e.shiftKey) {
+              const dx = x1 - penDrag.x0;
+              const dy = y1 - penDrag.y0;
+              const ang = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4);
+              const len = Math.hypot(dx, dy);
+              x1 = penDrag.x0 + Math.cos(ang) * len;
+              y1 = penDrag.y0 + Math.sin(ang) * len;
+            }
+            setPenDrag({ ...penDrag, x1, y1 });
+            return;
+          }
           if (isPainting) {
             if (tool === "clone") cloneTo(p.x, p.y);
-            else paintTo(p.x, p.y, tool === "eraser");
+            else if (tool === "brush" || tool === "eraser") paintTo(p.x, p.y, tool === "eraser");
+            else if (tool === "smudge") {
+              retouchTo(p.x, p.y, "smudge");
+            } else if (
+              tool === "dodge" ||
+              tool === "burn" ||
+              tool === "sponge" ||
+              tool === "blur" ||
+              tool === "sharpen" ||
+              tool === "spot-heal"
+            ) {
+              retouchTo(p.x, p.y, tool === "spot-heal" ? "heal" : tool);
+            }
           }
         }}
         onMouseUp={() => {
+          if (penDrag) {
+            const dx = penDrag.x1 - penDrag.x0;
+            const dy = penDrag.y1 - penDrag.y0;
+            if (Math.hypot(dx, dy) > 3) applyPenLine(penDrag.x0, penDrag.y0, penDrag.x1, penDrag.y1);
+            setPenDrag(null);
+          }
           if (gradDrag) {
             const dx = gradDrag.x1 - gradDrag.x0;
             const dy = gradDrag.y1 - gradDrag.y0;
@@ -1086,6 +1406,7 @@ export default function CanvasArea() {
           panning.current = null;
           moveDrag.current = null;
           cloneOrigin.current = null;
+          smudgeColor.current = null;
         }}
       >
         <canvas
@@ -1098,7 +1419,17 @@ export default function CanvasArea() {
                 : tool === "brush" ||
                     tool === "eraser" ||
                     tool === "clone" ||
-                    tool === "eyedropper"
+                    tool === "eyedropper" ||
+                    tool === "spot-heal" ||
+                    tool === "blur" ||
+                    tool === "sharpen" ||
+                    tool === "smudge" ||
+                    tool === "dodge" ||
+                    tool === "burn" ||
+                    tool === "sponge" ||
+                    tool === "fill" ||
+                    tool === "pen" ||
+                    tool === "line"
                   ? "crosshair"
                   : tool === "select-rect" ||
                       tool === "select-ellipse" ||

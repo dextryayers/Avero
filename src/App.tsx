@@ -104,13 +104,13 @@ export default function App() {
         e.preventDefault();
         useEditorStore.getState().redoMeta();
       }
-      if (!mod) {
+      if (!mod && !e.shiftKey) {
         const t = e.key.toLowerCase();
         const ae = document.activeElement?.tagName;
         if (ae === "INPUT" || ae === "TEXTAREA") return;
         const ed = useEditorStore.getState();
         const pro = useProStore.getState();
-        // M bolak-balik rect/ellipse, U putar rect/ellipse/polygon
+        // M bolak-balik rect/ellipse, U putar shapes, R/J/O/G/P cycling ala Photoshop
         if (t === "m") {
           const next = ed.tool === "select-rect" ? "select-ellipse" : "select-rect";
           ed.setTool(next);
@@ -121,6 +121,30 @@ export default function App() {
           const order = ["shape-rect", "shape-ellipse", "shape-polygon"] as const;
           const i = order.indexOf(ed.tool as (typeof order)[number]);
           ed.setTool(order[(i + 1) % order.length]);
+          return;
+        }
+        if (t === "r") {
+          const order = ["blur", "sharpen", "smudge"] as const;
+          const i = order.indexOf(ed.tool as (typeof order)[number]);
+          ed.setTool(order[(i + 1) % order.length]);
+          return;
+        }
+        if (t === "o") {
+          const order = ["dodge", "burn", "sponge"] as const;
+          const i = order.indexOf(ed.tool as (typeof order)[number]);
+          ed.setTool(order[(i + 1) % order.length]);
+          return;
+        }
+        if (t === "g") {
+          ed.setTool(ed.tool === "gradient" ? "fill" : "gradient");
+          return;
+        }
+        if (t === "p") {
+          ed.setTool(ed.tool === "pen" ? "line" : "pen");
+          return;
+        }
+        if (t === "j") {
+          ed.setTool(ed.tool === "spot-heal" ? "clone" : "spot-heal");
           return;
         }
         const tool = inv[t];
@@ -137,7 +161,7 @@ export default function App() {
   }, []);
 
   return (
-    <div className="flex h-full flex-col bg-[#1e1e1e] text-[#e0e0e0]">
+    <div className="flex h-full flex-col bg-[#0b0e14] text-[#e8edf5]">
       {!booted && <BootSplash onDone={() => setBooted(true)} />}
       <TitleBar onOpenCommand={() => setPalette(true)} onHome={() => setHome(true)} />
       <WorkspaceBar />

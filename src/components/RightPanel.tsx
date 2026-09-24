@@ -215,18 +215,18 @@ export default function RightPanel() {
   }
 
   return (
-    <div className="flex w-[300px] shrink-0 flex-col border-l border-[#3e3e42] bg-[#252526]">
-      <div className="flex overflow-x-auto border-b border-[#3e3e42] text-[10px]">
+    <div className="flex w-[300px] shrink-0 flex-col border-l border-[#1c2333] bg-[#0e1219]">
+      <div className="flex overflow-x-auto border-b border-[#1c2333] bg-[#0b0e14] text-[10px]">
         {tabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
             title={t.label}
             className={clsx(
-              "shrink-0 px-2.5 py-2",
+              "shrink-0 rounded-t-lg px-2.5 py-2 transition",
               tab === t.id
-                ? "bg-[#2d2d2d] text-white font-semibold"
-                : "text-[#a0a0a0] hover:text-white",
+                ? "bg-[#1b2130] text-white font-semibold shadow-[inset_0_-2px_0_#0a84ff]"
+                : "text-[#5b6577] hover:text-white",
             )}
           >
             {t.label}

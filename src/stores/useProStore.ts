@@ -125,11 +125,17 @@ interface ProState {
   guidesH: number[];
   guidesV: number[];
   showGuides: boolean;
+  showGrid: boolean;
+  gridSize: number;
+  snapEnabled: boolean;
   addGuide: (kind: "h" | "v", pos: number) => void;
   moveGuide: (kind: "h" | "v", index: number, pos: number) => void;
   removeGuide: (kind: "h" | "v", index: number) => void;
   clearGuides: () => void;
   toggleGuides: () => void;
+  toggleGrid: () => void;
+  setGridSize: (n: number) => void;
+  toggleSnap: () => void;
   removeTransform: (layerId: string) => void;
 
   setSelKind: (k: ProState["selKind"]) => void;
@@ -252,6 +258,9 @@ export const useProStore = create<ProState>((set) => ({
   guidesH: [],
   guidesV: [],
   showGuides: true,
+  showGrid: false,
+  gridSize: 64,
+  snapEnabled: true,
 
   setSelKind: (selKind) => set({ selKind }),
   setSelParams: (p) => set(p),
@@ -273,6 +282,9 @@ export const useProStore = create<ProState>((set) => ({
     })),
   clearGuides: () => set({ guidesH: [], guidesV: [] }),
   toggleGuides: () => set((s) => ({ showGuides: !s.showGuides })),
+  toggleGrid: () => set((s) => ({ showGrid: !s.showGrid })),
+  setGridSize: (gridSize) => set({ gridSize: Math.max(8, Math.min(512, Math.round(gridSize))) }),
+  toggleSnap: () => set((s) => ({ snapEnabled: !s.snapEnabled })),
   removeTransform: (layerId) =>
     set((s) => {
       const t = { ...s.transforms };

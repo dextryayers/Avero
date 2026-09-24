@@ -15,31 +15,33 @@ export default function WorkspaceBar() {
   const setShowPrompt = useWorkspaceStore((s) => s.setShowPrompt);
 
   return (
-    <div className="flex items-center gap-1 border-b border-[#3e3e42] bg-[#202020] px-3 py-1 text-[11px]">
+    <div className="flex shrink-0 items-center gap-1.5 border-b border-[#1c2333] bg-[#0b0e14] px-3 py-1.5 text-[11px]">
+      <span className="mr-1 hidden font-mono text-[10px] uppercase tracking-wider text-[#3d465c] sm:block">Workspace</span>
       {items.map((w) => (
         <button
           key={w.id}
           onClick={() => setWorkspace(w.id as any)}
           className={clsx(
-            "rounded px-2.5 py-1",
+            "rounded-lg px-3 py-1.5 font-medium transition",
             active === w.id
-              ? "bg-[#0a84ff] text-white"
-              : "bg-[#2d2d2d] text-[#c5c5c5] hover:bg-[#3e3e42]",
+              ? "bg-gradient-to-r from-[#0a84ff] to-[#00c2ff] text-white shadow-[0_4px_16px_rgba(10,132,255,0.35)]"
+              : "bg-[#141a27] text-[#8a94a6] ring-1 ring-[#1c2333] hover:text-white",
           )}
         >
           {w.label}
         </button>
       ))}
-      <label className="ml-2 flex items-center gap-1.5 text-[#a0a0a0]">
+      <label className="ml-2 flex cursor-pointer items-center gap-1.5 text-[#5b6577]">
         <input
           type="checkbox"
           checked={showPrompt}
           onChange={(e) => setShowPrompt(e.target.checked)}
+          className="accent-[#0a84ff]"
         />
         Prompt bar
       </label>
-      <span className="ml-auto hidden font-mono text-[10px] text-[#606060] md:block">
-        Workspace tersimpan lokal • Ctrl+K semua aksi
+      <span className="ml-auto hidden font-mono text-[10px] text-[#3d465c] md:block">
+        Tersimpan lokal • Retouch / Photo / Design / Minimal
       </span>
     </div>
   );

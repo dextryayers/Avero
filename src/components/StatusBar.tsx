@@ -34,7 +34,7 @@ export default function StatusBar() {
   const tiles = Math.ceil(doc.width / 256) * Math.ceil(doc.height / 256);
 
   return (
-    <div className="flex h-7 items-center gap-3 border-t border-[#3e3e42] bg-[#252526] px-3 text-[11px] text-[#a0a0a0]">
+    <div className="flex h-7 shrink-0 items-center gap-3 border-t border-[#1c2333] bg-[#0e1219] px-3 text-[11px] text-[#8a94a6]">
       <div className="flex items-center gap-2">
         <input
           type="range"

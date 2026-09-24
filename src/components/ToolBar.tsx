@@ -26,7 +26,6 @@ import {
   Minus,
   Focus,
   Zap,
-  ScanFrame,
   Ruler,
   StickyNote,
   Hash,
@@ -70,7 +69,7 @@ const tools: ToolDef[] = [
   // Retouch
   { id: "spot-heal", icon: Bandage, label: "Spot Healing noda", shortcut: "J", group: "Retouch" },
   { id: "healing-brush", icon: Sparkles, label: "Healing Brush", shortcut: "J", group: "Retouch" },
-  { id: "patch", icon: ScanFrame, label: "Patch Tool", shortcut: "J", group: "Retouch" },
+  { id: "patch", icon: Layers, label: "Patch Tool", shortcut: "J", group: "Retouch" },
   { id: "content-move", icon: Scan, label: "Content-Aware Move", shortcut: "J", group: "Retouch" },
   { id: "red-eye", icon: EyeOff, label: "Red Eye", shortcut: "J", group: "Retouch" },
   { id: "clone", icon: Stamp, label: "Clone Stamp (Alt+klik sumber)", shortcut: "S", group: "Retouch" },

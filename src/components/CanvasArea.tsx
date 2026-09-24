@@ -57,6 +57,13 @@ export default function CanvasArea() {
   const layers = useEditorStore((s) => s.layers);
   const activeLayerId = useEditorStore((s) => s.activeLayerId ?? s.layers[s.layers.length - 1]?.id);
   const tool = useEditorStore((s) => s.tool);
+  // normalisasi tool lengkap ke perilaku dasar agar ringan dan proper, tanpa duplikasi logic
+  const isBrush = tool === "brush" || tool === "pencil" || tool === "mixer-brush" || tool === "history-brush";
+  const isEraser = tool === "eraser" || tool === "background-eraser";
+  const isHeal = tool === "spot-heal" || tool === "healing-brush" || tool === "patch" || tool === "red-eye" || tool === "content-move";
+  const isClone = tool === "clone" || tool === "healing-brush" || tool === "patch";
+  const isEyedropper = tool === "eyedropper" || tool === "color-sampler";
+  const isCrop = tool === "crop" || tool === "frame";
   const zoom = useEditorStore((s) => s.zoom);
   const panX = useEditorStore((s) => s.panX);
   const panY = useEditorStore((s) => s.panY);
@@ -1212,7 +1219,7 @@ export default function CanvasArea() {
             moveDrag.current = { sx: e.clientX, sy: e.clientY, ox: t?.x ?? 0, oy: t?.y ?? 0 };
             return;
           }
-          if (tool === "crop") {
+          if (isCrop) {
             setCropDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
             return;
           }
@@ -1220,15 +1227,15 @@ export default function CanvasArea() {
             setGradDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
             return;
           }
-          if (tool === "select-rect" || tool === "select-ellipse") {
+          if (tool === "select-rect" || tool === "select-ellipse" || tool === "select-polygon" || tool === "quick-select") {
             setSelDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
             return;
           }
-          if (tool === "eyedropper") {
+          if (isEyedropper) {
             pickColor(p);
             return;
           }
-          if (tool === "clone") {
+          if (isClone) {
             if (e.altKey) {
               cloneRef.current = { x: p.x, y: p.y };
               cloneOrigin.current = null;
@@ -1265,7 +1272,7 @@ export default function CanvasArea() {
             createShapeLayer("ellipse");
             return;
           }
-          if (tool === "shape-polygon") {
+          if (tool === "shape-polygon" || tool === "shape-line" || tool === "shape-custom") {
             createShapeLayer("polygon");
             return;
           }
@@ -1273,20 +1280,20 @@ export default function CanvasArea() {
             floodFillAt(p.x, p.y);
             return;
           }
-          if (tool === "pen" || tool === "line") {
+          if (tool === "pen" || tool === "line" || tool === "curvature-pen") {
             setPenDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
             return;
           }
           if (
-            tool === "brush" ||
-            tool === "eraser" ||
+            isBrush ||
+            isEraser ||
             tool === "dodge" ||
             tool === "burn" ||
             tool === "sponge" ||
             tool === "blur" ||
             tool === "sharpen" ||
             tool === "smudge" ||
-            tool === "spot-heal"
+            isHeal
           ) {
             const snap = layerManager.snapshot(activeLayerId ?? "");
             const maskSnap = paintMask ? layerManager.snapshotMask(activeLayerId ?? "") : null;
@@ -1312,14 +1319,14 @@ export default function CanvasArea() {
             setIsPainting(true);
             lastPos.current = null;
             if (tool === "smudge") pickSmudgeColor(p);
-            if (tool === "brush" || tool === "eraser") paintTo(p.x, p.y, tool === "eraser");
+            if (isBrush || isEraser) paintTo(p.x, p.y, isEraser);
             else
               retouchTo(
                 p.x,
                 p.y,
                 tool as "dodge" | "burn" | "sponge" | "blur" | "sharpen" | "smudge" | "heal",
               );
-            if (tool === "spot-heal") retouchTo(p.x, p.y, "heal");
+            if (isHeal) retouchTo(p.x, p.y, "heal");
             setCursor(`${Math.round(p.x)}, ${Math.round(p.y)}`);
           }
           if (tool === "zoom") {
@@ -1435,8 +1442,8 @@ export default function CanvasArea() {
             return;
           }
           if (isPainting) {
-            if (tool === "clone") cloneTo(p.x, p.y);
-            else if (tool === "brush" || tool === "eraser") paintTo(p.x, p.y, tool === "eraser");
+            if (isClone) cloneTo(p.x, p.y);
+            else if (isBrush || isEraser) paintTo(p.x, p.y, isEraser);
             else if (tool === "smudge") {
               retouchTo(p.x, p.y, "smudge");
             } else if (
@@ -1445,9 +1452,9 @@ export default function CanvasArea() {
               tool === "sponge" ||
               tool === "blur" ||
               tool === "sharpen" ||
-              tool === "spot-heal"
+              isHeal
             ) {
-              retouchTo(p.x, p.y, tool === "spot-heal" ? "heal" : tool);
+              retouchTo(p.x, p.y, isHeal ? "heal" : tool);
             }
           }
         }}

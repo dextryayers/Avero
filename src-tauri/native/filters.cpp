@@ -286,7 +286,7 @@ void avero_cpp_box_blur(const uint8_t *src, uint8_t *dst, int w, int h, int radi
 void avero_cpp_sharpen(const uint8_t *src, uint8_t *dst, int w, int h, float amount){ avero::sharpen(src,dst,w,h,amount);}
 void avero_cpp_unsharp(const uint8_t *src, uint8_t *dst, int w, int h, float amount, int radius){ avero::unsharp_mask(src,dst,w,h,amount,radius);}
 void avero_cpp_emboss(const uint8_t *src, uint8_t *dst, int w, int h){ avero::emboss(src,dst,w,h);}
-void avero_cpp_motion_blur(const uint8_t *src, uint8_t *dst, int w, int h, float radius, float angle_deg){ avero::motion_blur(src,dst,w,h,radius,angle_deg);}
+void avero_cpp_motion_blur(const uint8_t *src, uint8_t *dst, int w, int h, int radius, float angle_deg){ avero::motion_blur(src,dst,w,h,radius,angle_deg);}
 void avero_cpp_gaussian(const uint8_t *src, uint8_t *dst, int w, int h, float sigma){ avero::gaussian(src,dst,w,h,sigma);}
 void avero_cpp_median(const uint8_t *src, uint8_t *dst, int w, int h, int radius){ avero::median(src,dst,w,h,radius);}
 void avero_cpp_sobel(const uint8_t *src, uint8_t *dst, int w, int h){ avero::sobel(src,dst,w,h);}

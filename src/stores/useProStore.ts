@@ -7,6 +7,9 @@ export type AdjustmentType =
   | "curves"
   | "exposure"
   | "hueSaturation"
+  | "vibrance"
+  | "colorBalance"
+  | "autoContrast"
   | "blackWhite"
   | "invert"
   | "threshold"
@@ -23,7 +26,14 @@ export interface AdjustmentEntry {
 
 // Fase 2.5: Filter stack
 export type FilterType =
-  "gaussianBlur" | "boxBlur" | "motionBlur" | "sharpen" | "noise" | "pixelate";
+  | "gaussianBlur"
+  | "boxBlur"
+  | "motionBlur"
+  | "sharpen"
+  | "noise"
+  | "pixelate"
+  | "emboss"
+  | "findEdges";
 
 export interface FilterEntry {
   id: string;
@@ -159,6 +169,9 @@ const defaultParams: Record<AdjustmentType, Record<string, number>> = {
   curves: { lift: 0, gain: 0 },
   exposure: { exposure: 0, offset: 0, gamma: 1 },
   hueSaturation: { hue: 0, saturation: 0, lightness: 0 },
+  vibrance: { vibrance: 0 },
+  colorBalance: { cyanRed: 0, magentaGreen: 0, yellowBlue: 0 },
+  autoContrast: {},
   blackWhite: { reds: 40, yellows: 60, greens: 40, cyans: 60, blues: 20, magentas: 80 },
   invert: {},
   threshold: { level: 128 },
@@ -171,6 +184,9 @@ const adjNames: Record<AdjustmentType, string> = {
   curves: "Curves lite",
   exposure: "Exposure",
   hueSaturation: "Hue/Saturation",
+  vibrance: "Vibrance",
+  colorBalance: "Color Balance",
+  autoContrast: "Auto Contrast",
   blackWhite: "Black and White",
   invert: "Invert",
   threshold: "Threshold",
@@ -184,6 +200,8 @@ const filterParams: Record<FilterType, Record<string, number>> = {
   sharpen: { amount: 60 },
   noise: { amount: 8 },
   pixelate: { size: 8 },
+  emboss: { strength: 60 },
+  findEdges: { threshold: 24 },
 };
 
 const filterNames: Record<FilterType, string> = {
@@ -193,6 +211,8 @@ const filterNames: Record<FilterType, string> = {
   sharpen: "Sharpen",
   noise: "Noise",
   pixelate: "Pixelate",
+  emboss: "Emboss",
+  findEdges: "Find Edges",
 };
 
 export const useProStore = create<ProState>((set) => ({

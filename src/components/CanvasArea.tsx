@@ -874,17 +874,27 @@ export default function CanvasArea() {
             // dahulukan drag guide ala Photoshop bila kena garis
             if (showGuides) {
               const thr = 7 / (zoom / 100);
-              let best: { kind: "h" | "v"; index: number; d: number } | null = null;
-              guidesV.forEach((gx, i) => {
-                const d = Math.abs(p.x - gx);
-                if (d < thr && (!best || d < best.d)) best = { kind: "v", index: i, d };
-              });
-              guidesH.forEach((gy, i) => {
-                const d = Math.abs(p.y - gy);
-                if (d < thr && (!best || d < best.d)) best = { kind: "h", index: i, d };
-              });
-              if (best) {
-                guideDrag.current = { kind: best.kind, index: best.index };
+              let bestKind: "h" | "v" = "v";
+              let bestIndex = -1;
+              let bestD = Infinity;
+              for (let i = 0; i < guidesV.length; i++) {
+                const d = Math.abs(p.x - guidesV[i]);
+                if (d < thr && d < bestD) {
+                  bestD = d;
+                  bestKind = "v";
+                  bestIndex = i;
+                }
+              }
+              for (let i = 0; i < guidesH.length; i++) {
+                const d = Math.abs(p.y - guidesH[i]);
+                if (d < thr && d < bestD) {
+                  bestD = d;
+                  bestKind = "h";
+                  bestIndex = i;
+                }
+              }
+              if (bestIndex >= 0) {
+                guideDrag.current = { kind: bestKind, index: bestIndex };
                 return;
               }
             }

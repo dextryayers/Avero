@@ -51,7 +51,7 @@ export default function TitleBar({ onOpenCommand }: { onOpenCommand: () => void 
         </div>
         <span className="text-[13px] font-semibold text-[#e0e0e0]">PSD Studio</span>
         <span className="rounded bg-[#2d2d2d] px-1.5 py-0.5 text-[10px] text-[#a0a0a0]">
-          Fase 1 MVP
+          v0.1.0
         </span>
       </div>
 
@@ -59,9 +59,12 @@ export default function TitleBar({ onOpenCommand }: { onOpenCommand: () => void 
         {["File", "Edit", "Image", "Layer", "Filter", "View", "Help"].map((m) => (
           <button
             key={m}
+            title={m === "File" ? "Buka gambar (atau Ctrl+K)" : `${m} (Ctrl+K)`}
             onClick={() => {
+              // File langsung buka dialog, menu lain buka command palette
+              // agar tidak ada menu mati. Ctrl+K tetap jalan pintas utama.
               if (m === "File") handleOpen();
-              if (m === "View") onOpenCommand();
+              else onOpenCommand();
             }}
             className="rounded px-2 py-1 hover:bg-[#3e3e42] hover:text-white"
           >

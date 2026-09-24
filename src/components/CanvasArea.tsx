@@ -33,6 +33,7 @@ export default function CanvasArea() {
   );
   const [lassoPts, setLassoPts] = useState<{ x: number; y: number }[]>([]);
   const [ants, setAnts] = useState(0);
+  const [dragging, setDragging] = useState(false);
   const lastPos = useRef<{ x: number; y: number } | null>(null);
   const panning = useRef<{ sx: number; sy: number; px: number; py: number } | null>(null);
   const moveDrag = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null);
@@ -61,6 +62,8 @@ export default function CanvasArea() {
   const color = useProStore((s) => s.color);
   const raw = useProStore((s) => s.raw);
   const bumpHistogram = useProStore((s) => s.bumpHistogram);
+  const historyLen = useEditorStore((s) => s.history.length);
+  const isFresh = !doc.filePath && historyLen === 0;
 
   useEffect(() => {
     layers.forEach((l) => layerManager.ensure(l.id, doc.width, doc.height));
@@ -88,15 +91,54 @@ export default function CanvasArea() {
     clearSelectionMask();
   }, [doc.width, doc.height]);
 
-  useEffect(() => {
+  function fitToView() {
     const el = wrapRef.current;
     if (!el) return;
+    const st = useEditorStore.getState();
     const r = el.getBoundingClientRect();
-    const z = fitZoom(doc.width, doc.height, r.width - 80, r.height - 80);
-    setZoom(Math.max(10, Math.min(100, z)));
-    setPan(0, 0);
+    const z = fitZoom(st.doc.width, st.doc.height, r.width - 80, r.height - 80);
+    st.setZoom(Math.max(10, Math.min(100, z)));
+    st.setPan(0, 0);
+  }
+
+  useEffect(() => {
+    fitToView();
     // deps render komposit disengaja
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc.width, doc.height]);
+
+  // Tombol Fit di status bar memicu event ini
+  useEffect(() => {
+    window.addEventListener("psd:fit-zoom", fitToView);
+    return () => window.removeEventListener("psd:fit-zoom", fitToView);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Drag and drop file gambar dari Explorer langsung jadi layer
+  async function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragging(false);
+    const f = e.dataTransfer.files?.[0];
+    if (!f || !f.type.startsWith("image/")) return;
+    try {
+      const bmp = await createImageBitmap(f);
+      const st = useEditorStore.getState();
+      st.openDocument(f.name, bmp.width, bmp.height, null, f.size);
+      setTimeout(() => {
+        const id =
+          useEditorStore.getState().activeLayerId ?? useEditorStore.getState().layers[0]?.id;
+        if (!id) return;
+        const c = layerManager.ensure(id, bmp.width, bmp.height);
+        c.getContext("2d")!.drawImage(bmp, 0, 0);
+        bmp.close();
+        useEditorStore.getState().markDirty();
+        useProStore.getState().bumpHistogram();
+        fitToView();
+      }, 60);
+    } catch {
+      /* abaikan file tak terbaca */
+    }
+  }
 
   // Marching ants animation
   useEffect(() => {
@@ -512,6 +554,12 @@ export default function CanvasArea() {
       <div
         ref={wrapRef}
         className="relative min-h-0 flex-1 overflow-hidden"
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={handleDrop}
         onWheel={(e) => {
           if (e.ctrlKey || e.metaKey) {
             e.preventDefault();
@@ -667,6 +715,21 @@ export default function CanvasArea() {
           {cursor} • {tool} • {Math.ceil(doc.width / 256) * Math.ceil(doc.height / 256)} tiles
           {hasSelection() ? " • SEL" : ""}
         </div>
+        {dragging && (
+          <div className="pointer-events-none absolute inset-4 grid place-items-center rounded-lg border-2 border-dashed border-[#0a84ff] bg-[#0a84ff]/10">
+            <div className="rounded bg-black/70 px-4 py-2 text-[13px] text-white">
+              Lepaskan untuk membuka gambar
+            </div>
+          </div>
+        )}
+        {isFresh && !dragging && (
+          <div className="pointer-events-none absolute left-1/2 top-10 -translate-x-1/2 rounded-lg bg-black/65 px-4 py-2.5 text-center text-[12px] text-[#e0e0e0]">
+            <span className="font-semibold text-white">Seret gambar ke sini</span> untuk mulai, atau
+            tekan{" "}
+            <span className="rounded bg-[#3e3e42] px-1.5 py-0.5 font-mono text-[11px]">Ctrl+K</span>{" "}
+            lalu Open image
+          </div>
+        )}
       </div>
     </div>
   );

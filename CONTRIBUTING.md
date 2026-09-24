@@ -10,6 +10,14 @@ Terima kasih ingin berkontribusi ke editor foto open source untuk Linux dan Wind
 
 ## Standar kode
 - TypeScript strict, tanpa `any` kecuali terpaksa dengan alasan
+- ATURAN KERAS Zustand: selector tidak boleh mengembalikan objek/array baru
+  tanpa equality. Pakai primitif per baris, atau `useShallow` dari
+  `zustand/shallow`. Selector objek polos menyebabkan infinite update loop di
+  React 19 dan layar hitam total (insiden v0.1.0, diperbaiki dengan useShallow
+  di RightPanel brush selector). Contoh benar:
+  `useEditorStore(useShallow((s) => ({ a: s.a, b: s.b })))`
+- Error render tidak boleh jadi layar hitam: ErrorBoundary global +
+  boot fallback di index.html wajib dipertahankan
 - Semua edit gambar harus non-destructive: tambah adjustment/filter/mask, jangan mutasi pixel asli tanpa history
 - AI harus offline-first: heuristik lokal jalan tanpa internet, model ONNX opsional di `~/.psd-studio/models`
 - Plugin JS hanya boleh pakai `(d, params, W, H)`, tanpa DOM, tanpa fetch, timeout 5 detik

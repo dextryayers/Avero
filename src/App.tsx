@@ -69,6 +69,14 @@ export default function App() {
         e.preventDefault();
         clearSelectionMask();
       }
+      if (
+        (e.key === "Delete" || e.key === "Backspace") &&
+        document.activeElement?.tagName !== "INPUT" &&
+        document.activeElement?.tagName !== "TEXTAREA"
+      ) {
+        e.preventDefault();
+        clearSelectionMask();
+      }
       if (mod && e.key.toLowerCase() === "s") {
         e.preventDefault();
         setPalette(true);

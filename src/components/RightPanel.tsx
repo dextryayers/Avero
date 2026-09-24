@@ -11,6 +11,7 @@ import {
   Redo2,
 } from "lucide-react";
 import { makeLayer, useEditorStore } from "../stores/useEditorStore";
+import { useShallow } from "zustand/shallow";
 import { useProStore } from "../stores/useProStore";
 import { layerManager } from "../engine/layerManager";
 import clsx from "clsx";
@@ -65,15 +66,10 @@ const tabs: { id: Tab; label: string }[] = [
   { id: "history", label: "Hist" },
 ];
 
-let __rpCount = 0;
 export default function RightPanel() {
-  const [tab, setTab] = useState<Tab>("history");
+  const [tab, setTab] = useState<Tab>("layers");
   const workspaceTab = useWorkspaceStore((s) => s.rightTab);
-  __rpCount++;
-  if (__rpCount <= 8 || __rpCount % 25 === 0)
-    console.log(`[BISECT] render #${__rpCount} tab=${tab} workspaceTab=${workspaceTab}`);
   useEffect(() => {
-    console.log(`[BISECT] RightPanel effect workspaceTab=${workspaceTab}`);
     if (workspaceTab && (tabs as { id: string }[]).some((t) => t.id === workspaceTab)) {
       setTab(workspaceTab as Tab);
       useWorkspaceStore.getState().setRightTab(null);
@@ -87,12 +83,16 @@ export default function RightPanel() {
   const setActiveLayer = useEditorStore((s) => s.setActiveLayer);
   const moveLayer = useEditorStore((s) => s.moveLayer);
   const doc = useEditorStore((s) => s.doc);
-  const brush = useEditorStore((s) => ({
-    size: s.brushSize,
-    opacity: s.brushOpacity,
-    hardness: s.brushHardness,
-    color: s.brushColor,
-  }));
+  // useShallow wajib: selector objek tanpa equality stabil memicu loop update
+  // tak berujung pada React 19 (blank screen). Jangan kembalikan ke objek polos.
+  const brush = useEditorStore(
+    useShallow((s) => ({
+      size: s.brushSize,
+      opacity: s.brushOpacity,
+      hardness: s.brushHardness,
+      color: s.brushColor,
+    })),
+  );
   const setBrush = useEditorStore((s) => s.setBrush);
   const history = useEditorStore((s) => s.history);
   const future = useEditorStore((s) => s.future);
@@ -116,14 +116,14 @@ export default function RightPanel() {
 
   return (
     <div className="flex w-[300px] shrink-0 flex-col border-l border-[#3e3e42] bg-[#252526]">
-      <div className="grid grid-cols-5 border-b border-[#3e3e42] text-[10px]">
+      <div className="flex overflow-x-auto border-b border-[#3e3e42] text-[10px]">
         {tabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
             title={t.label}
             className={clsx(
-              "px-1 py-2",
+              "shrink-0 px-2.5 py-2",
               tab === t.id
                 ? "bg-[#2d2d2d] text-white font-semibold"
                 : "text-[#a0a0a0] hover:text-white",

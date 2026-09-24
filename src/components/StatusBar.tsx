@@ -50,6 +50,13 @@ export default function StatusBar() {
         >
           {zoom}%
         </button>
+        <button
+          onClick={() => window.dispatchEvent(new Event("psd:fit-zoom"))}
+          title="Fit ke layar"
+          className="rounded px-1.5 py-0.5 hover:bg-[#3e3e42] hover:text-white"
+        >
+          Fit
+        </button>
       </div>
       <span className="font-mono">
         {doc.width}x{doc.height} • {mp} MB • {tiles} tiles • {color.workingSpace} {color.bitDepth}

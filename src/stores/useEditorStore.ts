@@ -76,7 +76,13 @@ interface EditorState {
   toggleRulers: () => void;
   setBackend: (s: EditorState["backendStatus"], info: string) => void;
   newDocument: (name: string, w: number, h: number) => void;
-  openDocument: (name: string, w: number, h: number, filePath: string, fileSize: number) => void;
+  openDocument: (
+    name: string,
+    w: number,
+    h: number,
+    filePath: string | null,
+    fileSize: number | null,
+  ) => void;
   markClean: () => void;
   markDirty: () => void;
   addLayer: (l: LayerMeta) => void;

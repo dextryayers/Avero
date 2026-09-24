@@ -1,9 +1,6 @@
 // AVERO STUDIO - Core Engine entry point
-// Fase 0-3: shell, IO, PSD, color, RAW.
-// Fase 4: AI model dir + status offline.
-// Fase 5-6: stabilisasi, test, rilis.
+// Shell, IO, PSD, color, RAW, stabilisasi.
 
-mod ai;
 mod commands;
 mod document;
 mod io;
@@ -27,9 +24,7 @@ pub fn run() {
             io::cmd_save_dataurl_to_file,
             pro::cmd_psd_layer_list,
             pro::cmd_raw_info,
-            pro::cmd_image_histogram,
-            ai::cmd_ai_model_dir,
-            ai::cmd_ai_models_status
+            pro::cmd_image_histogram
         ])
         .run(tauri::generate_context!())
         .expect("error while running AVERO STUDIO");

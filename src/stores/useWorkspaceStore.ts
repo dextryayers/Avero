@@ -5,12 +5,10 @@ export type WorkspaceId = "photography" | "retouching" | "design" | "minimal";
 interface WorkspaceState {
   active: WorkspaceId;
   rightTab: string | null; // override tab kanan per workspace
-  showPrompt: boolean;
   showNode: boolean;
   onboardingDone: boolean;
   setWorkspace: (w: WorkspaceId) => void;
   setRightTab: (t: string | null) => void;
-  setShowPrompt: (v: boolean) => void;
   setShowNode: (v: boolean) => void;
   setOnboarding: (v: boolean) => void;
 }
@@ -26,7 +24,6 @@ const saved = (() => {
 export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   active: saved ?? "retouching",
   rightTab: null,
-  showPrompt: true,
   showNode: false,
   onboardingDone: (() => {
     try {
@@ -42,17 +39,16 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       /* abaikan */
     }
     // preset per workspace
-    const map: Record<WorkspaceId, { tab: string; prompt: boolean; node: boolean }> = {
-      photography: { tab: "raw", prompt: false, node: false },
-      retouching: { tab: "layers", prompt: true, node: false },
-      design: { tab: "text", prompt: true, node: true },
-      minimal: { tab: "layers", prompt: false, node: false },
+    const map: Record<WorkspaceId, { tab: string; node: boolean }> = {
+      photography: { tab: "raw", node: false },
+      retouching: { tab: "layers", node: false },
+      design: { tab: "text", node: true },
+      minimal: { tab: "layers", node: false },
     };
     const m = map[active];
-    set({ active, rightTab: m.tab, showPrompt: m.prompt, showNode: m.node });
+    set({ active, rightTab: m.tab, showNode: m.node });
   },
   setRightTab: (rightTab) => set({ rightTab }),
-  setShowPrompt: (showPrompt) => set({ showPrompt }),
   setShowNode: (showNode) => set({ showNode }),
   setOnboarding: (onboardingDone) => {
     try {

@@ -310,6 +310,81 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
           useProStore.getState().setColor({ proofEnabled: !c.proofEnabled });
         },
       },
+      { id: "auto-tone", title: "Auto Tone", run: () => useProStore.getState().addAdjustment("autoContrast") },
+      { id: "invert", title: "Invert colors", run: () => useProStore.getState().addAdjustment("invert") },
+      { id: "b-w", title: "Black & White", run: () => useProStore.getState().addAdjustment("blackWhite") },
+      { id: "desat", title: "Desaturate", run: () => useProStore.getState().addAdjustment("blackWhite") },
+      { id: "curves", title: "Add adjustment curves", run: () => useProStore.getState().addAdjustment("curves") },
+      { id: "hsl", title: "Add adjustment hue/saturation", run: () => useProStore.getState().addAdjustment("hueSaturation") },
+      { id: "balance", title: "Add adjustment color balance", run: () => useProStore.getState().addAdjustment("colorBalance") },
+      { id: "bw-adj", title: "Add adjustment black/white", run: () => useProStore.getState().addAdjustment("blackWhite") },
+      { id: "photo-filter", title: "Add adjustment photo filter", run: () => useProStore.getState().addAdjustment("photoFilter") },
+      { id: "channel-mixer", title: "Add adjustment channel mixer", run: () => useProStore.getState().addAdjustment("channelMixer") },
+      { id: "gradient-map", title: "Add adjustment gradient map", run: () => useProStore.getState().addAdjustment("gradientMap") },
+      { id: "lut", title: "Add adjustment color lookup", run: () => useProStore.getState().addAdjustment("colorLookup") },
+      { id: "selective", title: "Add adjustment selective color", run: () => useProStore.getState().addAdjustment("selectiveColor") },
+      { id: "posterize", title: "Add adjustment posterize", run: () => useProStore.getState().addAdjustment("posterize") },
+      { id: "threshold", title: "Add adjustment threshold", run: () => useProStore.getState().addAdjustment("threshold") },
+      { id: "filter-motion", title: "Add filter motion blur", run: () => useProStore.getState().addFilter("motionBlur") },
+      { id: "filter-box", title: "Add filter box blur", run: () => useProStore.getState().addFilter("boxBlur") },
+      { id: "filter-highpass", title: "Add filter high pass", run: () => useProStore.getState().addFilter("highPass") },
+      { id: "filter-denoise", title: "Add filter reduce noise", run: () => useProStore.getState().addFilter("reduceNoise") },
+      { id: "filter-noise", title: "Add filter noise", run: () => useProStore.getState().addFilter("noise") },
+      { id: "filter-pixelate", title: "Add filter pixelate", run: () => useProStore.getState().addFilter("pixelate") },
+      { id: "filter-halftone", title: "Add filter halftone", run: () => useProStore.getState().addFilter("halftone") },
+      { id: "filter-emboss", title: "Add filter emboss", run: () => useProStore.getState().addFilter("emboss") },
+      { id: "filter-edges", title: "Add filter find edges", run: () => useProStore.getState().addFilter("findEdges") },
+      { id: "filter-oil", title: "Add filter oil paint", run: () => useProStore.getState().addFilter("oilPaintLite") },
+      { id: "filter-chroma", title: "Add filter chromatic aberration", run: () => useProStore.getState().addFilter("chromaticAberration") },
+      { id: "mode-8", title: "Color mode 8-bit", run: () => useProStore.getState().setColor({ bitDepth: 8 }) },
+      { id: "mode-16", title: "Color mode 16-bit", run: () => useProStore.getState().setColor({ bitDepth: 16 }) },
+      { id: "zoom-200", title: "Zoom 200 percent", run: () => s.setZoom(200) },
+      { id: "zoom-50", title: "Zoom 50 percent", run: () => s.setZoom(50) },
+      {
+        id: "rotate-cw",
+        title: "Rotate layer +90",
+        run: () => {
+          const st = useEditorStore.getState();
+          const id = st.activeLayerId;
+          if (!id) return;
+          const pro = useProStore.getState();
+          pro.ensureTransform(id);
+          const t = pro.transforms[id] ?? { rotation: 0 };
+          pro.updateTransform(id, { rotation: (t.rotation + 90) % 360 });
+        },
+      },
+      {
+        id: "flip-h",
+        title: "Flip horizontal layer aktif",
+        run: () => {
+          const st = useEditorStore.getState();
+          const id = st.activeLayerId;
+          if (!id) return;
+          const pro = useProStore.getState();
+          pro.ensureTransform(id);
+          const t = pro.transforms[id] ?? { scaleX: 1 };
+          pro.updateTransform(id, { scaleX: t.scaleX * -1 });
+        },
+      },
+      {
+        id: "sel-all",
+        title: "Select all",
+        run: () => window.dispatchEvent(new CustomEvent("avero:select", { detail: "sel-all" })),
+      },
+      {
+        id: "sel-none",
+        title: "Deselect",
+        run: () => window.dispatchEvent(new CustomEvent("avero:select", { detail: "sel-none" })),
+      },
+      {
+        id: "sel-inverse",
+        title: "Inverse selection",
+        run: () => window.dispatchEvent(new CustomEvent("avero:select", { detail: "sel-inverse" })),
+      },
+      { id: "crop-tool", title: "Tool crop (C)", run: () => s.setTool("crop") },
+      { id: "eyedropper", title: "Tool eyedropper (I)", run: () => s.setTool("eyedropper") },
+      { id: "shape-rect", title: "Tool rectangle shape (U)", run: () => s.setTool("shape-rect") },
+      { id: "about", title: "About AVERO STUDIO", run: () => alert("AVERO STUDIO v2.0.0. Offline, non-destruktif, open source.") },
     ];
   }, []);
 

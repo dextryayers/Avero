@@ -11,8 +11,6 @@ const items = [
 export default function WorkspaceBar() {
   const active = useWorkspaceStore((s) => s.active);
   const setWorkspace = useWorkspaceStore((s) => s.setWorkspace);
-  const showPrompt = useWorkspaceStore((s) => s.showPrompt);
-  const setShowPrompt = useWorkspaceStore((s) => s.setShowPrompt);
 
   return (
     <div className="flex shrink-0 items-center gap-1.5 border-b border-[#2c2c31] bg-[#161618] px-3 py-1.5 text-[11px]">
@@ -33,15 +31,6 @@ export default function WorkspaceBar() {
           {w.label}
         </button>
       ))}
-      <label className="ml-2 flex cursor-pointer items-center gap-1.5 text-[#6e6e78]">
-        <input
-          type="checkbox"
-          checked={showPrompt}
-          onChange={(e) => setShowPrompt(e.target.checked)}
-          className="accent-[#2f7cf6]"
-        />
-        Prompt bar
-      </label>
       <span className="ml-auto hidden font-mono text-[10px] text-[#6e6e78] md:block">
         Tersimpan lokal Retouch / Photo / Design / Minimal
       </span>

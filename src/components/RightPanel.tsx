@@ -26,7 +26,6 @@ import TextShapePanel from "./TextShapePanel";
 import ColorPanel from "./ColorPanel";
 import RawPanel from "./RawPanel";
 import TransformPanel from "./TransformPanel";
-import AiPanel from "./AiPanel";
 import BatchPanel from "./BatchPanel";
 import GitPanel from "./GitPanel";
 import ArtboardPanel from "./ArtboardPanel";
@@ -43,7 +42,6 @@ type Tab =
   | "text"
   | "color"
   | "raw"
-  | "ai"
   | "batch"
   | "git"
   | "art"
@@ -60,7 +58,6 @@ const tabs: { id: Tab; label: string }[] = [
   { id: "text", label: "Text" },
   { id: "color", label: "Color" },
   { id: "raw", label: "RAW" },
-  { id: "ai", label: "AI" },
   { id: "batch", label: "Batch" },
   { id: "git", label: "Git" },
   { id: "art", label: "Art" },
@@ -441,7 +438,6 @@ export default function RightPanel() {
         {tab === "text" && <TextShapePanel />}
         {tab === "color" && <ColorPanel />}
         {tab === "raw" && <RawPanel />}
-        {tab === "ai" && <AiPanel />}
         {tab === "batch" && <BatchPanel />}
         {tab === "git" && <GitPanel />}
         {tab === "art" && <ArtboardPanel />}

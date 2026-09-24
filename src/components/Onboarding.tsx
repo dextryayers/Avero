@@ -6,7 +6,6 @@ import {
   FolderOpen,
   ImagePlus,
   Layers,
-  Sparkles,
   Wand2,
   Keyboard,
   Palette,
@@ -25,7 +24,7 @@ const STEPS = [
   { id: "welcome", title: "Selamat Datang", desc: "Pengantar singkat" },
   { id: "create", title: "Buka dan Buat", desc: "Mulai berkarya" },
   { id: "retouch", title: "Retouch", desc: "Peralatan lengkap" },
-  { id: "color", title: "Warna dan AI", desc: "Non-destruktif" },
+  { id: "color", title: "Warna dan Filter", desc: "Non-destruktif" },
   { id: "workspace", title: "Workspace", desc: "Siap kerja" },
 ];
 
@@ -198,14 +197,14 @@ export default function Onboarding() {
                 </h2>
                 <p className="mt-2 max-w-[520px] text-[12.5px] leading-relaxed text-[#a7a7b0]">
                   AVERO STUDIO memiliki layer dan mask, adjustment non-destruktif, RAW develop,
-                  AI offline, dan automation dalam satu aplikasi desktop.
+                  filter stack, dan automation dalam satu aplikasi desktop.
                 </p>
                 <div className="mt-4 grid grid-cols-2 gap-2">
                   {[
                     { icon: Layers, t: "Layer dan Mask", d: "Blend, clip, feather, density" },
                     { icon: Brush, t: "Retouch lengkap", d: "Heal, clone, dodge dan burn" },
                     { icon: Palette, t: "Warna akurat", d: "Levels, curves, selective" },
-                    { icon: Sparkles, t: "AI offline", d: "Hapus background, upscale 2x" },
+                    { icon: Wand2, t: "Filter non-destruktif", d: "Blur, sharpen, grain, vignette" },
                   ].map((f) => (
                     <div key={f.t} className="avero-card flex gap-2.5 p-3">
                       <f.icon size={17} className="mt-0.5 shrink-0 text-[#8fb6f5]" />
@@ -284,7 +283,7 @@ export default function Onboarding() {
                     ["Levels, Curves, Exposure, HSL, Vibrance", "Stack adjustment bisa dimatikan, diatur opacity, dan disusun ulang."],
                     ["Gaussian dan Motion Blur, Sharpen, Vignette, Grain", "Stack filter dengan pratinjau langsung."],
                     ["RAW develop, sRGB dan AdobeRGB, soft-proof CMYK", "Manajemen warna untuk kebutuhan cetak."],
-                    ["Background remover, upscale 2x, restore", "AI lokal. Berjalan offline penuh."],
+                    ["Export PNG, JPG, WEBP, BMP, SVG, TIFF", "Simpan proyek utuh sebagai .avx, buka lagi kapan saja."],
                   ].map(([t, d]) => (
                     <div key={t} className="rounded-md border border-[#2c2c31] bg-[#161618] p-2.5">
                       <div className="font-semibold text-white">{t}</div>
@@ -310,7 +309,7 @@ export default function Onboarding() {
                         <Keyboard size={14} className="text-[#8fb6f5]" /> {w}
                       </div>
                       <div className="mt-0.5 text-[11px] text-[#6e6e78]">
-                        {w === "retouching" ? "Brush, layer, AI prompt" : w === "photography" ? "RAW, histogram, color" : w === "design" ? "Text, shape, node" : "Kanvas bersih minimal"}
+                        {w === "retouching" ? "Brush, layer, mask" : w === "photography" ? "RAW, histogram, color" : w === "design" ? "Text, shape, node" : "Kanvas bersih minimal"}
                       </div>
                     </button>
                   ))}

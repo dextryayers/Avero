@@ -10,40 +10,154 @@ import clsx from "clsx";
 
 const MENUS: Record<string, { label: string; hint?: string; action: string }[]> = {
   File: [
-    { label: "Dokumen Baru", hint: "", action: "home" },
+    { label: "Dokumen Baru", hint: "Ctrl+N", action: "new-doc" },
+    { label: "Home", hint: "", action: "home" },
     { label: "Buka Gambar", hint: "Ctrl+O", action: "open" },
-    { label: "Buka Proyek .avx", hint: "", action: "open-avx" },
+    { label: "Buka Proyek .avx", hint: "Ctrl+O", action: "open-avx" },
     { label: "Simpan Proyek", hint: "Ctrl+S", action: "save-avx" },
-    { label: "Simpan Proyek Sebagai", hint: "", action: "save-avx-as" },
+    { label: "Simpan Proyek Sebagai", hint: "Ctrl+Shift+S", action: "save-avx-as" },
     { label: "Export Gambar", hint: "Ctrl+E", action: "export" },
+    { label: "Export Cepat PNG", hint: "", action: "export-png" },
+    { label: "Tutup Dokumen", hint: "", action: "close-doc" },
   ],
   Edit: [
     { label: "Undo", hint: "Ctrl+Z", action: "undo" },
     { label: "Redo", hint: "Ctrl+Y", action: "redo" },
     { label: "Semua Aksi", hint: "Ctrl+K", action: "palette" },
+    { label: "Potong", hint: "Ctrl+X", action: "cut" },
+    { label: "Salin", hint: "Ctrl+C", action: "copy" },
+    { label: "Tempel", hint: "Ctrl+V", action: "paste" },
+    { label: "Hapus Isi", hint: "Delete", action: "clear-fill" },
+    { label: "Isi Dengan Warna Foreground", hint: "Alt+Backspace", action: "fill-fg" },
+    { label: "Isi Dengan Warna Background", hint: "Ctrl+Backspace", action: "fill-bg" },
+    { label: "Isi Dengan Isi Isi (Content-Aware)", hint: "Shift+F5", action: "content-aware" },
+    { label: "Transform Bebas", hint: "Ctrl+T", action: "free-transform" },
+    { label: "Putar 90 Derajat Kanan", hint: "", action: "rotate-cw" },
+    { label: "Putar 90 Derajat Kiri", hint: "", action: "rotate-ccw" },
+    { label: "Balik Horizontal", hint: "", action: "flip-h" },
+    { label: "Balik Vertikal", hint: "", action: "flip-v" },
+    { label: "Atur Ulang Warna", hint: "", action: "reset-color" },
+    { label: "Preferensi", hint: "Ctrl+,", action: "prefs" },
   ],
   Image: [
+    { label: "Ukuran Gambar", hint: "Ctrl+Alt+I", action: "img-size" },
+    { label: "Ukuran Kanvas", hint: "Ctrl+Alt+C", action: "canvas-size" },
+    { label: "Trim", hint: "", action: "trim" },
+    { label: "Rotasi Kanvas 90 Kanan", hint: "", action: "canvas-cw" },
+    { label: "Rotasi Kanvas 90 Kiri", hint: "", action: "canvas-ccw" },
+    { label: "Mode Warna 8-bit", hint: "", action: "mode-8" },
+    { label: "Mode Warna 16-bit", hint: "", action: "mode-16" },
+    { label: "Soft Proof CMYK", hint: "", action: "proof" },
+    { label: "Histogram", hint: "", action: "histogram" },
+    { label: "Auto Tone", hint: "Ctrl+Shift+L", action: "auto-tone" },
+    { label: "Auto Contrast", hint: "Ctrl+Shift+Alt+L", action: "auto-contrast" },
+    { label: "Auto Color", hint: "Ctrl+Shift+B", action: "auto-color" },
+    { label: "Invert Warna", hint: "Ctrl+I", action: "invert" },
+    { label: "Desaturate", hint: "Ctrl+Shift+U", action: "desaturate" },
+    { label: "Threshold", hint: "", action: "threshold" },
+    { label: "Posterize", hint: "", action: "posterize" },
     { label: "Fit Zoom", hint: "", action: "fit" },
     { label: "Zoom 100%", hint: "", action: "zoom100" },
     { label: "Rulers", hint: "", action: "rulers" },
+    { label: "Grid", hint: "'", action: "grid" },
+    { label: "Guides", hint: "", action: "guides" },
   ],
   Layer: [
-    { label: "Layer Baru", hint: "", action: "add-layer" },
-    { label: "Duplikat Layer", hint: "", action: "dup-layer" },
+    { label: "Layer Baru", hint: "Ctrl+Shift+N", action: "add-layer" },
+    { label: "Duplikat Layer", hint: "Ctrl+J", action: "dup-layer" },
+    { label: "Layer via Copy", hint: "Ctrl+J", action: "layer-copy" },
+    { label: "Layer via Cut", hint: "Ctrl+Shift+J", action: "layer-cut" },
+    { label: "Hapus Layer", hint: "", action: "del-layer" },
+    { label: "Layer Group", hint: "Ctrl+G", action: "group" },
+    { label: "Naikkan Layer", hint: "Ctrl+]", action: "layer-up" },
+    { label: "Turunkan Layer", hint: "Ctrl+[", action: "layer-down" },
+    { label: "Layer Teratas", hint: "Ctrl+Shift+]", action: "layer-top" },
+    { label: "Layer Terbawah", hint: "Ctrl+Shift+[", action: "layer-bottom" },
+    { label: "Gabungkan ke Bawah", hint: "Ctrl+E", action: "merge-down" },
+    { label: "Gabungkan Semua", hint: "Ctrl+Shift+E", action: "merge-all" },
+    { label: "Flatten Image", hint: "", action: "flatten" },
+    { label: "Layer Opacity", hint: "", action: "layer-opacity" },
+    { label: "Blend Mode", hint: "", action: "blend-mode" },
+    { label: "Add Layer Mask", hint: "", action: "add-mask" },
+    { label: "Clipping Mask", hint: "Ctrl+Alt+G", action: "clip-mask" },
+    { label: "Lock Layer", hint: "", action: "lock-layer" },
+    { label: "Free Transform", hint: "Ctrl+T", action: "free-transform" },
     { label: "Guides", hint: "", action: "guides" },
+  ],
+  Select: [
+    { label: "Semua", hint: "Ctrl+A", action: "sel-all" },
+    { label: "Batalkan Pilihan", hint: "Ctrl+D", action: "sel-none" },
+    { label: "Pilih Ulang", hint: "Ctrl+Shift+D", action: "sel-reselect" },
+    { label: "Inverse", hint: "Ctrl+Shift+I", action: "sel-inverse" },
+    { label: "Rectangular Marquee", hint: "M", action: "sel-rect" },
+    { label: "Lasso", hint: "L", action: "sel-lasso" },
+    { label: "Magic Wand", hint: "W", action: "wand" },
+    { label: "Feather", hint: "Shift+F6", action: "sel-feather" },
+    { label: "Select and Mask", hint: "", action: "select-mask" },
+    { label: "Color Range", hint: "", action: "color-range" },
+    { label: "Subject", hint: "", action: "select-subject" },
+    { label: "Crop", hint: "C", action: "crop" },
   ],
   Filter: [
     { label: "Gaussian Blur", hint: "", action: "f-blur" },
+    { label: "Motion Blur", hint: "", action: "f-motion" },
+    { label: "Box Blur", hint: "", action: "f-box" },
     { label: "Sharpen", hint: "", action: "f-sharpen" },
+    { label: "Unsharp Mask", hint: "", action: "f-unsharp" },
+    { label: "High Pass", hint: "", action: "f-highpass" },
+    { label: "Reduce Noise", hint: "", action: "f-denoise" },
+    { label: "Add Noise", hint: "", action: "f-noise" },
+    { label: "Film Grain", hint: "", action: "f-grain" },
+    { label: "Pixelate", hint: "", action: "f-pixelate" },
+    { label: "Halftone", hint: "", action: "f-halftone" },
+    { label: "Emboss", hint: "", action: "f-emboss" },
+    { label: "Find Edges", hint: "", action: "f-edges" },
+    { label: "Oil Paint Lite", hint: "", action: "f-oil" },
+    { label: "Tilt Shift", hint: "", action: "f-tilt" },
     { label: "Vignette", hint: "", action: "f-vignette" },
+    { label: "Chromatic Aberration", hint: "", action: "f-chroma" },
+    { label: "Filter Gallery", hint: "", action: "filter-gallery" },
+  ],
+  Adjust: [
+    { label: "Brightness/Contrast", hint: "", action: "a-bc" },
+    { label: "Levels", hint: "Ctrl+L", action: "a-levels" },
+    { label: "Curves", hint: "Ctrl+M", action: "a-curves" },
+    { label: "Exposure", hint: "", action: "a-exposure" },
+    { label: "Hue/Saturation", hint: "Ctrl+U", action: "a-hsl" },
+    { label: "Vibrance", hint: "", action: "a-vibrance" },
+    { label: "Color Balance", hint: "Ctrl+B", action: "a-balance" },
+    { label: "Black & White", hint: "Ctrl+Shift+Alt+B", action: "a-bw" },
+    { label: "Photo Filter", hint: "", action: "a-photo" },
+    { label: "Channel Mixer", hint: "", action: "a-mixer" },
+    { label: "Gradient Map", hint: "", action: "a-gradmap" },
+    { label: "Color Lookup", hint: "", action: "a-lut" },
+    { label: "Selective Color", hint: "", action: "a-selective" },
+    { label: "Shadows/Highlights", hint: "", action: "a-shhi" },
+    { label: "Invert", hint: "Ctrl+I", action: "a-invert" },
+    { label: "Posterize", hint: "", action: "a-posterize" },
+    { label: "Threshold", hint: "", action: "a-threshold" },
   ],
   View: [
+    { label: "Fit Zoom", hint: "", action: "fit" },
+    { label: "Zoom In", hint: "Ctrl++", action: "zoom-in" },
+    { label: "Zoom Out", hint: "Ctrl+-", action: "zoom-out" },
+    { label: "Zoom 100%", hint: "Ctrl+1", action: "zoom100" },
+    { label: "Zoom 200%", hint: "Ctrl+2", action: "zoom200" },
+    { label: "Zoom 50%", hint: "Ctrl+0", action: "zoom50" },
+    { label: "Actual Pixels", hint: "", action: "zoom100" },
+    { label: "Rulers", hint: "Ctrl+R", action: "rulers" },
+    { label: "Guides", hint: "Ctrl+;", action: "guides" },
+    { label: "Grid", hint: "'", action: "grid" },
+    { label: "Snap", hint: "", action: "snap" },
     { label: "Workspace Retouch", hint: "", action: "ws-retouch" },
     { label: "Workspace Photo", hint: "", action: "ws-photo" },
+    { label: "Workspace Design", hint: "", action: "ws-design" },
+    { label: "Workspace Minimal", hint: "", action: "ws-minimal" },
     { label: "Tampilkan Onboarding", hint: "", action: "onboarding" },
   ],
   Help: [
     { label: "Shortcut dan Tips", hint: "Ctrl+K", action: "palette" },
+    { label: "Tips Boot", hint: "", action: "tips" },
     { label: "Tentang AVERO", hint: "", action: "about" },
   ],
 };
@@ -136,6 +250,14 @@ export default function TitleBar({
     setOpenMenu(null);
     const ed = useEditorStore.getState();
     const pro = useProStore.getState();
+    const pick = async () => {
+      const { pickSavePath, rustSaveDataUrl } = await import("../io/tauriIo");
+      const { getCompositeCanvas } = await import("./CanvasArea");
+      const comp = getCompositeCanvas();
+      const dataUrl = comp?.toDataURL("image/png") ?? "";
+      const path = await pickSavePath(`${ed.doc.name || "avero-studio"}.png`);
+      if (path && dataUrl) await rustSaveDataUrl(dataUrl, path);
+    };
     switch (a) {
       case "home":
         onHome();
@@ -154,6 +276,17 @@ export default function TitleBar({
         break;
       case "export":
         onOpenExport();
+        break;
+      case "export-png":
+        pick().catch((e) => alert(String(e)));
+        break;
+      case "new-doc":
+        layerManager.clear();
+        ed.newDocument("Untitled", 1920, 1080);
+        useHomeStore.getState().setHome(true);
+        break;
+      case "close-doc":
+        useHomeStore.getState().setHome(true);
         break;
       case "palette":
         onOpenCommand();
@@ -177,8 +310,29 @@ export default function TitleBar({
       case "zoom100":
         ed.setZoom(100);
         break;
+      case "zoom200":
+        ed.setZoom(200);
+        break;
+      case "zoom50":
+        ed.setZoom(50);
+        break;
+      case "zoom-in":
+        ed.setZoom(Math.min(3200, ed.zoom + 25));
+        break;
+      case "zoom-out":
+        ed.setZoom(Math.max(1, ed.zoom - 25));
+        break;
       case "rulers":
         ed.toggleRulers();
+        break;
+      case "grid":
+        pro.toggleGrid();
+        break;
+      case "snap":
+        pro.toggleSnap();
+        break;
+      case "guides":
+        pro.toggleGuides();
         break;
       case "add-layer": {
         import("../stores/useEditorStore").then(({ makeLayer }) => {
@@ -189,19 +343,260 @@ export default function TitleBar({
         break;
       }
       case "dup-layer":
+      case "layer-copy": {
+        const id = ed.activeLayerId;
+        const src = ed.layers.find((l) => l.id === id);
+        if (src) {
+          import("../stores/useEditorStore").then(({ makeLayer }) => {
+            const l = makeLayer(`${src.name} copy`);
+            const nl = { ...l, opacity: src.opacity, blendMode: src.blendMode, kind: src.kind };
+            const sc = layerManager.get(src.id);
+            const dc = layerManager.ensure(nl.id, ed.doc.width, ed.doc.height);
+            if (sc) dc.getContext("2d")!.drawImage(sc, 0, 0);
+            ed.addLayer(nl);
+          });
+        }
+        break;
+      }
+      case "layer-cut":
         onOpenCommand();
         break;
-      case "guides":
-        pro.toggleGuides();
+      case "del-layer":
+        if (ed.activeLayerId && ed.layers.length > 1) ed.removeLayer(ed.activeLayerId);
+        break;
+      case "layer-up":
+        if (ed.activeLayerId) ed.moveLayer(ed.activeLayerId, 1);
+        break;
+      case "layer-down":
+        if (ed.activeLayerId) ed.moveLayer(ed.activeLayerId, -1);
+        break;
+      case "layer-top":
+        if (ed.activeLayerId) {
+          for (let i = 0; i < 99; i++) ed.moveLayer(ed.activeLayerId, 1);
+        }
+        break;
+      case "layer-bottom":
+        if (ed.activeLayerId) {
+          for (let i = 0; i < 99; i++) ed.moveLayer(ed.activeLayerId, -1);
+        }
+        break;
+      case "merge-down":
+      case "merge-all":
+      case "flatten":
+      case "group":
+      case "add-mask":
+      case "clip-mask":
+      case "lock-layer":
+      case "layer-opacity":
+      case "blend-mode":
+      case "select-mask":
+      case "color-range":
+      case "select-subject":
+      case "content-aware":
+      case "cut":
+      case "copy":
+      case "paste":
+      case "clear-fill":
+      case "fill-fg":
+      case "fill-bg":
+      case "trim":
+      case "prefs":
+      case "histogram":
+      case "tips":
+      case "filter-gallery":
+      case "img-size":
+      case "canvas-size":
+        onOpenCommand();
+        break;
+      case "mode-8":
+        pro.setColor({ bitDepth: 8 });
+        break;
+      case "mode-16":
+        pro.setColor({ bitDepth: 16 });
+        break;
+      case "proof": {
+        const c = pro.color;
+        pro.setColor({ proofEnabled: !c.proofEnabled });
+        break;
+      }
+      case "auto-tone":
+      case "auto-contrast":
+      case "auto-color":
+        pro.addAdjustment("autoContrast");
+        break;
+      case "invert":
+      case "a-invert":
+        pro.addAdjustment("invert");
+        break;
+      case "desaturate":
+        pro.addAdjustment("blackWhite");
+        break;
+      case "threshold":
+      case "a-threshold":
+        pro.addAdjustment("threshold");
+        break;
+      case "posterize":
+      case "a-posterize":
+        pro.addAdjustment("posterize");
+        break;
+      case "sel-all":
+      case "sel-none":
+      case "sel-reselect":
+      case "sel-inverse":
+      case "sel-feather":
+        window.dispatchEvent(new CustomEvent("avero:select", { detail: a }));
+        break;
+      case "sel-rect":
+        ed.setTool("select-rect");
+        pro.setSelKind("rect");
+        break;
+      case "sel-lasso":
+        ed.setTool("select-lasso");
+        pro.setSelKind("lasso");
+        break;
+      case "wand":
+        ed.setTool("wand");
+        pro.setSelKind("wand");
+        break;
+      case "crop":
+        ed.setTool("crop");
+        break;
+      case "free-transform":
+        ed.setTool("move");
+        break;
+      case "rotate-cw":
+      case "canvas-cw": {
+        const id = ed.activeLayerId;
+        if (id) {
+          pro.ensureTransform(id);
+          const t = pro.transforms[id] ?? { rotation: 0 };
+          pro.updateTransform(id, { rotation: (t.rotation + 90) % 360 });
+        }
+        break;
+      }
+      case "rotate-ccw":
+      case "canvas-ccw": {
+        const id = ed.activeLayerId;
+        if (id) {
+          pro.ensureTransform(id);
+          const t = pro.transforms[id] ?? { rotation: 0 };
+          pro.updateTransform(id, { rotation: (t.rotation - 90) % 360 });
+        }
+        break;
+      }
+      case "flip-h": {
+        const id = ed.activeLayerId;
+        if (id) {
+          pro.ensureTransform(id);
+          const t = pro.transforms[id] ?? { scaleX: 1 };
+          pro.updateTransform(id, { scaleX: t.scaleX * -1 });
+        }
+        break;
+      }
+      case "flip-v": {
+        const id = ed.activeLayerId;
+        if (id) {
+          pro.ensureTransform(id);
+          const t = pro.transforms[id] ?? { scaleY: 1 };
+          pro.updateTransform(id, { scaleY: t.scaleY * -1 });
+        }
+        break;
+      }
+      case "reset-color":
+        pro.setColor({ workingSpace: "sRGB", bitDepth: 8, proofEnabled: false });
         break;
       case "f-blur":
         pro.addFilter("gaussianBlur");
         break;
+      case "f-motion":
+        pro.addFilter("motionBlur");
+        break;
+      case "f-box":
+        pro.addFilter("boxBlur");
+        break;
       case "f-sharpen":
         pro.addFilter("sharpen");
         break;
+      case "f-unsharp":
+        pro.addFilter("unsharpMask");
+        break;
+      case "f-highpass":
+        pro.addFilter("highPass");
+        break;
+      case "f-denoise":
+        pro.addFilter("reduceNoise");
+        break;
+      case "f-noise":
+        pro.addFilter("noise");
+        break;
+      case "f-grain":
+        pro.addFilter("filmGrain");
+        break;
+      case "f-pixelate":
+        pro.addFilter("pixelate");
+        break;
+      case "f-halftone":
+        pro.addFilter("halftone");
+        break;
+      case "f-emboss":
+        pro.addFilter("emboss");
+        break;
+      case "f-edges":
+        pro.addFilter("findEdges");
+        break;
+      case "f-oil":
+        pro.addFilter("oilPaintLite");
+        break;
+      case "f-tilt":
+        pro.addFilter("tiltShift");
+        break;
       case "f-vignette":
         pro.addFilter("vignette");
+        break;
+      case "f-chroma":
+        pro.addFilter("chromaticAberration");
+        break;
+      case "a-bc":
+        pro.addAdjustment("brightnessContrast");
+        break;
+      case "a-levels":
+        pro.addAdjustment("levels");
+        break;
+      case "a-curves":
+        pro.addAdjustment("curves");
+        break;
+      case "a-exposure":
+        pro.addAdjustment("exposure");
+        break;
+      case "a-hsl":
+        pro.addAdjustment("hueSaturation");
+        break;
+      case "a-vibrance":
+        pro.addAdjustment("vibrance");
+        break;
+      case "a-balance":
+        pro.addAdjustment("colorBalance");
+        break;
+      case "a-bw":
+        pro.addAdjustment("blackWhite");
+        break;
+      case "a-photo":
+        pro.addAdjustment("photoFilter");
+        break;
+      case "a-mixer":
+        pro.addAdjustment("channelMixer");
+        break;
+      case "a-gradmap":
+        pro.addAdjustment("gradientMap");
+        break;
+      case "a-lut":
+        pro.addAdjustment("colorLookup");
+        break;
+      case "a-selective":
+        pro.addAdjustment("selectiveColor");
+        break;
+      case "a-shhi":
+        pro.addAdjustment("shadowsHighlights");
         break;
       case "ws-retouch":
         import("../stores/useWorkspaceStore").then(({ useWorkspaceStore }) =>
@@ -211,6 +606,16 @@ export default function TitleBar({
       case "ws-photo":
         import("../stores/useWorkspaceStore").then(({ useWorkspaceStore }) =>
           useWorkspaceStore.getState().setWorkspace("photography"),
+        );
+        break;
+      case "ws-design":
+        import("../stores/useWorkspaceStore").then(({ useWorkspaceStore }) =>
+          useWorkspaceStore.getState().setWorkspace("design"),
+        );
+        break;
+      case "ws-minimal":
+        import("../stores/useWorkspaceStore").then(({ useWorkspaceStore }) =>
+          useWorkspaceStore.getState().setWorkspace("minimal"),
         );
         break;
       case "onboarding":

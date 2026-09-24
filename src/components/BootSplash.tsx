@@ -9,17 +9,20 @@ const MODULES = [
   "Adjustment pipeline",
   "Filter stack",
   "Color management",
-  "AI lokal",
   "Kanvas dan guides",
+  "Proyek .avx",
   "Sesi terakhir",
 ];
 
 const TIPS = [
   "Ctrl+K membuka semua perintah.",
-  "Tombol M bergantian Rect dan Ellipse select.",
+  "Ctrl+S simpan proyek .avx utuh.",
+  "Ctrl+E export PNG, JPG, WEBP, BMP, SVG, TIFF.",
   "Alt+klik menentukan sumber Clone Stamp.",
   "Seret file gambar ke kanvas untuk membuka.",
   "Adjust dan Filter tersimpan non-destruktif.",
+  "Tombol V untuk move layer bebas di kanvas.",
+  "Space+seret untuk pan, scroll untuk zoom.",
 ];
 
 export default function BootSplash({ onDone }: { onDone: () => void }) {
@@ -75,7 +78,10 @@ export default function BootSplash({ onDone }: { onDone: () => void }) {
             <div className="text-[14px] font-bold tracking-wide text-white">AVERO STUDIO</div>
             <div className="font-mono text-[10.5px] text-[#6e6e78]">v2.0.0 professional photo studio</div>
           </div>
-          <div className="ml-auto font-mono text-[11px] text-[#a7a7b0]">{pct}%</div>
+          <div className="ml-auto text-right">
+            <div className="font-mono text-[11px] text-white">{pct}%</div>
+            <div className="font-mono text-[9.5px] text-[#6e6e78]">menyiapkan editor</div>
+          </div>
         </div>
 
         <div className="space-y-1.5 px-5 py-4 font-mono text-[11px]">
@@ -105,12 +111,12 @@ export default function BootSplash({ onDone }: { onDone: () => void }) {
           {TIPS[tipIdx]}
         </div>
 
-        <div className="flex items-center justify-between border-t border-[#2c2c31] px-5 py-2.5 font-mono text-[10px] text-[#6e6e78]">
-          <span>AVERO STUDIO. Open source.</span>
-          <span>
-            {idx + 1}/{MODULES.length}
-          </span>
-        </div>
+          <div className="flex items-center justify-between border-t border-[#2c2c31] px-5 py-2.5 font-mono text-[10px] text-[#6e6e78]">
+            <span>Offline. Non-destruktif. Tanpa akun.</span>
+            <span>
+              {idx + 1}/{MODULES.length}
+            </span>
+          </div>
       </div>
     </div>
   );

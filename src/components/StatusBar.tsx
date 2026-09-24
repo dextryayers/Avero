@@ -117,7 +117,7 @@ export default function StatusBar() {
         {doc.filePath ? doc.filePath.split(/[/\\]/).pop() : ""}
       </span>
       <span className={doc.dirty ? "text-[#d9a441]" : "text-[#6e6e78]"}>
-        {doc.dirty ? "Unsaved" : "Saved"}
+        {doc.dirty ? "Belum disimpan" : "Tersimpan"}
       </span>
     </div>
   );

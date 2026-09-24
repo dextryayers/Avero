@@ -7,7 +7,6 @@ import StatusBar from "./components/StatusBar";
 import CommandPalette from "./components/CommandPalette";
 import PsdInfo from "./components/PsdInfo";
 import WorkspaceBar from "./components/WorkspaceBar";
-import PromptBar from "./components/PromptBar";
 import NodeGraph from "./components/NodeGraph";
 import Onboarding from "./components/Onboarding";
 import BootSplash from "./components/BootSplash";
@@ -16,7 +15,7 @@ import ExportDialog from "./components/ExportDialog";
 import { openAvxProject, saveAvxProject } from "./io/projectIo";
 import { useEditorStore } from "./stores/useEditorStore";
 import { useProStore } from "./stores/useProStore";
-import { useWorkspaceStore, loadShortcuts } from "./stores/useWorkspaceStore";
+import { loadShortcuts } from "./stores/useWorkspaceStore";
 import { useHomeStore } from "./stores/useHomeStore";
 import { layerManager } from "./engine/layerManager";
 import { clearSelectionMask } from "./engine/selection";
@@ -28,7 +27,6 @@ export default function App() {
   const [booted, setBooted] = useState(false);
   const [recovery, setRecovery] = useState<ReturnType<typeof loadRecovery>>(null);
   const newDocument = useEditorStore((s) => s.newDocument);
-  const showPrompt = useWorkspaceStore((s) => s.showPrompt);
   const homeOpen = useHomeStore((s) => s.homeOpen);
   const setHome = useHomeStore((s) => s.setHome);
 
@@ -178,15 +176,53 @@ export default function App() {
     function onOpenAvxEvent() {
       openAvxProject().catch((err) => alert(`Gagal membuka proyek: ${String(err)}`));
     }
+    async function onSelectEvent(e: Event) {
+      const detail = (e as CustomEvent).detail as string;
+      const sel = await import("./engine/selection");
+      const st = useEditorStore.getState();
+      const W = st.doc.width;
+      const H = st.doc.height;
+      if (detail === "sel-all") {
+        sel.drawRectSelection(W, H, { x: 0, y: 0, w: W, h: H });
+        window.dispatchEvent(new Event("avero:selection-changed"));
+      } else if (detail === "sel-none") {
+        sel.clearSelectionMask();
+        window.dispatchEvent(new Event("avero:selection-changed"));
+      } else if (detail === "sel-reselect") {
+        sel.drawRectSelection(W, H, { x: 0, y: 0, w: W, h: H });
+        window.dispatchEvent(new Event("avero:selection-changed"));
+      } else if (detail === "sel-inverse") {
+        const c = sel.selectionMaskCanvas();
+        if (c) {
+          const ctx = c.getContext("2d")!;
+          const img = ctx.getImageData(0, 0, c.width, c.height);
+          const d = img.data;
+          for (let i = 0; i < d.length; i += 4) {
+            const a = d[i + 3];
+            d[i] = 255;
+            d[i + 1] = 255;
+            d[i + 2] = 255;
+            d[i + 3] = 255 - a;
+          }
+          ctx.putImageData(img, 0, 0);
+          window.dispatchEvent(new Event("avero:selection-changed"));
+        }
+      } else if (detail === "sel-feather") {
+        const v = prompt("Feather px (0-100):", "2");
+        if (v) sel.featherSelection(Number(v) || 0);
+      }
+    }
     window.addEventListener("keydown", onKey);
     window.addEventListener("avero:open-export", onExportEvent);
     window.addEventListener("avero:save-avx", onSaveEvent);
     window.addEventListener("avero:open-avx", onOpenAvxEvent);
+    window.addEventListener("avero:select", onSelectEvent);
     return () => {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("avero:open-export", onExportEvent);
       window.removeEventListener("avero:save-avx", onSaveEvent);
       window.removeEventListener("avero:open-avx", onOpenAvxEvent);
+      window.removeEventListener("avero:select", onSelectEvent);
     };
   }, []);
 
@@ -199,7 +235,6 @@ export default function App() {
         onHome={() => setHome(true)}
       />
       <WorkspaceBar />
-      {showPrompt && !homeOpen && <PromptBar />}
       {!homeOpen && <PsdInfo />}
       {!homeOpen && <NodeGraph />}
       {recovery && !homeOpen && (

@@ -3,7 +3,6 @@ import {
   FolderOpen,
   ImagePlus,
   LayoutGrid,
-  Sparkles,
   Trash2,
   X,
   Search,
@@ -265,10 +264,10 @@ export default function HomeScreen() {
           </div>
           <div className="mt-auto rounded-md border border-[#2c2c31] bg-[#161618] p-3">
             <div className="flex items-center gap-1.5 text-[11.5px] font-semibold text-white">
-              <Sparkles size={13} className="text-[#8fb6f5]" /> AI Offline
+              <Star size={13} className="text-[#8fb6f5]" /> Proyek .avx
             </div>
             <div className="mt-1 text-[10.5px] leading-relaxed text-[#6e6e78]">
-              Hapus background dan upscale tanpa upload. Semua lokal.
+              Simpan seluruh dokumen: layer, mask, adjust, filter. Buka lagi utuh.
             </div>
           </div>
         </div>
@@ -358,11 +357,11 @@ export default function HomeScreen() {
           </div>
 
           <h3 className="mb-2 mt-6 flex items-center gap-1.5 text-[13px] font-bold text-white">
-            <Sparkles size={14} className="text-[#8fb6f5]" /> Pelajari dalam 1 menit
+            <BookOpen size={14} className="text-[#8fb6f5]" /> Pelajari dalam 1 menit
           </h3>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             {[
-              { t: "Hapus background 1 klik", d: "Buka foto, tab AI, Background Remover. Offline.", tag: "AI" },
+              { t: "Masking presisi", d: "Select, feather, refine edge, paint mask.", tag: "Select" },
               { t: "Retouch natural", d: "Spot Heal (J), Dodge dan Burn (O), Blur halus.", tag: "Retouch" },
               { t: "Grade sinematik", d: "Exposure, HSL, Vignette, Grain.", tag: "Color" },
               { t: "Varian tanpa duplikat", d: "Tab Git: snapshot, branch, compare slider.", tag: "Git" },

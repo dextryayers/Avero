@@ -1,14 +1,22 @@
+export const AVERO_BRAND = {
+  name: "AVERO STUDIO",
+  tagline: "Professional Photo Studio",
+  version: "v2.0.0",
+  logo: "/logo.png",
+} as const;
+
 export const tokens = {
   color: {
-    bgApp: "#1e1e1e",
-    bgPanel: "#252526",
-    bgPanelAlt: "#2d2d2d",
-    bgCanvas: "#141414",
-    border: "#3e3e42",
-    textPrimary: "#e0e0e0",
-    textSecondary: "#a0a0a0",
+    bgApp: "#0b0e14",
+    bgPanel: "#141821",
+    bgPanelAlt: "#1b2130",
+    bgCanvas: "#08090c",
+    border: "#232b3d",
+    textPrimary: "#e8edf5",
+    textSecondary: "#8a94a6",
     accent: "#0a84ff",
     accentHover: "#0070e0",
+    accent2: "#38e1ff",
   },
   layout: {
     titleBarH: 40,

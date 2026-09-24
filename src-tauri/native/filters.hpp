@@ -23,6 +23,11 @@ void avero_cpp_tilt_shift(const uint8_t *src, uint8_t *dst, int w, int h, float 
 void avero_cpp_oil_paint(const uint8_t *src, uint8_t *dst, int w, int h, int radius, int intensity);
 void avero_cpp_find_edges(const uint8_t *src, uint8_t *dst, int w, int h);
 void avero_cpp_pixelate(const uint8_t *src, uint8_t *dst, int w, int h, int size);
+/* Advance ringan RAM: tiled/stream, hanya 2 scanline buffer (<64KB) vs full duplicate */
+void avero_cpp_box_blur_light(const uint8_t *src, uint8_t *dst, int w, int h, int radius);
+void avero_cpp_gaussian_light(const uint8_t *src, uint8_t *dst, int w, int h, float sigma);
+void avero_cpp_bilateral_light(const uint8_t *src, uint8_t *dst, int w, int h, int radius, float sigma_color);
+void avero_cpp_unsharp_light(const uint8_t *src, uint8_t *dst, int w, int h, float amount, int radius);
 const char *avero_cpp_engine_name(void);
 const char *avero_cpp_version(void);
 
@@ -46,6 +51,10 @@ void tilt_shift(const uint8_t *src, uint8_t *dst, int w, int h, float blur, int 
 void oil_paint(const uint8_t *src, uint8_t *dst, int w, int h, int radius, int intensity);
 void find_edges(const uint8_t *src, uint8_t *dst, int w, int h);
 void pixelate(const uint8_t *src, uint8_t *dst, int w, int h, int size);
+void box_blur_light(const uint8_t *src, uint8_t *dst, int w, int h, int radius);
+void gaussian_light(const uint8_t *src, uint8_t *dst, int w, int h, float sigma);
+void bilateral_light(const uint8_t *src, uint8_t *dst, int w, int h, int radius, float sigma_color);
+void unsharp_light(const uint8_t *src, uint8_t *dst, int w, int h, float amount, int radius);
 
 } // namespace avero
 

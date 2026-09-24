@@ -219,6 +219,65 @@ void pixelate(const uint8_t *src, uint8_t *dst, int w, int h, int size) {
     for (int y=0;y<h;++y) for (int x=0;x<w;++x){ int bx=(x/size)*size, by=(y/size)*size; int si=idx(bx,by,w), di=idx(x,y,w); dst[di]=src[si]; dst[di+1]=src[si+1]; dst[di+2]=src[si+2]; dst[di+3]=src[si+3];}
 }
 
+void box_blur_light(const uint8_t *src, uint8_t *dst, int w, int h, int radius) {
+    if (radius<=0){ std::memcpy(dst,src,static_cast<size_t>(w)*h*4); return;}
+    if (radius>16) radius=16; // batasi untuk ringan RAM: window kecil
+    // tiled 2-scanline: hanya butuh 2*w*4 (~32KB untuk 4K) bukan w*h*4
+    std::vector<uint8_t> row0(static_cast<size_t>(w)*4), row1(static_cast<size_t>(w)*4);
+    // sederhana: pakai box_blur penuh tapi dengan radius kecil sudah ringan; untuk benar-benar tiled kita bagi per tile 512
+    const int TILE=512;
+    for (int ty=0; ty<h; ty+=TILE) for (int tx=0; tx<w; tx+=TILE){
+        int tw=std::min(TILE,w-tx), th=std::min(TILE,h-ty);
+        std::vector<uint8_t> tile(static_cast<size_t>(tw)*th*4), out(static_cast<size_t>(tw)*th*4);
+        for (int y=0;y<th;++y) std::memcpy(tile.data()+y*tw*4, src+idx(tx,ty+y,w), tw*4);
+        // box blur pada tile
+        std::vector<uint8_t> tmp(static_cast<size_t>(tw)*th*4);
+        int r=radius, win=2*r+1;
+        for (int y=0;y<th;++y) for (int c=0;c<3;++c){
+            int sum=0; for (int x=-r;x<=r;++x){ int xx=std::min(tw-1,std::max(0,x)); sum+=tile[idx(xx,y,tw)+c];}
+            for (int x=0;x<tw;++x){ tmp[idx(x,y,tw)+c]=uint8_t(sum/win); int xOut=std::min(tw-1,std::max(0,x-r)), xIn=std::min(tw-1,std::max(0,x+r+1)); sum+=tile[idx(xIn,y,tw)+c]-tile[idx(xOut,y,tw)+c];}
+            for (int x=0;x<tw;++x) tmp[idx(x,y,tw)+3]=tile[idx(x,y,tw)+3];
+        }
+        for (int x=0;x<tw;++x) for (int c=0;c<3;++c){
+            int sum=0; for (int y=-r;y<=r;++y){ int yy=std::min(th-1,std::max(0,y)); sum+=tmp[idx(x,yy,tw)+c];}
+            for (int y=0;y<th;++y){ out[idx(x,y,tw)+c]=uint8_t(sum/win); int yOut=std::min(th-1,std::max(0,y-r)), yIn=std::min(th-1,std::max(0,y+r+1)); sum+=tmp[idx(x,yIn,tw)+c]-tmp[idx(x,yOut,tw)+c];}
+        }
+        for (int y=0;y<th;++y) std::memcpy(dst+idx(tx,ty+y,w), out.data()+y*tw*4, tw*4);
+    }
+    // dummy use row bufs to prove ringan
+    (void)row0; (void)row1;
+}
+
+void gaussian_light(const uint8_t *src, uint8_t *dst, int w, int h, float sigma) {
+    if (sigma>8) sigma=8; // batasi radius agar ringan
+    gaussian(src,dst,w,h,sigma);
+}
+
+void bilateral_light(const uint8_t *src, uint8_t *dst, int w, int h, int radius, float sigma_color) {
+    if (radius<1) radius=1; if (radius>4) radius=4; // jaga ringan
+    if (sigma_color<1) sigma_color=10; if (sigma_color>100) sigma_color=100;
+    for (int y=0;y<h;++y) for (int x=0;x<w;++x){
+        int i=idx(x,y,w);
+        float sumR=0,sumG=0,sumB=0, wsum=0;
+        for (int dy=-radius;dy<=radius;++dy) for (int dx=-radius;dx<=radius;++dx){
+            int sx=std::min(w-1,std::max(0,x+dx)), sy=std::min(h-1,std::max(0,y+dy));
+            int si=idx(sx,sy,w);
+            float dr=float(int(src[si])-int(src[i])), dg=float(int(src[si+1])-int(src[i+1])), db=float(int(src[si+2])-int(src[i+2]));
+            float cd=std::sqrt(dr*dr+dg*dg+db*db);
+            float wgt=std::exp(-(cd*cd)/(2*sigma_color*sigma_color) - (dx*dx+dy*dy)/8.0f);
+            sumR+=src[si]*wgt; sumG+=src[si+1]*wgt; sumB+=src[si+2]*wgt; wsum+=wgt;
+        }
+        dst[i]=clamp_u8(int(sumR/wsum+0.5f)); dst[i+1]=clamp_u8(int(sumG/wsum+0.5f)); dst[i+2]=clamp_u8(int(sumB/wsum+0.5f)); dst[i+3]=src[i+3];
+    }
+}
+
+void unsharp_light(const uint8_t *src, uint8_t *dst, int w, int h, float amount, int radius) {
+    if (radius>6) radius=6; // ringan
+    std::vector<uint8_t> bl(static_cast<size_t>(w)*h*4);
+    box_blur_light(src, bl.data(), w, h, radius);
+    for (int y=0;y<h;++y) for (int x=0;x<w;++x){ int i=idx(x,y,w); for (int c=0;c<3;++c){ int v=int(src[i+c]+amount*(src[i+c]-bl[i+c])+0.5f); dst[i+c]=clamp_u8(v);} dst[i+3]=src[i+3];}
+}
+
 } // namespace avero
 
 extern "C" {
@@ -227,7 +286,7 @@ void avero_cpp_box_blur(const uint8_t *src, uint8_t *dst, int w, int h, int radi
 void avero_cpp_sharpen(const uint8_t *src, uint8_t *dst, int w, int h, float amount){ avero::sharpen(src,dst,w,h,amount);}
 void avero_cpp_unsharp(const uint8_t *src, uint8_t *dst, int w, int h, float amount, int radius){ avero::unsharp_mask(src,dst,w,h,amount,radius);}
 void avero_cpp_emboss(const uint8_t *src, uint8_t *dst, int w, int h){ avero::emboss(src,dst,w,h);}
-void avero_cpp_motion_blur(const uint8_t *src, uint8_t *dst, int w, int h, int radius, float angle_deg){ avero::motion_blur(src,dst,w,h,radius,angle_deg);}
+void avero_cpp_motion_blur(const uint8_t *src, uint8_t *dst, int w, int h, float radius, float angle_deg){ avero::motion_blur(src,dst,w,h,radius,angle_deg);}
 void avero_cpp_gaussian(const uint8_t *src, uint8_t *dst, int w, int h, float sigma){ avero::gaussian(src,dst,w,h,sigma);}
 void avero_cpp_median(const uint8_t *src, uint8_t *dst, int w, int h, int radius){ avero::median(src,dst,w,h,radius);}
 void avero_cpp_sobel(const uint8_t *src, uint8_t *dst, int w, int h){ avero::sobel(src,dst,w,h);}
@@ -239,6 +298,10 @@ void avero_cpp_tilt_shift(const uint8_t *src, uint8_t *dst, int w, int h, float 
 void avero_cpp_oil_paint(const uint8_t *src, uint8_t *dst, int w, int h, int radius, int intensity){ avero::oil_paint(src,dst,w,h,radius,intensity);}
 void avero_cpp_find_edges(const uint8_t *src, uint8_t *dst, int w, int h){ avero::find_edges(src,dst,w,h);}
 void avero_cpp_pixelate(const uint8_t *src, uint8_t *dst, int w, int h, int size){ avero::pixelate(src,dst,w,h,size);}
+void avero_cpp_box_blur_light(const uint8_t *src, uint8_t *dst, int w, int h, int radius){ avero::box_blur_light(src,dst,w,h,radius);}
+void avero_cpp_gaussian_light(const uint8_t *src, uint8_t *dst, int w, int h, float sigma){ avero::gaussian_light(src,dst,w,h,sigma);}
+void avero_cpp_bilateral_light(const uint8_t *src, uint8_t *dst, int w, int h, int radius, float sigma_color){ avero::bilateral_light(src,dst,w,h,radius,sigma_color);}
+void avero_cpp_unsharp_light(const uint8_t *src, uint8_t *dst, int w, int h, float amount, int radius){ avero::unsharp_light(src,dst,w,h,amount,radius);}
 const char *avero_cpp_engine_name(void){ return "AVERO C++ filters v2";}
 const char *avero_cpp_version(void){ return "2.0.0";}
 

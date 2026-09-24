@@ -32,6 +32,14 @@ void avero_c_auto_levels(uint8_t *rgba, size_t len);
 void avero_c_auto_contrast(uint8_t *rgba, size_t len);
 void avero_c_opacity(uint8_t *rgba, size_t len, int32_t opacity);
 
+/* Advance ringan RAM: hanya 256-entry LUT atau histogram, tanpa alokasi gambar kedua */
+void avero_c_lut_map(uint8_t *rgba, size_t len, const uint8_t lut_r[256], const uint8_t lut_g[256], const uint8_t lut_b[256]);
+void avero_c_equalize(uint8_t *rgba, size_t len);
+void avero_c_dither_floyd(uint8_t *rgba, size_t w, size_t h);
+void avero_c_noise_mono(uint8_t *rgba, size_t len, int32_t amount, uint32_t seed);
+void avero_c_channel_swap(uint8_t *rgba, size_t len, int32_t mode);
+void avero_c_alpha_premultiply(uint8_t *rgba, size_t len);
+
 const char *avero_c_engine_name(void);
 const char *avero_c_version(void);
 

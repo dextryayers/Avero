@@ -29,6 +29,11 @@ extern "C" {
     fn avero_c_auto_levels(rgba: *mut u8, len: usize);
     fn avero_c_auto_contrast(rgba: *mut u8, len: usize);
     fn avero_c_opacity(rgba: *mut u8, len: usize, opacity: i32);
+    fn avero_c_equalize(rgba: *mut u8, len: usize);
+    fn avero_c_dither_floyd(rgba: *mut u8, w: usize, h: usize);
+    fn avero_c_noise_mono(rgba: *mut u8, len: usize, amount: i32, seed: u32);
+    fn avero_c_channel_swap(rgba: *mut u8, len: usize, mode: i32);
+    fn avero_c_alpha_premultiply(rgba: *mut u8, len: usize);
     fn avero_c_engine_name() -> *const core::ffi::c_char;
     fn avero_c_version() -> *const core::ffi::c_char;
 
@@ -63,6 +68,10 @@ extern "C" {
     fn avero_cpp_oil_paint(src: *const u8, dst: *mut u8, w: i32, h: i32, radius: i32, intensity: i32);
     fn avero_cpp_find_edges(src: *const u8, dst: *mut u8, w: i32, h: i32);
     fn avero_cpp_pixelate(src: *const u8, dst: *mut u8, w: i32, h: i32, size: i32);
+    fn avero_cpp_box_blur_light(src: *const u8, dst: *mut u8, w: i32, h: i32, radius: i32);
+    fn avero_cpp_gaussian_light(src: *const u8, dst: *mut u8, w: i32, h: i32, sigma: f32);
+    fn avero_cpp_bilateral_light(src: *const u8, dst: *mut u8, w: i32, h: i32, radius: i32, sigma_color: f32);
+    fn avero_cpp_unsharp_light(src: *const u8, dst: *mut u8, w: i32, h: i32, amount: f32, radius: i32);
     fn avero_cpp_engine_name() -> *const core::ffi::c_char;
     fn avero_cpp_version() -> *const core::ffi::c_char;
 }
@@ -120,6 +129,11 @@ pub enum NativeOp {
     AutoLevels,
     AutoContrast,
     Opacity { opacity: i32 },
+    Equalize,
+    Dither,
+    NoiseMono { amount: i32, seed: Option<u32> },
+    ChannelSwap { mode: i32 },
+    AlphaPremultiply,
 }
 
 /// Operasi C++ dua-pass (src -> dst).
@@ -143,6 +157,10 @@ pub enum NativeFilterOp {
     OilPaint { radius: i32, intensity: i32 },
     FindEdges,
     Pixelate { size: i32 },
+    BoxBlurLight { radius: i32 },
+    GaussianLight { sigma: f32 },
+    BilateralLight { radius: i32, sigmaColor: f32 },
+    UnsharpLight { amount: f32, radius: i32 },
 }
 
 #[derive(Serialize)]

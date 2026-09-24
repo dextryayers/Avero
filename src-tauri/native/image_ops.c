@@ -255,5 +255,43 @@ void avero_c_opacity(uint8_t *rgba, size_t len, int32_t opacity) {
     for (size_t i = 0; i + 3 < len; i += 4) rgba[i + 3] = (uint8_t)(rgba[i + 3] * opacity / 100);
 }
 
+/* --- Advance ringan RAM --- */
+
+void avero_c_lut_map(uint8_t *rgba, size_t len, const uint8_t lut_r[256], const uint8_t lut_g[256], const uint8_t lut_b[256]) {
+    for (size_t i = 0; i + 3 < len; i += 4) { rgba[i] = lut_r[rgba[i]]; rgba[i + 1] = lut_g[rgba[i + 1]]; rgba[i + 2] = lut_b[rgba[i + 2]]; }
+}
+
+void avero_c_equalize(uint8_t *rgba, size_t len) {
+    if (len < 4) return;
+    int hist[256] = {0};
+    for (size_t i = 0; i + 3 < len; i += 4) { uint8_t y = (uint8_t)(0.299f * rgba[i] + 0.587f * rgba[i + 1] + 0.114f * rgba[i + 2] + 0.5f); hist[y]++; }
+    int cdf[256]; cdf[0] = hist[0]; for (int i = 1; i < 256; ++i) cdf[i] = cdf[i - 1] + hist[i];
+    int total = (int)(len / 4); int cdf_min = 0; for (int i = 0; i < 256; ++i) if (cdf[i] != 0) { cdf_min = cdf[i]; break; }
+    uint8_t lut[256]; for (int i = 0; i < 256; ++i) lut[i] = clamp_u8((int)(((float)(cdf[i] - cdf_min) / (total - cdf_min)) * 255 + 0.5f));
+    for (size_t i = 0; i + 3 < len; i += 4) { uint8_t y = (uint8_t)(0.299f * rgba[i] + 0.587f * rgba[i + 1] + 0.114f * rgba[i + 2] + 0.5f); uint8_t e = lut[y]; float r = rgba[i] - y; rgba[i] = clamp_f(e + r); r = rgba[i + 1] - y; rgba[i + 1] = clamp_f(e + r); r = rgba[i + 2] - y; rgba[i + 2] = clamp_f(e + r); }
+}
+
+void avero_c_dither_floyd(uint8_t *rgba, size_t w, size_t h) {
+    if (w == 0 || h == 0) return;
+    for (size_t y = 0; y < h; ++y) for (size_t x = 0; x < w; ++x) {
+        size_t i = (y * w + x) * 4;
+        for (int c = 0; c < 3; ++c) { uint8_t old = rgba[i + c]; uint8_t ne = old < 128 ? 0 : 255; rgba[i + c] = ne; int16_t err = (int16_t)old - (int16_t)ne; if (x + 1 < w) rgba[i + 4 + c] = clamp_u8((int)rgba[i + 4 + c] + err * 7 / 16); if (y + 1 < h) { if (x > 0) rgba[(y + 1) * w * 4 + (x - 1) * 4 + c] = clamp_u8((int)rgba[(y + 1) * w * 4 + (x - 1) * 4 + c] + err * 3 / 16); rgba[(y + 1) * w * 4 + x * 4 + c] = clamp_u8((int)rgba[(y + 1) * w * 4 + x * 4 + c] + err * 5 / 16); if (x + 1 < w) rgba[(y + 1) * w * 4 + (x + 1) * 4 + c] = clamp_u8((int)rgba[(y + 1) * w * 4 + (x + 1) * 4 + c] + err * 1 / 16); } }
+    }
+}
+
+void avero_c_noise_mono(uint8_t *rgba, size_t len, int32_t amount, uint32_t seed) {
+    if (amount <= 0) return; if (amount > 64) amount = 64;
+    uint32_t s = seed ? seed : 1;
+    for (size_t i = 0; i + 3 < len; i += 4) { s = s * 1664525u + 1013904223u; int32_t n = ((int32_t)(s >> 16) % (amount * 2 + 1)) - amount; rgba[i] = clamp_u8((int32_t)rgba[i] + n); rgba[i + 1] = clamp_u8((int32_t)rgba[i + 1] + n); rgba[i + 2] = clamp_u8((int32_t)rgba[i + 2] + n); }
+}
+
+void avero_c_channel_swap(uint8_t *rgba, size_t len, int32_t mode) {
+    for (size_t i = 0; i + 3 < len; i += 4) { uint8_t r = rgba[i], g = rgba[i + 1], b = rgba[i + 2]; switch (mode % 6) { case 1: rgba[i] = g; rgba[i + 1] = b; rgba[i + 2] = r; break; case 2: rgba[i] = b; rgba[i + 1] = r; rgba[i + 2] = g; break; case 3: rgba[i] = g; rgba[i + 1] = r; rgba[i + 2] = b; break; case 4: rgba[i] = b; rgba[i + 1] = g; rgba[i + 2] = r; break; case 5: rgba[i] = r; rgba[i + 1] = b; rgba[i + 2] = g; break; default: break; } }
+}
+
+void avero_c_alpha_premultiply(uint8_t *rgba, size_t len) {
+    for (size_t i = 0; i + 3 < len; i += 4) { float a = rgba[i + 3] / 255.0f; rgba[i] = clamp_f(rgba[i] * a); rgba[i + 1] = clamp_f(rgba[i + 1] * a); rgba[i + 2] = clamp_f(rgba[i + 2] * a); }
+}
+
 const char *avero_c_engine_name(void) { return "AVERO C core v2"; }
 const char *avero_c_version(void) { return "2.0.0"; }

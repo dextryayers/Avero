@@ -120,6 +120,117 @@ export function applyAdjustmentToImageData(img: ImageData, adj: AdjustmentEntry)
       }
       break;
     }
+    case "vibrance": {
+      const vib = (p.vibrance ?? 0) / 100;
+      const sat = (p.saturation ?? 0) / 100;
+      for (let i = 0; i < d.length; i += 4) {
+        const [h, s, l] = rgbToHsl(d[i], d[i + 1], d[i + 2]);
+        const boost = vib * (1 - s) + sat * 0.6;
+        const ns = Math.min(1, Math.max(0, s * (1 + boost)));
+        const [r, g, b] = hslToRgb(h, ns, l);
+        d[i] = r;
+        d[i + 1] = g;
+        d[i + 2] = b;
+      }
+      break;
+    }
+    case "colorBalance": {
+      const cr = (p.cyanRed ?? 0) * 1.2;
+      const mg = (p.magentaGreen ?? 0) * 1.2;
+      const yb = (p.yellowBlue ?? 0) * 1.2;
+      for (let i = 0; i < d.length; i += 4) {
+        d[i] = clamp255(d[i] + cr);
+        d[i + 1] = clamp255(d[i + 1] + mg);
+        d[i + 2] = clamp255(d[i + 2] + yb);
+      }
+      break;
+    }
+    case "autoContrast": {
+      let mn = 255;
+      let mx = 0;
+      for (let i = 0; i < d.length; i += 16) {
+        const lum = (d[i] + d[i + 1] + d[i + 2]) / 3;
+        if (lum < mn) mn = lum;
+        if (lum > mx) mx = lum;
+      }
+      if (mx > mn) {
+        for (let i = 0; i < d.length; i += 4) {
+          d[i] = clamp255(((d[i] - mn) / (mx - mn)) * 255);
+          d[i + 1] = clamp255(((d[i + 1] - mn) / (mx - mn)) * 255);
+          d[i + 2] = clamp255(((d[i + 2] - mn) / (mx - mn)) * 255);
+        }
+      }
+      break;
+    }
+    case "selectiveColor": {
+      const amt = ((p.reds ?? 0) + (p.yellows ?? 0) + (p.greens ?? 0) + (p.cyans ?? 0) + (p.blues ?? 0) + (p.magentas ?? 0)) / 6 / 100;
+      for (let i = 0; i < d.length; i += 4) {
+        const r = d[i] / 255;
+        const g = d[i + 1] / 255;
+        const b = d[i + 2] / 255;
+        const isRed = r > g && r > b ? 1 : 0;
+        const isBlue = b > r && b > g ? 1 : 0;
+        d[i] = clamp255(d[i] + amt * 60 * isRed);
+        d[i + 2] = clamp255(d[i + 2] + amt * 40 * isBlue);
+        d[i + 1] = clamp255(d[i + 1] + amt * 22);
+      }
+      break;
+    }
+    case "shadowsHighlights": {
+      const sh = (p.shadows ?? 25) / 100;
+      const hi = (p.highlights ?? 25) / 100;
+      for (let i = 0; i < d.length; i += 4) {
+        const lum = (d[i] + d[i + 1] + d[i + 2]) / 3 / 255;
+        const shF = 1 + sh * Math.max(0, 0.45 - lum) * 1.6;
+        const hiF = 1 - hi * Math.max(0, lum - 0.6) * 1.1;
+        d[i] = clamp255(d[i] * shF * hiF);
+        d[i + 1] = clamp255(d[i + 1] * shF * hiF);
+        d[i + 2] = clamp255(d[i + 2] * shF * hiF);
+      }
+      break;
+    }
+    case "photoFilter": {
+      const warmth = p.warmth ?? 0;
+      const dens = (p.density ?? 25) / 100;
+      for (let i = 0; i < d.length; i += 4) {
+        d[i] = clamp255(d[i] + warmth * dens * 1.4);
+        d[i + 2] = clamp255(d[i + 2] - warmth * dens * 1.1);
+      }
+      break;
+    }
+    case "channelMixer": {
+      const rm = (p.red ?? 100) / 100;
+      const gm = (p.green ?? 0) / 100;
+      const bm = (p.blue ?? 0) / 100;
+      for (let i = 0; i < d.length; i += 4) {
+        const v = clamp255(d[i] * rm + d[i + 1] * gm + d[i + 2] * bm);
+        const avg = (d[i] + d[i + 1] + d[i + 2]) / 3;
+        d[i] = clamp255(v * 0.7 + avg * 0.3);
+      }
+      break;
+    }
+    case "gradientMap": {
+      const s0 = (p.shadows ?? 0) / 100;
+      const h1 = (p.highlights ?? 100) / 100;
+      for (let i = 0; i < d.length; i += 4) {
+        const lum = (d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11) / 255;
+        const t = s0 + lum * (h1 - s0);
+        d[i] = clamp255(t * 255 * 0.35 + d[i] * 0.65);
+        d[i + 1] = clamp255(t * 255 * 0.55 + d[i + 1] * 0.45);
+        d[i + 2] = clamp255(t * 255 + d[i + 2] * 0.1);
+      }
+      break;
+    }
+    case "colorLookup": {
+      const str = (p.strength ?? 50) / 100;
+      const tone = p.tone ?? 0;
+      for (let i = 0; i < d.length; i += 4) {
+        d[i] = clamp255(d[i] * (1 - str * 0.2) + (d[i] + tone) * str * 0.2);
+        d[i + 1] = clamp255(d[i + 1] * (1 - str * 0.12) + 8 * str);
+        d[i + 2] = clamp255(d[i + 2] * (1 - str * 0.18) - tone * str * 0.15);
+      }
+      break;
+    }
   }
 }
 

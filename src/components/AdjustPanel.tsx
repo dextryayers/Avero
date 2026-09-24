@@ -8,7 +8,16 @@ const addable: { id: AdjustmentType; label: string }[] = [
   { id: "curves", label: "Curves" },
   { id: "exposure", label: "Exposure" },
   { id: "hueSaturation", label: "HSL" },
+  { id: "vibrance", label: "Vibrance" },
+  { id: "colorBalance", label: "Balance" },
+  { id: "selectiveColor", label: "Selective" },
+  { id: "shadowsHighlights", label: "Sh/Hi" },
+  { id: "photoFilter", label: "PhotoFilter" },
+  { id: "channelMixer", label: "Mixer" },
+  { id: "gradientMap", label: "GradMap" },
+  { id: "colorLookup", label: "LUT" },
   { id: "blackWhite", label: "B/W" },
+  { id: "autoContrast", label: "Auto" },
   { id: "invert", label: "Invert" },
   { id: "threshold", label: "Threshold" },
   { id: "posterize", label: "Posterize" },
@@ -223,10 +232,54 @@ export default function AdjustPanel() {
                 onChange={(v) => updateAdjustmentParams(a.id, { levels: v })}
               />
             )}
-            {(a.type === "invert" || a.type === "blackWhite") && (
+            {(a.type === "invert" || a.type === "blackWhite" || a.type === "autoContrast") && (
               <div className="text-[10px] text-[#a0a0a0]">
                 Tanpa parameter, toggle enable untuk preview.
               </div>
+            )}
+            {a.type === "vibrance" && (
+              <>
+                <Slider label="Vibrance" value={a.params.vibrance ?? 0} min={-100} max={100} onChange={(v) => updateAdjustmentParams(a.id, { vibrance: v })} />
+                <Slider label="Saturation" value={a.params.saturation ?? 0} min={-100} max={100} onChange={(v) => updateAdjustmentParams(a.id, { saturation: v })} />
+              </>
+            )}
+            {a.type === "colorBalance" && (
+              <>
+                <Slider label="Cyan-Red" value={a.params.cyanRed ?? 0} min={-100} max={100} onChange={(v) => updateAdjustmentParams(a.id, { cyanRed: v })} />
+                <Slider label="Magenta-Green" value={a.params.magentaGreen ?? 0} min={-100} max={100} onChange={(v) => updateAdjustmentParams(a.id, { magentaGreen: v })} />
+                <Slider label="Yellow-Blue" value={a.params.yellowBlue ?? 0} min={-100} max={100} onChange={(v) => updateAdjustmentParams(a.id, { yellowBlue: v })} />
+              </>
+            )}
+            {a.type === "selectiveColor" && (
+              <>
+                <Slider label="Reds" value={a.params.reds ?? 0} min={-100} max={100} onChange={(v) => updateAdjustmentParams(a.id, { reds: v })} />
+                <Slider label="Yellows" value={a.params.yellows ?? 0} min={-100} max={100} onChange={(v) => updateAdjustmentParams(a.id, { yellows: v })} />
+                <Slider label="Blues" value={a.params.blues ?? 0} min={-100} max={100} onChange={(v) => updateAdjustmentParams(a.id, { blues: v })} />
+              </>
+            )}
+            {a.type === "shadowsHighlights" && (
+              <>
+                <Slider label="Shadows" value={a.params.shadows ?? 25} min={0} max={100} onChange={(v) => updateAdjustmentParams(a.id, { shadows: v })} />
+                <Slider label="Highlights" value={a.params.highlights ?? 25} min={0} max={100} onChange={(v) => updateAdjustmentParams(a.id, { highlights: v })} />
+              </>
+            )}
+            {a.type === "photoFilter" && (
+              <>
+                <Slider label="Warmth" value={a.params.warmth ?? 0} min={-100} max={100} onChange={(v) => updateAdjustmentParams(a.id, { warmth: v })} />
+                <Slider label="Density" value={a.params.density ?? 25} min={0} max={100} onChange={(v) => updateAdjustmentParams(a.id, { density: v })} />
+              </>
+            )}
+            {a.type === "channelMixer" && (
+              <Slider label="Red mix" value={a.params.red ?? 100} min={0} max={200} onChange={(v) => updateAdjustmentParams(a.id, { red: v })} />
+            )}
+            {a.type === "gradientMap" && (
+              <Slider label="Highlights" value={a.params.highlights ?? 100} min={0} max={100} onChange={(v) => updateAdjustmentParams(a.id, { highlights: v })} />
+            )}
+            {a.type === "colorLookup" && (
+              <>
+                <Slider label="Strength" value={a.params.strength ?? 50} min={0} max={100} onChange={(v) => updateAdjustmentParams(a.id, { strength: v })} />
+                <Slider label="Tone" value={a.params.tone ?? 0} min={-50} max={50} onChange={(v) => updateAdjustmentParams(a.id, { tone: v })} />
+              </>
             )}
             <Slider
               label="Opacity"

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-// Fase 2.3: Adjustment non-destructive
+// Adjustment non-destructive — super lengkap ala Photoshop
 export type AdjustmentType =
   | "brightnessContrast"
   | "levels"
@@ -13,7 +13,13 @@ export type AdjustmentType =
   | "blackWhite"
   | "invert"
   | "threshold"
-  | "posterize";
+  | "posterize"
+  | "selectiveColor"
+  | "shadowsHighlights"
+  | "photoFilter"
+  | "channelMixer"
+  | "gradientMap"
+  | "colorLookup";
 
 export interface AdjustmentEntry {
   id: string;
@@ -24,16 +30,25 @@ export interface AdjustmentEntry {
   params: Record<string, number>;
 }
 
-// Fase 2.5: Filter stack
+// Filter stack — super lengkap
 export type FilterType =
   | "gaussianBlur"
   | "boxBlur"
   | "motionBlur"
   | "sharpen"
+  | "unsharpMask"
+  | "highPass"
+  | "reduceNoise"
   | "noise"
+  | "filmGrain"
   | "pixelate"
+  | "halftone"
   | "emboss"
-  | "findEdges";
+  | "findEdges"
+  | "oilPaintLite"
+  | "tiltShift"
+  | "vignette"
+  | "chromaticAberration";
 
 export interface FilterEntry {
   id: string;
@@ -175,13 +190,19 @@ const defaultParams: Record<AdjustmentType, Record<string, number>> = {
   curves: { lift: 0, gain: 0 },
   exposure: { exposure: 0, offset: 0, gamma: 1 },
   hueSaturation: { hue: 0, saturation: 0, lightness: 0 },
-  vibrance: { vibrance: 0 },
+  vibrance: { vibrance: 0, saturation: 0 },
   colorBalance: { cyanRed: 0, magentaGreen: 0, yellowBlue: 0 },
   autoContrast: {},
   blackWhite: { reds: 40, yellows: 60, greens: 40, cyans: 60, blues: 20, magentas: 80 },
   invert: {},
   threshold: { level: 128 },
   posterize: { levels: 4 },
+  selectiveColor: { reds: 0, yellows: 0, greens: 0, cyans: 0, blues: 0, magentas: 0 },
+  shadowsHighlights: { shadows: 25, highlights: 25 },
+  photoFilter: { warmth: 0, density: 25 },
+  channelMixer: { red: 100, green: 0, blue: 0 },
+  gradientMap: { shadows: 0, highlights: 100 },
+  colorLookup: { strength: 50, tone: 0 },
 };
 
 const adjNames: Record<AdjustmentType, string> = {
@@ -197,6 +218,12 @@ const adjNames: Record<AdjustmentType, string> = {
   invert: "Invert",
   threshold: "Threshold",
   posterize: "Posterize",
+  selectiveColor: "Selective Color",
+  shadowsHighlights: "Shadows/Highlights",
+  photoFilter: "Photo Filter",
+  channelMixer: "Channel Mixer",
+  gradientMap: "Gradient Map",
+  colorLookup: "Color Lookup",
 };
 
 const filterParams: Record<FilterType, Record<string, number>> = {
@@ -204,10 +231,19 @@ const filterParams: Record<FilterType, Record<string, number>> = {
   boxBlur: { radius: 4 },
   motionBlur: { radius: 8, angle: 0 },
   sharpen: { amount: 60 },
+  unsharpMask: { amount: 70, radius: 2 },
+  highPass: { radius: 4 },
+  reduceNoise: { strength: 40 },
   noise: { amount: 8 },
+  filmGrain: { amount: 18, size: 1 },
   pixelate: { size: 8 },
+  halftone: { size: 6 },
   emboss: { strength: 60 },
   findEdges: { threshold: 24 },
+  oilPaintLite: { radius: 3, intensity: 50 },
+  tiltShift: { focus: 50, blur: 8 },
+  vignette: { amount: 45, feather: 60 },
+  chromaticAberration: { amount: 3 },
 };
 
 const filterNames: Record<FilterType, string> = {
@@ -215,8 +251,17 @@ const filterNames: Record<FilterType, string> = {
   boxBlur: "Box Blur",
   motionBlur: "Motion Blur",
   sharpen: "Sharpen",
+  unsharpMask: "Unsharp Mask",
+  highPass: "High Pass",
+  reduceNoise: "Reduce Noise",
   noise: "Noise",
+  filmGrain: "Film Grain",
   pixelate: "Pixelate",
+  halftone: "Halftone",
+  oilPaintLite: "Oil Paint Lite",
+  tiltShift: "Tilt Shift",
+  vignette: "Vignette",
+  chromaticAberration: "Chromatic Aberration",
   emboss: "Emboss",
   findEdges: "Find Edges",
 };

@@ -4,11 +4,20 @@ import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
 
 const addable: { id: FilterType; label: string }[] = [
   { id: "gaussianBlur", label: "Gaussian" },
-  { id: "boxBlur", label: "Box" },
   { id: "motionBlur", label: "Motion" },
   { id: "sharpen", label: "Sharpen" },
-  { id: "noise", label: "Noise" },
+  { id: "unsharpMask", label: "Unsharp" },
+  { id: "highPass", label: "HighPass" },
+  { id: "reduceNoise", label: "Denoise" },
+  { id: "filmGrain", label: "Grain" },
+  { id: "vignette", label: "Vignette" },
+  { id: "tiltShift", label: "TiltShift" },
+  { id: "halftone", label: "Halftone" },
+  { id: "oilPaintLite", label: "OilPaint" },
+  { id: "chromaticAberration", label: "Chroma" },
   { id: "pixelate", label: "Pixelate" },
+  { id: "emboss", label: "Emboss" },
+  { id: "findEdges", label: "Edges" },
 ];
 
 export default function FilterPanel() {
@@ -138,6 +147,57 @@ export default function FilterPanel() {
                   className="w-full"
                 />
               </>
+            )}
+            {(f.type === "unsharpMask") && (
+              <>
+                <label className="text-[11px] text-[#a0a0a0]">Amount {f.params.amount}%</label>
+                <input type="range" min={0} max={200} value={f.params.amount ?? 70} onChange={(e) => updateFilterParams(f.id, { amount: Number(e.target.value) })} className="w-full" />
+                <label className="text-[11px] text-[#a0a0a0]">Radius {f.params.radius}px</label>
+                <input type="range" min={1} max={10} value={f.params.radius ?? 2} onChange={(e) => updateFilterParams(f.id, { radius: Number(e.target.value) })} className="w-full" />
+              </>
+            )}
+            {(f.type === "highPass" || f.type === "reduceNoise" || f.type === "oilPaintLite") && (
+              <>
+                <label className="text-[11px] text-[#a0a0a0]">Strength {f.params.radius ?? f.params.strength ?? f.params.intensity ?? 4}</label>
+                <input type="range" min={1} max={20} value={f.params.radius ?? f.params.strength ?? f.params.intensity ?? 4} onChange={(e) => {
+                  if (f.type === "highPass") updateFilterParams(f.id, { radius: Number(e.target.value) });
+                  else if (f.type === "reduceNoise") updateFilterParams(f.id, { strength: Number(e.target.value) * 8 });
+                  else updateFilterParams(f.id, { radius: Number(e.target.value) });
+                }} className="w-full" />
+              </>
+            )}
+            {(f.type === "filmGrain") && (
+              <>
+                <label className="text-[11px] text-[#a0a0a0]">Amount {f.params.amount}</label>
+                <input type="range" min={0} max={60} value={f.params.amount ?? 18} onChange={(e) => updateFilterParams(f.id, { amount: Number(e.target.value) })} className="w-full" />
+              </>
+            )}
+            {(f.type === "vignette") && (
+              <>
+                <label className="text-[11px] text-[#a0a0a0]">Amount {f.params.amount}%</label>
+                <input type="range" min={0} max={100} value={f.params.amount ?? 45} onChange={(e) => updateFilterParams(f.id, { amount: Number(e.target.value) })} className="w-full" />
+              </>
+            )}
+            {(f.type === "tiltShift") && (
+              <>
+                <label className="text-[11px] text-[#a0a0a0]">Blur {f.params.blur}px</label>
+                <input type="range" min={1} max={24} value={f.params.blur ?? 8} onChange={(e) => updateFilterParams(f.id, { blur: Number(e.target.value) })} className="w-full" />
+              </>
+            )}
+            {(f.type === "halftone") && (
+              <>
+                <label className="text-[11px] text-[#a0a0a0]">Size {f.params.size}px</label>
+                <input type="range" min={3} max={20} value={f.params.size ?? 6} onChange={(e) => updateFilterParams(f.id, { size: Number(e.target.value) })} className="w-full" />
+              </>
+            )}
+            {(f.type === "chromaticAberration") && (
+              <>
+                <label className="text-[11px] text-[#a0a0a0]">Amount {f.params.amount}px</label>
+                <input type="range" min={0} max={12} value={f.params.amount ?? 3} onChange={(e) => updateFilterParams(f.id, { amount: Number(e.target.value) })} className="w-full" />
+              </>
+            )}
+            {(f.type === "emboss" || f.type === "findEdges") && (
+              <div className="text-[10px] text-[#8a94a6]">Tanpa parameter berat — atur via Opacity.</div>
             )}
             <label className="text-[11px] text-[#a0a0a0]">Opacity {f.opacity}%</label>
             <input

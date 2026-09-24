@@ -63,18 +63,48 @@ export default function StatusBar() {
           Fit
         </button>
       </div>
-      <span className="font-mono">
+      <span className="hidden font-mono lg:block">
         {doc.width}x{doc.height} • {mp} MB • {tiles} tiles • {color.workingSpace} {color.bitDepth}
-        -bit
+        -bit • {tool}
       </span>
       <button
         onClick={toggleRulers}
-        className="rounded px-1.5 py-0.5 hover:bg-[#3e3e42] hover:text-white"
+        className={`rounded px-1.5 py-0.5 hover:bg-white/10 hover:text-white ${showRulers ? "text-white" : ""}`}
       >
         Rulers {showRulers ? "on" : "off"}
       </button>
-      {mem && <span className="font-mono">{mem}</span>}
-      <span className="ml-auto max-w-[420px] truncate" title={backendInfo}>
+      <button
+        onClick={() => useProStore.getState().toggleGrid()}
+        className={`rounded px-1.5 py-0.5 hover:bg-white/10 hover:text-white ${showGrid ? "bg-[#0a84ff] text-white" : ""}`}
+        title="Toggle grid"
+      >
+        Grid {showGrid ? gridSize : "off"}
+      </button>
+      <button
+        onClick={() => {
+          const v = prompt("Grid size px (8-512):", String(gridSize));
+          if (v) useProStore.getState().setGridSize(Number(v) || gridSize);
+        }}
+        className="hidden rounded px-1 py-0.5 font-mono hover:bg-white/10 hover:text-white xl:block"
+        title="Ubah grid size"
+      >
+        {gridSize}px
+      </button>
+      <button
+        onClick={() => useProStore.getState().toggleSnap()}
+        className={`rounded px-1.5 py-0.5 hover:bg-white/10 hover:text-white ${snapEnabled ? "bg-[#0a84ff] text-white" : ""}`}
+        title="Snap ke guides/grid/tengah (tahan Alt untuk bypass)"
+      >
+        Snap {snapEnabled ? "on" : "off"}
+      </button>
+      <button
+        onClick={() => useProStore.getState().toggleGuides()}
+        className={`hidden rounded px-1.5 py-0.5 hover:bg-white/10 hover:text-white sm:block ${showGuides ? "text-white" : ""}`}
+      >
+        Guides {showGuides ? "on" : "off"}
+      </button>
+      {mem && <span className="hidden font-mono xl:block">{mem}</span>}
+      <span className="ml-auto hidden max-w-[300px] truncate md:block" title={backendInfo}>
         {backendInfo}
       </span>
       <span className={doc.dirty ? "text-amber-400" : "text-emerald-400"}>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Eye,
   EyeOff,
@@ -22,9 +22,30 @@ import TextShapePanel from "./TextShapePanel";
 import ColorPanel from "./ColorPanel";
 import RawPanel from "./RawPanel";
 import TransformPanel from "./TransformPanel";
+import AiPanel from "./AiPanel";
+import BatchPanel from "./BatchPanel";
+import GitPanel from "./GitPanel";
+import ArtboardPanel from "./ArtboardPanel";
+import PluginPanel from "./PluginPanel";
+import MockupPanel from "./MockupPanel";
+import { useWorkspaceStore } from "../stores/useWorkspaceStore";
 
 type Tab =
-  "layers" | "select" | "mask" | "adjust" | "filter" | "text" | "color" | "raw" | "history";
+  | "layers"
+  | "select"
+  | "mask"
+  | "adjust"
+  | "filter"
+  | "text"
+  | "color"
+  | "raw"
+  | "ai"
+  | "batch"
+  | "git"
+  | "art"
+  | "plugin"
+  | "mockup"
+  | "history";
 
 const tabs: { id: Tab; label: string }[] = [
   { id: "layers", label: "Layers" },
@@ -35,11 +56,24 @@ const tabs: { id: Tab; label: string }[] = [
   { id: "text", label: "Text" },
   { id: "color", label: "Color" },
   { id: "raw", label: "RAW" },
+  { id: "ai", label: "AI" },
+  { id: "batch", label: "Batch" },
+  { id: "git", label: "Git" },
+  { id: "art", label: "Art" },
+  { id: "plugin", label: "Plug" },
+  { id: "mockup", label: "Mock" },
   { id: "history", label: "Hist" },
 ];
 
 export default function RightPanel() {
   const [tab, setTab] = useState<Tab>("layers");
+  const workspaceTab = useWorkspaceStore((s) => s.rightTab);
+  useEffect(() => {
+    if (workspaceTab && (tabs as { id: string }[]).some((t) => t.id === workspaceTab)) {
+      setTab(workspaceTab as Tab);
+      useWorkspaceStore.getState().setRightTab(null);
+    }
+  }, [workspaceTab]);
   const layers = useEditorStore((s) => s.layers);
   const activeLayerId = useEditorStore((s) => s.activeLayerId);
   const addLayer = useEditorStore((s) => s.addLayer);
@@ -274,6 +308,12 @@ export default function RightPanel() {
         {tab === "text" && <TextShapePanel />}
         {tab === "color" && <ColorPanel />}
         {tab === "raw" && <RawPanel />}
+        {tab === "ai" && <AiPanel />}
+        {tab === "batch" && <BatchPanel />}
+        {tab === "git" && <GitPanel />}
+        {tab === "art" && <ArtboardPanel />}
+        {tab === "plugin" && <PluginPanel />}
+        {tab === "mockup" && <MockupPanel />}
 
         {tab === "history" && (
           <div className="p-2 text-[12px]">

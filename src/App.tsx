@@ -1,19 +1,27 @@
 import { useEffect, useState } from "react";
 import TitleBar from "./components/TitleBar";
 import ToolBar from "./components/ToolBar";
-import CanvasArea from "./components/CanvasArea";
+import CanvasArea, { getCompositeCanvas } from "./components/CanvasArea";
 import RightPanel from "./components/RightPanel";
 import StatusBar from "./components/StatusBar";
 import CommandPalette from "./components/CommandPalette";
 import PsdInfo from "./components/PsdInfo";
+import WorkspaceBar from "./components/WorkspaceBar";
+import PromptBar from "./components/PromptBar";
+import NodeGraph from "./components/NodeGraph";
+import Onboarding from "./components/Onboarding";
 import { useEditorStore } from "./stores/useEditorStore";
 import { useProStore } from "./stores/useProStore";
+import { useWorkspaceStore, loadShortcuts } from "./stores/useWorkspaceStore";
 import { layerManager } from "./engine/layerManager";
 import { clearSelectionMask } from "./engine/selection";
+import { loadRecovery, saveRecovery, clearRecovery } from "./engine/recovery";
 
 export default function App() {
   const [palette, setPalette] = useState(false);
+  const [recovery, setRecovery] = useState<ReturnType<typeof loadRecovery>>(null);
   const newDocument = useEditorStore((s) => s.newDocument);
+  const showPrompt = useWorkspaceStore((s) => s.showPrompt);
 
   useEffect(() => {
     const s = useEditorStore.getState();
@@ -22,9 +30,35 @@ export default function App() {
     }
     layerManager.ensure(s.layers[0].id, s.doc.width, s.doc.height);
     useProStore.getState().ensureTransform(s.layers[0].id);
+    setRecovery(loadRecovery());
+  }, []);
+
+  // Autosave recovery tiap 2 menit
+  useEffect(() => {
+    const t = setInterval(() => {
+      try {
+        const st = useEditorStore.getState();
+        if (!st.doc.dirty) return;
+        const comp = getCompositeCanvas();
+        if (!comp) return;
+        const th = document.createElement("canvas");
+        th.width = 320;
+        th.height = Math.max(1, Math.round((320 * comp.height) / Math.max(1, comp.width)));
+        th.getContext("2d")!.drawImage(comp, 0, 0, th.width, th.height);
+        saveRecovery(th.toDataURL("image/jpeg", 0.6), st.doc.name, st.doc.width, st.doc.height);
+      } catch {
+        /* abaikan */
+      }
+    }, 120000);
+    return () => clearInterval(t);
   }, []);
 
   useEffect(() => {
+    const shortcuts = loadShortcuts();
+    const inv: Record<string, string> = {};
+    Object.entries(shortcuts).forEach(([tool, key]) => {
+      inv[key.toLowerCase()] = tool;
+    });
     function onKey(e: KeyboardEvent) {
       const mod = e.ctrlKey || e.metaKey;
       if (mod && e.key.toLowerCase() === "k") {
@@ -35,6 +69,10 @@ export default function App() {
         e.preventDefault();
         clearSelectionMask();
       }
+      if (mod && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        setPalette(true);
+      }
       if (mod && e.key.toLowerCase() === "z" && !e.shiftKey) {
         e.preventDefault();
         const entry = useEditorStore.getState().undoMeta();
@@ -44,35 +82,19 @@ export default function App() {
           useProStore.getState().bumpHistogram();
         }
       }
-      if (
-        (mod && e.key.toLowerCase() === "y") ||
-        (mod && e.shiftKey && e.key.toLowerCase() === "z")
-      ) {
+      if ((mod && e.key.toLowerCase() === "y") || (mod && e.shiftKey && e.key.toLowerCase() === "z")) {
         e.preventDefault();
         useEditorStore.getState().redoMeta();
       }
       if (!mod) {
         const t = e.key.toLowerCase();
-        const map: Record<string, any> = {
-          v: "move",
-          m: "select-rect",
-          l: "select-lasso",
-          w: "wand",
-          b: "brush",
-          e: "eraser",
-          i: "eyedropper",
-          t: "text",
-          u: "shape-rect",
-          o: "shape-ellipse",
-          h: "pan",
-          z: "zoom",
-        };
+        const tool = inv[t];
         if (
-          map[t] &&
+          tool &&
           document.activeElement?.tagName !== "INPUT" &&
           document.activeElement?.tagName !== "TEXTAREA"
         ) {
-          useEditorStore.getState().setTool(map[t]);
+          useEditorStore.getState().setTool(tool as any);
           if (t === "m" || t === "l" || t === "w") {
             useProStore.getState().setSelKind(t === "m" ? "rect" : t === "l" ? "lasso" : "wand");
           }
@@ -86,7 +108,27 @@ export default function App() {
   return (
     <div className="flex h-full flex-col bg-[#1e1e1e] text-[#e0e0e0]">
       <TitleBar onOpenCommand={() => setPalette(true)} />
+      <WorkspaceBar />
+      {showPrompt && <PromptBar />}
       <PsdInfo />
+      <NodeGraph />
+      {recovery && (
+        <div className="flex items-center gap-2 border-b border-amber-600 bg-[#3a2f14] px-3 py-1.5 text-[11px] text-amber-100">
+          <span>
+            Ditemukan autosave {recovery.docName} {recovery.width}x{recovery.height}. Lanjutkan atau abaikan.
+          </span>
+          <button onClick={() => setRecovery(null)} className="rounded bg-[#5a4a1a] px-2 py-0.5">Lanjut sesi ini</button>
+          <button
+            onClick={() => {
+              clearRecovery();
+              setRecovery(null);
+            }}
+            className="rounded bg-[#3e3e42] px-2 py-0.5"
+          >
+            Hapus recovery
+          </button>
+        </div>
+      )}
       <div className="flex min-h-0 flex-1">
         <ToolBar />
         <CanvasArea />
@@ -94,17 +136,18 @@ export default function App() {
       </div>
       <StatusBar />
       <CommandPalette open={palette} onClose={() => setPalette(false)} />
+      <Onboarding />
 
       <div className="flex items-center gap-2 border-t border-[#3e3e42] bg-[#1a1a1a] px-3 py-1 text-[10px] text-[#a0a0a0]">
         <span>
-          Fase 2: select, mask, adjust 9, filter 6, text, shape, transform. Fase 3: color space,
-          histogram, proofing, RAW develop. Ctrl+K semua aksi, Ctrl+D deselect.
+          Fase 4 AI offline + batch. Fase 5 node, git snapshot, artboard, plugin, mockup. Fase 6 workspace, shortcut, onboarding, autosave. Ctrl+K semua aksi.
         </span>
         <button
           onClick={() => {
             layerManager.clear();
             newDocument("Untitled", 1920, 1080);
             clearSelectionMask();
+            clearRecovery();
             useProStore.getState().bumpHistogram();
           }}
           className="ml-auto shrink-0 rounded bg-[#2d2d2d] px-2 py-0.5 hover:bg-[#3e3e42] hover:text-white"

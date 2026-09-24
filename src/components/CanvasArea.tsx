@@ -6,6 +6,7 @@ import { layerManager } from "../engine/layerManager";
 import { fitZoom } from "../engine/canvasMath";
 import {
   clearSelectionMask,
+  drawEllipseSelection,
   drawLassoSelection,
   drawRectSelection,
   featherSelection,
@@ -50,6 +51,7 @@ export default function CanvasArea() {
   const setPan = useEditorStore((s) => s.setPan);
   const brushSize = useEditorStore((s) => s.brushSize);
   const brushOpacity = useEditorStore((s) => s.brushOpacity);
+  const brushHardness = useEditorStore((s) => s.brushHardness);
   const brushColor = useEditorStore((s) => s.brushColor);
   const showRulers = useEditorStore((s) => s.showRulers);
   const pushHistory = useEditorStore((s) => s.pushHistory);

@@ -66,7 +66,7 @@ export interface SavedSelection {
 
 interface ProState {
   // selection UI state
-  selKind: "none" | "rect" | "lasso" | "wand";
+  selKind: "none" | "rect" | "ellipse" | "lasso" | "wand";
   selFeather: number;
   selTolerance: number;
   selExpand: number;

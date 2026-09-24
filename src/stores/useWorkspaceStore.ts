@@ -74,6 +74,7 @@ const DEFAULT_SHORTCUTS: ShortcutMap = {
   wand: "W",
   brush: "B",
   eraser: "E",
+  clone: "S",
   eyedropper: "I",
   text: "T",
   "shape-rect": "U",

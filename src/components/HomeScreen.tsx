@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { FolderOpen, ImagePlus, LayoutGrid, Sparkles, Trash2, X } from "lucide-react";
 import { useHomeStore, resolveRecent, type RecentFile } from "../stores/useHomeStore";
-import { useEditorStore, makeLayer } from "../stores/useEditorStore";
+import { useEditorStore } from "../stores/useEditorStore";
 import { useProStore } from "../stores/useProStore";
 import { layerManager } from "../engine/layerManager";
 import { pickImageToOpen, rustDecodeToDataUrl, rustImageInfo } from "../io/tauriIo";

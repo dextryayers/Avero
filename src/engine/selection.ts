@@ -63,6 +63,24 @@ export function drawRectSelection(w: number, h: number, r: RectSel) {
   ctx.fillRect(x, y, Math.abs(r.w), Math.abs(r.h));
 }
 
+export function drawEllipseSelection(w: number, h: number, r: RectSel) {
+  const c = ensureSel(w, h);
+  const ctx = c.getContext("2d")!;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = "rgba(255,255,255,1)";
+  ctx.beginPath();
+  ctx.ellipse(
+    Math.min(r.x, r.x + r.w) + Math.abs(r.w) / 2,
+    Math.min(r.y, r.y + r.h) + Math.abs(r.h) / 2,
+    Math.abs(r.w) / 2,
+    Math.abs(r.h) / 2,
+    0,
+    0,
+    Math.PI * 2,
+  );
+  ctx.fill();
+}
+
 export function drawLassoSelection(w: number, h: number, points: { x: number; y: number }[]) {
   const c = ensureSel(w, h);
   const ctx = c.getContext("2d")!;

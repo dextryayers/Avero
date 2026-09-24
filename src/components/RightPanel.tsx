@@ -13,7 +13,7 @@ import {
   ArrowDownToLine,
   Layers,
   Scan,
-  Mask,
+  Square,
   Sliders,
   Filter,
   FlaskConical,
@@ -68,7 +68,7 @@ type Tab =
 const tabs: { id: Tab; label: string; icon: any }[] = [
   { id: "layers", label: "Layers", icon: Layers },
   { id: "select", label: "Select", icon: Scan },
-  { id: "mask", label: "Mask", icon: Mask },
+  { id: "mask", label: "Mask", icon: Square },
   { id: "adjust", label: "Adjust", icon: Sliders },
   { id: "filter", label: "Filter", icon: Filter },
   { id: "lab", label: "Lab", icon: FlaskConical },
@@ -255,9 +255,6 @@ export default function RightPanel() {
             </button>
           );
         })}
-      </div>
-          </button>
-        ))}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">

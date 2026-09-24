@@ -32,7 +32,9 @@ export default function TitleBar({ onOpenCommand }: { onOpenCommand: () => void 
       const name = path.split(/[/\\]/).pop() ?? "Opened image";
       openDocument(name, info.width, info.height, path, info.file_size);
       // gambar dibuka akan digambar oleh CanvasArea via event custom
-      window.dispatchEvent(new CustomEvent("psd:opened-image", { detail: { dataUrl, w: info.width, h: info.height } }));
+      window.dispatchEvent(
+        new CustomEvent("psd:opened-image", { detail: { dataUrl, w: info.width, h: info.height } }),
+      );
     } catch (e) {
       console.error(e);
       alert(`Gagal membuka gambar: ${String(e)}`);
@@ -44,9 +46,13 @@ export default function TitleBar({ onOpenCommand }: { onOpenCommand: () => void 
   return (
     <div className="flex h-10 items-center gap-2 border-b border-[#3e3e42] bg-[#252526] px-3">
       <div className="flex items-center gap-2">
-        <div className="grid h-6 w-6 place-items-center rounded-md bg-[#0a84ff] text-[11px] font-bold text-white">PS</div>
+        <div className="grid h-6 w-6 place-items-center rounded-md bg-[#0a84ff] text-[11px] font-bold text-white">
+          PS
+        </div>
         <span className="text-[13px] font-semibold text-[#e0e0e0]">PSD Studio</span>
-        <span className="rounded bg-[#2d2d2d] px-1.5 py-0.5 text-[10px] text-[#a0a0a0]">Fase 1 MVP</span>
+        <span className="rounded bg-[#2d2d2d] px-1.5 py-0.5 text-[10px] text-[#a0a0a0]">
+          Fase 1 MVP
+        </span>
       </div>
 
       <nav className="ml-4 hidden items-center gap-1 text-[12px] text-[#c5c5c5] md:flex">
@@ -71,7 +77,9 @@ export default function TitleBar({ onOpenCommand }: { onOpenCommand: () => void 
         <span
           title={backendInfo}
           className={`flex items-center gap-1 rounded-full px-2 py-1 ${
-            backendStatus === "online" ? "bg-[#1f3a24] text-[#7bd88a]" : "bg-[#3a2a1f] text-[#e0a35a]"
+            backendStatus === "online"
+              ? "bg-[#1f3a24] text-[#7bd88a]"
+              : "bg-[#3a2a1f] text-[#e0a35a]"
           }`}
         >
           {backendStatus === "online" ? <Cpu size={12} /> : <CloudOff size={12} />}
@@ -96,6 +104,8 @@ export function useTitleBarOpen() {
     const name = path.split(/[/\\]/).pop() ?? "Opened image";
     openDocument(name, info.width, info.height, path, info.file_size);
     layerManager.clear();
-    window.dispatchEvent(new CustomEvent("psd:opened-image", { detail: { dataUrl, w: info.width, h: info.height } }));
+    window.dispatchEvent(
+      new CustomEvent("psd:opened-image", { detail: { dataUrl, w: info.width, h: info.height } }),
+    );
   };
 }

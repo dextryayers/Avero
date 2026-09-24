@@ -104,7 +104,8 @@ export default function CanvasArea() {
       if (!lc) return;
       ctx.save();
       ctx.globalAlpha = l.opacity / 100;
-      ctx.globalCompositeOperation = l.blendMode === "normal" ? "source-over" : (l.blendMode as GlobalCompositeOperation);
+      ctx.globalCompositeOperation =
+        l.blendMode === "normal" ? "source-over" : (l.blendMode as GlobalCompositeOperation);
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = "high";
       ctx.drawImage(lc, ox, oy, dw, dh);
@@ -218,7 +219,11 @@ export default function CanvasArea() {
             // snapshot untuk undo sekali per stroke
             const snap = layerManager.snapshot(activeLayerId ?? "");
             if (snap && activeLayerId) {
-              pushHistory({ label: tool === "brush" ? "Brush stroke" : "Eraser", layerId: activeLayerId, snapshot: snap });
+              pushHistory({
+                label: tool === "brush" ? "Brush stroke" : "Eraser",
+                layerId: activeLayerId,
+                snapshot: snap,
+              });
             }
             setIsPainting(true);
             lastPos.current = null;
@@ -233,7 +238,10 @@ export default function CanvasArea() {
           const p = toDocCoords(e);
           setCursor(`${Math.round(p.x)}, ${Math.round(p.y)}`);
           if (panning.current) {
-            setPan(panning.current.px + (e.clientX - panning.current.sx), panning.current.py + (e.clientY - panning.current.sy));
+            setPan(
+              panning.current.px + (e.clientX - panning.current.sx),
+              panning.current.py + (e.clientY - panning.current.sy),
+            );
             return;
           }
           if (isPainting) {
@@ -251,7 +259,18 @@ export default function CanvasArea() {
           panning.current = null;
         }}
       >
-        <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" style={{ cursor: tool === "pan" ? "grab" : tool === "brush" || tool === "eraser" ? "crosshair" : "default" }} />
+        <canvas
+          ref={canvasRef}
+          className="absolute inset-0 h-full w-full"
+          style={{
+            cursor:
+              tool === "pan"
+                ? "grab"
+                : tool === "brush" || tool === "eraser"
+                  ? "crosshair"
+                  : "default",
+          }}
+        />
         <div className="pointer-events-none absolute bottom-2 left-2 rounded bg-black/60 px-2 py-1 font-mono text-[10px] text-white/80">
           {cursor} • {tool} • {Math.ceil(doc.width / 256) * Math.ceil(doc.height / 256)} tiles
         </div>

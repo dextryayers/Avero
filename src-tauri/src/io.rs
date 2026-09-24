@@ -38,7 +38,8 @@ pub fn cmd_open_image_info(path: String) -> Result<ImageInfo, String> {
 
     if format == "psd" {
         let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
-        let psd_file = psd::Psd::from_bytes(&bytes).map_err(|e| format!("PSD parse error: {e:?}"))?;
+        let psd_file =
+            psd::Psd::from_bytes(&bytes).map_err(|e| format!("PSD parse error: {e:?}"))?;
         let meta = std::fs::metadata(&path).map_err(|e| e.to_string())?;
         return Ok(ImageInfo {
             width: psd_file.width(),
@@ -68,14 +69,18 @@ pub fn cmd_decode_image_to_dataurl(path: String, max_side: Option<u32>) -> Resul
 
     if format == "psd" {
         let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
-        let psd_file = psd::Psd::from_bytes(&bytes).map_err(|e| format!("PSD parse error: {e:?}"))?;
+        let psd_file =
+            psd::Psd::from_bytes(&bytes).map_err(|e| format!("PSD parse error: {e:?}"))?;
         let w = psd_file.width();
         let h = psd_file.height();
-        let rgba = psd_file.flatten_layers_rgba(&psd::PsdChannelKind::Rgb).map_err(|e| format!("PSD flatten error: {e:?}"))?;
+        let rgba = psd_file
+            .flatten_layers_rgba(&|(_, _)| true)
+            .map_err(|e| format!("PSD flatten error: {e:?}"))?;
         let img = image::RgbaImage::from_raw(w, h, rgba).ok_or("PSD rasterize failed")?;
         let img = downscale_if_needed(image::DynamicImage::ImageRgba8(img), max_side);
         let mut buf = Cursor::new(Vec::new());
-        img.write_to(&mut buf, image::ImageFormat::Png).map_err(|e| e.to_string())?;
+        img.write_to(&mut buf, image::ImageFormat::Png)
+            .map_err(|e| e.to_string())?;
         let b64 = B64.encode(buf.into_inner());
         return Ok(format!("data:image/png;base64,{b64}"));
     }
@@ -88,7 +93,8 @@ pub fn cmd_decode_image_to_dataurl(path: String, max_side: Option<u32>) -> Resul
         .map_err(|e| e.to_string())?;
     img = downscale_if_needed(img, max_side);
     let mut buf = Cursor::new(Vec::new());
-    img.write_to(&mut buf, image::ImageFormat::Png).map_err(|e| e.to_string())?;
+    img.write_to(&mut buf, image::ImageFormat::Png)
+        .map_err(|e| e.to_string())?;
     let b64 = B64.encode(buf.into_inner());
     Ok(format!("data:image/png;base64,{b64}"))
 }
@@ -113,15 +119,20 @@ pub fn cmd_save_dataurl_to_file(data_url: String, path: String) -> Result<(), St
     let img = image::load_from_memory(&bytes).map_err(|e| e.to_string())?;
     let lower = path.to_lowercase();
     if lower.ends_with(".jpg") || lower.ends_with(".jpeg") {
-        img.save_with_format(&path, image::ImageFormat::Jpeg).map_err(|e| e.to_string())?;
+        img.save_with_format(&path, image::ImageFormat::Jpeg)
+            .map_err(|e| e.to_string())?;
     } else if lower.ends_with(".webp") {
-        img.save_with_format(&path, image::ImageFormat::WebP).map_err(|e| e.to_string())?;
+        img.save_with_format(&path, image::ImageFormat::WebP)
+            .map_err(|e| e.to_string())?;
     } else if lower.ends_with(".bmp") {
-        img.save_with_format(&path, image::ImageFormat::Bmp).map_err(|e| e.to_string())?;
+        img.save_with_format(&path, image::ImageFormat::Bmp)
+            .map_err(|e| e.to_string())?;
     } else if lower.ends_with(".tiff") || lower.ends_with(".tif") {
-        img.save_with_format(&path, image::ImageFormat::Tiff).map_err(|e| e.to_string())?;
+        img.save_with_format(&path, image::ImageFormat::Tiff)
+            .map_err(|e| e.to_string())?;
     } else {
-        img.save_with_format(&path, image::ImageFormat::Png).map_err(|e| e.to_string())?;
+        img.save_with_format(&path, image::ImageFormat::Png)
+            .map_err(|e| e.to_string())?;
     }
     Ok(())
 }

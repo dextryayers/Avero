@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DocumentMeta {
     pub id: String,
@@ -9,6 +10,7 @@ pub struct DocumentMeta {
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
+#[allow(dead_code)]
 impl DocumentMeta {
     pub fn new(name: String, width: u32, height: u32) -> Self {
         Self {

@@ -13,7 +13,12 @@ export async function pickImageToOpen(): Promise<string | null> {
   try {
     const file = await open({
       multiple: false,
-      filters: [{ name: "Image", extensions: ["png", "jpg", "jpeg", "webp", "bmp", "tiff", "tif", "gif", "psd"] }],
+      filters: [
+        {
+          name: "Image",
+          extensions: ["png", "jpg", "jpeg", "webp", "bmp", "tiff", "tif", "gif", "psd"],
+        },
+      ],
     });
     if (typeof file === "string") return file;
     return null;
@@ -57,7 +62,9 @@ export async function rustSaveDataUrl(dataUrl: string, path: string): Promise<vo
 
 export async function checkBackend(): Promise<{ ok: boolean; info: string }> {
   try {
-    const info = await invoke<{ name: string; version: string; os: string; arch: string }>("app_ping");
+    const info = await invoke<{ name: string; version: string; os: string; arch: string }>(
+      "app_ping",
+    );
     return { ok: true, info: `${info.name} ${info.version} Rust (${info.os}/${info.arch})` };
   } catch (e) {
     return { ok: false, info: `Web preview only: ${String(e)}` };

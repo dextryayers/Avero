@@ -17,7 +17,7 @@ export function canvasToScreen(
   panX: number,
   panY: number,
   originX: number,
-  originY: number
+  originY: number,
 ) {
   const s = zoom / 100;
   return { x: originX + panX + cx * s, y: originY + panY + cy * s };

@@ -14,13 +14,7 @@ export type ToolId =
   | "pan";
 
 export type BlendMode =
-  | "normal"
-  | "multiply"
-  | "screen"
-  | "overlay"
-  | "darken"
-  | "lighten"
-  | "difference";
+  "normal" | "multiply" | "screen" | "overlay" | "darken" | "lighten" | "difference";
 
 export interface LayerMeta {
   id: string;
@@ -69,7 +63,9 @@ interface EditorState {
   backendInfo: string;
 
   setTool: (t: ToolId) => void;
-  setBrush: (p: Partial<{ size: number; opacity: number; hardness: number; color: string }>) => void;
+  setBrush: (
+    p: Partial<{ size: number; opacity: number; hardness: number; color: string }>,
+  ) => void;
   setZoom: (z: number) => void;
   setPan: (x: number, y: number) => void;
   toggleRulers: () => void;
@@ -120,7 +116,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   activeLayerId: null,
   history: [],
   future: [],
-  doc: { name: "Untitled", width: 1920, height: 1080, filePath: null, dirty: false, fileSize: null },
+  doc: {
+    name: "Untitled",
+    width: 1920,
+    height: 1080,
+    filePath: null,
+    dirty: false,
+    fileSize: null,
+  },
   backendStatus: "checking",
   backendInfo: "Menghubungkan ke Rust engine...",
 
@@ -170,7 +173,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   markClean: () => set((s) => ({ doc: { ...s.doc, dirty: false } })),
   markDirty: () => set((s) => ({ doc: { ...s.doc, dirty: true } })),
 
-  addLayer: (l) => set((s) => ({ layers: [...s.layers, l], activeLayerId: l.id, doc: { ...s.doc, dirty: true } })),
+  addLayer: (l) =>
+    set((s) => ({ layers: [...s.layers, l], activeLayerId: l.id, doc: { ...s.doc, dirty: true } })),
   removeLayer: (id) =>
     set((s) => {
       if (s.layers.length <= 1) return s;

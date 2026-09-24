@@ -1,5 +1,15 @@
 import { useState } from "react";
-import { Eye, EyeOff, Lock, Plus, Trash2, ChevronUp, ChevronDown, Undo2, Redo2 } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  Lock,
+  Plus,
+  Trash2,
+  ChevronUp,
+  ChevronDown,
+  Undo2,
+  Redo2,
+} from "lucide-react";
 import { makeLayer, useEditorStore } from "../stores/useEditorStore";
 import { layerManager } from "../engine/layerManager";
 import clsx from "clsx";
@@ -14,7 +24,12 @@ export default function RightPanel() {
   const setActiveLayer = useEditorStore((s) => s.setActiveLayer);
   const moveLayer = useEditorStore((s) => s.moveLayer);
   const doc = useEditorStore((s) => s.doc);
-  const brush = useEditorStore((s) => ({ size: s.brushSize, opacity: s.brushOpacity, hardness: s.brushHardness, color: s.brushColor }));
+  const brush = useEditorStore((s) => ({
+    size: s.brushSize,
+    opacity: s.brushOpacity,
+    hardness: s.brushHardness,
+    color: s.brushColor,
+  }));
   const setBrush = useEditorStore((s) => s.setBrush);
   const history = useEditorStore((s) => s.history);
   const future = useEditorStore((s) => s.future);
@@ -48,7 +63,10 @@ export default function RightPanel() {
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={clsx("flex-1 px-3 py-2 capitalize", tab === t ? "bg-[#2d2d2d] text-white" : "text-[#a0a0a0] hover:text-white")}
+            className={clsx(
+              "flex-1 px-3 py-2 capitalize",
+              tab === t ? "bg-[#2d2d2d] text-white" : "text-[#a0a0a0] hover:text-white",
+            )}
           >
             {t} {t === "history" && history.length > 0 ? `(${history.length})` : ""}
           </button>
@@ -76,10 +94,18 @@ export default function RightPanel() {
               <Trash2 size={13} />
             </button>
             <div className="ml-auto flex gap-1">
-              <button title="Undo" onClick={handleUndo} className="rounded p-1.5 hover:bg-[#3e3e42]">
+              <button
+                title="Undo"
+                onClick={handleUndo}
+                className="rounded p-1.5 hover:bg-[#3e3e42]"
+              >
                 <Undo2 size={14} />
               </button>
-              <button title="Redo" onClick={handleRedo} className="rounded p-1.5 hover:bg-[#3e3e42]">
+              <button
+                title="Redo"
+                onClick={handleRedo}
+                className="rounded p-1.5 hover:bg-[#3e3e42]"
+              >
                 <Redo2 size={14} />
               </button>
             </div>
@@ -92,14 +118,31 @@ export default function RightPanel() {
                 <div
                   key={l.id}
                   onClick={() => setActiveLayer(l.id)}
-                  className={clsx("mb-1.5 rounded-md border p-2", active ? "border-[#0a84ff] bg-[#2d2d2d]" : "border-[#3e3e42] bg-[#2a2a2a]")}
+                  className={clsx(
+                    "mb-1.5 rounded-md border p-2",
+                    active ? "border-[#0a84ff] bg-[#2d2d2d]" : "border-[#3e3e42] bg-[#2a2a2a]",
+                  )}
                 >
                   <div className="flex items-center gap-1.5">
-                    <button onClick={(e) => { e.stopPropagation(); updateLayer(l.id, { visible: !l.visible }); }} className="text-[#a0a0a0] hover:text-white">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        updateLayer(l.id, { visible: !l.visible });
+                      }}
+                      className="text-[#a0a0a0] hover:text-white"
+                    >
                       {l.visible ? <Eye size={14} /> : <EyeOff size={14} />}
                     </button>
                     <span className="flex-1 truncate text-[12px] font-medium">{l.name}</span>
-                    <button onClick={(e) => { e.stopPropagation(); updateLayer(l.id, { locked: !l.locked }); }} className={clsx(l.locked ? "text-amber-400" : "text-[#a0a0a0] hover:text-white")}>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        updateLayer(l.id, { locked: !l.locked });
+                      }}
+                      className={clsx(
+                        l.locked ? "text-amber-400" : "text-[#a0a0a0] hover:text-white",
+                      )}
+                    >
                       <Lock size={13} />
                     </button>
                   </div>
@@ -128,10 +171,18 @@ export default function RightPanel() {
                     </select>
                   </div>
                   <div className="mt-1 flex justify-end gap-1">
-                    <button onClick={() => moveLayer(l.id, 1)} title="Move up" className="rounded p-1 hover:bg-[#3e3e42]">
+                    <button
+                      onClick={() => moveLayer(l.id, 1)}
+                      title="Move up"
+                      className="rounded p-1 hover:bg-[#3e3e42]"
+                    >
                       <ChevronUp size={12} />
                     </button>
-                    <button onClick={() => moveLayer(l.id, -1)} title="Move down" className="rounded p-1 hover:bg-[#3e3e42]">
+                    <button
+                      onClick={() => moveLayer(l.id, -1)}
+                      title="Move down"
+                      className="rounded p-1 hover:bg-[#3e3e42]"
+                    >
                       <ChevronDown size={12} />
                     </button>
                   </div>
@@ -149,22 +200,49 @@ export default function RightPanel() {
             <label className="mb-1 flex justify-between text-[#a0a0a0]">
               Size <span className="font-mono text-white">{brush.size}px</span>
             </label>
-            <input type="range" min={1} max={200} value={brush.size} onChange={(e) => setBrush({ size: Number(e.target.value) })} className="w-full" />
+            <input
+              type="range"
+              min={1}
+              max={200}
+              value={brush.size}
+              onChange={(e) => setBrush({ size: Number(e.target.value) })}
+              className="w-full"
+            />
             <label className="mb-1 mt-2 flex justify-between text-[#a0a0a0]">
               Opacity <span className="font-mono text-white">{brush.opacity}%</span>
             </label>
-            <input type="range" min={1} max={100} value={brush.opacity} onChange={(e) => setBrush({ opacity: Number(e.target.value) })} className="w-full" />
+            <input
+              type="range"
+              min={1}
+              max={100}
+              value={brush.opacity}
+              onChange={(e) => setBrush({ opacity: Number(e.target.value) })}
+              className="w-full"
+            />
             <label className="mb-1 mt-2 flex justify-between text-[#a0a0a0]">
               Hardness <span className="font-mono text-white">{brush.hardness}%</span>
             </label>
-            <input type="range" min={1} max={100} value={brush.hardness} onChange={(e) => setBrush({ hardness: Number(e.target.value) })} className="w-full" />
+            <input
+              type="range"
+              min={1}
+              max={100}
+              value={brush.hardness}
+              onChange={(e) => setBrush({ hardness: Number(e.target.value) })}
+              className="w-full"
+            />
             <div className="mt-2 flex items-center gap-2">
-              <input type="color" value={brush.color} onChange={(e) => setBrush({ color: e.target.value })} className="h-8 w-12 cursor-pointer rounded border border-[#3e3e42] bg-transparent" />
+              <input
+                type="color"
+                value={brush.color}
+                onChange={(e) => setBrush({ color: e.target.value })}
+                className="h-8 w-12 cursor-pointer rounded border border-[#3e3e42] bg-transparent"
+              />
               <span className="font-mono text-[#c5c5c5]">{brush.color}</span>
             </div>
           </section>
           <section className="rounded-md border border-[#3e3e42] bg-[#2d2d2d] p-2 text-[11px] text-[#a0a0a0]">
-            Adjustment layer, Curves, Levels, dan filter GPU masuk Fase 2. Struktur non destructive sudah disiapkan di store dan Rust engine.
+            Adjustment layer, Curves, Levels, dan filter GPU masuk Fase 2. Struktur non destructive
+            sudah disiapkan di store dan Rust engine.
           </section>
           <section>
             <h4 className="mb-1 font-semibold text-white">Document</h4>
@@ -179,14 +257,22 @@ export default function RightPanel() {
 
       {tab === "history" && (
         <div className="min-h-0 flex-1 overflow-y-auto p-2 text-[12px]">
-          {history.length === 0 && <div className="p-3 text-center text-[#a0a0a0]">Belum ada history. Lakukan brush stroke untuk melihat undo stack.</div>}
+          {history.length === 0 && (
+            <div className="p-3 text-center text-[#a0a0a0]">
+              Belum ada history. Lakukan brush stroke untuk melihat undo stack.
+            </div>
+          )}
           {[...history].reverse().map((h) => (
             <div key={h.id} className="mb-1 rounded bg-[#2d2d2d] px-2 py-1.5">
               <div className="font-medium text-white">{h.label}</div>
-              <div className="font-mono text-[10px] text-[#a0a0a0]">{new Date(h.time).toLocaleTimeString()}</div>
+              <div className="font-mono text-[10px] text-[#a0a0a0]">
+                {new Date(h.time).toLocaleTimeString()}
+              </div>
             </div>
           ))}
-          {future.length > 0 && <div className="p-2 text-[11px] text-[#a0a0a0]">{future.length} redo tersedia</div>}
+          {future.length > 0 && (
+            <div className="p-2 text-[11px] text-[#a0a0a0]">{future.length} redo tersedia</div>
+          )}
         </div>
       )}
     </div>

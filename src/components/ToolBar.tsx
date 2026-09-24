@@ -1,4 +1,16 @@
-import { Brush, Crop, Eraser, Hand, MousePointer2, Move, Pipette, Square, Droplet, Type, ZoomIn } from "lucide-react";
+import {
+  Brush,
+  Crop,
+  Eraser,
+  Hand,
+  MousePointer2,
+  Move,
+  Pipette,
+  Square,
+  Droplet,
+  Type,
+  ZoomIn,
+} from "lucide-react";
 import { useEditorStore, type ToolId } from "../stores/useEditorStore";
 import clsx from "clsx";
 
@@ -32,7 +44,9 @@ export default function ToolBar() {
             onClick={() => setTool(t.id)}
             className={clsx(
               "grid h-9 w-9 place-items-center rounded-md transition-colors",
-              active ? "bg-[#0a84ff] text-white" : "text-[#c5c5c5] hover:bg-[#3e3e42] hover:text-white"
+              active
+                ? "bg-[#0a84ff] text-white"
+                : "text-[#c5c5c5] hover:bg-[#3e3e42] hover:text-white",
             )}
           >
             <Icon size={17} strokeWidth={1.8} />

@@ -1,14 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { useEditorStore, makeLayer } from "../stores/useEditorStore";
 import { layerManager } from "../engine/layerManager";
-import { pickImageToOpen, pickSavePath, rustDecodeToDataUrl, rustImageInfo, rustSaveDataUrl } from "../io/tauriIo";
+import {
+  pickImageToOpen,
+  pickSavePath,
+  rustDecodeToDataUrl,
+  rustImageInfo,
+  rustSaveDataUrl,
+} from "../io/tauriIo";
 
 export default function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [q, setQ] = useState("");
 
   useEffect(() => {
     if (open) setQ("");
-  }, [open ]);
+  }, [open]);
 
   const actions = useMemo(() => {
     const s = useEditorStore.getState();
@@ -29,11 +35,18 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
           if (!path) return;
           const info = await rustImageInfo(path);
           const dataUrl = await rustDecodeToDataUrl(path, 2048);
-          s.openDocument(path.split(/[/\\]/).pop() ?? "Image", info.width, info.height, path, info.file_size);
+          s.openDocument(
+            path.split(/[/\\]/).pop() ?? "Image",
+            info.width,
+            info.height,
+            path,
+            info.file_size,
+          );
           layerManager.clear();
           // tunggu layer dibuat oleh store
           setTimeout(() => {
-            const id = useEditorStore.getState().activeLayerId ?? useEditorStore.getState().layers[0]?.id;
+            const id =
+              useEditorStore.getState().activeLayerId ?? useEditorStore.getState().layers[0]?.id;
             if (!id) return;
             const img = new Image();
             img.onload = () => {
@@ -95,8 +108,14 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
 
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 grid place-items-start justify-center bg-black/60 p-10" onClick={onClose}>
-      <div className="w-[520px] overflow-hidden rounded-lg border border-[#3e3e42] bg-[#252526] shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-50 grid place-items-start justify-center bg-black/60 p-10"
+      onClick={onClose}
+    >
+      <div
+        className="w-[520px] overflow-hidden rounded-lg border border-[#3e3e42] bg-[#252526] shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         <input
           autoFocus
           value={q}
@@ -125,7 +144,9 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
               <span className="font-mono text-[10px] opacity-60">Enter</span>
             </button>
           ))}
-          {filtered.length === 0 && <div className="p-4 text-center text-[12px] text-[#a0a0a0]">Tidak ada aksi cocok</div>}
+          {filtered.length === 0 && (
+            <div className="p-4 text-center text-[12px] text-[#a0a0a0]">Tidak ada aksi cocok</div>
+          )}
         </div>
       </div>
     </div>

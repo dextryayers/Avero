@@ -37,7 +37,10 @@ export default function App() {
           useEditorStore.getState().markDirty();
         }
       }
-      if ((mod && e.key.toLowerCase() === "y") || (mod && e.shiftKey && e.key.toLowerCase() === "z")) {
+      if (
+        (mod && e.key.toLowerCase() === "y") ||
+        (mod && e.shiftKey && e.key.toLowerCase() === "z")
+      ) {
         e.preventDefault();
         useEditorStore.getState().redoMeta();
       }
@@ -52,7 +55,11 @@ export default function App() {
           h: "pan",
           z: "zoom",
         };
-        if (map[t] && (document.activeElement?.tagName !== "INPUT" && document.activeElement?.tagName !== "TEXTAREA")) {
+        if (
+          map[t] &&
+          document.activeElement?.tagName !== "INPUT" &&
+          document.activeElement?.tagName !== "TEXTAREA"
+        ) {
           useEditorStore.getState().setTool(map[t]);
         }
       }
@@ -79,9 +86,13 @@ export default function App() {
       {/* Hint bar Fase 1 */}
       <div className="flex items-center gap-2 border-t border-[#3e3e42] bg-[#1a1a1a] px-3 py-1 text-[10px] text-[#a0a0a0]">
         <span>
-          Fase 0 selesai: installer shell + Rust IPC. Fase 1 MVP: brush, layer, undo, open PNG JPG PSD, export. Tekan Ctrl+K untuk semua aksi.
+          Fase 0 selesai: installer shell + Rust IPC. Fase 1 MVP: brush, layer, undo, open PNG JPG
+          PSD, export. Tekan Ctrl+K untuk semua aksi.
         </span>
-        <button onClick={() => newDocument("Untitled", 1920, 1080)} className="ml-auto rounded bg-[#2d2d2d] px-2 py-0.5 hover:bg-[#3e3e42] hover:text-white">
+        <button
+          onClick={() => newDocument("Untitled", 1920, 1080)}
+          className="ml-auto rounded bg-[#2d2d2d] px-2 py-0.5 hover:bg-[#3e3e42] hover:text-white"
+        >
           New 1920x1080
         </button>
       </div>

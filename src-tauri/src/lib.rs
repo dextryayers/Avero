@@ -1,9 +1,10 @@
 // AVERO STUDIO - Core Engine entry point
-// Shell, IO, PSD, color, RAW, stabilisasi.
+// Shell, IO, PSD, color, RAW, native C/C++, stabilisasi.
 
 mod commands;
 mod document;
 mod io;
+mod native;
 mod pro;
 
 use commands::{app_ping, document_info, list_fonts_system};
@@ -24,7 +25,10 @@ pub fn run() {
             io::cmd_save_dataurl_to_file,
             pro::cmd_psd_layer_list,
             pro::cmd_raw_info,
-            pro::cmd_image_histogram
+            pro::cmd_image_histogram,
+            native::cmd_native_info,
+            native::cmd_native_apply_op,
+            native::cmd_native_apply_filter
         ])
         .run(tauri::generate_context!())
         .expect("error while running AVERO STUDIO");

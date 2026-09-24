@@ -67,11 +67,11 @@ export default function PluginPanel() {
   return (
     <div className="space-y-2 p-3 text-[12px]">
       {plugins.map((p) => (
-        <div key={p.id} className="rounded border border-[#3e3e42] bg-[#2a2a2a] p-2">
+        <div key={p.id} className="rounded border border-[#2c2c31] bg-[#232327] p-2">
           <div className="flex items-center gap-1.5">
             <input type="checkbox" checked={p.enabled} onChange={() => toggle(p.id)} />
             <span className="flex-1 font-medium text-white">
-              {p.name} <span className="font-mono text-[10px] text-[#a0a0a0]">v{p.version}</span>
+              {p.name} <span className="font-mono text-[10px] text-[#a7a7b0]">v{p.version}</span>
             </span>
             <button
               onClick={() => remove(p.id)}
@@ -80,11 +80,11 @@ export default function PluginPanel() {
               Hapus
             </button>
           </div>
-          <div className="text-[11px] text-[#a0a0a0]">
+          <div className="text-[11px] text-[#a7a7b0]">
             {p.description} • {p.author}
           </div>
           {(params[p.id] ? Object.entries(params[p.id]) : []).map(([k, v]) => (
-            <label key={k} className="mt-1 flex justify-between text-[11px] text-[#a0a0a0]">
+            <label key={k} className="mt-1 flex justify-between text-[11px] text-[#a7a7b0]">
               {k} <span className="font-mono text-white">{v}</span>
               <input
                 type="range"
@@ -99,31 +99,31 @@ export default function PluginPanel() {
           <button
             disabled={!p.enabled}
             onClick={() => applyPlugin(p)}
-            className="mt-1.5 w-full rounded bg-[#0a84ff] px-2 py-1.5 text-white disabled:opacity-40"
+            className="mt-1.5 w-full rounded bg-[#2f7cf6] px-2 py-1.5 text-white disabled:opacity-40"
           >
             Terapkan ke layer aktif
           </button>
         </div>
       ))}
 
-      <div className="rounded border border-dashed border-[#505050] p-2">
+      <div className="rounded border border-dashed border-[#3a3a41] p-2">
         <h4 className="mb-1 font-semibold text-white">Buat plugin (JS 50 baris)</h4>
         <textarea
           value={code}
           onChange={(e) => setCode(e.target.value)}
           rows={7}
           spellCheck={false}
-          className="w-full rounded bg-[#141414] p-2 font-mono text-[10px] text-emerald-200"
+          className="w-full rounded bg-[#161618] p-2 font-mono text-[10px] text-[#c9c9d1]"
         />
         <button
           onClick={installCustom}
-          className="mt-1.5 w-full rounded bg-[#2d7a3a] px-2 py-1.5 text-white"
+          className="mt-1.5 w-full rounded bg-[#2f7cf6] px-2 py-1.5 text-white"
         >
           Install plugin custom
         </button>
       </div>
-      {log && <div className="rounded bg-[#1e2a33] p-2 text-[11px] text-[#bcd2e2]">{log}</div>}
-      <p className="text-[10px] text-[#a0a0a0]">
+      {log && <div className="rounded bg-[#1c1c1f] p-2 text-[11px] text-[#c9c9d1]">{log}</div>}
+      <p className="text-[10px] text-[#a7a7b0]">
         SDK Python via PyO3 dan WASM sandbox masuk trek 1.0. API JS stabil: d, params, W, H.
       </p>
     </div>

@@ -40,18 +40,18 @@ export default function MockupPanel() {
 
   return (
     <div className="space-y-2 p-3 text-[12px]">
-      <div className="rounded border border-[#3e3e42] bg-[#2a2a2a] p-2 text-[11px] text-[#a0a0a0]">
+      <div className="rounded border border-[#2c2c31] bg-[#232327] p-2 text-[11px] text-[#a7a7b0]">
         Drag desain (layer aktif) ke quad mockup kaos/botol/buku. Atur 4 titik lalu Apply.
       </div>
       <div className="grid grid-cols-2 gap-1.5">
         {(["x0", "y0", "x1", "y1", "x2", "y2", "x3", "y3"] as const).map((k) => (
-          <label key={k} className="text-[11px] text-[#a0a0a0]">
+          <label key={k} className="text-[11px] text-[#a7a7b0]">
             {k}
             <input
               type="number"
               value={Math.round(quad[k])}
               onChange={(e) => setQuad({ ...quad, [k]: Number(e.target.value) })}
-              className="mt-0.5 w-full rounded bg-[#1e1e1e] px-2 py-1 font-mono text-white"
+              className="mt-0.5 w-full rounded bg-[#161618] px-2 py-1 font-mono text-white"
             />
           </label>
         ))}
@@ -59,15 +59,15 @@ export default function MockupPanel() {
       <div className="grid grid-cols-2 gap-1.5">
         <button
           onClick={() => setQuad(autoQuad(1920, 1080))}
-          className="rounded bg-[#3e3e42] px-2 py-1.5"
+          className="rounded bg-[#2c2c31] px-2 py-1.5"
         >
           Auto deteksi
         </button>
-        <button onClick={apply} className="rounded bg-[#0a84ff] px-2 py-1.5 text-white">
+        <button onClick={apply} className="rounded bg-[#2f7cf6] px-2 py-1.5 text-white">
           Apply mockup
         </button>
       </div>
-      {log && <div className="rounded bg-[#1f3a24] p-2 text-[11px] text-[#bfe6c6]">{log}</div>}
+      {log && <div className="rounded bg-[#1c1c1f] p-2 text-[11px] text-[#a7a7b0]">{log}</div>}
     </div>
   );
 }

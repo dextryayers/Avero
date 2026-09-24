@@ -156,7 +156,7 @@ export default function RightPanel() {
     }
     const top = st.layers[idx];
     const below = st.layers[idx - 1];
-    if (!window.confirm(`Gabung "${top.name}" ke "${below.name}"? (destruktif, tidak bisa undo)`)) return;
+    if (!window.confirm(`Gabung "${top.name}" ke "${below.name}"? Tindakan ini destruktif.`)) return;
     const bc = layerManager.get(below.id);
     const tc = layerManager.get(id);
     if (bc && tc) {
@@ -184,7 +184,7 @@ export default function RightPanel() {
   function flattenImage() {
     const st = useEditorStore.getState();
     if (st.layers.length <= 1) return;
-    if (!window.confirm(`Gabung ${st.layers.length} layer jadi satu? (destruktif, tidak bisa undo)`)) return;
+    if (!window.confirm(`Gabung ${st.layers.length} layer jadi satu? Tindakan ini destruktif.`)) return;
     const bottom = st.layers[0];
     const bc = layerManager.ensure(bottom.id, st.doc.width, st.doc.height);
     const bctx = bc.getContext("2d")!;
@@ -215,18 +215,18 @@ export default function RightPanel() {
   }
 
   return (
-    <div className="flex w-[300px] shrink-0 flex-col border-l border-[#1c2333] bg-[#0e1219]">
-      <div className="flex overflow-x-auto border-b border-[#1c2333] bg-[#0b0e14] text-[10px]">
+    <div className="flex w-[300px] shrink-0 flex-col border-l border-[#2c2c31] bg-[#1c1c1f]">
+      <div className="flex overflow-x-auto border-b border-[#2c2c31] bg-[#161618] text-[10px]">
         {tabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
             title={t.label}
             className={clsx(
-              "shrink-0 rounded-t-lg px-2.5 py-2 transition",
+              "shrink-0 px-2.5 py-2",
               tab === t.id
-                ? "bg-[#1b2130] text-white font-semibold shadow-[inset_0_-2px_0_#0a84ff]"
-                : "text-[#5b6577] hover:text-white",
+                ? "bg-[#232327] font-semibold text-white shadow-[inset_0_-2px_0_#2f7cf6]"
+                : "text-[#6e6e78] hover:text-white",
             )}
           >
             {t.label}
@@ -240,7 +240,7 @@ export default function RightPanel() {
       <div className="min-h-0 flex-1 overflow-y-auto">
         {tab === "layers" && (
           <div className="flex min-h-0 flex-col">
-            <div className="flex items-center gap-1 border-b border-[#3e3e42] p-2">
+            <div className="flex items-center gap-1 border-b border-[#2c2c31] p-2">
               <button
                 onClick={() => {
                   const l = makeLayer(`Layer ${layers.length + 1}`);
@@ -248,7 +248,7 @@ export default function RightPanel() {
                   useProStore.getState().ensureTransform(l.id);
                   addLayer(l);
                 }}
-                className="flex items-center gap-1 rounded bg-[#0a84ff] px-2 py-1 text-[11px] text-white hover:bg-[#0070e0]"
+                className="avero-btn-primary flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold text-white"
               >
                 <Plus size={13} /> Layer
               </button>
@@ -256,23 +256,23 @@ export default function RightPanel() {
                 onClick={() => activeLayerId && removeLayer(activeLayerId)}
                 disabled={layers.length <= 1}
                 title="Hapus layer"
-                className="flex items-center gap-1 rounded bg-[#3e3e42] px-2 py-1 text-[11px] text-white disabled:opacity-40"
+                className="flex items-center gap-1 rounded-md bg-[#232327] px-2 py-1 text-[11px] text-white disabled:opacity-40"
               >
                 <Trash2 size={13} />
               </button>
               <button
                 onClick={() => activeLayerId && mergeDown(activeLayerId)}
                 disabled={layers.length <= 1}
-                title="Merge down (gabung ke bawah)"
-                className="rounded bg-[#3e3e42] px-2 py-1 text-white disabled:opacity-40"
+                title="Merge down"
+                className="rounded-md bg-[#232327] px-2 py-1 text-white disabled:opacity-40"
               >
                 <ArrowDownToLine size={13} />
               </button>
               <button
                 onClick={flattenImage}
                 disabled={layers.length <= 1}
-                title="Flatten image (gabung semua)"
-                className="rounded bg-[#3e3e42] px-2 py-1 text-white disabled:opacity-40"
+                title="Flatten image"
+                className="rounded-md bg-[#232327] px-2 py-1 text-white disabled:opacity-40"
               >
                 <Layers size={13} />
               </button>
@@ -280,14 +280,14 @@ export default function RightPanel() {
                 <button
                   title="Undo"
                   onClick={handleUndo}
-                  className="rounded p-1.5 hover:bg-[#3e3e42]"
+                  className="rounded p-1.5 text-[#a7a7b0] hover:bg-[#232327] hover:text-white"
                 >
                   <Undo2 size={14} />
                 </button>
                 <button
                   title="Redo"
                   onClick={handleRedo}
-                  className="rounded p-1.5 hover:bg-[#3e3e42]"
+                  className="rounded p-1.5 text-[#a7a7b0] hover:bg-[#232327] hover:text-white"
                 >
                   <Redo2 size={14} />
                 </button>
@@ -303,7 +303,7 @@ export default function RightPanel() {
                     onClick={() => setActiveLayer(l.id)}
                     className={clsx(
                       "mb-1.5 rounded-md border p-2",
-                      active ? "border-[#0a84ff] bg-[#2d2d2d]" : "border-[#3e3e42] bg-[#2a2a2a]",
+                      active ? "border-[#2f7cf6] bg-[#232327]" : "border-[#2c2c31] bg-[#161618]",
                     )}
                   >
                     <div className="flex items-center gap-1.5">
@@ -312,12 +312,12 @@ export default function RightPanel() {
                           e.stopPropagation();
                           updateLayer(l.id, { visible: !l.visible });
                         }}
-                        className="text-[#a0a0a0] hover:text-white"
+                        className="text-[#a7a7b0] hover:text-white"
                       >
                         {l.visible ? <Eye size={14} /> : <EyeOff size={14} />}
                       </button>
-                      <span className="flex-1 truncate text-[12px] font-medium">
-                        {l.name} <span className="text-[9px] text-[#a0a0a0]">{l.kind}</span>
+                      <span className="flex-1 truncate text-[12px] font-medium text-white">
+                        {l.name} <span className="text-[9px] text-[#6e6e78]">{l.kind}</span>
                       </span>
                       <button
                         onClick={(e) => {
@@ -325,14 +325,14 @@ export default function RightPanel() {
                           updateLayer(l.id, { locked: !l.locked });
                         }}
                         className={clsx(
-                          l.locked ? "text-amber-400" : "text-[#a0a0a0] hover:text-white",
+                          l.locked ? "text-[#d9a441]" : "text-[#a7a7b0] hover:text-white",
                         )}
                       >
                         <Lock size={13} />
                       </button>
                     </div>
-                    <div className="mt-2 flex items-center gap-2 text-[10px] text-[#a0a0a0]">
-                      <span className="w-10">Op {l.opacity}</span>
+                    <div className="mt-2 flex items-center gap-2 text-[10px] text-[#a7a7b0]">
+                      <span className="w-10 font-mono">Op {l.opacity}</span>
                       <input
                         type="range"
                         min={0}
@@ -344,7 +344,7 @@ export default function RightPanel() {
                       <select
                         value={l.blendMode}
                         onChange={(e) => updateLayer(l.id, { blendMode: e.target.value as any })}
-                        className="rounded bg-[#1e1e1e] px-1 py-0.5 text-[10px] text-white"
+                        className="rounded border border-[#2c2c31] bg-[#161618] px-1 py-0.5 text-[10px] text-white"
                       >
                         <option value="normal">Normal</option>
                         <option value="multiply">Multiply</option>
@@ -356,7 +356,7 @@ export default function RightPanel() {
                       </select>
                     </div>
                     <div className="mt-1 flex items-center justify-between">
-                      <label className="flex items-center gap-1 text-[10px] text-[#a0a0a0]">
+                      <label className="flex items-center gap-1 text-[10px] text-[#a7a7b0]">
                         <input
                           type="checkbox"
                           checked={!!l.clipped}
@@ -371,21 +371,21 @@ export default function RightPanel() {
                             duplicateLayer(l.id);
                           }}
                           title="Duplikat layer"
-                          className="rounded p-1 hover:bg-[#3e3e42]"
+                          className="rounded p-1 text-[#a7a7b0] hover:bg-[#2c2c31] hover:text-white"
                         >
                           <Copy size={12} />
                         </button>
                         <button
                           onClick={() => moveLayer(l.id, 1)}
                           title="Move up"
-                          className="rounded p-1 hover:bg-[#3e3e42]"
+                          className="rounded p-1 text-[#a7a7b0] hover:bg-[#2c2c31] hover:text-white"
                         >
                           <ChevronUp size={12} />
                         </button>
                         <button
                           onClick={() => moveLayer(l.id, -1)}
                           title="Move down"
-                          className="rounded p-1 hover:bg-[#3e3e42]"
+                          className="rounded p-1 text-[#a7a7b0] hover:bg-[#2c2c31] hover:text-white"
                         >
                           <ChevronDown size={12} />
                         </button>
@@ -396,9 +396,9 @@ export default function RightPanel() {
               })}
             </div>
 
-            <div className="border-t border-[#3e3e42] p-3">
-              <h4 className="mb-1.5 font-semibold text-white">Brush</h4>
-              <label className="mb-1 flex justify-between text-[11px] text-[#a0a0a0]">
+            <div className="border-t border-[#2c2c31] p-3">
+              <h4 className="avero-micro mb-1.5">Brush</h4>
+              <label className="mb-1 flex justify-between text-[11px] text-[#a7a7b0]">
                 Size <span className="font-mono text-white">{brush.size}px</span>
               </label>
               <input
@@ -409,7 +409,7 @@ export default function RightPanel() {
                 onChange={(e) => setBrush({ size: Number(e.target.value) })}
                 className="w-full"
               />
-              <label className="mb-1 mt-1 flex justify-between text-[11px] text-[#a0a0a0]">
+              <label className="mb-1 mt-1 flex justify-between text-[11px] text-[#a7a7b0]">
                 Opacity <span className="font-mono text-white">{brush.opacity}%</span>
               </label>
               <input
@@ -425,9 +425,9 @@ export default function RightPanel() {
                   type="color"
                   value={brush.color}
                   onChange={(e) => setBrush({ color: e.target.value })}
-                  className="h-7 w-11 cursor-pointer rounded border border-[#3e3e42] bg-transparent"
+                  className="h-7 w-11 cursor-pointer rounded border border-[#2c2c31] bg-transparent"
                 />
-                <span className="font-mono text-[11px] text-[#c5c5c5]">{brush.color}</span>
+                <span className="font-mono text-[11px] text-[#a7a7b0]">{brush.color}</span>
               </div>
             </div>
             <TransformPanel />
@@ -451,18 +451,18 @@ export default function RightPanel() {
         {tab === "history" && (
           <div className="p-2 text-[12px]">
             {history.length === 0 && (
-              <div className="p-3 text-center text-[#a0a0a0]">Belum ada history.</div>
+              <div className="p-3 text-center text-[#6e6e78]">Belum ada history.</div>
             )}
             {[...history].reverse().map((h) => (
-              <div key={h.id} className="mb-1 rounded bg-[#2d2d2d] px-2 py-1.5">
+              <div key={h.id} className="mb-1 rounded bg-[#232327] px-2 py-1.5">
                 <div className="font-medium text-white">{h.label}</div>
-                <div className="font-mono text-[10px] text-[#a0a0a0]">
+                <div className="font-mono text-[10px] text-[#6e6e78]">
                   {new Date(h.time).toLocaleTimeString()}
                 </div>
               </div>
             ))}
             {future.length > 0 && (
-              <div className="p-2 text-[11px] text-[#a0a0a0]">{future.length} redo tersedia</div>
+              <div className="p-2 text-[11px] text-[#6e6e78]">{future.length} redo tersedia</div>
             )}
           </div>
         )}

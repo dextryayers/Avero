@@ -21,8 +21,8 @@ export const tokens = {
     accentHover: "#3b8bff",
     accentActive: "#2568d8",
     danger: "#e5534b",
-    ok: "#3fb950",
-    warn: "#d29922",
+    ok: "#2f7cf6",
+    warn: "#d9a441",
   },
   layout: {
     titleBarH: 44,

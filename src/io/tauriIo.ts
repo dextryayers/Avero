@@ -106,8 +106,8 @@ export async function checkBackend(): Promise<{ ok: boolean; info: string }> {
     const info = await invoke<{ name: string; version: string; os: string; arch: string }>(
       "app_ping",
     );
-    return { ok: true, info: `${info.name} ${info.version} Rust (${info.os}/${info.arch})` };
+    return { ok: true, info: `${info.name} ${info.version} (${info.os}/${info.arch})` };
   } catch (e) {
-    return { ok: false, info: `Web preview only: ${String(e)}` };
+    return { ok: false, info: `Web preview: ${String(e)}` };
   }
 }

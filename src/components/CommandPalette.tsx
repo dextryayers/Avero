@@ -37,6 +37,21 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
         run: () => useHomeStore.getState().setHome(true),
       },
       {
+        id: "save-avx",
+        title: "Simpan proyek .avx (Ctrl+S)",
+        run: () => window.dispatchEvent(new Event("avero:save-avx")),
+      },
+      {
+        id: "open-avx",
+        title: "Buka proyek .avx",
+        run: () => window.dispatchEvent(new Event("avero:open-avx")),
+      },
+      {
+        id: "export",
+        title: "Export gambar PNG JPG WEBP BMP SVG TIFF (Ctrl+E)",
+        run: () => window.dispatchEvent(new Event("avero:open-export")),
+      },
+      {
         id: "open",
         title: "Open image PNG JPG WEBP PSD",
         run: async () => {
@@ -74,8 +89,8 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
         },
       },
       {
-        id: "save",
-        title: "Export composite PNG JPG WEBP (dengan adjust+filter)",
+        id: "save-legacy",
+        title: "Export cepat PNG komposit (dengan adjust+filter)",
         run: async () => {
           const st = useEditorStore.getState();
           const comp = getCompositeCanvas();
@@ -307,15 +322,15 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
       onClick={onClose}
     >
       <div
-        className="w-[520px] overflow-hidden rounded-lg border border-[#3e3e42] bg-[#252526] shadow-2xl"
+        className="w-[520px] overflow-hidden rounded-md border border-[#2c2c31] bg-[#1c1c1f]"
         onClick={(e) => e.stopPropagation()}
       >
         <input
           autoFocus
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Ketik perintah: blur, export, open, layer..."
-          className="w-full border-b border-[#3e3e42] bg-transparent px-4 py-3 text-[13px] text-white outline-none"
+          placeholder="Ketik perintah: avx, export, blur, layer..."
+          className="w-full border-b border-[#2c2c31] bg-transparent px-4 py-3 text-[13px] text-white outline-none"
           onKeyDown={(e) => {
             if (e.key === "Enter" && filtered[0]) {
               filtered[0].run();
@@ -332,14 +347,14 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
                 a.run();
                 onClose();
               }}
-              className="flex w-full items-center justify-between rounded px-3 py-2 text-left text-[12px] text-[#e0e0e0] hover:bg-[#0a84ff] hover:text-white"
+              className="flex w-full items-center justify-between rounded px-3 py-2 text-left text-[12px] text-[#c9c9d1] hover:bg-[#2f7cf6] hover:text-white"
             >
               {a.title}
               <span className="font-mono text-[10px] opacity-60">Enter</span>
             </button>
           ))}
           {filtered.length === 0 && (
-            <div className="p-4 text-center text-[12px] text-[#a0a0a0]">Tidak ada aksi cocok</div>
+            <div className="p-4 text-center text-[12px] text-[#a7a7b0]">Tidak ada aksi cocok</div>
           )}
         </div>
       </div>

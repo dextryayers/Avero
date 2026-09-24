@@ -15,33 +15,35 @@ export default function WorkspaceBar() {
   const setShowPrompt = useWorkspaceStore((s) => s.setShowPrompt);
 
   return (
-    <div className="flex shrink-0 items-center gap-1.5 border-b border-[#1c2333] bg-[#0b0e14] px-3 py-1.5 text-[11px]">
-      <span className="mr-1 hidden font-mono text-[10px] uppercase tracking-wider text-[#3d465c] sm:block">Workspace</span>
+    <div className="flex shrink-0 items-center gap-1.5 border-b border-[#2c2c31] bg-[#161618] px-3 py-1.5 text-[11px]">
+      <span className="mr-1 hidden font-mono text-[10px] uppercase tracking-wider text-[#6e6e78] sm:block">
+        Workspace
+      </span>
       {items.map((w) => (
         <button
           key={w.id}
           onClick={() => setWorkspace(w.id as any)}
           className={clsx(
-            "rounded-lg px-3 py-1.5 font-medium transition",
+            "rounded-md px-3 py-1 font-medium",
             active === w.id
-              ? "bg-gradient-to-r from-[#0a84ff] to-[#00c2ff] text-white shadow-[0_4px_16px_rgba(10,132,255,0.35)]"
-              : "bg-[#141a27] text-[#8a94a6] ring-1 ring-[#1c2333] hover:text-white",
+              ? "bg-[#2f7cf6] text-white"
+              : "bg-[#1c1c1f] text-[#a7a7b0] border border-[#2c2c31] hover:text-white hover:bg-[#232327]",
           )}
         >
           {w.label}
         </button>
       ))}
-      <label className="ml-2 flex cursor-pointer items-center gap-1.5 text-[#5b6577]">
+      <label className="ml-2 flex cursor-pointer items-center gap-1.5 text-[#6e6e78]">
         <input
           type="checkbox"
           checked={showPrompt}
           onChange={(e) => setShowPrompt(e.target.checked)}
-          className="accent-[#0a84ff]"
+          className="accent-[#2f7cf6]"
         />
         Prompt bar
       </label>
-      <span className="ml-auto hidden font-mono text-[10px] text-[#3d465c] md:block">
-        Tersimpan lokal • Retouch / Photo / Design / Minimal
+      <span className="ml-auto hidden font-mono text-[10px] text-[#6e6e78] md:block">
+        Tersimpan lokal Retouch / Photo / Design / Minimal
       </span>
     </div>
   );

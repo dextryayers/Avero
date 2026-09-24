@@ -11,7 +11,9 @@ import PromptBar from "./components/PromptBar";
 import NodeGraph from "./components/NodeGraph";
 import Onboarding from "./components/Onboarding";
 import BootSplash from "./components/BootSplash";
-import HomeScreen from "./components/HomeScreen";
+import HomeScreen, { openImageViaDialog } from "./components/HomeScreen";
+import ExportDialog from "./components/ExportDialog";
+import { openAvxProject, saveAvxProject } from "./io/projectIo";
 import { useEditorStore } from "./stores/useEditorStore";
 import { useProStore } from "./stores/useProStore";
 import { useWorkspaceStore, loadShortcuts } from "./stores/useWorkspaceStore";
@@ -22,6 +24,7 @@ import { loadRecovery, saveRecovery, clearRecovery } from "./engine/recovery";
 
 export default function App() {
   const [palette, setPalette] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [booted, setBooted] = useState(false);
   const [recovery, setRecovery] = useState<ReturnType<typeof loadRecovery>>(null);
   const newDocument = useEditorStore((s) => s.newDocument);
@@ -85,7 +88,17 @@ export default function App() {
       }
       if (mod && e.key.toLowerCase() === "s") {
         e.preventDefault();
-        setPalette(true);
+        const ae = document.activeElement?.tagName;
+        if (ae === "INPUT" || ae === "TEXTAREA") return;
+        saveAvxProject(e.shiftKey).catch((err) => alert(`Gagal menyimpan proyek: ${String(err)}`));
+      }
+      if (mod && e.key.toLowerCase() === "e") {
+        e.preventDefault();
+        setExportOpen(true);
+      }
+      if (mod && e.key.toLowerCase() === "o") {
+        e.preventDefault();
+        openImageViaDialog();
       }
       if (mod && e.key.toLowerCase() === "z" && !e.shiftKey) {
         e.preventDefault();
@@ -156,14 +169,35 @@ export default function App() {
         }
       }
     }
+    function onExportEvent() {
+      setExportOpen(true);
+    }
+    function onSaveEvent() {
+      saveAvxProject(false).catch((err) => alert(`Gagal menyimpan proyek: ${String(err)}`));
+    }
+    function onOpenAvxEvent() {
+      openAvxProject().catch((err) => alert(`Gagal membuka proyek: ${String(err)}`));
+    }
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("avero:open-export", onExportEvent);
+    window.addEventListener("avero:save-avx", onSaveEvent);
+    window.addEventListener("avero:open-avx", onOpenAvxEvent);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("avero:open-export", onExportEvent);
+      window.removeEventListener("avero:save-avx", onSaveEvent);
+      window.removeEventListener("avero:open-avx", onOpenAvxEvent);
+    };
   }, []);
 
   return (
-    <div className="flex h-full flex-col bg-[#0b0e14] text-[#e8edf5]">
+    <div className="flex h-full flex-col bg-[#161618] text-[#ececee]">
       {!booted && <BootSplash onDone={() => setBooted(true)} />}
-      <TitleBar onOpenCommand={() => setPalette(true)} onHome={() => setHome(true)} />
+      <TitleBar
+        onOpenCommand={() => setPalette(true)}
+        onOpenExport={() => setExportOpen(true)}
+        onHome={() => setHome(true)}
+      />
       <WorkspaceBar />
       {showPrompt && !homeOpen && <PromptBar />}
       {!homeOpen && <PsdInfo />}
@@ -182,7 +216,7 @@ export default function App() {
               clearRecovery();
               setRecovery(null);
             }}
-            className="rounded bg-[#3e3e42] px-2 py-0.5"
+            className="rounded bg-[#2c2c31] px-2 py-0.5"
           >
             Hapus recovery
           </button>
@@ -199,11 +233,12 @@ export default function App() {
       )}
       <StatusBar />
       <CommandPalette open={palette} onClose={() => setPalette(false)} />
+      {!homeOpen && exportOpen && <ExportDialog onClose={() => setExportOpen(false)} />}
       {booted && <Onboarding />}
 
-      <div className="flex items-center gap-2 border-t border-[#3e3e42] bg-[#1a1a1a] px-3 py-1 text-[10px] text-[#a0a0a0]">
+      <div className="flex items-center gap-2 border-t border-[#2c2c31] bg-[#1c1c1f] px-3 py-1 font-mono text-[10px] text-[#6e6e78]">
         <span>
-          AVERO STUDIO v0.1.0 • AI offline • non-destruktif • Ctrl+K semua aksi • Del hapus seleksi
+          AVERO STUDIO v2.0.0. Ctrl+S simpan .avx. Ctrl+E export. Ctrl+K semua aksi. Del hapus seleksi.
         </span>
         <button
           onClick={() => {
@@ -214,7 +249,7 @@ export default function App() {
             useProStore.getState().bumpHistogram();
             setHome(false);
           }}
-          className="ml-auto shrink-0 rounded bg-[#2d2d2d] px-2 py-0.5 hover:bg-[#3e3e42] hover:text-white"
+          className="ml-auto shrink-0 rounded bg-[#232327] px-2 py-0.5 text-[#a7a7b0] hover:bg-[#2c2c31] hover:text-white"
         >
           New 1920x1080
         </button>

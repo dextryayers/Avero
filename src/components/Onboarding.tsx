@@ -22,14 +22,14 @@ import { renderTextToLayer } from "../engine/textShape";
 import clsx from "clsx";
 
 const STEPS = [
-  { id: "welcome", title: "Selamat Datang", desc: "Kenalan dengan AVERO" },
-  { id: "create", title: "Buka & Buat", desc: "Mulai berkarya" },
-  { id: "retouch", title: "Retouch Pro", desc: "Tools lengkap" },
-  { id: "color", title: "Warna & AI", desc: "Non-destruktif" },
+  { id: "welcome", title: "Selamat Datang", desc: "Pengantar singkat" },
+  { id: "create", title: "Buka dan Buat", desc: "Mulai berkarya" },
+  { id: "retouch", title: "Retouch", desc: "Peralatan lengkap" },
+  { id: "color", title: "Warna dan AI", desc: "Non-destruktif" },
   { id: "workspace", title: "Workspace", desc: "Siap kerja" },
 ];
 
-function sampleProject(kind: "retouch" | "design" | "photo") {
+function sampleProject(kind: "retouch" | "design") {
   const st = useEditorStore.getState();
   layerManager.clear();
   const W = 1600;
@@ -39,30 +39,24 @@ function sampleProject(kind: "retouch" | "design" | "photo") {
   const c = layerManager.ensure(id, W, H);
   const ctx = c.getContext("2d")!;
   if (kind === "design") {
-    const g = ctx.createLinearGradient(0, 0, W, H);
-    g.addColorStop(0, "#0b1020");
-    g.addColorStop(0.5, "#123a6d");
-    g.addColorStop(1, "#0a84ff");
-    ctx.fillStyle = g;
+    ctx.fillStyle = "#1a2b45";
     ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = "rgba(56,225,255,0.18)";
-    for (let i = 0; i < 5; i++) {
-      ctx.beginPath();
-      ctx.arc(200 + i * 300, 750 - i * 90, 120 - i * 12, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    ctx.fillStyle = "#2f7cf6";
+    ctx.fillRect(180, 640, 520, 180);
+    ctx.fillStyle = "#d8d8de";
+    ctx.fillRect(740, 640, 680, 180);
   } else {
     const g = ctx.createLinearGradient(0, 0, W, H);
-    g.addColorStop(0, "#2b4a6f");
-    g.addColorStop(0.55, "#7a6a9a");
-    g.addColorStop(1, "#e0905a");
+    g.addColorStop(0, "#3a4a63");
+    g.addColorStop(0.55, "#6a6a80");
+    g.addColorStop(1, "#9a7a5a");
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = "#f2ede4";
+    ctx.fillStyle = "#e8e2d6";
     ctx.beginPath();
     ctx.ellipse(800, 520, 260, 320, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = "#1e1e1e";
+    ctx.fillStyle = "#232327";
     ctx.beginPath();
     ctx.ellipse(730, 470, 26, 34, 0, 0, Math.PI * 2);
     ctx.ellipse(870, 470, 26, 34, 0, 0, Math.PI * 2);
@@ -72,7 +66,7 @@ function sampleProject(kind: "retouch" | "design" | "photo") {
   layerManager.ensure(l2.id, W, H);
   st.addLayer({ ...l2, kind: "text" });
   const spec = {
-    text: kind === "design" ? "AVERO STUDIO" : "Coba AI hapus background",
+    text: kind === "design" ? "AVERO STUDIO" : "Coba hapus background",
     fontFamily: "Inter",
     fontSize: 72,
     color: "#ffffff",
@@ -102,13 +96,10 @@ export default function Onboarding() {
     if (dontShow) {
       setOnboarding(true);
     } else {
-      // Tutup untuk sesi ini saja, tanpa persist "done"
       useWorkspaceStore.setState({ onboardingDone: true });
       try {
         localStorage.removeItem("avero-onboarding");
       } catch {}
-      // Kembalikan flag persist ke false agar startup berikutnya tampil lagi,
-      // tapi overlay sesi ini tetap tertutup via session flag
       queueMicrotask(() => {
         try {
           localStorage.removeItem("avero-onboarding");
@@ -139,62 +130,60 @@ export default function Onboarding() {
   }
 
   return (
-    <div className="fixed inset-0 z-[60] grid place-items-center bg-black/75 p-4 backdrop-blur-sm">
-      <div className="animate-fade-up flex w-[860px] max-w-full overflow-hidden rounded-2xl border border-[#232b3d] bg-[#10141d] shadow-[0_30px_90px_rgba(0,0,0,0.7)]">
-        {/* Sidebar steps ala Photoshop */}
-        <div className="hidden w-[240px] shrink-0 flex-col bg-gradient-to-b from-[#161c2a] to-[#0d1119] p-5 sm:flex">
+    <div className="fixed inset-0 z-[60] grid place-items-center bg-black/70 p-4">
+      <div className="flex max-h-[92vh] w-[840px] max-w-full overflow-hidden rounded-lg border border-[#2c2c31] bg-[#1c1c1f]">
+        <div className="hidden w-[220px] shrink-0 flex-col border-r border-[#2c2c31] bg-[#161618] p-4 sm:flex">
           <div className="flex items-center gap-2.5">
-            <img src="/logo.png" alt="AVERO" className="h-10 w-10 rounded-xl object-cover" />
+            <img src="/logo.png" alt="AVERO" className="h-9 w-9 rounded-md object-cover" />
             <div>
-              <div className="text-[13px] font-extrabold tracking-[0.16em] text-white">AVERO</div>
-              <div className="text-[9px] tracking-[0.34em] text-[#38a0ff]">STUDIO</div>
+              <div className="text-[12px] font-bold tracking-wide text-white">AVERO STUDIO</div>
+              <div className="font-mono text-[10px] text-[#6e6e78]">v2.0.0</div>
             </div>
           </div>
-          <div className="mt-6 space-y-1">
+          <div className="mt-5 space-y-1">
             {STEPS.map((s, i) => (
               <button
                 key={s.id}
                 onClick={() => setStep(i)}
                 className={clsx(
-                  "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition",
-                  i === step ? "bg-[#0a84ff]/15 ring-1 ring-[#0a84ff]/50" : "hover:bg-white/5",
+                  "flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left",
+                  i === step ? "bg-[#232327]" : "hover:bg-[#1c1c1f]",
                 )}
               >
                 <span
                   className={clsx(
-                    "grid h-6 w-6 shrink-0 place-items-center rounded-full text-[11px] font-bold",
+                    "grid h-5 w-5 shrink-0 place-items-center rounded-full text-[10px] font-bold",
                     i < step
-                      ? "bg-emerald-500 text-white"
+                      ? "bg-[#2f7cf6] text-white"
                       : i === step
-                        ? "bg-[#0a84ff] text-white"
-                        : "bg-[#232b3d] text-[#8a94a6]",
+                        ? "bg-[#2f7cf6] text-white"
+                        : "bg-[#2c2c31] text-[#a7a7b0]",
                   )}
                 >
-                  {i < step ? <Check size={13} /> : i + 1}
+                  {i < step ? <Check size={11} /> : i + 1}
                 </span>
                 <span>
-                  <span className={clsx("block text-[12px] font-semibold", i === step ? "text-white" : "text-[#c5cddc]")}>
+                  <span className={clsx("block text-[12px] font-semibold", i === step ? "text-white" : "text-[#c9c9d1]")}>
                     {s.title}
                   </span>
-                  <span className="block text-[10px] text-[#5b6577]">{s.desc}</span>
+                  <span className="block text-[10px] text-[#6e6e78]">{s.desc}</span>
                 </span>
               </button>
             ))}
           </div>
-          <div className="mt-auto rounded-lg border border-[#232b3d] bg-black/30 p-3 text-[10px] leading-relaxed text-[#8a94a6]">
-            Offline-first • Non-destruktif • Tanpa akun • v2.0.0
+          <div className="mt-auto rounded-md border border-[#2c2c31] p-2.5 text-[10px] leading-relaxed text-[#6e6e78]">
+            Offline. Non-destruktif. Tanpa akun.
           </div>
         </div>
 
-        {/* Main */}
-        <div className="flex min-h-[480px] min-w-0 flex-1 flex-col p-6">
-          <div className="mb-1 flex items-center gap-2 text-[11px] text-[#5b6577]">
-            <span className="font-mono">
+        <div className="flex min-h-[460px] min-w-0 flex-1 flex-col p-5">
+          <div className="mb-1 flex items-center gap-2 font-mono text-[10px] text-[#6e6e78]">
+            <span>
               {step + 1} / {STEPS.length}
             </span>
-            <div className="h-1 flex-1 overflow-hidden rounded bg-[#1b2130]">
+            <div className="h-1 flex-1 overflow-hidden rounded bg-[#2c2c31]">
               <div
-                className="h-full bg-gradient-to-r from-[#0a84ff] to-[#38e1ff] transition-all"
+                className="h-full bg-[#2f7cf6] transition-all"
                 style={{ width: `${((step + 1) / STEPS.length) * 100}%` }}
               />
             </div>
@@ -203,30 +192,26 @@ export default function Onboarding() {
           <div className="min-h-0 flex-1 overflow-y-auto py-3">
             {step === 0 && (
               <div>
-                <h2 className="text-[22px] font-extrabold leading-tight text-white">
-                  Studio foto profesional,
-                  <br />
-                  <span className="bg-gradient-to-r from-[#0a84ff] to-[#38e1ff] bg-clip-text text-transparent">
-                    sekelas Photoshop.
-                  </span>
+                <div className="avero-micro">Pengantar</div>
+                <h2 className="mt-1 text-[20px] font-bold leading-snug text-white">
+                  Editor foto profesional untuk pekerjaan sehari-hari.
                 </h2>
-                <p className="mt-2 max-w-[520px] text-[12.5px] leading-relaxed text-[#aeb7c9]">
-                  AVERO STUDIO adalah editor foto open-source dengan layer, mask, adjustment
-                  non-destruktif, RAW develop, AI offline, dan automation — dalam 30 detik kamu
-                  langsung bisa retouch.
+                <p className="mt-2 max-w-[520px] text-[12.5px] leading-relaxed text-[#a7a7b0]">
+                  AVERO STUDIO memiliki layer dan mask, adjustment non-destruktif, RAW develop,
+                  AI offline, dan automation dalam satu aplikasi desktop.
                 </p>
-                <div className="mt-4 grid grid-cols-2 gap-2.5">
+                <div className="mt-4 grid grid-cols-2 gap-2">
                   {[
-                    { icon: Layers, t: "Layer + Mask", d: "Blend, clip, feather, density" },
-                    { icon: Brush, t: "Retouch lengkap", d: "Heal, clone, dodge & burn" },
-                    { icon: Palette, t: "Warna pro", d: "Levels, curves, selective" },
-                    { icon: Sparkles, t: "AI offline", d: "BG remover, upscale 2x" },
+                    { icon: Layers, t: "Layer dan Mask", d: "Blend, clip, feather, density" },
+                    { icon: Brush, t: "Retouch lengkap", d: "Heal, clone, dodge dan burn" },
+                    { icon: Palette, t: "Warna akurat", d: "Levels, curves, selective" },
+                    { icon: Sparkles, t: "AI offline", d: "Hapus background, upscale 2x" },
                   ].map((f) => (
                     <div key={f.t} className="avero-card flex gap-2.5 p-3">
-                      <f.icon size={18} className="mt-0.5 shrink-0 text-[#38a0ff]" />
+                      <f.icon size={17} className="mt-0.5 shrink-0 text-[#8fb6f5]" />
                       <div>
                         <div className="text-[12px] font-semibold text-white">{f.t}</div>
-                        <div className="text-[11px] text-[#8a94a6]">{f.d}</div>
+                        <div className="text-[11px] text-[#6e6e78]">{f.d}</div>
                       </div>
                     </div>
                   ))}
@@ -236,51 +221,53 @@ export default function Onboarding() {
 
             {step === 1 && (
               <div>
-                <h2 className="text-[19px] font-bold text-white">Mulai dari foto atau kanvas kosong</h2>
-                <p className="mt-1 text-[12px] text-[#8a94a6]">Tiga cara tercepat — pilih salah satu, langsung masuk editor.</p>
-                <div className="mt-4 grid grid-cols-3 gap-2.5">
-                  <button onClick={() => fileRef.current?.click()} className="avero-card group p-4 text-left hover:ring-1 hover:ring-[#0a84ff]">
-                    <FolderOpen size={22} className="text-[#38a0ff]" />
-                    <div className="mt-2 text-[12.5px] font-semibold text-white">Buka Foto</div>
-                    <div className="text-[11px] text-[#8a94a6]">PNG • JPG • WEBP • PSD</div>
+                <div className="avero-micro">Mulai</div>
+                <h2 className="mt-1 text-[18px] font-bold text-white">Buka foto atau kanvas kosong</h2>
+                <p className="mt-1 text-[12px] text-[#6e6e78]">Pilih salah satu untuk langsung masuk editor.</p>
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  <button onClick={() => fileRef.current?.click()} className="avero-card group p-4 text-left hover:border-[#3a3a41]">
+                    <FolderOpen size={20} className="text-[#8fb6f5]" />
+                    <div className="mt-2 text-[12px] font-semibold text-white">Buka Foto</div>
+                    <div className="text-[11px] text-[#6e6e78]">PNG, JPG, WEBP, PSD</div>
                   </button>
-                  <button onClick={() => sampleProject("retouch")} className="avero-card group p-4 text-left hover:ring-1 hover:ring-[#0a84ff]">
-                    <ImagePlus size={22} className="text-[#38a0ff]" />
-                    <div className="mt-2 text-[12.5px] font-semibold text-white">Sample Retouch</div>
-                    <div className="text-[11px] text-[#8a94a6]">Wajah + teks siap edit</div>
+                  <button onClick={() => sampleProject("retouch")} className="avero-card group p-4 text-left hover:border-[#3a3a41]">
+                    <ImagePlus size={20} className="text-[#8fb6f5]" />
+                    <div className="mt-2 text-[12px] font-semibold text-white">Sample Retouch</div>
+                    <div className="text-[11px] text-[#6e6e78]">Foto dan teks siap edit</div>
                   </button>
-                  <button onClick={() => sampleProject("design")} className="avero-card group p-4 text-left hover:ring-1 hover:ring-[#0a84ff]">
-                    <Wand2 size={22} className="text-[#38a0ff]" />
-                    <div className="mt-2 text-[12.5px] font-semibold text-white">Sample Design</div>
-                    <div className="text-[11px] text-[#8a94a6]">Gradien + shape modern</div>
+                  <button onClick={() => sampleProject("design")} className="avero-card group p-4 text-left hover:border-[#3a3a41]">
+                    <Wand2 size={20} className="text-[#8fb6f5]" />
+                    <div className="mt-2 text-[12px] font-semibold text-white">Sample Design</div>
+                    <div className="text-[11px] text-[#6e6e78]">Komposisi bentuk dasar</div>
                   </button>
                 </div>
                 <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
-                <div className="mt-3 rounded-lg bg-[#0a84ff]/10 p-3 text-[11.5px] text-[#aeb7c9] ring-1 ring-[#0a84ff]/30">
-                  Atau seret file dari Explorer langsung ke kanvas — otomatis jadi dokumen baru + masuk
-                  Riwayat Home.
+                <div className="mt-3 rounded-md border border-[#2c2c31] bg-[#161618] p-3 text-[11.5px] text-[#a7a7b0]">
+                  Seret file dari Explorer ke kanvas untuk membuat dokumen baru. File tercatat di
+                  riwayat Home.
                 </div>
               </div>
             )}
 
             {step === 2 && (
               <div>
-                <h2 className="text-[19px] font-bold text-white">Tools retouch selengkap Photoshop</h2>
-                <p className="mt-1 text-[12px] text-[#8a94a6]">Semua ada shortcut — hafalkan 5 detik, kerja 10x lebih cepat.</p>
+                <div className="avero-micro">Peralatan</div>
+                <h2 className="mt-1 text-[18px] font-bold text-white">Shortcut utama retouch</h2>
+                <p className="mt-1 text-[12px] text-[#6e6e78]">Hafalkan yang sering dipakai agar kerja lebih cepat.</p>
                 <div className="mt-3 grid grid-cols-2 gap-2 text-[11.5px]">
                   {[
-                    ["B", "Brush & Eraser", "Hardness, opacity, paint mask"],
-                    ["J / S", "Spot Heal & Clone", "Alt+klik tentukan sumber"],
-                    ["O", "Dodge / Burn / Sponge", "Terang-gelap & saturasi lokal"],
-                    ["Blur / Smudge", "U / Shift+U", "Haluskan & seret piksel"],
-                    ["M / L / W", "Select pro", "Rect, lasso, magic wand + feather"],
-                    ["V / H / Z", "Move / Pan / Zoom", "Transform + guides + snap"],
+                    ["B", "Brush dan Eraser", "Hardness, opacity, paint mask"],
+                    ["J / S", "Spot Heal dan Clone", "Alt+klik menentukan sumber"],
+                    ["O", "Dodge, Burn, Sponge", "Terang, gelap, saturasi lokal"],
+                    ["R", "Blur, Sharpen, Smudge", "Haluskan dan seret piksel"],
+                    ["M / L / W", "Select", "Rect, lasso, wand, feather"],
+                    ["V / H / Z", "Navigasi", "Move, pan, zoom, guides"],
                   ].map(([k, t, d]) => (
-                    <div key={t} className="flex items-center gap-2.5 rounded-lg border border-[#232b3d] bg-black/20 p-2.5">
-                      <span className="rounded bg-[#1b2130] px-1.5 py-1 font-mono text-[10px] text-[#38e1ff]">{k}</span>
+                    <div key={t} className="flex items-center gap-2.5 rounded-md border border-[#2c2c31] bg-[#161618] p-2.5">
+                      <span className="rounded bg-[#232327] px-1.5 py-1 font-mono text-[10px] text-[#8fb6f5]">{k}</span>
                       <span>
                         <span className="block font-semibold text-white">{t}</span>
-                        <span className="block text-[#8a94a6]">{d}</span>
+                        <span className="block text-[#6e6e78]">{d}</span>
                       </span>
                     </div>
                   ))}
@@ -290,17 +277,18 @@ export default function Onboarding() {
 
             {step === 3 && (
               <div>
-                <h2 className="text-[19px] font-bold text-white">Warna akurat, edit aman</h2>
+                <div className="avero-micro">Warna</div>
+                <h2 className="mt-1 text-[18px] font-bold text-white">Edit aman dan akurat</h2>
                 <div className="mt-3 space-y-2 text-[12px]">
                   {[
-                    ["Levels • Curves • Exposure • HSL • Vibrance", "Adjustment stack bisa di-toggle, opacity, reorder."],
-                    ["Gaussian / Motion Blur • Sharpen • Vignette • Grain", "Filter stack dengan preview langsung."],
-                    ["RAW develop • sRGB / AdobeRGB • Soft-proof CMYK", "Color management untuk cetak."],
-                    ["Background remover • Upscale 2x • Restore — 100% offline", "AI lokal tanpa upload."],
+                    ["Levels, Curves, Exposure, HSL, Vibrance", "Stack adjustment bisa dimatikan, diatur opacity, dan disusun ulang."],
+                    ["Gaussian dan Motion Blur, Sharpen, Vignette, Grain", "Stack filter dengan pratinjau langsung."],
+                    ["RAW develop, sRGB dan AdobeRGB, soft-proof CMYK", "Manajemen warna untuk kebutuhan cetak."],
+                    ["Background remover, upscale 2x, restore", "AI lokal. Berjalan offline penuh."],
                   ].map(([t, d]) => (
-                    <div key={t} className="rounded-lg border border-[#232b3d] bg-black/20 p-2.5">
+                    <div key={t} className="rounded-md border border-[#2c2c31] bg-[#161618] p-2.5">
                       <div className="font-semibold text-white">{t}</div>
-                      <div className="text-[#8a94a6]">{d}</div>
+                      <div className="text-[#6e6e78]">{d}</div>
                     </div>
                   ))}
                 </div>
@@ -309,43 +297,43 @@ export default function Onboarding() {
 
             {step === 4 && (
               <div>
-                <h2 className="text-[19px] font-bold text-white">Pilih workspace, mulai kerja</h2>
+                <div className="avero-micro">Workspace</div>
+                <h2 className="mt-1 text-[18px] font-bold text-white">Pilih workspace dan mulai</h2>
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   {(["retouching", "photography", "design", "minimal"] as const).map((w) => (
                     <button
                       key={w}
                       onClick={() => useWorkspaceStore.getState().setWorkspace(w)}
-                      className="rounded-lg border border-[#232b3d] bg-black/20 p-3 text-left capitalize hover:border-[#0a84ff]"
+                      className="rounded-md border border-[#2c2c31] bg-[#161618] p-3 text-left capitalize hover:border-[#3a3a41]"
                     >
-                      <div className="flex items-center gap-1.5 text-[12.5px] font-semibold text-white">
-                        <Keyboard size={14} className="text-[#38a0ff]" /> {w}
+                      <div className="flex items-center gap-1.5 text-[12px] font-semibold text-white">
+                        <Keyboard size={14} className="text-[#8fb6f5]" /> {w}
                       </div>
-                      <div className="mt-0.5 text-[11px] text-[#8a94a6]">
-                        {w === "retouching" ? "Brush + layer + AI prompt" : w === "photography" ? "RAW + histogram + color" : w === "design" ? "Text + shape + node" : "Kanvas bersih minimal"}
+                      <div className="mt-0.5 text-[11px] text-[#6e6e78]">
+                        {w === "retouching" ? "Brush, layer, AI prompt" : w === "photography" ? "RAW, histogram, color" : w === "design" ? "Text, shape, node" : "Kanvas bersih minimal"}
                       </div>
                     </button>
                   ))}
                 </div>
-                <label className="mt-3 flex cursor-pointer items-center gap-2 text-[11.5px] text-[#8a94a6]">
-                  <input type="checkbox" checked={dontShow} onChange={(e) => setDontShow(e.target.checked)} className="h-3.5 w-3.5 accent-[#0a84ff]" />
+                <label className="mt-3 flex cursor-pointer items-center gap-2 text-[11.5px] text-[#6e6e78]">
+                  <input type="checkbox" checked={dontShow} onChange={(e) => setDontShow(e.target.checked)} className="h-3.5 w-3.5 accent-[#2f7cf6]" />
                   Jangan tampilkan lagi saat startup
                 </label>
               </div>
             )}
           </div>
 
-          {/* Footer nav */}
-          <div className="flex items-center gap-2 border-t border-[#1c2333] pt-4">
+          <div className="flex items-center gap-2 border-t border-[#2c2c31] pt-4">
             <button
               onClick={() => setStep((s) => Math.max(0, s - 1))}
               disabled={step === 0}
-              className="flex items-center gap-1.5 rounded-lg bg-[#1b2130] px-3 py-2 text-[12px] text-white disabled:opacity-40"
+              className="flex items-center gap-1.5 rounded-md bg-[#232327] px-3 py-2 text-[12px] text-white disabled:opacity-40"
             >
               <ArrowLeft size={14} /> Kembali
             </button>
             <button
               onClick={finishEmpty}
-              className="rounded-lg px-3 py-2 text-[12px] text-[#8a94a6] hover:text-white"
+              className="rounded-md px-3 py-2 text-[12px] text-[#6e6e78] hover:text-white"
             >
               Lewati
             </button>
@@ -353,7 +341,7 @@ export default function Onboarding() {
               {step < STEPS.length - 1 ? (
                 <button
                   onClick={() => setStep((s) => Math.min(STEPS.length - 1, s + 1))}
-                  className="avero-btn-primary flex items-center gap-1.5 rounded-lg px-4 py-2 text-[12px] font-semibold text-white"
+                  className="avero-btn-primary flex items-center gap-1.5 rounded-md px-4 py-2 text-[12px] font-semibold text-white"
                 >
                   Lanjut <ArrowRight size={14} />
                 </button>
@@ -361,13 +349,13 @@ export default function Onboarding() {
                 <>
                   <button
                     onClick={() => sampleProject("retouch")}
-                    className="avero-btn-primary rounded-lg px-4 py-2 text-[12px] font-semibold text-white"
+                    className="avero-btn-primary rounded-md px-4 py-2 text-[12px] font-semibold text-white"
                   >
-                    Buat sample & mulai
+                    Buat sample dan mulai
                   </button>
                   <button
                     onClick={finishEmpty}
-                    className="rounded-lg bg-[#1b2130] px-4 py-2 text-[12px] text-white hover:bg-[#232b3d]"
+                    className="rounded-md bg-[#232327] px-4 py-2 text-[12px] text-white hover:bg-[#2c2c31]"
                   >
                     Mulai kosong
                   </button>

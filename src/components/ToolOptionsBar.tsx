@@ -1,7 +1,7 @@
 import { useEditorStore } from "../stores/useEditorStore";
 import { useProStore } from "../stores/useProStore";
 
-// Options bar kontekstual ala Photoshop: muncul di atas kanvas sesuai tool aktif.
+// Options bar kontekstual ala Photoshop: tampil di atas kanvas sesuai tool aktif.
 export default function ToolOptionsBar({
   onApplyCrop,
   onCancelCrop,
@@ -19,12 +19,12 @@ export default function ToolOptionsBar({
 
   if (tool === "crop") {
     return (
-      <div className="pointer-events-auto absolute left-1/2 top-2 flex -translate-x-1/2 items-center gap-2 rounded-xl border border-[#232b3d] bg-black/80 px-3 py-1.5 text-[11px] backdrop-blur">
-        <span className="text-[#c5cddc]">Seret area, Enter terapkan, Esc batal</span>
-        <button onClick={onApplyCrop} className="avero-btn-primary rounded-lg px-2.5 py-1 font-semibold text-white">
+      <div className="pointer-events-auto absolute left-1/2 top-2 flex -translate-x-1/2 items-center gap-2 rounded-md border border-[#2c2c31] bg-[#1c1c1f] px-3 py-1.5 text-[11px]">
+        <span className="text-[#a7a7b0]">Seret area. Enter terapkan, Esc batal.</span>
+        <button onClick={onApplyCrop} className="avero-btn-primary rounded-md px-2.5 py-1 font-semibold text-white">
           Terapkan
         </button>
-        <button onClick={onCancelCrop} className="rounded-lg bg-[#1b2130] px-2.5 py-1 text-white">
+        <button onClick={onCancelCrop} className="rounded-md bg-[#232327] px-2.5 py-1 text-white">
           Batal
         </button>
       </div>
@@ -33,42 +33,42 @@ export default function ToolOptionsBar({
 
   if (tool === "gradient") {
     return (
-      <div className="pointer-events-auto absolute left-1/2 top-2 flex -translate-x-1/2 items-center gap-1.5 rounded-xl border border-[#232b3d] bg-black/80 px-3 py-1.5 text-[11px] backdrop-blur">
-        <span className="text-[#c5cddc]">Gradasi ke:</span>
+      <div className="pointer-events-auto absolute left-1/2 top-2 flex -translate-x-1/2 items-center gap-1.5 rounded-md border border-[#2c2c31] bg-[#1c1c1f] px-3 py-1.5 text-[11px]">
+        <span className="text-[#a7a7b0]">Gradasi ke:</span>
         {(["transparent", "white", "black"] as const).map((g) => (
           <button
             key={g}
             onClick={() => setGradTo(g)}
-            className={`rounded-lg px-2 py-1 capitalize ${gradTo === g ? "bg-[#0a84ff] text-white" : "bg-[#1b2130] text-[#8a94a6]"}`}
+            className={`rounded-md px-2 py-1 capitalize ${gradTo === g ? "bg-[#2f7cf6] text-white" : "bg-[#232327] text-[#a7a7b0]"}`}
           >
             {g === "transparent" ? "Transparan" : g === "white" ? "Putih" : "Hitam"}
           </button>
         ))}
-        <span className="text-[#5b6577]">• seret di kanvas (Shift = 45°) • G = Fill</span>
+        <span className="text-[#6e6e78]">Seret di kanvas. G ganti Fill.</span>
       </div>
     );
   }
 
   const retouchHint: Partial<Record<string, string>> = {
-    "spot-heal": "Klik / lukis di noda — J putar Clone • Size & Opacity = kekuatan",
-    blur: "Lukis untuk haluskan — R putar Sharpen/Smudge",
-    sharpen: "Lukis untuk pertajam detail — R putar",
-    smudge: "Klik dulu untuk ambil warna, lalu seret — efek jari",
-    dodge: "Lukis untuk cerahkan — O putar Burn/Sponge",
-    burn: "Lukis untuk gelapkan — O putar",
-    sponge: "Lukis untuk jenuhkan warna lokal — O putar",
-    fill: "Klik area untuk isi warna brush • hormati seleksi • G kembali ke Gradient",
-    pen: "Seret untuk garis bebas • P putar Line • Shift luruskan Line",
-    line: "Seret untuk garis lurus (Shift = 45°) • P putar Pen",
-    clone: "Alt+klik tentukan sumber, lalu lukis untuk mengklon",
+    "spot-heal": "Klik atau lukis pada noda. J ganti Clone. Size dan Str mengatur kekuatan.",
+    blur: "Lukis untuk menghaluskan. R ganti Sharpen dan Smudge.",
+    sharpen: "Lukis untuk mempertajam detail.",
+    smudge: "Klik dulu untuk mengambil warna, lalu seret.",
+    dodge: "Lukis untuk mencerahkan. O ganti Burn dan Sponge.",
+    burn: "Lukis untuk menggelapkan.",
+    sponge: "Lukis untuk menjenuhkan warna lokal.",
+    fill: "Klik area untuk isi warna brush. Menghormati seleksi. G kembali ke Gradient.",
+    pen: "Seret untuk garis bebas. P ganti Line.",
+    line: "Seret untuk garis lurus. Shift mengunci 45 derajat.",
+    clone: "Alt+klik menentukan sumber, lalu lukis untuk mengklon.",
   };
 
   if (retouchHint[tool]) {
     return (
-      <div className="pointer-events-auto absolute left-1/2 top-2 flex max-w-[92%] -translate-x-1/2 items-center gap-2 rounded-xl border border-[#232b3d] bg-black/80 px-3 py-1.5 text-[11px] text-[#c5cddc] backdrop-blur">
+      <div className="pointer-events-auto absolute left-1/2 top-2 flex max-w-[92%] -translate-x-1/2 items-center gap-2 rounded-md border border-[#2c2c31] bg-[#1c1c1f] px-3 py-1.5 text-[11px] text-[#a7a7b0]">
         <span className="truncate">{retouchHint[tool]}</span>
         <span className="hidden items-center gap-1.5 lg:flex">
-          <label className="flex items-center gap-1 text-[#8a94a6]">
+          <label className="flex items-center gap-1 text-[#6e6e78]">
             Size
             <input
               type="range"
@@ -80,7 +80,7 @@ export default function ToolOptionsBar({
             />
             <span className="font-mono text-white">{brushSize}</span>
           </label>
-          <label className="flex items-center gap-1 text-[#8a94a6]">
+          <label className="flex items-center gap-1 text-[#6e6e78]">
             Str
             <input
               type="range"
@@ -99,8 +99,8 @@ export default function ToolOptionsBar({
 
   if (paintMask && (tool === "brush" || tool === "eraser")) {
     return (
-      <div className="pointer-events-none absolute left-1/2 top-2 -translate-x-1/2 rounded-xl border border-amber-700/60 bg-[#5a3a10]/90 px-3 py-1.5 text-[11px] text-amber-200">
-        Mode paint MASK: Brush = tampilkan, Eraser = sembunyikan
+      <div className="pointer-events-none absolute left-1/2 top-2 -translate-x-1/2 rounded-md border border-[#5a3a10] bg-[#2c2313] px-3 py-1.5 text-[11px] text-[#d9a441]">
+        Mode paint MASK. Brush menampilkan, Eraser menyembunyikan.
       </div>
     );
   }

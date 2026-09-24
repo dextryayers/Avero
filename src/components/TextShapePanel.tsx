@@ -37,35 +37,35 @@ export default function TextShapePanel() {
 
   return (
     <div className="space-y-3 p-3 text-[12px]">
-      <div className="text-[11px] text-[#a0a0a0]">
+      <div className="text-[11px] text-[#a7a7b0]">
         Layer <span className="text-white">{active?.name ?? "-"}</span> ({active?.kind ?? "raster"}
         ). Klik canvas dengan Text/Shape tool untuk buat layer baru, lalu edit di sini.
       </div>
       {tspec && (
-        <section className="space-y-1.5 rounded border border-[#3e3e42] bg-[#2a2a2a] p-2">
+        <section className="space-y-1.5 rounded border border-[#2c2c31] bg-[#232327] p-2">
           <h4 className="font-semibold text-white">Text</h4>
           <textarea
             value={tspec.text}
             onChange={(e) => applyText({ text: e.target.value })}
             rows={2}
-            className="w-full rounded bg-[#1e1e1e] px-2 py-1 text-white"
+            className="w-full rounded bg-[#161618] px-2 py-1 text-white"
           />
           <div className="grid grid-cols-2 gap-1.5">
-            <label className="text-[#a0a0a0]">
+            <label className="text-[#a7a7b0]">
               Font
               <input
                 value={tspec.fontFamily}
                 onChange={(e) => applyText({ fontFamily: e.target.value })}
-                className="mt-0.5 w-full rounded bg-[#1e1e1e] px-2 py-1 text-white"
+                className="mt-0.5 w-full rounded bg-[#161618] px-2 py-1 text-white"
               />
             </label>
-            <label className="text-[#a0a0a0]">
+            <label className="text-[#a7a7b0]">
               Size
               <input
                 type="number"
                 value={tspec.fontSize}
                 onChange={(e) => applyText({ fontSize: Number(e.target.value) })}
-                className="mt-0.5 w-full rounded bg-[#1e1e1e] px-2 py-1 font-mono text-white"
+                className="mt-0.5 w-full rounded bg-[#161618] px-2 py-1 font-mono text-white"
               />
             </label>
           </div>
@@ -76,7 +76,7 @@ export default function TextShapePanel() {
               onChange={(e) => applyText({ color: e.target.value })}
               className="h-7 w-10"
             />
-            <label className="flex items-center gap-1 text-[#c5c5c5]">
+            <label className="flex items-center gap-1 text-[#c9c9d1]">
               <input
                 type="checkbox"
                 checked={tspec.bold}
@@ -84,7 +84,7 @@ export default function TextShapePanel() {
               />{" "}
               Bold
             </label>
-            <label className="flex items-center gap-1 text-[#c5c5c5]">
+            <label className="flex items-center gap-1 text-[#c9c9d1]">
               <input
                 type="checkbox"
                 checked={tspec.italic}
@@ -93,7 +93,7 @@ export default function TextShapePanel() {
               Italic
             </label>
           </div>
-          <label className="text-[#a0a0a0]">
+          <label className="text-[#a7a7b0]">
             Tracking {tspec.tracking}px
             <input
               type="range"
@@ -104,7 +104,7 @@ export default function TextShapePanel() {
               className="w-full"
             />
           </label>
-          <label className="text-[#a0a0a0]">
+          <label className="text-[#a7a7b0]">
             Leading {tspec.leading}
             <input
               type="range"
@@ -119,21 +119,21 @@ export default function TextShapePanel() {
         </section>
       )}
       {sspec && (
-        <section className="space-y-1.5 rounded border border-[#3e3e42] bg-[#2a2a2a] p-2">
+        <section className="space-y-1.5 rounded border border-[#2c2c31] bg-[#232327] p-2">
           <h4 className="font-semibold text-white">Shape</h4>
           <div className="flex gap-1">
             {(["rect", "ellipse", "polygon"] as const).map((k) => (
               <button
                 key={k}
                 onClick={() => applyShape({ kind: k })}
-                className={`flex-1 rounded px-2 py-1 text-[11px] ${sspec.kind === k ? "bg-[#0a84ff] text-white" : "bg-[#3e3e42]"}`}
+                className={`flex-1 rounded px-2 py-1 text-[11px] ${sspec.kind === k ? "bg-[#2f7cf6] text-white" : "bg-[#2c2c31]"}`}
               >
                 {k}
               </button>
             ))}
           </div>
           <div className="flex gap-2">
-            <label className="flex-1 text-[#a0a0a0]">
+            <label className="flex-1 text-[#a7a7b0]">
               Fill
               <input
                 type="color"
@@ -142,7 +142,7 @@ export default function TextShapePanel() {
                 className="h-7 w-full"
               />
             </label>
-            <label className="flex-1 text-[#a0a0a0]">
+            <label className="flex-1 text-[#a7a7b0]">
               Stroke
               <input
                 type="color"
@@ -152,7 +152,7 @@ export default function TextShapePanel() {
               />
             </label>
           </div>
-          <label className="text-[#a0a0a0]">
+          <label className="text-[#a7a7b0]">
             Stroke {sspec.strokeWidth}px
             <input
               type="range"
@@ -164,7 +164,7 @@ export default function TextShapePanel() {
             />
           </label>
           {sspec.kind === "polygon" && (
-            <label className="text-[#a0a0a0]">
+            <label className="text-[#a7a7b0]">
               Sides {sspec.sides}
               <input
                 type="range"
@@ -176,7 +176,7 @@ export default function TextShapePanel() {
               />
             </label>
           )}
-          <label className="text-[#a0a0a0]">
+          <label className="text-[#a7a7b0]">
             Rotation {sspec.rotation}°
             <input
               type="range"
@@ -190,7 +190,7 @@ export default function TextShapePanel() {
         </section>
       )}
       {!tspec && !sspec && (
-        <div className="rounded border border-dashed border-[#3e3e42] p-3 text-center text-[11px] text-[#a0a0a0]">
+        <div className="rounded border border-dashed border-[#2c2c31] p-3 text-center text-[11px] text-[#a7a7b0]">
           Pilih layer text atau shape untuk edit. Buat baru via toolbar T / U / O.
         </div>
       )}

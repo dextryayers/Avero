@@ -3,11 +3,11 @@ import { useNodeStore } from "../stores/useNodeStore";
 import { useProStore } from "../stores/useProStore";
 
 const kindColor: Record<string, string> = {
-  input: "#2d7a3a",
-  adjust: "#0a84ff",
-  filter: "#7a4fd0",
+  input: "#2f7cf6",
+  adjust: "#2f7cf6",
+  filter: "#5a5a64",
   blend: "#b07a1f",
-  output: "#505050",
+  output: "#3a3a41",
 };
 
 export default function NodeGraph() {
@@ -26,14 +26,14 @@ export default function NodeGraph() {
 
   if (!enabled) {
     return (
-      <div className="border-b border-[#3e3e42] bg-[#191d24] px-3 py-1.5 text-[11px] text-[#a0a0a0]">
+      <div className="border-b border-[#2c2c31] bg-[#1c1c1f] px-3 py-1.5 text-[11px] text-[#a7a7b0]">
         Node graph nonaktif. Layer stack dipakai.
         <button
           onClick={() => {
             toggle();
             autoFromStack();
           }}
-          className="ml-2 rounded bg-[#7a4fd0] px-2 py-0.5 text-white"
+          className="ml-2 rounded bg-[#5a5a64] px-2 py-0.5 text-white"
         >
           Aktifkan node view
         </button>
@@ -42,27 +42,27 @@ export default function NodeGraph() {
   }
 
   return (
-    <div className="border-b border-[#7a4fd0] bg-[#14161d]">
+    <div className="border-b border-[#5a5a64] bg-[#161618]">
       <div className="flex items-center gap-1.5 px-3 py-1.5 text-[11px]">
         <span className="font-semibold text-white">Node graph</span>
-        <span className="text-[#a0a0a0]">
+        <span className="text-[#a7a7b0]">
           {nodes.length} nodes • {edges.length} links • auto-convert dari stack
         </span>
         <button
           onClick={autoFromStack}
-          className="ml-1 rounded bg-[#3e3e42] px-2 py-0.5 hover:bg-[#505050]"
+          className="ml-1 rounded bg-[#2c2c31] px-2 py-0.5 hover:bg-[#3a3a41]"
         >
           Rebuild
         </button>
         <button
           onClick={() => addNode("adjust", "Adjust")}
-          className="rounded bg-[#0a84ff] px-2 py-0.5 text-white"
+          className="rounded bg-[#2f7cf6] px-2 py-0.5 text-white"
         >
           +Adjust
         </button>
         <button
           onClick={() => addNode("filter", "Filter")}
-          className="rounded bg-[#7a4fd0] px-2 py-0.5 text-white"
+          className="rounded bg-[#5a5a64] px-2 py-0.5 text-white"
         >
           +Filter
         </button>
@@ -74,7 +74,7 @@ export default function NodeGraph() {
             Hapus node
           </button>
         )}
-        <button onClick={toggle} className="ml-auto rounded bg-[#2a2a2a] px-2 py-0.5">
+        <button onClick={toggle} className="ml-auto rounded bg-[#232327] px-2 py-0.5">
           Tutup
         </button>
       </div>
@@ -100,7 +100,7 @@ export default function NodeGraph() {
                 y1={a.y + 24}
                 x2={b.x}
                 y2={b.y + 24}
-                stroke="#7a8aa0"
+                stroke="#a7a7b0"
                 strokeWidth={1.6}
               />
             );
@@ -118,7 +118,7 @@ export default function NodeGraph() {
               if (selected && selected !== n.id) connect(selected, n.id);
             }}
             title="Drag pindah, double-klik dari node terpilih untuk connect"
-            className={`absolute w-24 rounded-md border p-1.5 text-[10px] ${selected === n.id ? "border-white" : "border-[#3e3e42]"}`}
+            className={`absolute w-24 rounded-md border p-1.5 text-[10px] ${selected === n.id ? "border-white" : "border-[#2c2c31]"}`}
             style={{ left: n.x, top: n.y, background: kindColor[n.kind] ?? "#333" }}
           >
             <div className="font-semibold text-white">{n.label}</div>
@@ -128,7 +128,7 @@ export default function NodeGraph() {
           </div>
         ))}
       </div>
-      <div className="px-3 pb-1.5 text-[10px] text-[#7a8aa0]">
+      <div className="px-3 pb-1.5 text-[10px] text-[#a7a7b0]">
         Klik node untuk pilih, double-klik node lain untuk sambung. Toggle di node mematikan
         adjustment/filter asli secara live.
       </div>

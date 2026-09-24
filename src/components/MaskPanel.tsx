@@ -19,7 +19,7 @@ export default function MaskPanel() {
 
   return (
     <div className="space-y-3 p-3 text-[12px]">
-      <div className="rounded border border-[#3e3e42] bg-[#2d2d2d] p-2 text-[11px] text-[#a0a0a0]">
+      <div className="rounded border border-[#2c2c31] bg-[#232327] p-2 text-[11px] text-[#a7a7b0]">
         Layer aktif: <span className="text-white">{active?.name ?? "-"}</span>
         <br />
         Mask putih tampil, hitam sembunyi. Paint dengan Brush putih dan Eraser hitam saat mode paint
@@ -33,13 +33,13 @@ export default function MaskPanel() {
             ensureMask(activeLayerId);
           }}
           disabled={!activeLayerId}
-          className="w-full rounded bg-[#0a84ff] px-2 py-1.5 text-[12px] text-white hover:bg-[#0070e0] disabled:opacity-40"
+          className="w-full rounded bg-[#2f7cf6] px-2 py-1.5 text-[12px] text-white hover:bg-[#2563d4] disabled:opacity-40"
         >
           Add layer mask
         </button>
       ) : (
         <>
-          <label className="flex items-center justify-between text-[#c5c5c5]">
+          <label className="flex items-center justify-between text-[#c9c9d1]">
             <span>Enable mask</span>
             <input
               type="checkbox"
@@ -49,7 +49,7 @@ export default function MaskPanel() {
               }
             />
           </label>
-          <label className="flex items-center justify-between text-[#c5c5c5]">
+          <label className="flex items-center justify-between text-[#c9c9d1]">
             <span className={paintMask ? "text-white font-semibold" : ""}>Paint mask mode</span>
             <input
               type="checkbox"
@@ -58,7 +58,7 @@ export default function MaskPanel() {
             />
           </label>
           <div>
-            <label className="mb-1 flex justify-between text-[#a0a0a0]">
+            <label className="mb-1 flex justify-between text-[#a7a7b0]">
               Feather <span className="font-mono text-white">{m.feather}px</span>
             </label>
             <input
@@ -73,7 +73,7 @@ export default function MaskPanel() {
             />
           </div>
           <div>
-            <label className="mb-1 flex justify-between text-[#a0a0a0]">
+            <label className="mb-1 flex justify-between text-[#a7a7b0]">
               Density <span className="font-mono text-white">{m.density}%</span>
             </label>
             <input
@@ -88,7 +88,7 @@ export default function MaskPanel() {
             />
           </div>
           <div>
-            <label className="flex items-center justify-between text-[#c5c5c5]">
+            <label className="flex items-center justify-between text-[#c9c9d1]">
               <span>Clipping ke layer bawah</span>
               <input
                 type="checkbox"
@@ -98,7 +98,7 @@ export default function MaskPanel() {
                 }
               />
             </label>
-            <p className="mt-1 text-[10px] text-[#a0a0a0]">
+            <p className="mt-1 text-[10px] text-[#a7a7b0]">
               Clipping tahap 1: flag tersimpan, full isolate masuk Fase 5 node graph.
             </p>
           </div>

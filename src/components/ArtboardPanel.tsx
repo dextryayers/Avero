@@ -53,7 +53,7 @@ export default function ArtboardPanel() {
         <select
           value={preset}
           onChange={(e) => setPreset(e.target.value)}
-          className="flex-1 rounded bg-[#1e1e1e] px-2 py-1.5 text-white"
+          className="flex-1 rounded bg-[#161618] px-2 py-1.5 text-white"
         >
           {ART_PRESETS.map((p) => (
             <option key={p} value={p}>
@@ -61,17 +61,17 @@ export default function ArtboardPanel() {
             </option>
           ))}
         </select>
-        <button onClick={() => add(preset)} className="rounded bg-[#0a84ff] px-2 py-1.5 text-white">
+        <button onClick={() => add(preset)} className="rounded bg-[#2f7cf6] px-2 py-1.5 text-white">
           +Artboard
         </button>
       </div>
       {boards.map((b) => (
-        <div key={b.id} className="rounded border border-[#3e3e42] bg-[#2a2a2a] p-2">
+        <div key={b.id} className="rounded border border-[#2c2c31] bg-[#232327] p-2">
           <div className="flex items-center gap-1.5">
             <input
               value={b.name}
               onChange={(e) => update(b.id, { name: e.target.value })}
-              className="w-full rounded bg-[#1e1e1e] px-2 py-1 text-white"
+              className="w-full rounded bg-[#161618] px-2 py-1 text-white"
             />
             <button
               onClick={() => remove(b.id)}
@@ -82,27 +82,27 @@ export default function ArtboardPanel() {
           </div>
           <div className="mt-1.5 grid grid-cols-4 gap-1">
             {(["x", "y", "w", "h"] as const).map((k) => (
-              <label key={k} className="text-[10px] text-[#a0a0a0]">
+              <label key={k} className="text-[10px] text-[#a7a7b0]">
                 {k.toUpperCase()}
                 <input
                   type="number"
                   value={Math.round(b[k])}
                   onChange={(e) => update(b.id, { [k]: Number(e.target.value) } as any)}
-                  className="mt-0.5 w-full rounded bg-[#1e1e1e] px-1 py-1 font-mono text-white"
+                  className="mt-0.5 w-full rounded bg-[#161618] px-1 py-1 font-mono text-white"
                 />
               </label>
             ))}
           </div>
           <button
             onClick={() => exportBoard(b.id)}
-            className="mt-1.5 w-full rounded bg-[#2d7a3a] px-2 py-1 text-white"
+            className="mt-1.5 w-full rounded bg-[#2f7cf6] px-2 py-1 text-white"
           >
             Export {b.name}
           </button>
         </div>
       ))}
-      {log && <div className="rounded bg-[#1f3a24] p-2 text-[11px] text-[#bfe6c6]">{log}</div>}
-      <p className="text-[10px] text-[#a0a0a0]">
+      {log && <div className="rounded bg-[#1c1c1f] p-2 text-[11px] text-[#a7a7b0]">{log}</div>}
+      <p className="text-[10px] text-[#a7a7b0]">
         Infinite canvas + artboard ala Figma. Koordinat dalam pixel dokumen.
       </p>
     </div>

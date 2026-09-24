@@ -43,7 +43,7 @@ export default function PsdInfo() {
 
   if (!note && (!layers || layers.length === 0)) return null;
   return (
-    <div className="border-b border-[#3e3e42] bg-[#1f2a33] p-2 text-[11px] text-[#c5d6e2]">
+    <div className="border-b border-[#2c2c31] bg-[#1c1c1f] p-2 text-[11px] text-[#c9c9d1]">
       {note && <div className="mb-1">{note}</div>}
       {layers && layers.length > 0 && (
         <div className="max-h-28 overflow-y-auto font-mono text-[10px]">

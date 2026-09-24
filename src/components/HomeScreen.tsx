@@ -16,11 +16,13 @@ import {
   Smartphone,
   Globe,
   Film,
+  FileBox,
 } from "lucide-react";
 import { useHomeStore, resolveRecent, type RecentFile } from "../stores/useHomeStore";
 import { useEditorStore } from "../stores/useEditorStore";
 import { useProStore } from "../stores/useProStore";
 import { layerManager } from "../engine/layerManager";
+import { openAvxProject } from "../io/projectIo";
 import { pickImageToOpen, rustDecodeToDataUrl, rustImageInfo } from "../io/tauriIo";
 import clsx from "clsx";
 
@@ -48,18 +50,18 @@ const PRESETS: Record<PresetCat, { name: string; w: number; h: number; desc: str
   ],
   Web: [
     { name: "Hero Web", w: 1920, h: 1080, desc: "Landing page" },
-    { name: "Banner 1200", w: 1200, h: 628, desc: "OG / Ads" },
+    { name: "Banner 1200", w: 1200, h: 628, desc: "OG dan Ads" },
     { name: "Thumbnail YT", w: 1280, h: 720, desc: "16:9" },
   ],
   Mobile: [
     { name: "IG Story", w: 1080, h: 1920, desc: "9:16" },
-    { name: "Wallpaper HP", w: 1440, h: 3088, desc: "AMOLED" },
-    { name: "App Cover", w: 1024, h: 1024, desc: "Icon / cover" },
+    { name: "Wallpaper HP", w: 1440, h: 3088, desc: "Layar penuh" },
+    { name: "App Cover", w: 1024, h: 1024, desc: "Icon dan cover" },
   ],
   Film: [
     { name: "FHD Video", w: 1920, h: 1080, desc: "Frame film" },
     { name: "2K DCI", w: 2048, h: 1080, desc: "Sinema" },
-    { name: "Vertical Film", w: 1080, h: 1920, desc: "Shorts / Reels" },
+    { name: "Vertical Film", w: 1080, h: 1920, desc: "Shorts dan Reels" },
   ],
 };
 
@@ -126,12 +128,10 @@ export default function HomeScreen() {
   const [showNew, setShowNew] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
 
-  // New doc modal state
   const [dn, setDn] = useState("Untitled-1");
   const [dw, setDw] = useState("1920");
   const [dh, setDh] = useState("1080");
   const [bg, setBg] = useState<"white" | "black" | "transparent">("white");
-  const [dpi, setDpi] = useState("300");
 
   function createNew(name: string, w: number, h: number) {
     layerManager.clear();
@@ -139,7 +139,6 @@ export default function HomeScreen() {
     const id = useEditorStore.getState().activeLayerId;
     if (id) {
       const c = layerManager.ensure(id, w, h);
-      // background fill sesuai pilihan modal
       if (bg !== "transparent") {
         const ctx = c.getContext("2d")!;
         ctx.fillStyle = bg === "white" ? "#ffffff" : "#000000";
@@ -187,35 +186,41 @@ export default function HomeScreen() {
   }, [recents, query]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-[#0b0e14]">
-      {/* Top bar ala Photoshop Home */}
-      <div className="flex h-[52px] shrink-0 items-center gap-3 border-b border-[#1c2333] bg-[#10141d] px-4">
+    <div className="flex min-h-0 flex-1 flex-col bg-[#161618]">
+      <div className="flex h-[52px] shrink-0 items-center gap-3 border-b border-[#2c2c31] bg-[#1c1c1f] px-4">
         <div className="flex items-center gap-2.5">
-          <img src="/logo.png" alt="AVERO" className="h-9 w-9 rounded-lg object-cover shadow-[0_0_22px_rgba(10,132,255,0.4)]" />
+          <img src="/logo.png" alt="AVERO" className="h-9 w-9 rounded-md object-cover" />
           <div className="leading-none">
-            <div className="text-[13px] font-extrabold tracking-[0.16em] text-white">AVERO</div>
-            <div className="text-[8.5px] tracking-[0.36em] text-[#38a0ff]">STUDIO</div>
+            <div className="text-[13px] font-bold tracking-wide text-white">AVERO STUDIO</div>
+            <div className="mt-0.5 font-mono text-[9px] text-[#6e6e78]">v2.0.0</div>
           </div>
         </div>
         <div className="relative ml-4 hidden w-[320px] md:block">
-          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#5b6577]" />
+          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#6e6e78]" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Cari file terbaru, preset, tutorial…"
-            className="w-full rounded-lg border border-[#232b3d] bg-black/40 py-2 pl-8 pr-3 text-[12px] text-white outline-none placeholder:text-[#5b6577] focus:border-[#0a84ff]"
+            placeholder="Cari file, preset, tutorial"
+            className="w-full rounded-md border border-[#2c2c31] bg-[#161618] py-2 pl-8 pr-3 text-[12px] text-white outline-none placeholder:text-[#6e6e78] focus:border-[#2f7cf6]"
           />
         </div>
         <div className="ml-auto flex items-center gap-2">
           <button
+            onClick={() => openAvxProject().catch((e) => alert(`Gagal membuka proyek: ${String(e)}`))}
+            className="flex items-center gap-1.5 rounded-md border border-[#2c2c31] bg-[#232327] px-3.5 py-2 text-[12.5px] text-white hover:bg-[#2c2c31]"
+            title="Buka proyek .avx"
+          >
+            <FileBox size={15} /> Proyek
+          </button>
+          <button
             onClick={() => setShowNew(true)}
-            className="avero-btn-primary flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-[12.5px] font-semibold text-white"
+            className="avero-btn-primary flex items-center gap-1.5 rounded-md px-3.5 py-2 text-[12.5px] font-semibold text-white"
           >
             <Plus size={15} /> Baru
           </button>
           <button
             onClick={() => openImageViaDialog()}
-            className="flex items-center gap-1.5 rounded-lg border border-[#2a3350] bg-[#1b2130] px-3.5 py-2 text-[12.5px] text-white hover:bg-[#232b3d]"
+            className="flex items-center gap-1.5 rounded-md border border-[#2c2c31] bg-[#232327] px-3.5 py-2 text-[12.5px] text-white hover:bg-[#2c2c31]"
           >
             <FolderOpen size={15} /> Buka
           </button>
@@ -223,8 +228,7 @@ export default function HomeScreen() {
       </div>
 
       <div className="flex min-h-0 flex-1">
-        {/* Left nav */}
-        <div className="flex w-[200px] shrink-0 flex-col gap-1 border-r border-[#1c2333] bg-[#0e1219] p-3">
+        <div className="flex w-[196px] shrink-0 flex-col gap-1 border-r border-[#2c2c31] bg-[#1c1c1f] p-3">
           {[
             { id: "home", label: "Beranda", icon: LayoutGrid, active: true },
             { id: "recent", label: "Terbaru", icon: Clock, active: false },
@@ -233,17 +237,15 @@ export default function HomeScreen() {
             <button
               key={n.id}
               className={clsx(
-                "flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-[12.5px]",
-                n.active ? "bg-[#0a84ff]/15 text-white ring-1 ring-[#0a84ff]/40" : "text-[#8a94a6] hover:bg-white/5 hover:text-white",
+                "flex items-center gap-2.5 rounded-md px-3 py-2.5 text-[12.5px]",
+                n.active ? "bg-[#232327] text-white" : "text-[#a7a7b0] hover:bg-[#232327] hover:text-white",
               )}
             >
               <n.icon size={16} /> {n.label}
             </button>
           ))}
-          <div className="mt-3 border-t border-[#1c2333] pt-3">
-            <div className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#5b6577]">
-              Kategori
-            </div>
+          <div className="mt-3 border-t border-[#2c2c31] pt-3">
+            <div className="avero-micro mb-1.5 px-2">Kategori</div>
             {(Object.keys(PRESETS) as PresetCat[]).map((c) => {
               const Icon = CAT_ICON[c];
               return (
@@ -251,52 +253,50 @@ export default function HomeScreen() {
                   key={c}
                   onClick={() => setCat(c)}
                   className={clsx(
-                    "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-[12px]",
-                    cat === c ? "bg-white/8 text-white" : "text-[#8a94a6] hover:bg-white/5 hover:text-white",
+                    "flex w-full items-center gap-2 rounded-md px-3 py-2 text-[12px]",
+                    cat === c ? "bg-[#232327] text-white" : "text-[#a7a7b0] hover:bg-[#232327] hover:text-white",
                   )}
                 >
-                  <Icon size={14} className={cat === c ? "text-[#38a0ff]" : ""} /> {c}
-                  <span className="ml-auto font-mono text-[10px] opacity-60">{PRESETS[c].length}</span>
+                  <Icon size={14} /> {c}
+                  <span className="ml-auto font-mono text-[10px] text-[#6e6e78]">{PRESETS[c].length}</span>
                 </button>
               );
             })}
           </div>
-          <div className="mt-auto rounded-xl border border-[#1c2333] bg-gradient-to-b from-[#0a84ff]/15 to-transparent p-3">
+          <div className="mt-auto rounded-md border border-[#2c2c31] bg-[#161618] p-3">
             <div className="flex items-center gap-1.5 text-[11.5px] font-semibold text-white">
-              <Sparkles size={13} className="text-[#38a0ff]" /> AI Offline
+              <Sparkles size={13} className="text-[#8fb6f5]" /> AI Offline
             </div>
-            <div className="mt-1 text-[10.5px] leading-relaxed text-[#8a94a6]">
-              Hapus background & upscale tanpa upload, 100% lokal.
+            <div className="mt-1 text-[10.5px] leading-relaxed text-[#6e6e78]">
+              Hapus background dan upscale tanpa upload. Semua lokal.
             </div>
           </div>
         </div>
 
-        {/* Main scroll */}
         <div className="min-h-0 flex-1 overflow-y-auto p-5">
-          {/* Recents */}
           <div className="mb-2 flex items-center justify-between">
-            <h3 className="flex items-center gap-1.5 text-[13.5px] font-bold text-white">
-              <Clock size={14} className="text-[#38a0ff]" /> Terbaru
-              <span className="rounded bg-[#1b2130] px-1.5 py-0.5 font-mono text-[10px] text-[#8a94a6]">{filteredRecents.length}</span>
+            <h3 className="flex items-center gap-1.5 text-[13px] font-bold text-white">
+              <Clock size={14} className="text-[#8fb6f5]" /> Terbaru
+              <span className="rounded bg-[#232327] px-1.5 py-0.5 font-mono text-[10px] text-[#a7a7b0]">{filteredRecents.length}</span>
             </h3>
             {recents.length > 0 && (
-              <button onClick={clearRecents} className="flex items-center gap-1 rounded px-2 py-1 text-[11px] text-[#5b6577] hover:bg-white/5 hover:text-white">
+              <button onClick={clearRecents} className="flex items-center gap-1 rounded px-2 py-1 text-[11px] text-[#6e6e78] hover:text-white">
                 <Trash2 size={12} /> Bersihkan
               </button>
             )}
           </div>
           {filteredRecents.length === 0 ? (
-            <div className="grid place-items-center rounded-2xl border border-dashed border-[#2a3350] bg-white/[0.015] p-8 text-center">
-              <img src="/logo.png" alt="" className="h-12 w-12 rounded-xl object-cover opacity-60" />
-              <div className="mt-2 text-[12.5px] font-semibold text-white">Mulai karya pertamamu</div>
-              <div className="mt-0.5 max-w-[420px] text-[11.5px] text-[#8a94a6]">
-                Buka foto (PNG/JPG/WEBP/PSD) atau buat dokumen baru. File akan muncul di sini otomatis.
+            <div className="grid place-items-center rounded-lg border border-dashed border-[#2c2c31] p-8 text-center">
+              <img src="/logo.png" alt="" className="h-11 w-11 rounded-md object-cover opacity-70" />
+              <div className="mt-2 text-[12.5px] font-semibold text-white">Mulai karya pertama</div>
+              <div className="mt-0.5 max-w-[420px] text-[11.5px] text-[#6e6e78]">
+                Buka foto atau proyek .avx, atau buat dokumen baru. File muncul di sini otomatis.
               </div>
               <div className="mt-3 flex gap-2">
-                <button onClick={() => setShowNew(true)} className="avero-btn-primary rounded-lg px-3.5 py-2 text-[12px] font-semibold text-white">
+                <button onClick={() => setShowNew(true)} className="avero-btn-primary rounded-md px-3.5 py-2 text-[12px] font-semibold text-white">
                   Buat Baru
                 </button>
-                <button onClick={() => openImageViaDialog()} className="rounded-lg bg-[#1b2130] px-3.5 py-2 text-[12px] text-white hover:bg-[#232b3d]">
+                <button onClick={() => openImageViaDialog()} className="rounded-md bg-[#232327] px-3.5 py-2 text-[12px] text-white hover:bg-[#2c2c31]">
                   Buka Gambar
                 </button>
               </div>
@@ -304,27 +304,27 @@ export default function HomeScreen() {
           ) : (
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-4">
               {filteredRecents.map((r) => (
-                <div key={r.id} className="group relative overflow-hidden rounded-xl border border-[#1c2333] bg-[#10141d] transition hover:border-[#0a84ff] hover:shadow-[0_10px_36px_rgba(10,132,255,0.18)]">
+                <div key={r.id} className="group relative overflow-hidden rounded-md border border-[#2c2c31] bg-[#1c1c1f] hover:border-[#3a3a41]">
                   <button onClick={() => openRecent(r)} className="block w-full text-left" title={r.path ?? r.name}>
-                    <div className="grid h-[132px] place-items-center overflow-hidden bg-[#07090d]">
+                    <div className="grid h-[128px] place-items-center overflow-hidden bg-[#101012]">
                       {r.thumb ? (
-                        <img src={r.thumb} alt={r.name} className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.04]" />
+                        <img src={r.thumb} alt={r.name} className="h-full w-full object-cover" />
                       ) : (
                         <div className="grid place-items-center">
-                          <LayoutGrid size={26} className="text-[#2a3350]" />
-                          <span className="mt-1 font-mono text-[10px] text-[#5b6577]">{r.w}x{r.h}</span>
+                          <LayoutGrid size={24} className="text-[#3a3a41]" />
+                          <span className="mt-1 font-mono text-[10px] text-[#6e6e78]">{r.w}x{r.h}</span>
                         </div>
                       )}
                     </div>
                     <div className="p-2.5">
                       <div className="truncate text-[12px] font-semibold text-white">{r.name}</div>
-                      <div className="mt-0.5 font-mono text-[10px] text-[#5b6577]">
-                        {r.w}x{r.h} • {new Date(r.time).toLocaleDateString("id-ID", { day: "numeric", month: "short" })}
-                        {busy === r.id ? " • membuka…" : ""}
+                      <div className="mt-0.5 font-mono text-[10px] text-[#6e6e78]">
+                        {r.w}x{r.h} {new Date(r.time).toLocaleDateString("id-ID", { day: "numeric", month: "short" })}
+                        {busy === r.id ? " membuka" : ""}
                       </div>
                     </div>
                   </button>
-                  <button onClick={() => removeRecent(r.id)} title="Hapus dari daftar" className="absolute right-1.5 top-1.5 hidden rounded-md bg-black/70 p-1.5 text-white hover:bg-red-600 group-hover:block">
+                  <button onClick={() => removeRecent(r.id)} title="Hapus dari daftar" className="absolute right-1.5 top-1.5 hidden rounded bg-black/70 p-1.5 text-white hover:bg-[#e5534b] group-hover:block">
                     <X size={12} />
                   </button>
                 </div>
@@ -332,89 +332,85 @@ export default function HomeScreen() {
             </div>
           )}
 
-          {/* Presets */}
-          <h3 className="mb-2 mt-6 flex items-center gap-1.5 text-[13.5px] font-bold text-white">
-            <ImagePlus size={14} className="text-[#38a0ff]" /> Preset {cat}
-            <span className="font-mono text-[10px] font-normal text-[#5b6577]">klik untuk langsung buat</span>
+          <h3 className="mb-2 mt-6 flex items-center gap-1.5 text-[13px] font-bold text-white">
+            <ImagePlus size={14} className="text-[#8fb6f5]" /> Preset {cat}
           </h3>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-4">
             {filteredPresets.map((p) => (
               <button
                 key={p.name}
                 onClick={() => createNew(p.name, p.w, p.h)}
-                className="group rounded-xl border border-[#1c2333] bg-[#10141d] p-3 text-left transition hover:border-[#0a84ff] hover:shadow-[0_10px_30px_rgba(10,132,255,0.15)]"
+                className="rounded-md border border-[#2c2c31] bg-[#1c1c1f] p-3 text-left hover:border-[#3a3a41]"
               >
-                <div className="grid h-[74px] place-items-center rounded-lg bg-[#07090d]">
+                <div className="grid h-[72px] place-items-center rounded bg-[#101012]">
                   <div
-                    className="rounded-[4px] border-2 border-[#38a0ff]/60 bg-[#0a84ff]/12 transition group-hover:border-[#38e1ff]"
+                    className="rounded-sm border border-[#3a3a41] bg-[#232327]"
                     style={{
                       width: Math.min(130, Math.max(30, (p.w / Math.max(p.w, p.h)) * 130)),
-                      height: Math.min(60, Math.max(20, (p.h / Math.max(p.w, p.h)) * 60)),
+                      height: Math.min(58, Math.max(20, (p.h / Math.max(p.w, p.h)) * 58)),
                     }}
                   />
                 </div>
                 <div className="mt-2 text-[12px] font-semibold text-white">{p.name}</div>
-                <div className="font-mono text-[10px] text-[#5b6577]">{p.w}x{p.h} • {p.desc}</div>
+                <div className="font-mono text-[10px] text-[#6e6e78]">{p.w}x{p.h} {p.desc}</div>
               </button>
             ))}
           </div>
 
-          {/* Learn */}
-          <h3 className="mb-2 mt-6 flex items-center gap-1.5 text-[13.5px] font-bold text-white">
-            <Sparkles size={14} className="text-[#38a0ff]" /> Pelajari dalam 1 menit
+          <h3 className="mb-2 mt-6 flex items-center gap-1.5 text-[13px] font-bold text-white">
+            <Sparkles size={14} className="text-[#8fb6f5]" /> Pelajari dalam 1 menit
           </h3>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             {[
-              { t: "Hapus background 1 klik", d: "Buka foto → tab AI → Background Remover. Offline.", tag: "AI" },
-              { t: "Retouch kulit natural", d: "Spot Heal (J) + Dodge/Burn (O) + Blur halus.", tag: "Retouch" },
-              { t: "Grade sinematik", d: "Adjust: Exposure → HSL → Vignette + Grain.", tag: "Color" },
+              { t: "Hapus background 1 klik", d: "Buka foto, tab AI, Background Remover. Offline.", tag: "AI" },
+              { t: "Retouch natural", d: "Spot Heal (J), Dodge dan Burn (O), Blur halus.", tag: "Retouch" },
+              { t: "Grade sinematik", d: "Exposure, HSL, Vignette, Grain.", tag: "Color" },
               { t: "Varian tanpa duplikat", d: "Tab Git: snapshot, branch, compare slider.", tag: "Git" },
-              { t: "Export web & cetak", d: "Ctrl+K → Export PNG/JPG + soft-proof CMYK.", tag: "Export" },
-              { t: "Shortcut kilat", d: "B brush, V move, M select, Ctrl+Z undo.", tag: "Pro" },
+              { t: "Simpan proyek .avx", d: "Ctrl+S menyimpan layer dan edit utuh.", tag: "Project" },
+              { t: "Export banyak format", d: "PNG, JPG, WEBP, BMP, SVG, TIFF.", tag: "Export" },
             ].map((c) => (
-              <div key={c.t} className="rounded-xl border border-[#1c2333] bg-[#10141d] p-3.5 transition hover:border-[#2f3a55]">
-                <span className="rounded bg-[#0a84ff]/15 px-1.5 py-0.5 text-[10px] font-semibold text-[#38a0ff]">{c.tag}</span>
+              <div key={c.t} className="rounded-md border border-[#2c2c31] bg-[#1c1c1f] p-3.5">
+                <span className="rounded bg-[#232327] px-1.5 py-0.5 text-[10px] font-semibold text-[#8fb6f5]">{c.tag}</span>
                 <div className="mt-1.5 text-[12px] font-semibold text-white">{c.t}</div>
-                <div className="mt-0.5 text-[11px] leading-relaxed text-[#8a94a6]">{c.d}</div>
+                <div className="mt-0.5 text-[11px] leading-relaxed text-[#6e6e78]">{c.d}</div>
               </div>
             ))}
           </div>
-          <div className="mt-6 pb-2 text-center font-mono text-[10px] text-[#3d465c]">
-            AVERO STUDIO v2.0.0 • Offline • Non-destruktif • Ctrl+K semua aksi • Del hapus seleksi
+          <div className="mt-6 pb-2 text-center font-mono text-[10px] text-[#4a4a52]">
+            AVERO STUDIO v2.0.0. Offline. Non-destruktif. Ctrl+K semua aksi.
           </div>
         </div>
       </div>
 
-      {/* New Document Modal ala Photoshop */}
       {showNew && (
-        <div className="fixed inset-0 z-[70] grid place-items-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setShowNew(false)}>
+        <div className="fixed inset-0 z-[70] grid place-items-center bg-black/70 p-4" onClick={() => setShowNew(false)}>
           <div
-            className="animate-fade-up w-[520px] max-w-full overflow-hidden rounded-2xl border border-[#232b3d] bg-[#10141d]"
+            className="w-[500px] max-w-full overflow-hidden rounded-lg border border-[#2c2c31] bg-[#1c1c1f]"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center gap-2.5 border-b border-[#1c2333] px-5 py-3.5">
-              <img src="/logo.png" alt="" className="h-8 w-8 rounded-lg object-cover" />
+            <div className="flex items-center gap-2.5 border-b border-[#2c2c31] px-5 py-3.5">
+              <img src="/logo.png" alt="" className="h-8 w-8 rounded-md object-cover" />
               <div>
-                <div className="text-[13.5px] font-bold text-white">Dokumen Baru</div>
-                <div className="text-[10.5px] text-[#5b6577]">Preset + ukuran kustom, ala Photoshop</div>
+                <div className="text-[13px] font-bold text-white">Dokumen Baru</div>
+                <div className="text-[10.5px] text-[#6e6e78]">Preset dan ukuran kustom</div>
               </div>
-              <button onClick={() => setShowNew(false)} className="ml-auto rounded p-1.5 text-[#8a94a6] hover:bg-white/5 hover:text-white">
+              <button onClick={() => setShowNew(false)} className="ml-auto rounded p-1.5 text-[#a7a7b0] hover:bg-[#232327] hover:text-white">
                 <X size={16} />
               </button>
             </div>
             <div className="space-y-3 p-5">
               <label className="block">
-                <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#8a94a6]">Nama dokumen</span>
-                <input value={dn} onChange={(e) => setDn(e.target.value)} className="w-full rounded-lg border border-[#232b3d] bg-black/40 px-3 py-2 text-[12.5px] text-white outline-none focus:border-[#0a84ff]" />
+                <span className="avero-micro mb-1 block">Nama dokumen</span>
+                <input value={dn} onChange={(e) => setDn(e.target.value)} className="w-full rounded-md border border-[#2c2c31] bg-[#161618] px-3 py-2 text-[12.5px] text-white outline-none focus:border-[#2f7cf6]" />
               </label>
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
-                  <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#8a94a6]">Lebar (px)</span>
-                  <input value={dw} onChange={(e) => setDw(e.target.value.replace(/\D/g, ""))} className="w-full rounded-lg border border-[#232b3d] bg-black/40 px-3 py-2 font-mono text-[12.5px] text-white outline-none focus:border-[#0a84ff]" />
+                  <span className="avero-micro mb-1 block">Lebar (px)</span>
+                  <input value={dw} onChange={(e) => setDw(e.target.value.replace(/\D/g, ""))} className="w-full rounded-md border border-[#2c2c31] bg-[#161618] px-3 py-2 font-mono text-[12.5px] text-white outline-none focus:border-[#2f7cf6]" />
                 </label>
                 <label className="block">
-                  <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#8a94a6]">Tinggi (px)</span>
-                  <input value={dh} onChange={(e) => setDh(e.target.value.replace(/\D/g, ""))} className="w-full rounded-lg border border-[#232b3d] bg-black/40 px-3 py-2 font-mono text-[12.5px] text-white outline-none focus:border-[#0a84ff]" />
+                  <span className="avero-micro mb-1 block">Tinggi (px)</span>
+                  <input value={dh} onChange={(e) => setDh(e.target.value.replace(/\D/g, ""))} className="w-full rounded-md border border-[#2c2c31] bg-[#161618] px-3 py-2 font-mono text-[12.5px] text-white outline-none focus:border-[#2f7cf6]" />
                 </label>
               </div>
               <div className="grid grid-cols-3 gap-2">
@@ -426,42 +422,38 @@ export default function HomeScreen() {
                       setDw(String(p.w));
                       setDh(String(p.h));
                     }}
-                    className="rounded-lg border border-[#232b3d] bg-black/30 px-2 py-1.5 text-left hover:border-[#0a84ff]"
+                    className="rounded-md border border-[#2c2c31] bg-[#161618] px-2 py-1.5 text-left hover:border-[#3a3a41]"
                   >
                     <div className="truncate text-[11px] font-semibold text-white">{p.name}</div>
-                    <div className="font-mono text-[10px] text-[#5b6577]">{p.w}x{p.h}</div>
+                    <div className="font-mono text-[10px] text-[#6e6e78]">{p.w}x{p.h}</div>
                   </button>
                 ))}
               </div>
               <div>
-                <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-[#8a94a6]">Background</span>
+                <span className="avero-micro mb-1.5 block">Background</span>
                 <div className="grid grid-cols-3 gap-2">
                   {(["white", "black", "transparent"] as const).map((b) => (
                     <button
                       key={b}
                       onClick={() => setBg(b)}
                       className={clsx(
-                        "flex items-center gap-2 rounded-lg border px-3 py-2 text-[12px] capitalize",
-                        bg === b ? "border-[#0a84ff] bg-[#0a84ff]/12 text-white" : "border-[#232b3d] text-[#8a94a6] hover:text-white",
+                        "flex items-center gap-2 rounded-md border px-3 py-2 text-[12px] capitalize",
+                        bg === b ? "border-[#2f7cf6] bg-[#2f7cf6]/10 text-white" : "border-[#2c2c31] text-[#a7a7b0] hover:text-white",
                       )}
                     >
-                      <span className={clsx("h-4 w-4 rounded border", b === "white" ? "bg-white" : b === "black" ? "bg-black" : "bg-[repeating-conic-gradient(#666_0_25%,#333_0_50%)_0_0/8px_8px]")} />
+                      <span className={clsx("h-4 w-4 rounded-sm border border-[#3a3a41]", b === "white" ? "bg-white" : b === "black" ? "bg-black" : "bg-[#3a3a41]")} />
                       {b === "white" ? "Putih" : b === "black" ? "Hitam" : "Transparan"}
                     </button>
                   ))}
                 </div>
               </div>
-              <label className="block">
-                <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-[#8a94a6]">Resolusi (dpi, info cetak)</span>
-                <input value={dpi} onChange={(e) => setDpi(e.target.value.replace(/\D/g, ""))} className="w-full rounded-lg border border-[#232b3d] bg-black/40 px-3 py-2 font-mono text-[12.5px] text-white outline-none focus:border-[#0a84ff]" />
-              </label>
             </div>
-            <div className="flex items-center gap-2 border-t border-[#1c2333] bg-black/30 px-5 py-3.5">
-              <span className="font-mono text-[11px] text-[#5b6577]">
-                {dw || 0} x {dh || 0} px • {dpi || 300} dpi
+            <div className="flex items-center gap-2 border-t border-[#2c2c31] bg-[#161618] px-5 py-3.5">
+              <span className="font-mono text-[11px] text-[#6e6e78]">
+                {dw || 0} x {dh || 0} px
               </span>
               <div className="ml-auto flex gap-2">
-                <button onClick={() => setShowNew(false)} className="rounded-lg bg-[#1b2130] px-4 py-2 text-[12px] text-white hover:bg-[#232b3d]">
+                <button onClick={() => setShowNew(false)} className="rounded-md bg-[#232327] px-4 py-2 text-[12px] text-white hover:bg-[#2c2c31]">
                   Batal
                 </button>
                 <button
@@ -470,7 +462,7 @@ export default function HomeScreen() {
                     const h = Math.min(16384, Math.max(1, Number(dh) || 1080));
                     createNew(dn.trim() || "Untitled", w, h);
                   }}
-                  className="avero-btn-primary rounded-lg px-5 py-2 text-[12px] font-semibold text-white"
+                  className="avero-btn-primary rounded-md px-5 py-2 text-[12px] font-semibold text-white"
                 >
                   Buat
                 </button>

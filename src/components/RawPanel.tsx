@@ -19,7 +19,7 @@ function Row({
 }) {
   return (
     <div>
-      <label className="mb-0.5 flex justify-between text-[11px] text-[#a0a0a0]">
+      <label className="mb-0.5 flex justify-between text-[11px] text-[#a7a7b0]">
         {label} <span className="font-mono text-white">{display}</span>
       </label>
       <input
@@ -49,7 +49,7 @@ export default function RawPanel() {
 
   return (
     <div className="space-y-2 p-3 text-[12px]">
-      <div className="rounded border border-[#3e3e42] bg-[#2d2d2d] p-2 text-[11px] text-[#a0a0a0]">
+      <div className="rounded border border-[#2c2c31] bg-[#232327] p-2 text-[11px] text-[#a7a7b0]">
         {raw.isRaw ? (
           <>
             RAW: <span className="text-white">{raw.fileName}</span>. Edit non-destructive, terapkan
@@ -125,7 +125,7 @@ export default function RawPanel() {
           resetRaw();
           bump();
         }}
-        className="w-full rounded bg-[#3e3e42] px-2 py-1.5 text-[11px] hover:bg-[#505050]"
+        className="w-full rounded bg-[#2c2c31] px-2 py-1.5 text-[11px] hover:bg-[#3a3a41]"
       >
         Reset develop
       </button>

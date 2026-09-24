@@ -1,33 +1,30 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { checkBackend } from "../io/tauriIo";
 import { useEditorStore } from "../stores/useEditorStore";
 
 const MODULES = [
-  "Menghubungkan Rust engine",
-  "Memuat workspace & shortcut",
-  "Menyiapkan layer manager",
-  "Mengompilasi brush engine",
-  "Memuat adjustment pipeline",
-  "Memuat filter stack GPU",
-  "Menyiapkan color management",
-  "Menyiapkan AI lokal offline",
-  "Menyiapkan kanvas & guides",
-  "Memulihkan sesi terakhir",
+  "Workspace dan shortcut",
+  "Layer manager",
+  "Brush engine",
+  "Adjustment pipeline",
+  "Filter stack",
+  "Color management",
+  "AI lokal",
+  "Kanvas dan guides",
+  "Sesi terakhir",
 ];
 
 const TIPS = [
-  "Tips: Tekan Ctrl+K untuk semua aksi — open, export, filter, AI.",
-  "Tips: M bolak-balik Rect/Ellipse select, U putar Shape tools.",
-  "Tips: Alt+klik untuk tentukan sumber Clone Stamp.",
-  "Tips: Seret file gambar dari Explorer langsung ke kanvas.",
-  "Tips: Tab Adjust & Filter 100% non-destruktif dan bisa reorder.",
+  "Ctrl+K membuka semua perintah.",
+  "Tombol M bergantian Rect dan Ellipse select.",
+  "Alt+klik menentukan sumber Clone Stamp.",
+  "Seret file gambar ke kanvas untuk membuka.",
+  "Adjust dan Filter tersimpan non-destruktif.",
 ];
 
 export default function BootSplash({ onDone }: { onDone: () => void }) {
   const [idx, setIdx] = useState(0);
   const [fade, setFade] = useState(false);
-  const [engine, setEngine] = useState("Menghubungkan…");
-  const tip = useMemo(() => TIPS[Math.floor(Date.now() / 3000) % TIPS.length], []);
   const [tipIdx, setTipIdx] = useState(0);
 
   useEffect(() => {
@@ -39,30 +36,23 @@ export default function BootSplash({ onDone }: { onDone: () => void }) {
     let alive = true;
     const t0 = Date.now();
     (async () => {
-      // Tahap nyata pertama: cek backend
       try {
         const r = await checkBackend();
-        if (!alive) return;
-        setEngine(r.ok ? r.info : "Mode web (Rust tidak terdeteksi)");
-        useEditorStore.getState().setBackend(r.ok ? "online" : "web-only", r.info);
+        if (alive) useEditorStore.getState().setBackend(r.ok ? "online" : "web-only", r.info);
       } catch {
-        if (alive) {
-          setEngine("Mode web");
-          useEditorStore.getState().setBackend("web-only", "Web preview");
-        }
+        if (alive) useEditorStore.getState().setBackend("web-only", "Web preview");
       }
-      // Animasi modul ala Photoshop — cepat tapi terbaca
       for (let i = 0; i < MODULES.length; i++) {
         if (!alive) return;
         setIdx(i);
-        await new Promise((r) => setTimeout(r, 130 + Math.random() * 120));
+        await new Promise((r) => setTimeout(r, 120 + Math.random() * 110));
       }
       if (!alive) return;
-      const wait = Math.max(0, 2100 - (Date.now() - t0));
+      const wait = Math.max(0, 1900 - (Date.now() - t0));
       await new Promise((r) => setTimeout(r, wait));
       if (!alive) return;
       setFade(true);
-      await new Promise((r) => setTimeout(r, 450));
+      await new Promise((r) => setTimeout(r, 350));
       if (alive) onDone();
     })();
     return () => {
@@ -74,91 +64,52 @@ export default function BootSplash({ onDone }: { onDone: () => void }) {
 
   return (
     <div
-      className={`fixed inset-0 z-[80] grid place-items-center bg-[#05070b] p-4 transition-opacity duration-500 ${
+      className={`fixed inset-0 z-[80] grid place-items-center bg-[#101012] p-4 transition-opacity duration-300 ${
         fade ? "opacity-0" : "opacity-100"
       }`}
     >
-      {/* Ambient glow */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 left-1/2 h-[420px] w-[720px] -translate-x-1/2 rounded-full bg-[#0a84ff]/20 blur-[120px]" />
-        <div className="absolute bottom-0 right-0 h-[300px] w-[420px] rounded-full bg-[#38e1ff]/10 blur-[100px]" />
-      </div>
+      <div className="w-[420px] max-w-full rounded-lg border border-[#2c2c31] bg-[#1c1c1f]">
+        <div className="flex items-center gap-3 border-b border-[#2c2c31] px-5 py-4">
+          <img src="/logo.png" alt="AVERO STUDIO" className="h-11 w-11 rounded-md object-cover" />
+          <div>
+            <div className="text-[14px] font-bold tracking-wide text-white">AVERO STUDIO</div>
+            <div className="font-mono text-[10.5px] text-[#6e6e78]">v2.0.0 professional photo studio</div>
+          </div>
+          <div className="ml-auto font-mono text-[11px] text-[#a7a7b0]">{pct}%</div>
+        </div>
 
-      <div className="animate-fade-up relative w-[460px] max-w-full overflow-hidden rounded-2xl border border-[#232b3d] bg-gradient-to-b from-[#141a27] to-[#0b0e14] shadow-[0_30px_90px_rgba(0,0,0,0.7)]">
-        {/* Top accent line */}
-        <div className="h-[3px] w-full bg-gradient-to-r from-[#0a84ff] via-[#38e1ff] to-[#0a84ff]" />
-
-        <div className="p-6 pb-4">
-          <div className="flex items-start gap-4">
-            <img
-              src="/logo.png"
-              alt="AVERO STUDIO"
-              className="animate-glow-pulse h-20 w-20 rounded-2xl object-cover"
-            />
-            <div className="min-w-0 flex-1 pt-1">
-              <div className="text-[19px] font-extrabold tracking-[0.18em] text-white">
-                AVERO
+        <div className="space-y-1.5 px-5 py-4 font-mono text-[11px]">
+          {MODULES.slice(Math.max(0, idx - 2), idx + 1).map((m, i, arr) => {
+            const isLast = i === arr.length - 1;
+            return (
+              <div key={m} className={`flex items-center gap-2 ${isLast ? "text-white" : "text-[#6e6e78]"}`}>
+                <span className={`h-1 w-1 rounded-full ${isLast ? "bg-[#2f7cf6]" : "bg-[#3a3a41]"}`} />
+                <span className="truncate">
+                  {isLast ? "Memuat " : "Selesai "}
+                  {m.toLowerCase()}
+                  {isLast ? "..." : ""}
+                </span>
               </div>
-              <div className="text-[11px] font-semibold tracking-[0.42em] text-[#38a0ff]">
-                STUDIO
-              </div>
-              <div className="mt-1.5 text-[11px] text-[#8a94a6]">
-                Professional Photo Studio • v2.0.0 • offline-first
-              </div>
-            </div>
-            <div className="rounded-md border border-[#232b3d] bg-black/40 px-2 py-1 font-mono text-[10px] text-[#8a94a6]">
-              {pct}%
-            </div>
-          </div>
+            );
+          })}
+        </div>
 
-          {/* Module loader ala Photoshop */}
-          <div className="mt-5 space-y-1.5 font-mono text-[11px]">
-            {MODULES.slice(Math.max(0, idx - 3), idx + 1).map((m, i, arr) => {
-              const isLast = i === arr.length - 1;
-              return (
-                <div
-                  key={m}
-                  className={`flex items-center gap-2 ${
-                    isLast ? "text-white" : "text-[#5b6577]"
-                  }`}
-                >
-                  <span
-                    className={`h-1.5 w-1.5 rounded-full ${
-                      isLast ? "bg-[#38e1ff] shadow-[0_0_8px_#38e1ff]" : "bg-[#2a3140]"
-                    }`}
-                  />
-                  <span className="truncate">
-                    {isLast ? "▸ " : "✓ "} {m}…
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Progress */}
-          <div className="mt-4 h-[6px] overflow-hidden rounded-full bg-[#1b2130]">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-[#0a84ff] to-[#38e1ff] transition-all duration-200"
-              style={{ width: `${pct}%` }}
-            />
-          </div>
-          <div className="mt-2 flex items-center justify-between font-mono text-[10px] text-[#5b6577]">
-            <span className="truncate">{engine}</span>
-            <span>
-              {idx + 1}/{MODULES.length}
-            </span>
-          </div>
-
-          {/* Tips rotator */}
-          <div className="mt-4 rounded-lg border border-[#232b3d] bg-black/30 px-3 py-2 text-[11px] text-[#c5cddc]">
-            <span className="font-semibold text-[#38e1ff]">AVERO </span>
-            {TIPS[tipIdx] ?? tip}
+        <div className="px-5">
+          <div className="h-1 overflow-hidden rounded-full bg-[#2c2c31]">
+            <div className="h-full rounded-full bg-[#2f7cf6] transition-all duration-200" style={{ width: `${pct}%` }} />
           </div>
         </div>
 
-        <div className="flex items-center justify-between border-t border-[#1c2333] bg-black/40 px-5 py-2.5 text-[10px] text-[#5b6577]">
-          <span>© 2026 AVERO STUDIO • Open Source • Non-destruktif</span>
-          <span className="font-mono">build stable</span>
+        <div className="px-5 py-3 text-[11px] text-[#6e6e78]">
+          <span className="font-semibold text-[#a7a7b0]">Tips. </span>
+          {TIPS[tipIdx]}
+        </div>
+
+        <div className="flex items-center justify-between border-t border-[#2c2c31] px-5 py-2.5 font-mono text-[10px] text-[#6e6e78]">
+          <span>AVERO STUDIO. Open source.</span>
+          <span>
+            {idx + 1}/{MODULES.length}
+          </span>
         </div>
       </div>
     </div>

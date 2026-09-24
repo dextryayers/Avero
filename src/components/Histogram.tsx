@@ -14,11 +14,11 @@ export default function Histogram() {
     const W = (el.width = 268);
     const H = (el.height = 84);
     ctx.clearRect(0, 0, W, H);
-    ctx.fillStyle = "#1e1e1e";
+    ctx.fillStyle = "#161618";
     ctx.fillRect(0, 0, W, H);
     const comp = getCompositeCanvas();
     if (!comp) {
-      ctx.fillStyle = "#a0a0a0";
+      ctx.fillStyle = "#a7a7b0";
       ctx.font = "10px Inter";
       ctx.fillText("Buka gambar untuk histogram", 12, 44);
       return;
@@ -51,18 +51,18 @@ export default function Histogram() {
       draw(hist.g, "rgba(90,220,120,0.85)");
       draw(hist.b, "rgba(90,150,255,0.85)");
     } catch {
-      ctx.fillStyle = "#a0a0a0";
+      ctx.fillStyle = "#a7a7b0";
       ctx.fillText("Histogram tidak tersedia", 12, 44);
     }
   }, [tick]);
 
   return (
-    <div className="rounded border border-[#3e3e42] bg-[#1e1e1e] p-1.5">
+    <div className="rounded border border-[#2c2c31] bg-[#161618] p-1.5">
       <canvas ref={ref} className="h-[84px] w-full" />
-      <div className="mt-1 flex justify-between font-mono text-[9px] text-[#a0a0a0]">
+      <div className="mt-1 flex justify-between font-mono text-[9px] text-[#a7a7b0]">
         <span className="text-white">Lum</span>
         <span className="text-red-300">R</span>
-        <span className="text-emerald-300">G</span>
+        <span className="text-[#a7a7b0]">G</span>
         <span className="text-blue-300">B</span>
       </div>
     </div>

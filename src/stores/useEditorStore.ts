@@ -57,6 +57,7 @@ interface DocumentState {
   width: number;
   height: number;
   filePath: string | null;
+  projectPath: string | null;
   dirty: boolean;
   fileSize: number | null;
 }
@@ -131,7 +132,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   brushSize: 24,
   brushOpacity: 100,
   brushHardness: 80,
-  brushColor: "#0a84ff",
+  brushColor: "#2f7cf6",
   zoom: 100,
   panX: 0,
   panY: 0,
@@ -146,11 +147,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     width: 1920,
     height: 1080,
     filePath: null,
+    projectPath: null,
     dirty: false,
     fileSize: null,
   },
   backendStatus: "checking",
-  backendInfo: "Menghubungkan ke Rust engine...",
+  backendInfo: "",
 
   setTool: (tool) => set({ tool }),
   setBrush: (p) =>
@@ -169,7 +171,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const l = defaultLayer();
     l.name = "Background";
     set({
-      doc: { name, width, height, filePath: null, dirty: false, fileSize: null },
+      doc: { name, width, height, filePath: null, projectPath: null, dirty: false, fileSize: null },
       layers: [l],
       activeLayerId: l.id,
       history: [],
@@ -184,7 +186,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const l = defaultLayer();
     l.name = "Layer 1";
     set({
-      doc: { name, width: w, height: h, filePath, dirty: false, fileSize },
+      doc: { name, width: w, height: h, filePath, projectPath: null, dirty: false, fileSize },
       layers: [l],
       activeLayerId: l.id,
       history: [],

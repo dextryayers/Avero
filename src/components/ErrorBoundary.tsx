@@ -27,17 +27,17 @@ export default class ErrorBoundary extends React.Component<Props, State> {
   render() {
     if (this.state.error) {
       return (
-        <div className="grid h-full place-items-center bg-[#1e1e1e] p-8 text-[#e0e0e0]">
+        <div className="grid h-full place-items-center bg-[#161618] p-8 text-[#c9c9d1]">
           <div className="w-[560px] max-w-full rounded-lg border border-red-800 bg-[#2a1f1f] p-5">
             <h2 className="text-[15px] font-bold text-red-200">AVERO STUDIO menemui error render</h2>
             <p className="mt-1 font-mono text-[11px] text-red-100/80">{this.state.error.message}</p>
-            <pre className="mt-2 max-h-44 overflow-auto rounded bg-black/50 p-2 font-mono text-[10px] text-[#c5c5c5]">
+            <pre className="mt-2 max-h-44 overflow-auto rounded bg-black/50 p-2 font-mono text-[10px] text-[#c9c9d1]">
               {this.state.stack}
             </pre>
             <div className="mt-3 flex gap-2">
               <button
                 onClick={() => window.location.reload()}
-                className="rounded bg-[#0a84ff] px-3 py-1.5 text-[12px] text-white"
+                className="rounded bg-[#2f7cf6] px-3 py-1.5 text-[12px] text-white"
               >
                 Muat ulang
               </button>
@@ -50,7 +50,7 @@ export default class ErrorBoundary extends React.Component<Props, State> {
                   }
                   window.location.reload();
                 }}
-                className="rounded bg-[#3e3e42] px-3 py-1.5 text-[12px]"
+                className="rounded bg-[#2c2c31] px-3 py-1.5 text-[12px]"
               >
                 Reset setting lokal dan muat ulang
               </button>

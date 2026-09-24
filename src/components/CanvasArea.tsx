@@ -213,7 +213,7 @@ export default function CanvasArea() {
 
     const ctx = canvas.getContext("2d")!;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = "#141414";
+    ctx.fillStyle = "#161618";
     ctx.fillRect(0, 0, rect.width, rect.height);
 
     const s = zoom / 100;
@@ -346,7 +346,7 @@ export default function CanvasArea() {
     ctx.lineWidth = 1.5;
     ctx.strokeRect(ox, oy, dw, dh);
     if (t) {
-      ctx.fillStyle = "#0a84ff";
+      ctx.fillStyle = "#2f7cf6";
       const hs = 7;
       const corners = [
         [ox, oy],
@@ -384,7 +384,7 @@ export default function CanvasArea() {
       ctx.globalCompositeOperation = "overlay";
       ctx.setLineDash([6, 4]);
       ctx.lineDashOffset = -ants;
-      ctx.strokeStyle = "#0a84ff";
+      ctx.strokeStyle = "#2f7cf6";
       ctx.strokeRect(ox + 0.5, oy + 0.5, dw - 1, dh - 1);
       ctx.restore();
     }
@@ -482,7 +482,7 @@ export default function CanvasArea() {
       ctx.strokeStyle = "#fff";
       ctx.lineWidth = 1.5;
       ctx.strokeRect(x, y, wpx, hpx);
-      ctx.fillStyle = "#0a84ff";
+      ctx.fillStyle = "#2f7cf6";
       const hs = 8;
       [
         [x, y],
@@ -503,7 +503,7 @@ export default function CanvasArea() {
       ctx.moveTo(ox + gradDrag.x0 * s, oy + gradDrag.y0 * s);
       ctx.lineTo(ox + gradDrag.x1 * s, oy + gradDrag.y1 * s);
       ctx.stroke();
-      ctx.fillStyle = "#0a84ff";
+      ctx.fillStyle = "#2f7cf6";
       ctx.beginPath();
       ctx.arc(ox + gradDrag.x0 * s, oy + gradDrag.y0 * s, 5, 0, Math.PI * 2);
       ctx.fill();
@@ -513,7 +513,7 @@ export default function CanvasArea() {
     // 10b. Pen/Line preview
     if (penDrag) {
       ctx.save();
-      ctx.strokeStyle = "#38e1ff";
+      ctx.strokeStyle = "#2f7cf6";
       ctx.lineWidth = 2;
       ctx.setLineDash([7, 4]);
       ctx.beginPath();
@@ -521,7 +521,7 @@ export default function CanvasArea() {
       ctx.lineTo(ox + penDrag.x1 * s, oy + penDrag.y1 * s);
       ctx.stroke();
       ctx.setLineDash([]);
-      ctx.fillStyle = "#0a84ff";
+      ctx.fillStyle = "#2f7cf6";
       [penDrag.x0, penDrag.x1].forEach((px, i) => {
         const py = i === 0 ? penDrag.y0 : penDrag.y1;
         ctx.beginPath();
@@ -1102,7 +1102,7 @@ export default function CanvasArea() {
     layerManager.ensure(l.id, doc.width, doc.height);
     const spec = {
       kind,
-      fill: "#0a84ff",
+      fill: "#2f7cf6",
       stroke: "#ffffff",
       strokeWidth: 3,
       sides: 6,
@@ -1115,10 +1115,10 @@ export default function CanvasArea() {
   }
 
   return (
-    <div className="relative flex min-w-0 flex-1 flex-col bg-[#07090d]">
+    <div className="relative flex min-w-0 flex-1 flex-col bg-[#161618]">
       {showRulers && (
-        <div className="flex h-7 shrink-0 items-stretch border-b border-[#1c2333] bg-[#0e1219] text-[10px] text-[#8a94a6]">
-          <div className="grid w-10 shrink-0 place-items-center border-r border-[#1c2333] font-mono text-[#38a0ff]">px</div>
+        <div className="flex h-7 shrink-0 items-stretch border-b border-[#2c2c31] bg-[#1c1c1f] text-[10px] text-[#a7a7b0]">
+          <div className="grid w-10 shrink-0 place-items-center border-r border-[#2c2c31] font-mono text-[#8fb6f5]">px</div>
           <div className="flex flex-1 items-center gap-3 overflow-x-auto px-3 font-mono">
             <span className="whitespace-nowrap text-white">
               W {doc.width} × H {doc.height} {paintMask ? "• paint MASK" : ""}
@@ -1131,21 +1131,21 @@ export default function CanvasArea() {
               <button
                 onClick={() => useProStore.getState().toggleGrid()}
                 title="Toggle grid"
-                className={`rounded px-1.5 py-0.5 ${showGrid ? "bg-[#0a84ff] text-white" : "hover:bg-white/10 hover:text-white"}`}
+                className={`rounded px-1.5 py-0.5 ${showGrid ? "bg-[#2f7cf6] text-white" : "hover:bg-white/10 hover:text-white"}`}
               >
                 Grid
               </button>
               <button
                 onClick={() => useProStore.getState().toggleSnap()}
                 title="Toggle snap (Alt tahan untuk bypass)"
-                className={`rounded px-1.5 py-0.5 ${snapEnabled ? "bg-[#0a84ff] text-white" : "hover:bg-white/10 hover:text-white"}`}
+                className={`rounded px-1.5 py-0.5 ${snapEnabled ? "bg-[#2f7cf6] text-white" : "hover:bg-white/10 hover:text-white"}`}
               >
                 Snap
               </button>
               <button
                 onClick={() => useProStore.getState().toggleGuides()}
                 title="Toggle guides"
-                className={`rounded px-1.5 py-0.5 ${showGuides ? "bg-[#0a84ff] text-white" : "hover:bg-white/10 hover:text-white"}`}
+                className={`rounded px-1.5 py-0.5 ${showGuides ? "bg-[#2f7cf6] text-white" : "hover:bg-white/10 hover:text-white"}`}
               >
                 Guides
               </button>
@@ -1542,17 +1542,17 @@ export default function CanvasArea() {
           {hasSelection() ? " • SEL" : ""}
         </div>
         {dragging && (
-          <div className="pointer-events-none absolute inset-4 grid place-items-center rounded-lg border-2 border-dashed border-[#0a84ff] bg-[#0a84ff]/10">
+          <div className="pointer-events-none absolute inset-4 grid place-items-center rounded-lg border-2 border-dashed border-[#2f7cf6] bg-[#2f7cf6]/10">
             <div className="rounded bg-black/70 px-4 py-2 text-[13px] text-white">
               Lepaskan untuk membuka gambar
             </div>
           </div>
         )}
         {isFresh && !dragging && (
-          <div className="pointer-events-none absolute left-1/2 top-10 -translate-x-1/2 rounded-lg bg-black/65 px-4 py-2.5 text-center text-[12px] text-[#e0e0e0]">
+          <div className="pointer-events-none absolute left-1/2 top-10 -translate-x-1/2 rounded-lg bg-black/65 px-4 py-2.5 text-center text-[12px] text-[#c9c9d1]">
             <span className="font-semibold text-white">Seret gambar ke sini</span> untuk mulai, atau
             tekan{" "}
-            <span className="rounded bg-[#3e3e42] px-1.5 py-0.5 font-mono text-[11px]">Ctrl+K</span>{" "}
+            <span className="rounded bg-[#2c2c31] px-1.5 py-0.5 font-mono text-[11px]">Ctrl+K</span>{" "}
             lalu Open image
           </div>
         )}

@@ -54,11 +54,11 @@ export default function BatchPanel() {
 
   return (
     <div className="space-y-3 p-3 text-[12px]">
-      <section className="rounded border border-[#3e3e42] bg-[#2a2a2a] p-2">
+      <section className="rounded border border-[#2c2c31] bg-[#232327] p-2">
         <div className="mb-1.5 flex items-center justify-between">
           <h4 className="font-semibold text-white">Action recorder</h4>
           <span
-            className={`rounded-full px-2 py-0.5 text-[10px] ${recording ? "bg-red-600 text-white" : "bg-[#3e3e42]"}`}
+            className={`rounded-full px-2 py-0.5 text-[10px] ${recording ? "bg-red-600 text-white" : "bg-[#2c2c31]"}`}
           >
             {recording ? "REC" : "IDLE"}
           </span>
@@ -66,30 +66,30 @@ export default function BatchPanel() {
         {!recording ? (
           <button
             onClick={startRec}
-            className="w-full rounded bg-[#0a84ff] px-2 py-1.5 text-white hover:bg-[#0070e0]"
+            className="w-full rounded bg-[#2f7cf6] px-2 py-1.5 text-white hover:bg-[#2563d4]"
           >
             Mulai rekam
           </button>
         ) : (
           <div className="grid grid-cols-2 gap-1">
-            <button onClick={stopRec} className="rounded bg-[#2d7a3a] px-2 py-1.5 text-white">
+            <button onClick={stopRec} className="rounded bg-[#2f7cf6] px-2 py-1.5 text-white">
               Stop
             </button>
-            <button onClick={clearMacro} className="rounded bg-[#3e3e42] px-2 py-1.5">
+            <button onClick={clearMacro} className="rounded bg-[#2c2c31] px-2 py-1.5">
               Clear
             </button>
           </div>
         )}
         <div className="mt-1.5 space-y-1">
           {macro.length === 0 && (
-            <div className="text-[11px] text-[#a0a0a0]">
+            <div className="text-[11px] text-[#a7a7b0]">
               Belum ada langkah. Nyalakan REC lalu tambah adjustment/filter.
             </div>
           )}
           {macro.map((m) => (
             <div
               key={m.id}
-              className="rounded bg-[#1e1e1e] px-2 py-1 font-mono text-[10px] text-[#c5c5c5]"
+              className="rounded bg-[#161618] px-2 py-1 font-mono text-[10px] text-[#c9c9d1]"
             >
               {m.label}
             </div>
@@ -101,7 +101,7 @@ export default function BatchPanel() {
               const name = prompt("Nama preset:", `Preset ${presets.length + 1}`);
               if (name) savePreset(name);
             }}
-            className="mt-1.5 w-full rounded bg-[#7a4fd0] px-2 py-1.5 text-white"
+            className="mt-1.5 w-full rounded bg-[#5a5a64] px-2 py-1.5 text-white"
           >
             Simpan sebagai preset
           </button>
@@ -112,12 +112,12 @@ export default function BatchPanel() {
         <h4 className="mb-1.5 font-semibold text-white">Preset</h4>
         <div className="space-y-1.5">
           {presets.map((p) => (
-            <div key={p.id} className="rounded border border-[#3e3e42] bg-[#2a2a2a] p-2">
+            <div key={p.id} className="rounded border border-[#2c2c31] bg-[#232327] p-2">
               <div className="font-medium text-white">{p.name}</div>
-              <div className="font-mono text-[10px] text-[#a0a0a0]">{p.steps.length} langkah</div>
+              <div className="font-mono text-[10px] text-[#a7a7b0]">{p.steps.length} langkah</div>
               <button
                 onClick={() => runBatch(p.id)}
-                className="mt-1 w-full rounded bg-[#3e3e42] px-2 py-1 text-[11px] hover:bg-[#505050]"
+                className="mt-1 w-full rounded bg-[#2c2c31] px-2 py-1 text-[11px] hover:bg-[#3a3a41]"
               >
                 Jalankan ke batch antrian
               </button>
@@ -129,25 +129,25 @@ export default function BatchPanel() {
       <section>
         <div className="mb-1.5 flex items-center justify-between">
           <h4 className="font-semibold text-white">Batch queue</h4>
-          <button onClick={clearBatch} className="rounded bg-[#3e3e42] px-2 py-1 text-[10px]">
+          <button onClick={clearBatch} className="rounded bg-[#2c2c31] px-2 py-1 text-[10px]">
             Clear
           </button>
         </div>
         <button
           onClick={pickFiles}
-          className="w-full rounded bg-[#252526] border border-dashed border-[#505050] px-2 py-2 text-[11px] hover:bg-[#2d2d2d]"
+          className="w-full rounded bg-[#1c1c1f] border border-dashed border-[#3a3a41] px-2 py-2 text-[11px] hover:bg-[#232327]"
         >
           + Tambah foto produk (500 file siap)
         </button>
         <div className="mt-1.5 max-h-44 space-y-1 overflow-y-auto">
-          {batch.length === 0 && <div className="text-[11px] text-[#a0a0a0]">Antrean kosong.</div>}
+          {batch.length === 0 && <div className="text-[11px] text-[#a7a7b0]">Antrean kosong.</div>}
           {batch.map((b) => (
-            <div key={b.id} className="rounded bg-[#1e1e1e] px-2 py-1.5 text-[11px]">
+            <div key={b.id} className="rounded bg-[#161618] px-2 py-1.5 text-[11px]">
               <div className="flex justify-between">
                 <span className="truncate text-white">{b.name}</span>
                 <span className="font-mono">{b.status}</span>
               </div>
-              <div className="font-mono text-[10px] text-[#a0a0a0]">{b.log}</div>
+              <div className="font-mono text-[10px] text-[#a7a7b0]">{b.log}</div>
             </div>
           ))}
         </div>

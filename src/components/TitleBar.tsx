@@ -1,33 +1,36 @@
 import { useEffect, useState } from "react";
 import { checkBackend, pickImageToOpen, rustDecodeToDataUrl, rustImageInfo } from "../io/tauriIo";
+import { openAvxProject, saveAvxProject } from "../io/projectIo";
 import { layerManager } from "../engine/layerManager";
 import { useEditorStore } from "../stores/useEditorStore";
 import { useHomeStore } from "../stores/useHomeStore";
 import { useProStore } from "../stores/useProStore";
-import { Bell, CloudOff, Cpu, House, Search } from "lucide-react";
+import { House, Search } from "lucide-react";
 import clsx from "clsx";
 
 const MENUS: Record<string, { label: string; hint?: string; action: string }[]> = {
   File: [
-    { label: "Baru…", hint: "Ctrl+N", action: "new" },
-    { label: "Buka Gambar…", hint: "Ctrl+O", action: "open" },
-    { label: "Home Screen", hint: "", action: "home" },
-    { label: "Export PNG…", hint: "Ctrl+S", action: "export" },
+    { label: "Dokumen Baru", hint: "", action: "home" },
+    { label: "Buka Gambar", hint: "Ctrl+O", action: "open" },
+    { label: "Buka Proyek .avx", hint: "", action: "open-avx" },
+    { label: "Simpan Proyek", hint: "Ctrl+S", action: "save-avx" },
+    { label: "Simpan Proyek Sebagai", hint: "", action: "save-avx-as" },
+    { label: "Export Gambar", hint: "Ctrl+E", action: "export" },
   ],
   Edit: [
     { label: "Undo", hint: "Ctrl+Z", action: "undo" },
     { label: "Redo", hint: "Ctrl+Y", action: "redo" },
-    { label: "Semua Aksi…", hint: "Ctrl+K", action: "palette" },
+    { label: "Semua Aksi", hint: "Ctrl+K", action: "palette" },
   ],
   Image: [
     { label: "Fit Zoom", hint: "", action: "fit" },
     { label: "Zoom 100%", hint: "", action: "zoom100" },
-    { label: "Toggle Rulers", hint: "", action: "rulers" },
+    { label: "Rulers", hint: "", action: "rulers" },
   ],
   Layer: [
     { label: "Layer Baru", hint: "", action: "add-layer" },
     { label: "Duplikat Layer", hint: "", action: "dup-layer" },
-    { label: "Toggle Guides", hint: "", action: "guides" },
+    { label: "Guides", hint: "", action: "guides" },
   ],
   Filter: [
     { label: "Gaussian Blur", hint: "", action: "f-blur" },
@@ -37,24 +40,24 @@ const MENUS: Record<string, { label: string; hint?: string; action: string }[]> 
   View: [
     { label: "Workspace Retouch", hint: "", action: "ws-retouch" },
     { label: "Workspace Photo", hint: "", action: "ws-photo" },
-    { label: "Onboarding Lagi", hint: "", action: "onboarding" },
+    { label: "Tampilkan Onboarding", hint: "", action: "onboarding" },
   ],
   Help: [
-    { label: "Shortcut & Tips", hint: "Ctrl+K", action: "palette" },
-    { label: "Tentang AVERO", hint: "v2.0.0", action: "about" },
+    { label: "Shortcut dan Tips", hint: "Ctrl+K", action: "palette" },
+    { label: "Tentang AVERO", hint: "", action: "about" },
   ],
 };
 
 export default function TitleBar({
   onOpenCommand,
+  onOpenExport,
   onHome,
 }: {
   onOpenCommand: () => void;
+  onOpenExport: () => void;
   onHome: () => void;
 }) {
   const doc = useEditorStore((s) => s.doc);
-  const backendStatus = useEditorStore((s) => s.backendStatus);
-  const backendInfo = useEditorStore((s) => s.backendInfo);
   const setBackend = useEditorStore((s) => s.setBackend);
   const openDocument = useEditorStore((s) => s.openDocument);
   const [busy, setBusy] = useState(false);
@@ -134,16 +137,24 @@ export default function TitleBar({
     const ed = useEditorStore.getState();
     const pro = useProStore.getState();
     switch (a) {
-      case "new":
+      case "home":
         onHome();
         break;
       case "open":
         handleOpen();
         break;
-      case "home":
-        onHome();
+      case "open-avx":
+        openAvxProject().catch((e) => alert(`Gagal membuka proyek: ${String(e)}`));
+        break;
+      case "save-avx":
+        saveAvxProject(false).catch((e) => alert(`Gagal menyimpan proyek: ${String(e)}`));
+        break;
+      case "save-avx-as":
+        saveAvxProject(true).catch((e) => alert(`Gagal menyimpan proyek: ${String(e)}`));
         break;
       case "export":
+        onOpenExport();
+        break;
       case "palette":
         onOpenCommand();
         break;
@@ -209,22 +220,22 @@ export default function TitleBar({
         window.location.reload();
         break;
       case "about":
-        alert("AVERO STUDIO v2.0.0 — Professional Photo Studio.\nOffline-first • Non-destruktif • Open Source.");
+        alert("AVERO STUDIO v2.0.0. Professional photo studio. Offline, non-destruktif, open source.");
         break;
     }
   }
 
   return (
-    <div className="flex h-11 shrink-0 items-center gap-2 border-b border-[#1c2333] bg-[#0e1219]/95 px-3 backdrop-blur">
+    <div className="flex h-11 shrink-0 items-center gap-2 border-b border-[#2c2c31] bg-[#1c1c1f] px-3">
       <div className="flex items-center gap-2">
-        <button onClick={onHome} title="Home (layar awal)">
-          <img src="/logo.png" alt="AVERO" className="h-7 w-7 rounded-lg object-cover shadow-[0_0_16px_rgba(10,132,255,0.5)] hover:ring-2 hover:ring-[#0a84ff]" />
+        <button onClick={onHome} title="Home">
+          <img src="/logo.png" alt="AVERO" className="h-7 w-7 rounded-md object-cover hover:ring-2 hover:ring-[#2f7cf6]" />
         </button>
         <button onClick={onHome} title="Home" className="hidden items-center gap-1.5 sm:flex">
-          <span className="text-[12.5px] font-extrabold tracking-[0.12em] text-white hover:text-[#38e1ff]">AVERO STUDIO</span>
-          <House size={13} className="text-[#5b6577]" />
+          <span className="text-[12.5px] font-bold tracking-wide text-white">AVERO STUDIO</span>
+          <House size={13} className="text-[#6e6e78]" />
         </button>
-        <span className="rounded-md border border-[#232b3d] bg-black/40 px-1.5 py-0.5 font-mono text-[9.5px] text-[#8a94a6]">
+        <span className="rounded border border-[#2c2c31] bg-[#161618] px-1.5 py-0.5 font-mono text-[9.5px] text-[#a7a7b0]">
           v2.0.0
         </span>
       </div>
@@ -233,29 +244,24 @@ export default function TitleBar({
         {Object.keys(MENUS).map((m) => (
           <div key={m} className="relative" onClick={(e) => e.stopPropagation()}>
             <button
-              onClick={() => {
-                if (m === "File" && !openMenu) {
-                  // klik pertama File tetap buka menu (tidak langsung dialog agar discoverable)
-                }
-                setOpenMenu(openMenu === m ? null : m);
-              }}
+              onClick={() => setOpenMenu(openMenu === m ? null : m)}
               onMouseEnter={() => {
                 if (openMenu) setOpenMenu(m);
               }}
               className={clsx(
-                "rounded-lg px-2.5 py-1.5",
-                openMenu === m ? "bg-[#1b2130] text-white" : "text-[#aeb7c9] hover:bg-white/5 hover:text-white",
+                "rounded-md px-2.5 py-1.5",
+                openMenu === m ? "bg-[#232327] text-white" : "text-[#a7a7b0] hover:bg-[#232327] hover:text-white",
               )}
             >
               {m}
             </button>
             {openMenu === m && (
-              <div className="absolute left-0 top-full z-50 mt-1 w-[220px] overflow-hidden rounded-xl border border-[#232b3d] bg-[#10141d] shadow-[0_20px_60px_rgba(0,0,0,0.6)]">
+              <div className="absolute left-0 top-full z-50 mt-1 w-[220px] overflow-hidden rounded-md border border-[#2c2c31] bg-[#1c1c1f]">
                 {MENUS[m].map((it) => (
                   <button
                     key={it.label}
                     onClick={() => runAction(it.action)}
-                    className="flex w-full items-center justify-between px-3 py-2 text-left text-[12px] text-[#c5cddc] hover:bg-[#0a84ff] hover:text-white"
+                    className="flex w-full items-center justify-between px-3 py-2 text-left text-[12px] text-[#c9c9d1] hover:bg-[#2f7cf6] hover:text-white"
                   >
                     <span>{it.label}</span>
                     {it.hint && <span className="font-mono text-[10px] opacity-60">{it.hint}</span>}
@@ -269,33 +275,25 @@ export default function TitleBar({
 
       <button
         onClick={onOpenCommand}
-        className="ml-2 hidden items-center gap-1.5 rounded-lg border border-[#232b3d] bg-black/40 px-2.5 py-1.5 text-[11.5px] text-[#8a94a6] hover:border-[#0a84ff] hover:text-white md:flex"
+        className="ml-2 hidden items-center gap-1.5 rounded-md border border-[#2c2c31] bg-[#161618] px-2.5 py-1.5 text-[11.5px] text-[#6e6e78] hover:border-[#3a3a41] hover:text-white md:flex"
       >
-        <Search size={13} /> Ctrl+K semua aksi…
+        <Search size={13} /> Ctrl+K semua aksi
       </button>
 
       <div className="ml-auto flex items-center gap-2 text-[11px]">
-        <span className="hidden max-w-[260px] truncate rounded-lg bg-black/30 px-2 py-1 font-mono text-[#aeb7c9] xl:block">
-          {doc.name} {doc.dirty ? "•" : ""} {doc.width}x{doc.height}
+        <span className="hidden max-w-[280px] truncate rounded border border-[#2c2c31] bg-[#161618] px-2 py-1 font-mono text-[#a7a7b0] xl:block">
+          {doc.name}
+          {doc.dirty ? " *" : ""} {doc.width}x{doc.height}
         </span>
-        <span
-          title={backendInfo}
-          className={clsx(
-            "flex items-center gap-1 rounded-full px-2.5 py-1 font-medium",
-            backendStatus === "online" ? "bg-emerald-500/12 text-emerald-300" : "bg-amber-500/12 text-amber-300",
-          )}
-        >
-          {backendStatus === "online" ? <Cpu size={12} /> : <CloudOff size={12} />}
-          {backendStatus === "online" ? "Rust engine" : "Web preview"}
+        <span className={doc.dirty ? "text-[#d9a441]" : "text-[#6e6e78]"}>
+          {doc.dirty ? "Belum disimpan" : "Tersimpan"}
         </span>
-        <Bell size={14} className="text-[#5b6577]" />
       </div>
       <span className="hidden" data-open-handler={busy ? "busy" : "idle"} onClick={handleOpen} />
     </div>
   );
 }
 
-// Helper agar App bisa trigger open tanpa prop drilling rumit
 export function useTitleBarOpen() {
   const openDocument = useEditorStore((s) => s.openDocument);
   return async function openNow() {

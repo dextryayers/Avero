@@ -43,7 +43,7 @@ export default function GitPanel() {
         <select
           value={activeBranch}
           onChange={(e) => switchBranch(e.target.value)}
-          className="flex-1 rounded bg-[#1e1e1e] px-2 py-1.5 text-white"
+          className="flex-1 rounded bg-[#161618] px-2 py-1.5 text-white"
         >
           {branches.map((br) => (
             <option key={br} value={br}>
@@ -56,18 +56,18 @@ export default function GitPanel() {
             const n = prompt("Nama varian baru:");
             if (n) createBranch(n);
           }}
-          className="rounded bg-[#0a84ff] px-2 py-1.5 text-white"
+          className="rounded bg-[#2f7cf6] px-2 py-1.5 text-white"
         >
           +Branch
         </button>
-        <button onClick={takeSnapshot} className="rounded bg-[#2d7a3a] px-2 py-1.5 text-white">
+        <button onClick={takeSnapshot} className="rounded bg-[#2f7cf6] px-2 py-1.5 text-white">
           Snapshot
         </button>
       </div>
 
       <div className="max-h-52 space-y-1.5 overflow-y-auto">
         {snaps.filter((s) => s.branch === activeBranch).length === 0 && (
-          <div className="rounded border border-dashed border-[#3e3e42] p-3 text-center text-[11px] text-[#a0a0a0]">
+          <div className="rounded border border-dashed border-[#2c2c31] p-3 text-center text-[11px] text-[#a7a7b0]">
             Belum ada snapshot di branch ini. Coba 3 versi edit tanpa duplicate file.
           </div>
         )}
@@ -76,30 +76,30 @@ export default function GitPanel() {
           .map((s) => (
             <div
               key={s.id}
-              className="flex gap-2 rounded border border-[#3e3e42] bg-[#2a2a2a] p-1.5"
+              className="flex gap-2 rounded border border-[#2c2c31] bg-[#232327] p-1.5"
             >
               {s.thumb ? (
                 <img src={s.thumb} alt={s.label} className="h-12 w-20 rounded object-cover" />
               ) : (
-                <div className="grid h-12 w-20 place-items-center rounded bg-[#1e1e1e] text-[10px]">
+                <div className="grid h-12 w-20 place-items-center rounded bg-[#161618] text-[10px]">
                   no img
                 </div>
               )}
               <div className="min-w-0 flex-1">
                 <div className="truncate font-medium text-white">{s.label}</div>
-                <div className="font-mono text-[10px] text-[#a0a0a0]">
+                <div className="font-mono text-[10px] text-[#a7a7b0]">
                   {new Date(s.time).toLocaleTimeString()} • {s.layersCount} layers
                 </div>
                 <div className="mt-0.5 flex gap-1">
                   <button
                     onClick={() => setCompare(s.id, compareB)}
-                    className={`rounded px-1.5 py-0.5 text-[10px] ${compareA === s.id ? "bg-[#0a84ff] text-white" : "bg-[#3e3e42]"}`}
+                    className={`rounded px-1.5 py-0.5 text-[10px] ${compareA === s.id ? "bg-[#2f7cf6] text-white" : "bg-[#2c2c31]"}`}
                   >
                     A
                   </button>
                   <button
                     onClick={() => setCompare(compareA, s.id)}
-                    className={`rounded px-1.5 py-0.5 text-[10px] ${compareB === s.id ? "bg-[#0a84ff] text-white" : "bg-[#3e3e42]"}`}
+                    className={`rounded px-1.5 py-0.5 text-[10px] ${compareB === s.id ? "bg-[#2f7cf6] text-white" : "bg-[#2c2c31]"}`}
                   >
                     B
                   </button>
@@ -110,7 +110,7 @@ export default function GitPanel() {
       </div>
 
       {a && b && (
-        <div className="rounded border border-[#3e3e42] bg-[#1e1e1e] p-2">
+        <div className="rounded border border-[#2c2c31] bg-[#161618] p-2">
           <div className="mb-1 flex justify-between text-[11px]">
             <span>{a.label}</span>
             <span>{b.label}</span>
@@ -142,7 +142,7 @@ export default function GitPanel() {
           </div>
           <button
             onClick={() => setCompare(null, null)}
-            className="mt-1 w-full rounded bg-[#3e3e42] px-2 py-1 text-[11px]"
+            className="mt-1 w-full rounded bg-[#2c2c31] px-2 py-1 text-[11px]"
           >
             Tutup compare
           </button>

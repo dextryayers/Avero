@@ -41,8 +41,8 @@ export default function SelectionPanel() {
               }}
               className={`rounded px-2 py-1.5 text-[11px] ${
                 selKind === k && (tool === t || (k === "rect" && tool === "select-rect"))
-                  ? "bg-[#0a84ff] text-white"
-                  : "bg-[#3e3e42] text-[#e0e0e0] hover:bg-[#505050]"
+                  ? "bg-[#2f7cf6] text-white"
+                  : "bg-[#2c2c31] text-[#c9c9d1] hover:bg-[#3a3a41]"
               }`}
             >
               {label}
@@ -52,7 +52,7 @@ export default function SelectionPanel() {
       </div>
 
       <div>
-        <label className="mb-1 flex justify-between text-[#a0a0a0]">
+        <label className="mb-1 flex justify-between text-[#a7a7b0]">
           Feather <span className="font-mono text-white">{selFeather}px</span>
         </label>
         <input
@@ -65,7 +65,7 @@ export default function SelectionPanel() {
         />
       </div>
       <div>
-        <label className="mb-1 flex justify-between text-[#a0a0a0]">
+        <label className="mb-1 flex justify-between text-[#a7a7b0]">
           Wand tolerance <span className="font-mono text-white">{selTolerance}</span>
         </label>
         <input
@@ -78,7 +78,7 @@ export default function SelectionPanel() {
         />
       </div>
       <div>
-        <label className="mb-1 flex justify-between text-[#a0a0a0]">
+        <label className="mb-1 flex justify-between text-[#a7a7b0]">
           Expand / Contract <span className="font-mono text-white">{selExpand}px</span>
         </label>
         <input
@@ -95,7 +95,7 @@ export default function SelectionPanel() {
             if (selFeather > 0) featherSelection(selFeather);
             setTick((t) => t + 1);
           }}
-          className="mt-1 w-full rounded bg-[#3e3e42] px-2 py-1 text-[11px] hover:bg-[#505050]"
+          className="mt-1 w-full rounded bg-[#2c2c31] px-2 py-1 text-[11px] hover:bg-[#3a3a41]"
         >
           Apply expand + feather
         </button>
@@ -107,7 +107,7 @@ export default function SelectionPanel() {
             inverseSelection();
             setTick((t) => t + 1);
           }}
-          className="rounded bg-[#2d2d2d] px-2 py-1.5 text-[11px] hover:bg-[#3e3e42]"
+          className="rounded bg-[#232327] px-2 py-1.5 text-[11px] hover:bg-[#2c2c31]"
         >
           Inverse
         </button>
@@ -116,7 +116,7 @@ export default function SelectionPanel() {
             clearSelectionMask();
             setTick((t) => t + 1);
           }}
-          className="rounded bg-[#2d2d2d] px-2 py-1.5 text-[11px] hover:bg-[#3e3e42]"
+          className="rounded bg-[#232327] px-2 py-1.5 text-[11px] hover:bg-[#2c2c31]"
         >
           Deselect
         </button>
@@ -128,11 +128,11 @@ export default function SelectionPanel() {
           setTick((t) => t + 1);
         }}
         title="Haluskan tepi: ciutkan 1px lalu feather 1px"
-        className="w-full rounded bg-[#0a84ff] px-2 py-1.5 text-[11px] text-white hover:bg-[#0070e0]"
+        className="w-full rounded bg-[#2f7cf6] px-2 py-1.5 text-[11px] text-white hover:bg-[#2563d4]"
       >
         Refine edge (haluskan)
       </button>
-      <div className="rounded border border-[#3e3e42] bg-[#2d2d2d] p-2 text-[11px] text-[#a0a0a0]">
+      <div className="rounded border border-[#2c2c31] bg-[#232327] p-2 text-[11px] text-[#a7a7b0]">
         {hasSelection() || tick >= 0
           ? "Brush otomatis menghormati seleksi. Area luar seleksi dilindungi."
           : "Belum ada seleksi."}

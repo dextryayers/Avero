@@ -47,7 +47,7 @@ export default function AiPanel() {
 
   return (
     <div className="space-y-3 p-3 text-[12px]">
-      <div className="rounded border border-[#3e3e42] bg-[#202b33] p-2 text-[11px] text-[#bcd2e2]">
+      <div className="rounded border border-[#2c2c31] bg-[#1c1c1f] p-2 text-[11px] text-[#c9c9d1]">
         AI lokal 100% offline. Heuristik aktif tanpa download. Slot ONNX siap di folder model untuk
         akurasi setara cloud.
       </div>
@@ -77,11 +77,11 @@ export default function AiPanel() {
               return `Background dihapus toleransi ${tol}. Sisa edge bisa rapikan dengan Eraser.`;
             })
           }
-          className="rounded bg-[#0a84ff] px-2 py-2 text-white hover:bg-[#0070e0] disabled:opacity-50"
+          className="rounded bg-[#2f7cf6] px-2 py-2 text-white hover:bg-[#2563d4] disabled:opacity-50"
         >
           1-klik hapus background
         </button>
-        <label className="flex justify-between text-[11px] text-[#a0a0a0]">
+        <label className="flex justify-between text-[11px] text-[#a7a7b0]">
           Toleransi <span className="font-mono text-white">{tol}</span>
         </label>
         <input
@@ -125,7 +125,7 @@ export default function AiPanel() {
                 return "Subjek diseleksi. Brush kini terlindungi di luar subjek.";
               })
             }
-            className="rounded bg-[#2d7a3a] px-2 py-2 text-white hover:bg-[#256b32] disabled:opacity-50"
+            className="rounded bg-[#2f7cf6] px-2 py-2 text-white hover:bg-[#2563d4] disabled:opacity-50"
           >
             Select subject
           </button>
@@ -147,7 +147,7 @@ export default function AiPanel() {
                 return "Area seleksi/transparan diisi dari tetangga.";
               })
             }
-            className="rounded bg-[#7a4fd0] px-2 py-2 text-white hover:bg-[#6840b8] disabled:opacity-50"
+            className="rounded bg-[#5a5a64] px-2 py-2 text-white hover:bg-[#4a4a52] disabled:opacity-50"
           >
             Generative erase
           </button>
@@ -170,7 +170,7 @@ export default function AiPanel() {
                 return "Upscale 2x dibuat sebagai layer baru.";
               })
             }
-            className="rounded bg-[#3e3e42] px-2 py-2 hover:bg-[#505050] disabled:opacity-50"
+            className="rounded bg-[#2c2c31] px-2 py-2 hover:bg-[#3a3a41] disabled:opacity-50"
           >
             Upscale 2x
           </button>
@@ -212,13 +212,13 @@ export default function AiPanel() {
                 return "Tone referensi ditiru ke layer aktif.";
               })
             }
-            className="rounded bg-[#3e3e42] px-2 py-2 hover:bg-[#505050] disabled:opacity-50"
+            className="rounded bg-[#2c2c31] px-2 py-2 hover:bg-[#3a3a41] disabled:opacity-50"
           >
             Tiru tone referensi
           </button>
         </div>
 
-        <label className="rounded border border-dashed border-[#3e3e42] p-2 text-center text-[11px] text-[#a0a0a0]">
+        <label className="rounded border border-dashed border-[#2c2c31] p-2 text-center text-[11px] text-[#a7a7b0]">
           Upload foto referensi grading
           <input
             type="file"
@@ -237,32 +237,32 @@ export default function AiPanel() {
       {jobs.length > 0 && (
         <div className="space-y-1">
           {jobs.map((j) => (
-            <div key={j.id} className="rounded bg-[#2a2a2a] p-2">
+            <div key={j.id} className="rounded bg-[#232327] p-2">
               <div className="flex justify-between text-[11px]">
                 <span>{j.label}</span>
                 <span className="font-mono">{j.progress}%</span>
               </div>
-              <div className="mt-1 h-1.5 overflow-hidden rounded bg-[#1e1e1e]">
-                <div className="h-full bg-[#0a84ff]" style={{ width: `${j.progress}%` }} />
+              <div className="mt-1 h-1.5 overflow-hidden rounded bg-[#161618]">
+                <div className="h-full bg-[#2f7cf6]" style={{ width: `${j.progress}%` }} />
               </div>
             </div>
           ))}
         </div>
       )}
       {lastResult && (
-        <div className="rounded bg-[#1f3a24] p-2 text-[11px] text-[#bfe6c6]">{lastResult}</div>
+        <div className="rounded bg-[#1c1c1f] p-2 text-[11px] text-[#a7a7b0]">{lastResult}</div>
       )}
 
       <div className="space-y-1">
         <h4 className="font-semibold text-white">Model manager</h4>
         {models.map((m) => (
-          <div key={m.id} className="rounded border border-[#3e3e42] bg-[#2a2a2a] p-2 text-[11px]">
+          <div key={m.id} className="rounded border border-[#2c2c31] bg-[#232327] p-2 text-[11px]">
             <div className="flex justify-between">
               <span className="text-white">{m.label}</span>
-              <span className="font-mono text-emerald-300">heuristic 100%</span>
+              <span className="font-mono text-[#a7a7b0]">heuristic 100%</span>
             </div>
-            <div className="text-[#a0a0a0]">{m.note}</div>
-            <div className="font-mono text-[10px] text-[#a0a0a0]">
+            <div className="text-[#a7a7b0]">{m.note}</div>
+            <div className="font-mono text-[10px] text-[#a7a7b0]">
               {m.file} • {m.sizeMB}MB opsional
             </div>
           </div>

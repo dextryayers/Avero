@@ -42,9 +42,9 @@ export default function PromptBar() {
   }
 
   return (
-    <div className="border-b border-[#3e3e42] bg-[#1d2530] px-3 py-1.5">
+    <div className="border-b border-[#2c2c31] bg-[#1c1c1f] px-3 py-1.5">
       <div className="flex items-center gap-2">
-        <Sparkles size={14} className="shrink-0 text-[#7db8ff]" />
+        <Sparkles size={14} className="shrink-0 text-[#8fb6f5]" />
         <input
           value={q}
           onChange={(e) => {
@@ -55,16 +55,16 @@ export default function PromptBar() {
             if (e.key === "Enter") run();
           }}
           placeholder='Prompt to edit, contoh: "buat langit sunset dramatis" atau "hapus background"'
-          className="w-full rounded bg-[#141a22] px-2.5 py-1.5 text-[12px] text-white outline-none placeholder:text-[#7a8aa0]"
+          className="w-full rounded bg-[#161618] px-2.5 py-1.5 text-[12px] text-white outline-none placeholder:text-[#a7a7b0]"
         />
         <button
           onClick={run}
-          className="shrink-0 rounded bg-[#0a84ff] px-3 py-1.5 text-[11px] text-white hover:bg-[#0070e0]"
+          className="shrink-0 rounded bg-[#2f7cf6] px-3 py-1.5 text-[11px] text-white hover:bg-[#2563d4]"
         >
           Apply
         </button>
       </div>
-      {log && <div className="mt-1 text-[11px] text-[#9fc3e8]">{log}</div>}
+      {log && <div className="mt-1 text-[11px] text-[#a7a7b0]">{log}</div>}
     </div>
   );
 }

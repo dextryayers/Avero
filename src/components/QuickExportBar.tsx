@@ -2,8 +2,6 @@ import { useState } from "react";
 import { Save, Download, ChevronDown, FileImage, FileBox, Layers } from "lucide-react";
 import { saveAvxProject, openAvxProject, exportDataUrl, type ExportFormat } from "../io/projectIo";
 import { useEditorStore } from "../stores/useEditorStore";
-import { useProStore } from "../stores/useProStore";
-import { layerManager } from "../engine/layerManager";
 import clsx from "clsx";
 
 const IMG_FORMATS: { id: ExportFormat; label: string; ext: string }[] = [

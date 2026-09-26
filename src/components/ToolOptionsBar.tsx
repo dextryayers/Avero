@@ -3,7 +3,7 @@ import { useProStore } from "../stores/useProStore";
 import { TOOL_LABEL } from "./ToolBar";
 
 const BAR =
-  "pointer-events-auto absolute left-1/2 top-3 z-20 flex max-w-[94%] -translate-x-1/2 items-center gap-2.5 rounded-xl border border-white/10 bg-[#161618]/92 px-3 py-2 text-[11px] text-[#a7a7b0] shadow-[0_10px_30px_rgba(0,0,0,0.55)] backdrop-blur-xl";
+  "pointer-events-auto absolute left-1/2 top-6 z-30 flex max-w-[94%] -translate-x-1/2 items-center gap-2.5 rounded-xl border border-white/10 bg-[#161618]/92 px-3 py-2 text-[11px] text-[#a7a7b0] shadow-[0_10px_30px_rgba(0,0,0,0.55)] backdrop-blur-xl";
 
 function Hint({ children }: { children: React.ReactNode }) {
   return <span className="truncate text-[#c9c9d1]">{children}</span>;
@@ -173,7 +173,7 @@ export default function ToolOptionsBar({
 
   if (paintMask && (tool === "brush" || tool === "eraser")) {
     return (
-      <div className="pointer-events-none absolute left-1/2 top-3 z-20 -translate-x-1/2 rounded-xl border border-[#5a3a10] bg-[#2c2313]/95 px-3 py-2 text-[11px] text-[#f0c674] shadow-lg backdrop-blur-md">
+      <div className="pointer-events-none absolute left-1/2 top-6 z-30 -translate-x-1/2 rounded-xl border border-[#5a3a10] bg-[#2c2313]/95 px-3 py-2 text-[11px] text-[#f0c674] shadow-lg backdrop-blur-md">
         Mode paint MASK. Brush menampilkan, Eraser menyembunyikan.
       </div>
     );

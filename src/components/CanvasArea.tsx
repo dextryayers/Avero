@@ -97,7 +97,6 @@ export default function CanvasArea() {
   const showGuides = useProStore((s) => s.showGuides);
   const showGrid = useProStore((s) => s.showGrid);
   const gridSize = useProStore((s) => s.gridSize);
-  const snapEnabled = useProStore((s) => s.snapEnabled);
 
   useEffect(() => {
     layers.forEach((l) => layerManager.ensure(l.id, doc.width, doc.height));
@@ -212,6 +211,119 @@ export default function CanvasArea() {
     return () => clearInterval(t);
   }, [layers, zoom, panX, panY, adjustments, filters, selDrag, lassoPts]);
 
+  // Penggaris pixel profesional (digambar terpisah agar ringan saat kursor bergerak)
+  function drawRulers() {
+    const wrap = wrapRef.current;
+    if (!wrap || !showRulers) return;
+    const rect = wrap.getBoundingClientRect();
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const s = zoom / 100;
+    const dw = doc.width * s;
+    const dh = doc.height * s;
+    const ox = (rect.width - dw) / 2 + panX;
+    const oy = (rect.height - dh) / 2 + panY;
+    const [cxRaw, cyRaw] = cursor.split(",").map((v) => parseFloat(v.trim()));
+    const drawRuler = (c: HTMLCanvasElement | null, horizontal: boolean) => {
+      if (!c) return;
+      const th = 18;
+      const len = horizontal ? rect.width : rect.height;
+      c.width = Math.max(1, Math.floor((horizontal ? rect.width : th) * dpr));
+      c.height = Math.max(1, Math.floor((horizontal ? th : rect.height) * dpr));
+      const g = c.getContext("2d")!;
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const o = horizontal ? ox : oy;
+      const size = horizontal ? dw : dh;
+      g.fillStyle = "#101012";
+      g.fillRect(0, 0, horizontal ? rect.width : th, horizontal ? th : rect.height);
+      g.fillStyle = "#1c1c1f";
+      g.fillRect(horizontal ? o : 0, horizontal ? 0 : o, horizontal ? size : th, horizontal ? th : size);
+      const steps = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000, 10000];
+      let step = steps[steps.length - 1];
+      for (const v of steps) {
+        if (v * s >= 70) {
+          step = v;
+          break;
+        }
+      }
+      const minor = step / 5;
+      const from = Math.floor(-o / s / minor) * minor;
+      const to = Math.ceil((len - o) / s / minor) * minor;
+      g.strokeStyle = "#5a5a63";
+      g.font = "9px JetBrains Mono, monospace";
+      g.beginPath();
+      for (let v = from; v <= to; v += minor) {
+        const p = Math.round(o + v * s) + 0.5;
+        if (p < -20 || p > len + 20) continue;
+        const major = Math.abs(v % step) < 1e-6;
+        if (horizontal) {
+          g.moveTo(p, th - (major ? 9 : 4));
+          g.lineTo(p, th);
+        } else {
+          g.moveTo(th - (major ? 9 : 4), p);
+          g.lineTo(th, p);
+        }
+      }
+      g.stroke();
+      for (let v = Math.ceil(from / step) * step; v <= to; v += step) {
+        const p = Math.round(o + v * s);
+        if (p < -40 || p > len + 40) continue;
+        const inDoc = v >= 0 && v <= (horizontal ? doc.width : doc.height);
+        g.fillStyle = inDoc ? "#c9c9d1" : "#6e6e78";
+        if (horizontal) {
+          g.fillText(String(Math.round(v)), p + 3, 8);
+        } else {
+          g.save();
+          g.translate(9, p - 3);
+          g.rotate(-Math.PI / 2);
+          g.textAlign = "right";
+          g.fillText(String(Math.round(v)), 0, 0);
+          g.restore();
+          g.textAlign = "left";
+        }
+      }
+      const cur = horizontal ? cxRaw : cyRaw;
+      if (Number.isFinite(cur)) {
+        const p = Math.round(o + cur * s);
+        g.fillStyle = "#2f7cf6";
+        if (horizontal) g.fillRect(p, 0, 1, th);
+        else g.fillRect(0, p, th, 1);
+      }
+      g.strokeStyle = "#2f7cf6";
+      g.lineWidth = 1;
+      g.beginPath();
+      const a = Math.round(o) + 0.5;
+      const b = Math.round(o + size) + 0.5;
+      if (horizontal) {
+        g.moveTo(a, 0);
+        g.lineTo(a, th);
+        g.moveTo(b, 0);
+        g.lineTo(b, th);
+      } else {
+        g.moveTo(0, a);
+        g.lineTo(th, a);
+        g.moveTo(0, b);
+        g.lineTo(th, b);
+      }
+      g.stroke();
+      if (rulerDrag && rulerDrag.kind === (horizontal ? "h" : "v")) {
+        const dp = Math.round(o + rulerDrag.pos * s);
+        g.fillStyle = "#5a30ff";
+        if (horizontal) g.fillRect(dp, 0, 2, th);
+        else g.fillRect(0, dp, th, 2);
+      }
+    };
+    drawRuler(hRulerRef.current, true);
+    drawRuler(vRulerRef.current, false);
+  }
+
+
+  useEffect(() => {
+    drawRulers();
+    const onResize = () => drawRulers();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [showRulers, zoom, panX, panY, doc.width, doc.height, cursor, rulerDrag]);
+
   // Render komposit non-destructive
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -255,103 +367,6 @@ export default function CanvasArea() {
     const ox = (rect.width - dw) / 2 + panX;
     const oy = (rect.height - dh) / 2 + panY;
 
-    // 0b. Penggaris pixel profesional (horizontal + vertikal)
-    if (showRulers) {
-      const [cxRaw, cyRaw] = cursor.split(",").map((v) => parseFloat(v.trim()));
-      const drawRuler = (c: HTMLCanvasElement | null, horizontal: boolean) => {
-        if (!c) return;
-        const th = 18;
-        const len = horizontal ? rect.width : rect.height;
-        c.style.width = `${horizontal ? rect.width : th}px`;
-        c.style.height = `${horizontal ? th : rect.height}px`;
-        c.width = Math.max(1, Math.floor((horizontal ? rect.width : th) * dpr));
-        c.height = Math.max(1, Math.floor((horizontal ? th : rect.height) * dpr));
-        const g = c.getContext("2d")!;
-        g.setTransform(dpr, 0, 0, dpr, 0, 0);
-        const o = horizontal ? ox : oy;
-        const size = horizontal ? dw : dh;
-        g.fillStyle = "#101012";
-        g.fillRect(0, 0, horizontal ? rect.width : th, horizontal ? th : rect.height);
-        g.fillStyle = "#1c1c1f";
-        g.fillRect(horizontal ? o : 0, horizontal ? 0 : o, horizontal ? size : th, horizontal ? th : size);
-        const steps = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000, 10000];
-        let step = steps[steps.length - 1];
-        for (const v of steps) {
-          if (v * s >= 70) {
-            step = v;
-            break;
-          }
-        }
-        const minor = step / 5;
-        const from = Math.floor(-o / s / minor) * minor;
-        const to = Math.ceil((len - o) / s / minor) * minor;
-        g.strokeStyle = "#5a5a63";
-        g.font = "9px JetBrains Mono, monospace";
-        g.beginPath();
-        for (let v = from; v <= to; v += minor) {
-          const p = Math.round(o + v * s) + 0.5;
-          if (p < -20 || p > len + 20) continue;
-          const major = Math.abs(v % step) < 1e-6;
-          if (horizontal) {
-            g.moveTo(p, th - (major ? 9 : 4));
-            g.lineTo(p, th);
-          } else {
-            g.moveTo(th - (major ? 9 : 4), p);
-            g.lineTo(th, p);
-          }
-        }
-        g.stroke();
-        g.textBaseline = "alphabetic";
-        for (let v = Math.ceil(from / step) * step; v <= to; v += step) {
-          const p = Math.round(o + v * s);
-          if (p < -40 || p > len + 40) continue;
-          const inDoc = v >= 0 && v <= (horizontal ? doc.width : doc.height);
-          g.fillStyle = inDoc ? "#c9c9d1" : "#6e6e78";
-          if (horizontal) {
-            g.fillText(String(Math.round(v)), p + 3, 8);
-          } else {
-            g.save();
-            g.translate(8, p - 3);
-            g.rotate(-Math.PI / 2);
-            g.textAlign = "right";
-            g.fillText(String(Math.round(v)), 0, 0);
-            g.restore();
-            g.textAlign = "left";
-          }
-        }
-        const cur = horizontal ? cxRaw : cyRaw;
-        if (Number.isFinite(cur)) {
-          const p = Math.round(o + cur * s);
-          g.fillStyle = "#2f7cf6";
-          if (horizontal) g.fillRect(p, 0, 1, th);
-          else g.fillRect(0, p, th, 1);
-        }
-        g.strokeStyle = "#2f7cf6";
-        g.beginPath();
-        const a = Math.round(o) + 0.5;
-        const b = Math.round(o + size) + 0.5;
-        if (horizontal) {
-          g.moveTo(a, 0);
-          g.lineTo(a, th);
-          g.moveTo(b, 0);
-          g.lineTo(b, th);
-        } else {
-          g.moveTo(0, a);
-          g.lineTo(th, a);
-          g.moveTo(0, b);
-          g.lineTo(th, b);
-        }
-        g.stroke();
-        if (rulerDrag && rulerDrag.kind === (horizontal ? "h" : "v")) {
-          const dp = Math.round(o + rulerDrag.pos * s);
-          g.fillStyle = "#5a30ff";
-          if (horizontal) g.fillRect(dp, 0, 2, th);
-          else g.fillRect(0, dp, th, 2);
-        }
-      };
-      drawRuler(hRulerRef.current, true);
-      drawRuler(vRulerRef.current, false);
-    }
 
     // backing dokumen: papan catur transparansi ala editor profesional
     ctx.save();
@@ -1265,43 +1280,54 @@ export default function CanvasArea() {
     pro.ensureTransform(l.id);
   }
 
+  // Seret dari penggaris untuk membuat guide baru ala editor profesional
+  function startRulerDrag(kind: "h" | "v", e: React.MouseEvent) {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const r = wrap.getBoundingClientRect();
+    const s = zoom / 100;
+    const ox = (r.width - doc.width * s) / 2 + panX;
+    const oy = (r.height - doc.height * s) / 2 + panY;
+    const posAt = (ev: { clientX: number; clientY: number }) =>
+      kind === "h" ? (ev.clientY - r.top - oy) / s : (ev.clientX - r.left - ox) / s;
+    setRulerDrag({ kind, pos: posAt(e.nativeEvent) });
+    const onMove = (ev: MouseEvent) => setRulerDrag({ kind, pos: posAt(ev) });
+    const onUp = (ev: MouseEvent) => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      const pos = posAt(ev);
+      const max = kind === "h" ? doc.height : doc.width;
+      if (pos >= 0 && pos <= max) {
+        const pro = useProStore.getState();
+        pro.addGuide(kind, Math.round(pos));
+        if (!pro.showGuides) pro.toggleGuides();
+      }
+      setRulerDrag(null);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }
+
   return (
     <div className="relative flex min-w-0 flex-1 flex-col bg-[#161618]">
       {showRulers && (
-        <div className="flex h-7 shrink-0 items-stretch border-b border-[#2c2c31] bg-[#1c1c1f] text-[10px] text-[#a7a7b0]">
-          <div className="grid w-10 shrink-0 place-items-center border-r border-[#2c2c31] font-mono text-[#8fb6f5]">px</div>
-          <div className="flex flex-1 items-center gap-3 overflow-x-auto px-3 font-mono">
-            <span className="whitespace-nowrap text-white">
-              W {doc.width} × H {doc.height} {paintMask ? "• paint MASK" : ""}
-            </span>
-            <span className="whitespace-nowrap">
-              Zoom {zoom}% • Adj {adjustments.filter((a) => a.enabled).length} • Flt{" "}
-              {filters.filter((f) => f.enabled).length} • {color.workingSpace}
-            </span>
-            <span className="ml-auto flex shrink-0 items-center gap-1.5">
-              <button
-                onClick={() => useProStore.getState().toggleGrid()}
-                title="Toggle grid"
-                className={`rounded px-1.5 py-0.5 ${showGrid ? "bg-[#2f7cf6] text-white" : "hover:bg-white/10 hover:text-white"}`}
-              >
-                Grid
-              </button>
-              <button
-                onClick={() => useProStore.getState().toggleSnap()}
-                title="Toggle snap (Alt tahan untuk bypass)"
-                className={`rounded px-1.5 py-0.5 ${snapEnabled ? "bg-[#2f7cf6] text-white" : "hover:bg-white/10 hover:text-white"}`}
-              >
-                Snap
-              </button>
-              <button
-                onClick={() => useProStore.getState().toggleGuides()}
-                title="Toggle guides"
-                className={`rounded px-1.5 py-0.5 ${showGuides ? "bg-[#2f7cf6] text-white" : "hover:bg-white/10 hover:text-white"}`}
-              >
-                Guides
-              </button>
-            </span>
-          </div>
+        <div className="relative h-[18px] shrink-0 border-b border-[#2c2c31] bg-[#101012]">
+          <canvas
+            ref={hRulerRef}
+            className="absolute inset-0 h-full w-full"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              startRulerDrag("h", e);
+            }}
+          />
+          <button
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={() => setZoom(100)}
+            title="Klik untuk zoom 100%"
+            className="absolute left-0 top-0 z-10 grid h-full w-[18px] place-items-center border-r border-[#2c2c31] bg-[#1c1c1f] font-mono text-[8px] leading-none text-[#8fb6f5] hover:bg-[#232327]"
+          >
+            {zoom}
+          </button>
         </div>
       )}
 
@@ -1694,6 +1720,16 @@ export default function CanvasArea() {
                     : "default",
           }}
         />
+        {showRulers && (
+          <canvas
+            ref={vRulerRef}
+            className="absolute left-0 top-0 z-10 h-full w-[18px] cursor-ns-resize"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              startRulerDrag("v", e);
+            }}
+          />
+        )}
         <ToolOptionsBar onApplyCrop={applyCrop} onCancelCrop={() => setCropDrag(null)} />
         {/* HUD kiri bawah: info posisi dan tool */}
         <div className="pointer-events-none absolute bottom-3 left-3 flex items-center gap-2 rounded-lg border border-white/10 bg-black/65 px-2.5 py-1.5 font-mono text-[10px] text-white/75 shadow-lg backdrop-blur-md">

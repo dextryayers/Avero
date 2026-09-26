@@ -71,7 +71,6 @@ export default function ToolOptionsBar({
     "select-polygon": "Klik titik polygon, double klik untuk menutup.",
     "quick-select": "Seret untuk seleksi cepat.",
     "object-select": "Seret area untuk memilih objek otomatis.",
-    "magic-eraser-select": "",
     frame: "Seret untuk membuat bingkai placeholder.",
     ruler: "Seret untuk mengukur jarak dan sudut.",
     note: "Klik untuk menempel catatan.",
@@ -147,7 +146,7 @@ export default function ToolOptionsBar({
           <button
             key={g}
             onClick={() => setGradTo(g)}
-            className={`rounded-md px-2 py-1 transition-colors ${gradTo g === g ? "bg-[#2f7cf6] text-white" : "bg-[#232327] text-[#a7a7b0] hover:text-white"}`}
+            className={`rounded-md px-2 py-1 transition-colors ${gradTo === g ? "bg-[#2f7cf6] text-white" : "bg-[#232327] text-[#a7a7b0] hover:text-white"}`}
           >
             {g === "transparent" ? "Transparan" : g === "white" ? "Putih" : "Hitam"}
           </button>

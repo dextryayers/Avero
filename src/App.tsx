@@ -17,6 +17,16 @@ import { openAvxProject, saveAvxProject } from "./io/projectIo";
 import { useEditorStore } from "./stores/useEditorStore";
 import { useProStore } from "./stores/useProStore";
 import { loadShortcuts } from "./stores/useWorkspaceStore";
+import {
+  adjustBrushSize,
+  comboOf,
+  cycleFamily,
+  dispatchAction,
+  findMenuAction,
+  selectFamilyFirst,
+  spaceDown,
+  spaceUp,
+} from "./app/shortcuts";
 import { useHomeStore } from "./stores/useHomeStore";
 import { layerManager } from "./engine/layerManager";
 import { clearSelectionMask } from "./engine/selection";
@@ -257,8 +267,40 @@ export default function App() {
           if (t === "l" || t === "w") {
             pro.setSelKind(t === "l" ? "lasso" : "wand");
           }
+        } else {
+          selectFamilyFirst(t.toUpperCase());
         }
       }
+
+      // Aksi menu global sesuai shortcut yang tercantum pada menu
+      const hasMod = e.ctrlKey || e.metaKey || e.altKey;
+      const isLetter = e.key.length === 1 && /[a-z]/i.test(e.key);
+      if (hasMod || !isLetter) {
+        const act = findMenuAction(comboOf(e));
+        if (act && !inInput) {
+          e.preventDefault();
+          dispatchAction(act);
+          return;
+        }
+      }
+      if (inInput) return;
+      // Shift+huruf: cycling keluarga tool (M marquee, R blur/sharpen/smudge, dst)
+      if (!hasMod && e.shiftKey && isLetter) {
+        if (cycleFamily(e.key.toUpperCase())) e.preventDefault();
+        return;
+      }
+      if (!hasMod && (e.key === "[" || e.key === "]")) {
+        adjustBrushSize(e.key === "]" ? 5 : -5);
+        e.preventDefault();
+        return;
+      }
+      if (e.key === " " && !hasMod) {
+        spaceDown();
+        e.preventDefault();
+      }
+    }
+    function onKeyUp(e: KeyboardEvent) {
+      if (e.key === " ") spaceUp();
     }
     function onExportEvent() {
       setExportOpen(true);
@@ -350,6 +392,7 @@ export default function App() {
       }
     }
     window.addEventListener("keydown", onKey);
+    window.addEventListener("keyup", onKeyUp);
     window.addEventListener("avero:open-export", onExportEvent);
     window.addEventListener("avero:save-avx", onSaveEvent);
     window.addEventListener("avero:open-avx", onOpenAvxEvent);
@@ -357,6 +400,7 @@ export default function App() {
     window.addEventListener("avero:clip", onClipEvent);
     return () => {
       window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("avero:open-export", onExportEvent);
       window.removeEventListener("avero:save-avx", onSaveEvent);
       window.removeEventListener("avero:open-avx", onOpenAvxEvent);

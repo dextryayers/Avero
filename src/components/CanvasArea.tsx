@@ -459,7 +459,12 @@ export default function CanvasArea() {
       cctx.restore();
     });
 
-    // 2. RAW develop (netral jika default)
+    // Fast preview while painting: layers+mask+transform only (no per-frame
+    // full-doc getImageData passes). Full quality (RAW/adjust/filter/color)
+    // renders on mouse-up when isPainting flips false. Keeps low-spec smooth.
+    let filtered: HTMLCanvasElement = comp;
+    if (!isPainting) {
+    // 2. RAW develop (neutral when default)
     const rawActive =
       raw.exposure !== 0 ||
       raw.temperature !== 5500 ||
@@ -507,7 +512,6 @@ export default function CanvasArea() {
     });
 
     // 4. Filters
-    let filtered: HTMLCanvasElement = comp;
     filters.forEach((f) => {
       if (!f.enabled) return;
       filtered = applyFilterToCanvas(filtered, f);
@@ -525,6 +529,7 @@ export default function CanvasArea() {
       }
     } catch {
       /* ignore */
+    }
     }
 
     (window as any).__avero_comp = filtered;
@@ -787,12 +792,15 @@ export default function CanvasArea() {
       ctx.stroke();
       ctx.restore();
     }
-    // composite render deps intentional
+    // composite render deps intentional.
+    // NOTE: `doc` (whole object) is a dep on purpose: paintTo/retouchTo call
+    // markDirty() which creates a new doc object per dab, so the composite
+    // refreshes live during strokes. Using only doc.width/height left the
+    // canvas frozen while painting (tools looked dead).
   }, [
     layers,
     activeLayerId,
-    doc.width,
-    doc.height,
+    doc,
     zoom,
     panX,
     panY,
@@ -1844,6 +1852,7 @@ export default function CanvasArea() {
           }
         }}
         onMouseDown={async (e) => {
+          if (e.button === 2) return;
           if (e.button === 1 || tool === "pan" || tool === "hand" || tool === "rotate-view") {
             panning.current = { sx: e.clientX, sy: e.clientY, px: panX, py: panY };
             return;

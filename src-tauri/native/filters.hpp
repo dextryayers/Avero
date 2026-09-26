@@ -28,6 +28,9 @@ void avero_cpp_box_blur_light(const uint8_t *src, uint8_t *dst, int w, int h, in
 void avero_cpp_gaussian_light(const uint8_t *src, uint8_t *dst, int w, int h, float sigma);
 void avero_cpp_bilateral_light(const uint8_t *src, uint8_t *dst, int w, int h, int radius, float sigma_color);
 void avero_cpp_unsharp_light(const uint8_t *src, uint8_t *dst, int w, int h, float amount, int radius);
+void avero_cpp_minimize(const uint8_t *src, uint8_t *dst, int w, int h, int radius);
+void avero_cpp_maximize(const uint8_t *src, uint8_t *dst, int w, int h, int radius);
+void avero_cpp_swirl(const uint8_t *src, uint8_t *dst, int w, int h, float radius, float strength);
 const char *avero_cpp_engine_name(void);
 const char *avero_cpp_version(void);
 
@@ -55,6 +58,9 @@ void box_blur_light(const uint8_t *src, uint8_t *dst, int w, int h, int radius);
 void gaussian_light(const uint8_t *src, uint8_t *dst, int w, int h, float sigma);
 void bilateral_light(const uint8_t *src, uint8_t *dst, int w, int h, int radius, float sigma_color);
 void unsharp_light(const uint8_t *src, uint8_t *dst, int w, int h, float amount, int radius);
+void minimize(const uint8_t *src, uint8_t *dst, int w, int h, int radius);
+void maximize(const uint8_t *src, uint8_t *dst, int w, int h, int radius);
+void swirl(const uint8_t *src, uint8_t *dst, int w, int h, float radius, float strength);
 
 } // namespace avero
 

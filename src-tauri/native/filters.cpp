@@ -278,6 +278,86 @@ void unsharp_light(const uint8_t *src, uint8_t *dst, int w, int h, float amount,
     for (int y=0;y<h;++y) for (int x=0;x<w;++x){ int i=idx(x,y,w); for (int c=0;c<3;++c){ int v=int(src[i+c]+amount*(src[i+c]-bl[i+c])+0.5f); dst[i+c]=clamp_u8(v);} dst[i+3]=src[i+3];}
 }
 
+
+// Morfologi piksel: erode (perkecil area terang) dan dilate (perbesar)
+void minimize(const uint8_t *src, uint8_t *dst, int w, int h, int radius) {
+    if (w<=0||h<=0) return;
+    if (radius<1) radius=1; if (radius>8) radius=8;
+    for (int y=0;y<h;++y) for (int x=0;x<w;++x){
+        int i=idx(x,y,w);
+        for (int c=0;c<4;++c){
+            int mn=255;
+            for (int dy=-radius;dy<=radius;++dy){
+                int sy=std::min(h-1,std::max(0,y+dy));
+                for (int dx=-radius;dx<=radius;++dx){
+                    int sx=std::min(w-1,std::max(0,x+dx));
+                    int v=src[idx(sx,sy,w)+c]; if (v<mn) mn=v;
+                }
+            }
+            dst[i+c]=static_cast<uint8_t>(mn);
+        }
+    }
+}
+
+void maximize(const uint8_t *src, uint8_t *dst, int w, int h, int radius) {
+    if (w<=0||h<=0) return;
+    if (radius<1) radius=1; if (radius>8) radius=8;
+    for (int y=0;y<h;++y) for (int x=0;x<w;++x){
+        int i=idx(x,y,w);
+        for (int c=0;c<4;++c){
+            int mx=0;
+            for (int dy=-radius;dy<=radius;++dy){
+                int sy=std::min(h-1,std::max(0,y+dy));
+                for (int dx=-radius;dx<=radius;++dx){
+                    int sx=std::min(w-1,std::max(0,x+dx));
+                    int v=src[idx(sx,sy,w)+c]; if (v>mx) mx=v;
+                }
+            }
+            dst[i+c]=static_cast<uint8_t>(mx);
+        }
+    }
+}
+
+// Distorsi pusaran halus (dipakai tool Liquify/Warp), sampling bilinear
+static inline void sample_bilinear(const uint8_t *src, int w, int h, float x, float y, uint8_t *out) {
+    if (x<0) x=0; if (y<0) y=0;
+    if (x>w-1) x=float(w-1); if (y>h-1) y=float(h-1);
+    int x0=int(x), y0=int(y);
+    int x1=x0+1<w?x0+1:x0, y1=y0+1<h?y0+1:y0;
+    float fx=x-float(x0), fy=y-float(y0);
+    int i00=idx(x0,y0,w), i10=idx(x1,y0,w), i01=idx(x0,y1,w), i11=idx(x1,y1,w);
+    for (int c=0;c<4;++c){
+        float top=src[i00+c]*(1-fx)+src[i10+c]*fx;
+        float bot=src[i01+c]*(1-fx)+src[i11+c]*fx;
+        float v=top*(1-fy)+bot*fy;
+        out[c]=clamp_u8(int(v+0.5f));
+    }
+}
+
+void swirl(const uint8_t *src, uint8_t *dst, int w, int h, float radius, float strength) {
+    if (w<=0||h<=0) return;
+    if (radius<1) radius=1;
+    const float cx = w*0.5f, cy = h*0.5f;
+    const float r2 = radius*radius;
+    const float maxAng = strength * 0.017453292519943295f; // derajat ke radian
+    for (int y=0;y<h;++y) for (int x=0;x<w;++x){
+        float dx=float(x)-cx, dy=float(y)-cy;
+        float d2=dx*dx+dy*dy;
+        int o=idx(x,y,w);
+        if (d2>r2){
+            for (int c=0;c<4;++c) dst[o+c]=src[o+c];
+            continue;
+        }
+        float d=std::sqrt(d2);
+        float t=1.0f-(d/radius);
+        float ang=maxAng*t*t;
+        float ca=std::cos(ang), sa=std::sin(ang);
+        float sx=cx+dx*ca-dy*sa;
+        float sy=cy+dx*sa+dy*ca;
+        sample_bilinear(src,w,h,sx,sy,dst+o);
+    }
+}
+
 } // namespace avero
 
 extern "C" {
@@ -302,6 +382,9 @@ void avero_cpp_box_blur_light(const uint8_t *src, uint8_t *dst, int w, int h, in
 void avero_cpp_gaussian_light(const uint8_t *src, uint8_t *dst, int w, int h, float sigma){ avero::gaussian_light(src,dst,w,h,sigma);}
 void avero_cpp_bilateral_light(const uint8_t *src, uint8_t *dst, int w, int h, int radius, float sigma_color){ avero::bilateral_light(src,dst,w,h,radius,sigma_color);}
 void avero_cpp_unsharp_light(const uint8_t *src, uint8_t *dst, int w, int h, float amount, int radius){ avero::unsharp_light(src,dst,w,h,amount,radius);}
+void avero_cpp_minimize(const uint8_t *src, uint8_t *dst, int w, int h, int radius){ avero::minimize(src,dst,w,h,radius);}
+void avero_cpp_maximize(const uint8_t *src, uint8_t *dst, int w, int h, int radius){ avero::maximize(src,dst,w,h,radius);}
+void avero_cpp_swirl(const uint8_t *src, uint8_t *dst, int w, int h, float radius, float strength){ avero::swirl(src,dst,w,h,radius,strength);}
 const char *avero_cpp_engine_name(void){ return "AVERO C++ filters v2";}
 const char *avero_cpp_version(void){ return "2.0.0";}
 

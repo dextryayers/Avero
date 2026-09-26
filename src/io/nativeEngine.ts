@@ -47,7 +47,10 @@ export type NativeFilterOp =
   | { op: "boxBlurLight"; radius: number }
   | { op: "gaussianLight"; sigma: number }
   | { op: "bilateralLight"; radius: number; sigmaColor: number }
-  | { op: "unsharpLight"; amount: number; radius: number };
+  | { op: "unsharpLight"; amount: number; radius: number }
+  | { op: "minimize"; radius: number }
+  | { op: "maximize"; radius: number }
+  | { op: "swirl"; radius: number; strength: number };
 
 export interface NativeInfo {
   c_engine: string;

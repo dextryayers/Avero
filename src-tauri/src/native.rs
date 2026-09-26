@@ -72,6 +72,9 @@ extern "C" {
     fn avero_cpp_gaussian_light(src: *const u8, dst: *mut u8, w: i32, h: i32, sigma: f32);
     fn avero_cpp_bilateral_light(src: *const u8, dst: *mut u8, w: i32, h: i32, radius: i32, sigma_color: f32);
     fn avero_cpp_unsharp_light(src: *const u8, dst: *mut u8, w: i32, h: i32, amount: f32, radius: i32);
+fn avero_cpp_minimize(src: *const u8, dst: *mut u8, w: i32, h: i32, radius: i32);
+fn avero_cpp_maximize(src: *const u8, dst: *mut u8, w: i32, h: i32, radius: i32);
+fn avero_cpp_swirl(src: *const u8, dst: *mut u8, w: i32, h: i32, radius: f32, strength: f32);
     fn avero_cpp_engine_name() -> *const core::ffi::c_char;
     fn avero_cpp_version() -> *const core::ffi::c_char;
 }
@@ -161,6 +164,9 @@ pub enum NativeFilterOp {
     GaussianLight { sigma: f32 },
     BilateralLight { radius: i32, sigmaColor: f32 },
     UnsharpLight { amount: f32, radius: i32 },
+    Minimize { radius: i32 },
+    Maximize { radius: i32 },
+    Swirl { radius: f32, strength: f32 },
 }
 
 #[derive(Serialize)]
@@ -186,7 +192,7 @@ pub fn cmd_native_info() -> NativeInfo {
         languages: vec!["Penyesuaian".into(), "Filter".into(), "Analisis".into(), "Antrean".into()],
         features: vec![
             "23 operasi penyesuaian cepat, diproses langsung di tempat tanpa menyalin gambar".into(),
-            "20 filter studio, diproses dua arah, dengan varian hemat per ubin".into(),
+            "23 filter studio termasuk morfologi dan distorsi, diproses dua arah dengan varian hemat per ubin".into(),
             "Analisis histogram, statistik warna, tolok ukur, dan anggaran memori".into(),
             "Antrean proses bertumpuk dan renderer kanvas per ubin untuk dokumen besar".into(),
         ],
@@ -345,6 +351,20 @@ pub fn cmd_native_apply_filter(
             NativeFilterOp::Pixelate { size } => {
                 avero_cpp_pixelate(src, dst, w, h, size.clamp(2, 128))
             }
+            NativeFilterOp::Minimize { radius } => {
+                avero_cpp_minimize(src, dst, w, h, radius.clamp(1, 8))
+            }
+            NativeFilterOp::Maximize { radius } => {
+                avero_cpp_maximize(src, dst, w, h, radius.clamp(1, 8))
+            }
+            NativeFilterOp::Swirl { radius, strength } => avero_cpp_swirl(
+                src,
+                dst,
+                w,
+                h,
+                radius.clamp(8.0, 4096.0),
+                strength.clamp(-720.0, 720.0),
+            ),
             NativeFilterOp::BoxBlurLight { radius } => {
                 avero_cpp_box_blur_light(src, dst, w, h, radius.clamp(0, 16))
             }
@@ -687,6 +707,20 @@ pub fn cmd_native_pipeline(req: PipelineRequest) -> Result<Vec<u8>, String> {
                 NativeFilterOp::Pixelate { size } => {
                     avero_cpp_pixelate(src, dst, w, h, size.clamp(2, 128))
                 }
+                NativeFilterOp::Minimize { radius } => {
+                    avero_cpp_minimize(src, dst, w, h, radius.clamp(1, 8))
+                }
+                NativeFilterOp::Maximize { radius } => {
+                    avero_cpp_maximize(src, dst, w, h, radius.clamp(1, 8))
+                }
+                NativeFilterOp::Swirl { radius, strength } => avero_cpp_swirl(
+                    src,
+                    dst,
+                    w,
+                    h,
+                    radius.clamp(8.0, 4096.0),
+                    strength.clamp(-720.0, 720.0),
+                ),
                 NativeFilterOp::BoxBlurLight { radius } => {
                     avero_cpp_box_blur_light(src, dst, w, h, radius.clamp(0, 16))
                 }

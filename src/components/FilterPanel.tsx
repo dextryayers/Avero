@@ -71,6 +71,7 @@ export default function FilterPanel() {
     box: 4, sigma: 2.0, median: 2, amount: 1.2, unsharpAmt: 1.5, unsharpRad: 2,
     motionR: 12, motionA: 0, vignette: 0.45, chroma: 4, grain: 16, halftone: 6,
     tiltBlur: 8, focusY: 540, focusH: 240, oilR: 3, oilI: 16, pixel: 8,
+    morph: 2, swirlR: 320, swirlS: 180,
   });
 
   useEffect(() => {
@@ -116,9 +117,9 @@ export default function FilterPanel() {
           <span className="grid h-7 w-7 place-items-center rounded-md bg-[#2f7cf6] text-white"><Cpu size={14} /></span>
           <div className="min-w-0">
             <div className="text-[11.5px] font-bold leading-none text-white">Gudang Filter v2</div>
-            <div className="truncate font-mono text-[10px] text-[#6e6e78]">{nat ? "20 filter siap pakai · proses dua arah presisi" : isTauri() ? "memuat filter..." : "pratinjau web"}</div>
+            <div className="truncate font-mono text-[10px] text-[#6e6e78]">{nat ? "23 filter siap pakai · proses dua arah presisi" : isTauri() ? "memuat filter..." : "pratinjau web"}</div>
           </div>
-          <span className={`ml-auto rounded px-1.5 py-0.5 font-mono text-[10px] ${nat?.ready ? "bg-[#232327] text-[#8fb6f5]" : "bg-[#2c2c31] text-[#6e6e78]"}`}>{nat?.ready ? "20 filter" : "offline"}</span>
+          <span className={`ml-auto rounded px-1.5 py-0.5 font-mono text-[10px] ${nat?.ready ? "bg-[#232327] text-[#8fb6f5]" : "bg-[#2c2c31] text-[#6e6e78]"}`}>{nat?.ready ? "23 filter" : "offline"}</span>
         </div>
         <div className="px-3 py-2 text-[10px] leading-relaxed text-[#6e6e78]">Diproses dua arah dari sumber ke tujuan, blur terpisah dan konvolusi kernel. Untuk beberapa filter sekaligus gunakan antrean.</div>
       </div>
@@ -190,6 +191,22 @@ export default function FilterPanel() {
           </NativeFRow>
           <NativeFRow label="Film Grain" desc="seed acak" busy={busy === "grain"} onApply={() => runFilter({ op: "grain", amount: p.grain }, "grain")}>
             <Row label="Amount" value={p.grain} min={0} max={64} onChange={(v) => setP({ ...p, grain: v })} />
+          </NativeFRow>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <div className="avero-micro flex items-center gap-1.5"><Layers size={11} className="text-[#8fb6f5]" /> Morfologi dan distorsi</div>
+        <div className="grid gap-2">
+          <NativeFRow label="Minimize (Erode)" desc="perkecil area terang per piksel" busy={busy === "minimize"} onApply={() => runFilter({ op: "minimize", radius: p.morph }, "minimize")}>
+            <Row label="Radius" value={p.morph} min={1} max={8} onChange={(v) => setP({ ...p, morph: v })} />
+          </NativeFRow>
+          <NativeFRow label="Maximize (Dilate)" desc="perbesar area terang per piksel" busy={busy === "maximize"} onApply={() => runFilter({ op: "maximize", radius: p.morph }, "maximize")}>
+            <Row label="Radius" value={p.morph} min={1} max={8} onChange={(v) => setP({ ...p, morph: v })} />
+          </NativeFRow>
+          <NativeFRow label="Swirl" desc="pusaran halus dari tengah, sampling bilinear" busy={busy === "swirl"} onApply={() => runFilter({ op: "swirl", radius: p.swirlR, strength: p.swirlS }, "swirl")}>
+            <Row label="Radius" value={p.swirlR} min={8} max={2048} onChange={(v) => setP({ ...p, swirlR: v })} />
+            <Row label="Kekuatan" value={p.swirlS} min={-720} max={720} onChange={(v) => setP({ ...p, swirlS: v })} />
           </NativeFRow>
         </div>
       </div>

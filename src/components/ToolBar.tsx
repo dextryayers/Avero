@@ -325,8 +325,6 @@ export default function ToolBar() {
   const [openFamily, setOpenFamily] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
-  const activeFamily = FAMILY_OF[tool] ?? "brush";
-
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return TOOL_FAMILIES;

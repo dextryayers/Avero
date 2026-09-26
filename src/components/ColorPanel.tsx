@@ -33,8 +33,8 @@ export default function ColorPanel() {
           ))}
         </div>
         <p className="mt-1 text-[10px] text-[#a7a7b0]">
-          16-bit pipeline simulasi presisi untuk Fase 3. Konversi penuh LittleCMS masuk stabilisasi
-          1.0.
+          16-bit pipeline simulates precision for Phase 3. Full LittleCMS conversion lands in 1.0
+          stabilization.
         </p>
       </section>
       <section className="space-y-1.5 rounded border border-[#2c2c31] bg-[#232327] p-2">

@@ -38,17 +38,17 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
       },
       {
         id: "save-avx",
-        title: "Simpan proyek .avx (Ctrl+S)",
+        title: "Save .avx project (Ctrl+S)",
         run: () => window.dispatchEvent(new Event("avero:save-avx")),
       },
       {
         id: "open-avx",
-        title: "Buka proyek .avx",
+        title: "Open .avx project",
         run: () => window.dispatchEvent(new Event("avero:open-avx")),
       },
       {
         id: "export",
-        title: "Export gambar PNG JPG WEBP BMP SVG TIFF (Ctrl+E)",
+        title: "Export image PNG JPG WEBP BMP SVG TIFF (Ctrl+E)",
         run: () => window.dispatchEvent(new Event("avero:open-export")),
       },
       {
@@ -72,7 +72,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
           });
           useHomeStore.getState().setHome(false);
           layerManager.clear();
-          // tunggu layer dibuat oleh store
+          // wait for the store to create the layer
           setTimeout(() => {
             const id =
               useEditorStore.getState().activeLayerId ?? useEditorStore.getState().layers[0]?.id;
@@ -90,7 +90,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
       },
       {
         id: "save-legacy",
-        title: "Export cepat PNG komposit (dengan adjust+filter)",
+        title: "Quick export composite PNG (with adjustments+filters)",
         run: async () => {
           const st = useEditorStore.getState();
           const comp = getCompositeCanvas();
@@ -133,7 +133,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
       { id: "zoom-100", title: "Zoom 100 percent", run: () => s.setZoom(100) },
       {
         id: "zoom-fit",
-        title: "Zoom fit ke layar",
+        title: "Zoom fit to screen",
         run: () => window.dispatchEvent(new Event("avero:fit-zoom")),
       },
       { id: "rulers", title: "Toggle rulers", run: () => s.toggleRulers() },
@@ -144,17 +144,17 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
       },
       {
         id: "guides-h",
-        title: "Tambah guide horizontal tengah",
+        title: "Add center horizontal guide",
         run: () =>
           useProStore.getState().addGuide("h", Math.round(useEditorStore.getState().doc.height / 2)),
       },
       {
         id: "guides-v",
-        title: "Tambah guide vertikal tengah",
+        title: "Add center vertical guide",
         run: () =>
           useProStore.getState().addGuide("v", Math.round(useEditorStore.getState().doc.width / 2)),
       },
-      { id: "guides-clear", title: "Hapus semua guides", run: () => useProStore.getState().clearGuides() },
+      { id: "guides-clear", title: "Clear all guides", run: () => useProStore.getState().clearGuides() },
       { id: "brush", title: "Tool brush (B)", run: () => s.setTool("brush") },
       { id: "heal", title: "Tool spot heal (J)", run: () => s.setTool("spot-heal") },
       { id: "eraser", title: "Tool eraser (E)", run: () => s.setTool("eraser") },
@@ -175,7 +175,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
       { id: "snap", title: "Toggle snap guides/grid", run: () => useProStore.getState().toggleSnap() },
       {
         id: "layer-duplicate",
-        title: "Duplikat layer aktif",
+        title: "Duplicate active layer",
         run: () => {
           const st = useEditorStore.getState();
           const pro = useProStore.getState();
@@ -193,7 +193,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
       },
       {
         id: "transform-flipv",
-        title: "Flip vertikal layer aktif",
+        title: "Flip active layer vertically",
         run: () => {
           const st = useEditorStore.getState();
           const id = st.activeLayerId;
@@ -206,7 +206,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
       },
       {
         id: "transform-rot90",
-        title: "Putar layer aktif +90 derajat",
+        title: "Rotate active layer +90 degrees",
         run: () => {
           const st = useEditorStore.getState();
           const id = st.activeLayerId;
@@ -355,7 +355,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
       },
       {
         id: "flip-h",
-        title: "Flip horizontal layer aktif",
+        title: "Flip active layer horizontally",
         run: () => {
           const st = useEditorStore.getState();
           const id = st.activeLayerId;
@@ -387,31 +387,31 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
       { id: "about", title: "About AVERO STUDIO", run: () => alert("AVERO STUDIO v2.0.0. Offline, non-destruktif, open source.") },
       {
         id: "native-info",
-        title: "Info kesiapan pemrosesan studio",
+        title: "Studio processing readiness info",
         run: async () => {
           try {
             const { nativeInfo, isTauri } = await import("../io/nativeEngine");
-            if (!isTauri()) { alert("Info ini hanya tersedia di aplikasi desktop."); return; }
+            if (!isTauri()) { alert("This info is only available in the desktop app."); return; }
             const info = await nativeInfo();
-            alert(`Kesiapan: ${info.ready ? "Siap" : "Tidak siap"}\nOperasi penyesuaian: 23\nFilter: 20\nAnalisis: histogram, statistik, tolok ukur\n${info.features.join("\n")}`);
+            alert(`Readiness: ${info.ready ? "Ready" : "Not ready"}\nAdjustment ops: 23\nFilters: 20\nAnalysis: histogram, stats, benchmark\n${info.features.join("\n")}`);
           } catch (e) { alert(String(e)); }
         },
       },
-      { id: "native-gray", title: "Penyesuaian cepat: grayscale layer aktif", run: async () => {
+      { id: "native-gray", title: "Quick adjustment: grayscale active layer", run: async () => {
         try { const { isTauri, nativeProcessCanvas } = await import("../io/nativeEngine"); const { layerManager } = await import("../engine/layerManager"); const st = useEditorStore.getState(); const id = st.activeLayerId; if (!isTauri() || !id) return; const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height); await nativeProcessCanvas(c, "op", { op: "gray" }); st.markDirty(); } catch (e) { alert(String(e)); }
       } },
-      { id: "native-exposure", title: "Penyesuaian cepat: exposure +1 EV layer aktif", run: async () => {
+      { id: "native-exposure", title: "Quick adjustment: exposure +1 EV active layer", run: async () => {
         try { const { isTauri, nativeProcessCanvas } = await import("../io/nativeEngine"); const { layerManager } = await import("../engine/layerManager"); const st = useEditorStore.getState(); const id = st.activeLayerId; if (!isTauri() || !id) return; const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height); await nativeProcessCanvas(c, "op", { op: "exposure", ev: 1.0 }); st.markDirty(); } catch (e) { alert(String(e)); }
       } },
-      { id: "native-vibrance", title: "Penyesuaian cepat: vibrance +30 layer aktif", run: async () => {
+      { id: "native-vibrance", title: "Quick adjustment: vibrance +30 active layer", run: async () => {
         try { const { isTauri, nativeProcessCanvas } = await import("../io/nativeEngine"); const { layerManager } = await import("../engine/layerManager"); const st = useEditorStore.getState(); const id = st.activeLayerId; if (!isTauri() || !id) return; const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height); await nativeProcessCanvas(c, "op", { op: "vibrance", amount: 30 }); st.markDirty(); } catch (e) { alert(String(e)); }
       } },
-      { id: "native-auto-levels", title: "Penyesuaian cepat: auto levels layer aktif", run: async () => {
+      { id: "native-auto-levels", title: "Quick adjustment: auto levels active layer", run: async () => {
         try { const { isTauri, nativeProcessCanvas } = await import("../io/nativeEngine"); const { layerManager } = await import("../engine/layerManager"); const st = useEditorStore.getState(); const id = st.activeLayerId; if (!isTauri() || !id) return; const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height); await nativeProcessCanvas(c, "op", { op: "autoLevels" }); st.markDirty(); } catch (e) { alert(String(e)); }
       } },
       {
         id: "native-box",
-        title: "Filter: box blur layer aktif",
+        title: "Filter: box blur active layer",
         run: async () => {
           try {
             const { isTauri, nativeProcessCanvas } = await import("../io/nativeEngine");
@@ -425,15 +425,15 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
           } catch (e) { alert(String(e)); }
         },
       },
-      { id: "native-gauss", title: "Filter: gaussian sigma 2 layer aktif", run: async () => {
+      { id: "native-gauss", title: "Filter: gaussian sigma 2 active layer", run: async () => {
         try { const { isTauri, nativeProcessCanvas } = await import("../io/nativeEngine"); const { layerManager } = await import("../engine/layerManager"); const st = useEditorStore.getState(); const id = st.activeLayerId; if (!isTauri() || !id) return; const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height); await nativeProcessCanvas(c, "filter", { op: "gaussian", sigma: 2.0 }); st.markDirty(); } catch (e) { alert(String(e)); }
       } },
-      { id: "native-median", title: "Filter: median denoise layer aktif", run: async () => {
+      { id: "native-median", title: "Filter: median denoise active layer", run: async () => {
         try { const { isTauri, nativeProcessCanvas } = await import("../io/nativeEngine"); const { layerManager } = await import("../engine/layerManager"); const st = useEditorStore.getState(); const id = st.activeLayerId; if (!isTauri() || !id) return; const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height); await nativeProcessCanvas(c, "filter", { op: "median", radius: 2 }); st.markDirty(); } catch (e) { alert(String(e)); }
       } },
       {
         id: "native-sharpen",
-        title: "Filter: sharpen layer aktif",
+        title: "Filter: sharpen active layer",
         run: async () => {
           try {
             const { isTauri, nativeProcessCanvas } = await import("../io/nativeEngine");
@@ -447,13 +447,13 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
           } catch (e) { alert(String(e)); }
         },
       },
-      { id: "native-vignette", title: "Filter: vignette layer aktif", run: async () => {
+      { id: "native-vignette", title: "Filter: vignette active layer", run: async () => {
         try { const { isTauri, nativeProcessCanvas } = await import("../io/nativeEngine"); const { layerManager } = await import("../engine/layerManager"); const st = useEditorStore.getState(); const id = st.activeLayerId; if (!isTauri() || !id) return; const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height); await nativeProcessCanvas(c, "filter", { op: "vignette", amount: 0.45 }); st.markDirty(); } catch (e) { alert(String(e)); }
       } },
-      { id: "native-stats", title: "Analisis: stats layer aktif", run: async () => {
+      { id: "native-stats", title: "Analyze: active layer stats", run: async () => {
         try { const { isTauri, nativeStats } = await import("../io/nativeEngine"); const { layerManager } = await import("../engine/layerManager"); const st = useEditorStore.getState(); const id = st.activeLayerId ?? st.layers[0]?.id; if (!isTauri() || !id) return; const c = layerManager.get(id); if (!c) return; const ctx = c.getContext("2d", { willReadFrequently: true })!; const d = ctx.getImageData(0,0,c.width,c.height); const s = await nativeStats(d.data); alert(`Mean ${s.mean_r.toFixed(1)}/${s.mean_g.toFixed(1)}/${s.mean_b.toFixed(1)} Std ${s.std_r.toFixed(1)}/${s.std_g.toFixed(1)}/${s.std_b.toFixed(1)}`);} catch(e){alert(String(e));}
       } },
-      { id: "native-bench", title: "Analisis: benchmark", run: async () => {
+      { id: "native-bench", title: "Analyze: benchmark", run: async () => {
         try { const { nativeBenchmark } = await import("../io/nativeEngine"); const r = await nativeBenchmark(1920,1080,20); alert(`${r.ops}\n${r.mpix_per_sec.toFixed(1)} MP/s`);}catch(e){alert(String(e));}
       } },
     ];
@@ -471,7 +471,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
             autoFocus
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Ketik perintah: avx, export, blur, layer, native..."
+            placeholder="Type a command: avx, export, blur, layer, native..."
             className="flex-1 bg-transparent text-[13px] text-white outline-none placeholder:text-[#6e6e78]"
             onKeyDown={(e) => {
               if (e.key === "Enter" && filtered[0]) {
@@ -497,11 +497,11 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
               <span className="shrink-0 rounded-full bg-white/10 px-1.5 py-0.5 font-mono text-[10px] opacity-60 group-hover:bg-white/20">Enter</span>
             </button>
           ))}
-          {filtered.length === 0 && <div className="p-6 text-center text-[12px] text-[#a7a7b0]">Tidak ada aksi cocok untuk "{q}"</div>}
+          {filtered.length === 0 && <div className="p-6 text-center text-[12px] text-[#a7a7b0]">No matching actions for "{q}"</div>}
         </div>
         <div className="flex items-center justify-between border-t border-[#2c2c31] bg-[#161618] px-3 py-2 font-mono text-[10px] text-[#6e6e78]">
-          <span>↑↓ navigasi • Enter jalankan • Esc tutup</span>
-          <span>{filtered.length} aksi</span>
+          <span>↑↓ navigate • Enter run • Esc close</span>
+          <span>{filtered.length} actions</span>
         </div>
       </div>
     </div>

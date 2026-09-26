@@ -13,14 +13,14 @@ export default function PluginPanel() {
   const setParam = usePluginStore((s) => s.setParam);
   const install = usePluginStore((s) => s.install);
   const [code, setCode] = useState(
-    `// Contoh plugin custom 50 baris max\n// d = Uint8ClampedArray RGBA, params, W, H\nconst s = (params.strength ?? 50) / 100;\nfor (let i = 0; i < d.length; i += 4) {\n  d[i] = d[i]*(1-s) + (255-d[i])*s;\n}`,
+    `// Example custom plugin, 50 lines max\n// d = Uint8ClampedArray RGBA, params, W, H\nconst s = (params.strength ?? 50) / 100;\nfor (let i = 0; i < d.length; i += 4) {\n  d[i] = d[i]*(1-s) + (255-d[i])*s;\n}`,
   );
   const [log, setLog] = useState<string | null>(null);
 
   function applyPlugin(def: PluginDef) {
     const id = useEditorStore.getState().activeLayerId;
     if (!id) {
-      setLog("Pilih layer dulu");
+      setLog("Select a layer first");
       return;
     }
     const p = params[def.id] ?? {};
@@ -38,7 +38,7 @@ export default function PluginPanel() {
       ctx.putImageData(out, 0, 0);
       useEditorStore.getState().markDirty();
       useProStore.getState().bumpHistogram();
-      setLog(`${def.name} diterapkan`);
+      setLog(`${def.name} applied`);
     } catch (e) {
       setLog(`Plugin error: ${String(e)}`);
     }
@@ -50,17 +50,17 @@ export default function PluginPanel() {
         id: `custom-${Date.now().toString(36)}`,
         name: `Custom ${plugins.length + 1}`,
         version: "0.1.0",
-        author: "Saya",
-        description: "Plugin custom dari editor",
+        author: "Me",
+        description: "Custom plugin from the editor",
         params: [{ key: "strength", label: "Strength", min: 0, max: 100, def: 50 }],
         code,
       };
-      // validasi sintaks
+      // validate syntax
       new Function("d", "params", "W", "H", code);
       install(def);
-      setLog("Plugin custom terinstall");
+      setLog("Custom plugin installed");
     } catch (e) {
-      setLog(`Kode tidak valid: ${String(e)}`);
+      setLog(`Invalid code: ${String(e)}`);
     }
   }
 

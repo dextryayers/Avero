@@ -28,7 +28,7 @@ export default function GitPanel() {
     }
     const label =
       prompt(
-        "Nama snapshot:",
+        "Snapshot name:",
         `Edit ${snaps.filter((s) => s.branch === activeBranch).length + 1}`,
       ) ?? `Edit ${snaps.length + 1}`;
     snapshot(label, thumb, layers);
@@ -53,7 +53,7 @@ export default function GitPanel() {
         </select>
         <button
           onClick={() => {
-            const n = prompt("Nama varian baru:");
+            const n = prompt("New variant name:");
             if (n) createBranch(n);
           }}
           className="rounded bg-[#2f7cf6] px-2 py-1.5 text-white"
@@ -68,7 +68,7 @@ export default function GitPanel() {
       <div className="max-h-52 space-y-1.5 overflow-y-auto">
         {snaps.filter((s) => s.branch === activeBranch).length === 0 && (
           <div className="rounded border border-dashed border-[#2c2c31] p-3 text-center text-[11px] text-[#a7a7b0]">
-            Belum ada snapshot di branch ini. Coba 3 versi edit tanpa duplicate file.
+            No snapshots on this branch yet. Try 3 edit versions without duplicating files.
           </div>
         )}
         {snaps
@@ -82,7 +82,7 @@ export default function GitPanel() {
                 <img src={s.thumb} alt={s.label} className="h-12 w-20 rounded object-cover" />
               ) : (
                 <div className="grid h-12 w-20 place-items-center rounded bg-[#161618] text-[10px]">
-                  no img
+                  no image
                 </div>
               )}
               <div className="min-w-0 flex-1">
@@ -144,7 +144,7 @@ export default function GitPanel() {
             onClick={() => setCompare(null, null)}
             className="mt-1 w-full rounded bg-[#2c2c31] px-2 py-1 text-[11px]"
           >
-            Tutup compare
+            Close compare
           </button>
         </div>
       )}

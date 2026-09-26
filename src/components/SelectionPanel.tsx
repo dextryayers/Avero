@@ -127,17 +127,17 @@ export default function SelectionPanel() {
           featherSelection(1);
           setTick((t) => t + 1);
         }}
-        title="Haluskan tepi: ciutkan 1px lalu feather 1px"
+        title="Refine edge: contract 1px then feather 1px"
         className="w-full rounded bg-[#2f7cf6] px-2 py-1.5 text-[11px] text-white hover:bg-[#2563d4]"
       >
-        Refine edge (haluskan)
+        Refine edge
       </button>
       <div className="rounded border border-[#2c2c31] bg-[#232327] p-2 text-[11px] text-[#a7a7b0]">
         {hasSelection() || tick >= 0
-          ? "Brush otomatis menghormati seleksi. Area luar seleksi dilindungi."
-          : "Belum ada seleksi."}
+          ? "Brushes automatically respect the selection. Areas outside the selection are protected."
+          : "No selection yet."}
         <br />
-        Tips: drag di canvas dengan tool Rect/Lasso, klik dengan Wand.
+        Tip: drag on canvas with the Rect/Lasso tool, click with Wand.
       </div>
     </div>
   );

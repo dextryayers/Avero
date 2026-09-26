@@ -12,7 +12,7 @@ export default function TransformPanel() {
   const t = activeLayerId ? transforms[activeLayerId] : undefined;
 
   if (!activeLayerId || !active)
-    return <div className="p-3 text-[12px] text-[#a7a7b0]">Pilih layer dulu.</div>;
+    return <div className="p-3 text-[12px] text-[#a7a7b0]">Select a layer first.</div>;
 
   const v = t ?? { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 };
 
@@ -24,8 +24,8 @@ export default function TransformPanel() {
   return (
     <div className="space-y-2 p-3 text-[12px]">
       <div className="text-[11px] text-[#a7a7b0]">
-        Layer <span className="text-white">{active.name}</span>. Drag dengan Move tool untuk geser.
-        Nilai presisi di sini.
+        Layer <span className="text-white">{active.name}</span>. Drag with the Move tool to shift.
+        Precise values here.
       </div>
       <div className="grid grid-cols-2 gap-2">
         <label className="text-[#a7a7b0]">
@@ -105,13 +105,13 @@ export default function TransformPanel() {
           onClick={() => updateTransform(activeLayerId, { rotation: (v.rotation + 90) % 360 })}
           className="rounded bg-[#2c2c31] px-2 py-1 text-[11px] hover:bg-[#3a3a41]"
         >
-          Putar +90°
+          Rotate +90°
         </button>
         <button
           onClick={() => updateTransform(activeLayerId, { rotation: (v.rotation - 90) % 360 })}
           className="rounded bg-[#2c2c31] px-2 py-1 text-[11px] hover:bg-[#3a3a41]"
         >
-          Putar -90°
+          Rotate -90°
         </button>
         <button
           onClick={() =>
@@ -123,7 +123,7 @@ export default function TransformPanel() {
         </button>
       </div>
       <p className="text-[10px] text-[#a7a7b0]">
-        Perspective dan warp penuh masuk Fase 5. Scale dan rotate sudah non-destructive.
+        Full perspective and warp arrive in Phase 5. Scale and rotate are already non-destructive.
       </p>
     </div>
   );

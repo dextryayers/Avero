@@ -20,10 +20,10 @@ export default function MaskPanel() {
   return (
     <div className="space-y-3 p-3 text-[12px]">
       <div className="rounded border border-[#2c2c31] bg-[#232327] p-2 text-[11px] text-[#a7a7b0]">
-        Layer aktif: <span className="text-white">{active?.name ?? "-"}</span>
+        Active layer: <span className="text-white">{active?.name ?? "-"}</span>
         <br />
-        Mask putih tampil, hitam sembunyi. Paint dengan Brush putih dan Eraser hitam saat mode paint
-        mask aktif.
+        White mask reveals, black conceals. Paint with a white Brush and black Eraser while mask paint
+        mode is on.
       </div>
       {!m?.hasMask ? (
         <button
@@ -89,7 +89,7 @@ export default function MaskPanel() {
           </div>
           <div>
             <label className="flex items-center justify-between text-[#c9c9d1]">
-              <span>Clipping ke layer bawah</span>
+              <span>Clip to layer below</span>
               <input
                 type="checkbox"
                 checked={!!active?.clipped}
@@ -99,7 +99,7 @@ export default function MaskPanel() {
               />
             </label>
             <p className="mt-1 text-[10px] text-[#a7a7b0]">
-              Clipping tahap 1: flag tersimpan, full isolate masuk Fase 5 node graph.
+              Clipping phase 1: flag stored, full isolation arrives with the Phase 5 node graph.
             </p>
           </div>
           <button

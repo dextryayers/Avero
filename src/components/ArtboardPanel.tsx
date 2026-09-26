@@ -16,10 +16,10 @@ export default function ArtboardPanel() {
     const b = boards.find((x) => x.id === id);
     const comp = getCompositeCanvas();
     if (!b || !comp) {
-      setLog("Composite belum siap");
+      setLog("Composite not ready");
       return;
     }
-    // petakan artboard doc-space ke composite pixel
+    // map artboard doc-space to composite pixels
     const sx = Math.max(0, Math.min(comp.width, Math.round(b.x)));
     const sy = Math.max(0, Math.min(comp.height, Math.round(b.y)));
     const sw = Math.max(1, Math.min(comp.width - sx, Math.round(b.w)));
@@ -36,14 +36,14 @@ export default function ArtboardPanel() {
       });
       if (!path) return;
       await rustSaveDataUrl(url, path);
-      setLog(`${b.name} diekspor ${sw}x${sh}`);
+      setLog(`${b.name} exported ${sw}x${sh}`);
     } catch (e) {
-      // fallback download browser
+      // browser download fallback
       const a = document.createElement("a");
       a.href = url;
       a.download = `${b.name}.png`;
       a.click();
-      setLog(`${b.name} diunduh via browser`);
+      setLog(`${b.name} downloaded via browser`);
     }
   }
 
@@ -103,7 +103,7 @@ export default function ArtboardPanel() {
       ))}
       {log && <div className="rounded bg-[#1c1c1f] p-2 text-[11px] text-[#a7a7b0]">{log}</div>}
       <p className="text-[10px] text-[#a7a7b0]">
-        Infinite canvas + artboard ala Figma. Koordinat dalam pixel dokumen.
+        Infinite canvas + Figma-style artboards. Coordinates in document pixels.
       </p>
     </div>
   );

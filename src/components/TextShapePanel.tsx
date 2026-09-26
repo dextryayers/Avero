@@ -39,7 +39,7 @@ export default function TextShapePanel() {
     <div className="space-y-3 p-3 text-[12px]">
       <div className="text-[11px] text-[#a7a7b0]">
         Layer <span className="text-white">{active?.name ?? "-"}</span> ({active?.kind ?? "raster"}
-        ). Klik canvas dengan Text/Shape tool untuk buat layer baru, lalu edit di sini.
+        ). Click the canvas with the Text/Shape tool to create a new layer, then edit it here.
       </div>
       {tspec && (
         <section className="space-y-1.5 rounded border border-[#2c2c31] bg-[#232327] p-2">
@@ -191,7 +191,7 @@ export default function TextShapePanel() {
       )}
       {!tspec && !sspec && (
         <div className="rounded border border-dashed border-[#2c2c31] p-3 text-center text-[11px] text-[#a7a7b0]">
-          Pilih layer text atau shape untuk edit. Buat baru via toolbar T / U / O.
+          Select a text or shape layer to edit. Create a new one via toolbar T / U / O.
         </div>
       )}
     </div>

@@ -289,7 +289,7 @@ export default function FilterPanel() {
             {f.type === "tiltShift" && (<Row label="Blur" value={f.params.blur ?? 8} min={1} max={24} onChange={(v) => updateFilterParams(f.id, { blur: v })} />)}
             {f.type === "vignette" && (<Row label="Amount" value={f.params.amount ?? 45} min={0} max={100} onChange={(v) => updateFilterParams(f.id, { amount: v })} />)}
             {f.type === "chromaticAberration" && (<Row label="Amount" value={f.params.amount ?? 3} min={0} max={12} onChange={(v) => updateFilterParams(f.id, { amount: v })} />)}
-            {(f.type === "emboss" || f.type === "findEdges") && (<div className="text-[10px] text-[#6e6e78]">Tanpa parameter. Atur via Opacity.</div>)}
+            {(f.type === "emboss" || f.type === "findEdges") && (<div className="text-[10px] text-[#6e6e78]">No parameters. Adjust via Opacity.</div>)}
             <Row label="Opacity" value={f.opacity} min={0} max={100} onChange={(v) => updateFilter(f.id, { opacity: v })} />
           </div>
         </div>

@@ -43,7 +43,7 @@ export default function RawPanel() {
 
   function set(p: Partial<typeof raw>) {
     setRaw(p);
-    // render ulang histogram via tick debounced ringan
+    // re-render histogram via light debounced tick
     setTimeout(() => bump(), 30);
   }
 
@@ -52,13 +52,13 @@ export default function RawPanel() {
       <div className="rounded border border-[#2c2c31] bg-[#232327] p-2 text-[11px] text-[#a7a7b0]">
         {raw.isRaw ? (
           <>
-            RAW: <span className="text-white">{raw.fileName}</span>. Edit non-destructive, terapkan
-            ke composite.
+            RAW: <span className="text-white">{raw.fileName}</span>. Non-destructive edit, applied
+            to the composite.
           </>
         ) : (
           <>
-            Panel Develop bekerja untuk foto apapun. Buka CR2 NEF ARW RAF DNG, gambar didekode otomatis
-            preview bila didukung, jika tidak tetap bisa develop JPEG PNG.
+            The Develop panel works for any photo. Open CR2 NEF ARW RAF DNG; images auto-decode a
+            preview when supported, otherwise you can still develop JPEG/PNG.
           </>
         )}
       </div>

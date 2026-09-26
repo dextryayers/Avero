@@ -20,11 +20,11 @@ export default function Histogram() {
     if (!comp) {
       ctx.fillStyle = "#a7a7b0";
       ctx.font = "10px Inter";
-      ctx.fillText("Buka gambar untuk histogram", 12, 44);
+      ctx.fillText("Open an image for histogram", 12, 44);
       return;
     }
     try {
-      // downscale ke 256px untuk histogram cepat
+      // downscale to 256px for fast histogram
       const tmp = document.createElement("canvas");
       tmp.width = 256;
       tmp.height = Math.max(1, Math.round((256 * comp.height) / Math.max(1, comp.width)));
@@ -52,7 +52,7 @@ export default function Histogram() {
       draw(hist.b, "rgba(90,150,255,0.85)");
     } catch {
       ctx.fillStyle = "#a7a7b0";
-      ctx.fillText("Histogram tidak tersedia", 12, 44);
+      ctx.fillText("Histogram unavailable", 12, 44);
     }
   }, [tick]);
 

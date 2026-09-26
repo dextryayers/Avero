@@ -71,7 +71,7 @@ const tabs: { id: Tab; label: string; icon: any }[] = [
   { id: "mask", label: "Mask", icon: Square },
   { id: "adjust", label: "Adjust", icon: Sliders },
   { id: "filter", label: "Filter", icon: Filter },
-  { id: "lab", label: "Memori", icon: FlaskConical },
+  { id: "lab", label: "Memory", icon: FlaskConical },
   { id: "text", label: "Text", icon: Type },
   { id: "color", label: "Color", icon: Palette },
   { id: "raw", label: "RAW", icon: Camera },
@@ -100,8 +100,8 @@ export default function RightPanel() {
   const setActiveLayer = useEditorStore((s) => s.setActiveLayer);
   const moveLayer = useEditorStore((s) => s.moveLayer);
   const doc = useEditorStore((s) => s.doc);
-  // useShallow wajib: selector objek tanpa equality stabil memicu loop update
-  // tak berujung pada React 19 (blank screen). Jangan kembalikan ke objek polos.
+  // useShallow is required: a plain object selector without stable equality triggers an
+  // endless update loop on React 19 (blank screen). Do not revert to a plain object.
   const brush = useEditorStore(
     useShallow((s) => ({
       size: s.brushSize,
@@ -165,12 +165,12 @@ export default function RightPanel() {
     const st = useEditorStore.getState();
     const idx = st.layers.findIndex((l) => l.id === id);
     if (idx <= 0) {
-      alert("Tidak ada layer di bawahnya untuk digabung.");
+      alert("No layer below to merge into.");
       return;
     }
     const top = st.layers[idx];
     const below = st.layers[idx - 1];
-    if (!window.confirm(`Gabung "${top.name}" ke "${below.name}"? Tindakan ini destruktif.`)) return;
+    if (!window.confirm(`Merge "${top.name}" into "${below.name}"? This is destructive.`)) return;
     const bc = layerManager.get(below.id);
     const tc = layerManager.get(id);
     if (bc && tc) {
@@ -198,7 +198,7 @@ export default function RightPanel() {
   function flattenImage() {
     const st = useEditorStore.getState();
     if (st.layers.length <= 1) return;
-    if (!window.confirm(`Gabung ${st.layers.length} layer jadi satu? Tindakan ini destruktif.`)) return;
+    if (!window.confirm(`Merge ${st.layers.length} layers into one? This is destructive.`)) return;
     const bottom = st.layers[0];
     const bc = layerManager.ensure(bottom.id, st.doc.width, st.doc.height);
     const bctx = bc.getContext("2d")!;
@@ -275,7 +275,7 @@ export default function RightPanel() {
               <button
                 onClick={() => activeLayerId && removeLayer(activeLayerId)}
                 disabled={layers.length <= 1}
-                title="Hapus layer"
+                title="Delete layer"
                 className="flex items-center gap-1 rounded-md bg-[#232327] px-2 py-1 text-[11px] text-white disabled:opacity-40"
               >
                 <Trash2 size={13} />
@@ -390,7 +390,7 @@ export default function RightPanel() {
                             e.stopPropagation();
                             duplicateLayer(l.id);
                           }}
-                          title="Duplikat layer"
+                          title="Duplicate layer"
                           className="rounded p-1 text-[#a7a7b0] hover:bg-[#2c2c31] hover:text-white"
                         >
                           <Copy size={12} />
@@ -471,7 +471,7 @@ export default function RightPanel() {
         {tab === "history" && (
           <div className="p-2 text-[12px]">
             {history.length === 0 && (
-              <div className="p-3 text-center text-[#6e6e78]">Belum ada history.</div>
+              <div className="p-3 text-center text-[#6e6e78]">No history yet.</div>
             )}
             {[...history].reverse().map((h) => (
               <div key={h.id} className="mb-1 rounded bg-[#232327] px-2 py-1.5">
@@ -482,7 +482,7 @@ export default function RightPanel() {
               </div>
             ))}
             {future.length > 0 && (
-              <div className="p-2 text-[11px] text-[#6e6e78]">{future.length} redo tersedia</div>
+              <div className="p-2 text-[11px] text-[#6e6e78]">{future.length} redo available</div>
             )}
           </div>
         )}

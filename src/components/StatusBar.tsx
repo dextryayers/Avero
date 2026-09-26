@@ -28,7 +28,7 @@ export default function StatusBar() {
   }, []);
 
   async function runStats() {
-    if (!isTauri()) { alert("Stats hanya di desktop."); return; }
+    if (!isTauri()) { alert("Stats is only available on desktop."); return; }
     const st = useEditorStore.getState();
     const id = st.activeLayerId ?? st.layers[0]?.id;
     if (!id) return;
@@ -48,7 +48,7 @@ export default function StatusBar() {
       const r = await nativeBenchmark(1920, 1080, 20);
       setBench(`${r.mpix_per_sec.toFixed(1)} MP/s`);
       setTimeout(() => setBench(""), 4000);
-    } catch { setBench("gagal"); setTimeout(() => setBench(""), 2000); }
+    } catch { setBench("failed"); setTimeout(() => setBench(""), 2000); }
   }
 
   useEffect(() => {
@@ -94,7 +94,7 @@ export default function StatusBar() {
         </button>
         <button
           onClick={() => window.dispatchEvent(new Event("avero:fit-zoom"))}
-          title="Fit ke layar"
+          title="Fit to screen"
           className={chip}
         >
           Fit
@@ -119,18 +119,18 @@ export default function StatusBar() {
       </button>
       <button
         onClick={() => {
-          const v = prompt("Grid size px (8-512):", String(gridSize));
+          const v = prompt("Grid size in px (8-512):", String(gridSize));
           if (v) useProStore.getState().setGridSize(Number(v) || gridSize);
         }}
         className="hidden rounded px-1 py-0.5 font-mono hover:bg-[#2c2c31] hover:text-white xl:block"
-        title="Ubah grid size"
+        title="Change grid size"
       >
         {gridSize}px
       </button>
       <button
         onClick={() => useProStore.getState().toggleSnap()}
         className={snapEnabled ? chipOn : chip}
-        title="Snap ke guides/grid/tengah (tahan Alt untuk bypass)"
+        title="Snap to guides/grid/center (hold Alt to bypass)"
       >
         Snap {snapEnabled ? "on" : "off"}
       </button>
@@ -146,14 +146,14 @@ export default function StatusBar() {
       <button
         onClick={runStats}
         className="hidden rounded border border-[#2c2c31] bg-[#232327] px-1.5 py-0.5 font-mono text-[#a7a7b0] hover:text-white md:block"
-        title="Statistik warna layer aktif"
+        title="Active layer color statistics"
       >
         Stats
       </button>
       <button
         onClick={runBench}
         className="hidden rounded border border-[#2c2c31] bg-[#232327] px-1.5 py-0.5 font-mono text-[#a7a7b0] hover:text-white md:block"
-        title="Uji kecepatan pemrosesan"
+        title="Benchmark processing speed"
       >
         {bench || "Bench"}
       </button>
@@ -161,9 +161,9 @@ export default function StatusBar() {
         className={`hidden max-w-[220px] truncate rounded border px-1.5 py-0.5 font-mono md:block ${
           nat?.ready ? "border-[#2c2c31] bg-[#232327] text-[#8fb6f5]" : "border-[#2c2c31] text-[#6e6e78]"
         }`}
-        title={nat ? "Mesin pemrosesan gambar siap pakai" : "Pratinjau web"}
+        title={nat ? "Image processing engine ready" : "Web preview"}
       >
-        {nat?.ready ? `Mesin pemrosesan v2 · siap` : "Pratinjau web"}
+        {nat?.ready ? `Processing engine v2 · ready` : "Web preview"}
       </span>
       <span
         className="ml-auto hidden max-w-[300px] truncate md:block font-mono"
@@ -172,7 +172,7 @@ export default function StatusBar() {
         {doc.filePath ? doc.filePath.split(/[/\\]/).pop() : ""}
       </span>
       <span className={doc.dirty ? "text-[#d9a441]" : "text-[#6e6e78]"}>
-        {doc.dirty ? "Belum disimpan" : "Tersimpan"}
+        {doc.dirty ? "Unsaved" : "Saved"}
       </span>
     </div>
   );

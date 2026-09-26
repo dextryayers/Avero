@@ -142,9 +142,9 @@ export default function AdjustPanel() {
       await nativeProcessCanvas(c, "op", op);
       st.markDirty();
       useProStore.getState().bumpHistogram();
-      useAutomationStore.getState().pushStep(`Native ${label}`, { type: "adjustment/add", payload: { kind: label } });
+      useAutomationStore.getState().pushStep(`Penyesuaian ${label}`, { type: "adjustment/add", payload: { kind: label } });
     } catch (e) {
-      alert(`Native C gagal: ${String(e)}`);
+      alert(`Penyesuaian gagal: ${String(e)}`);
     } finally {
       setBusy(null);
     }
@@ -172,18 +172,18 @@ export default function AdjustPanel() {
 
   return (
     <div className="space-y-3 p-2 text-[12px]">
-      {/* Engine header - profesional */}
+      {/* Penyesuaian cepat */}
       <div className="avero-card overflow-hidden p-0">
         <div className="flex items-center gap-2 border-b border-[#2c2c31] bg-[#161618] px-3 py-2.5">
           <span className="grid h-7 w-7 place-items-center rounded-md bg-[#2f7cf6] text-white"><Cpu size={14} /></span>
           <div className="min-w-0">
-            <div className="text-[11.5px] font-bold leading-none text-white">Native C engine v2</div>
-            <div className="truncate font-mono text-[10px] text-[#6e6e78]">{nat ? `${nat.c_engine} ${nat.c_version} • ${nat.cpp_version}` : isTauri() ? "memuat engine..." : "web only (JS fallback)"}</div>
+            <div className="text-[11.5px] font-bold leading-none text-white">Penyesuaian Cepat v2</div>
+            <div className="truncate font-mono text-[10px] text-[#6e6e78]">{nat ? "23 operasi siap pakai · proses langsung ke layer" : isTauri() ? "memuat operasi..." : "pratinjau web (fallback)"}</div>
           </div>
-          <span className={`ml-auto rounded px-1.5 py-0.5 font-mono text-[10px] ${nat?.ready ? "bg-[#232327] text-[#8fb6f5]" : "bg-[#2c2c31] text-[#6e6e78]"}`}>{nat?.ready ? "18 ops ready" : "offline"}</span>
+          <span className={`ml-auto rounded px-1.5 py-0.5 font-mono text-[10px] ${nat?.ready ? "bg-[#232327] text-[#8fb6f5]" : "bg-[#2c2c31] text-[#6e6e78]"}`}>{nat?.ready ? "23 ops siap" : "offline"}</span>
         </div>
         <div className="px-3 py-2 text-[10px] leading-relaxed text-[#6e6e78]">
-          Operasi in-place ke layer aktif via FFI C. Untuk pipeline batch gunakan antrean di bawah. Berbeda dengan adjustment stack non-destruktif.
+          Diterapkan langsung ke layer aktif tanpa penyalinan gambar. Untuk beberapa operasi sekaligus gunakan antrean di bawah, terpisah dari penumpuk penyesuaian non destruktif.
         </div>
       </div>
 
@@ -223,8 +223,8 @@ export default function AdjustPanel() {
             <Slider label="Highlights" value={p.highlights} min={-100} max={100} onChange={(v) => setP({ ...p, highlights: v })} />
           </NativeRow>
           <div className="grid grid-cols-2 gap-2">
-            <button disabled={!isTauri() || !!busy} onClick={() => runOp({ op: "autoLevels" }, "autoLevels")} className="rounded-md border border-[#2c2c31] bg-[#232327] py-2 text-[11px] font-semibold text-white hover:bg-[#2c2c31] disabled:opacity-40">Auto Levels (C)</button>
-            <button disabled={!isTauri() || !!busy} onClick={() => runOp({ op: "autoContrast" }, "autoContrast")} className="rounded-md border border-[#2c2c31] bg-[#232327] py-2 text-[11px] font-semibold text-white hover:bg-[#2c2c31] disabled:opacity-40">Auto Contrast (C)</button>
+            <button disabled={!isTauri() || !!busy} onClick={() => runOp({ op: "autoLevels" }, "autoLevels")} className="rounded-md border border-[#2c2c31] bg-[#232327] py-2 text-[11px] font-semibold text-white hover:bg-[#2c2c31] disabled:opacity-40">Auto Levels</button>
+            <button disabled={!isTauri() || !!busy} onClick={() => runOp({ op: "autoContrast" }, "autoContrast")} className="rounded-md border border-[#2c2c31] bg-[#232327] py-2 text-[11px] font-semibold text-white hover:bg-[#2c2c31] disabled:opacity-40">Auto Contrast</button>
           </div>
         </div>
       </div>
@@ -254,8 +254,8 @@ export default function AdjustPanel() {
             <Slider label="Levels" value={p.levels} min={2} max={32} onChange={(v) => setP({ ...p, levels: v })} />
             <Slider label="Threshold" value={p.threshold} min={0} max={255} onChange={(v) => setP({ ...p, threshold: v })} />
             <div className="flex gap-1.5">
-              <button disabled={!!busy} onClick={() => runOp({ op: "threshold", level: p.threshold }, "threshold")} className="flex-1 rounded bg-[#232327] py-1.5 text-[10px] font-semibold text-white hover:bg-[#2c2c31] disabled:opacity-40">Threshold C</button>
-              <button disabled={!!busy} onClick={() => runOp({ op: "posterize", levels: p.levels }, "poster")} className="flex-1 rounded bg-[#232327] py-1.5 text-[10px] font-semibold text-white hover:bg-[#2c2c31] disabled:opacity-40">Posterize C</button>
+              <button disabled={!!busy} onClick={() => runOp({ op: "threshold", level: p.threshold }, "threshold")} className="flex-1 rounded bg-[#232327] py-1.5 text-[10px] font-semibold text-white hover:bg-[#2c2c31] disabled:opacity-40">Threshold</button>
+              <button disabled={!!busy} onClick={() => runOp({ op: "posterize", levels: p.levels }, "poster")} className="flex-1 rounded bg-[#232327] py-1.5 text-[10px] font-semibold text-white hover:bg-[#2c2c31] disabled:opacity-40">Posterize</button>
             </div>
           </NativeRow>
         </div>
@@ -284,7 +284,7 @@ export default function AdjustPanel() {
       {/* Pipeline */}
       <div className="avero-card space-y-2 p-3">
         <div className="flex items-center gap-1.5 text-[11px] font-semibold text-white"><Zap size={12} className="text-[#8fb6f5]" /> Studio pipeline</div>
-        <div className="text-[10px] text-[#6e6e78]">Antrekan beberapa operasi C, jalankan sekaligus dalam satu IPC Rust (tanpa round-trip). Centang ringan untuk tiled 512.</div>
+        <div className="text-[10px] text-[#6e6e78]">Antrekan beberapa operasi lalu jalankan sekaligus dalam satu proses (hemat waktu). Centang mode ringan untuk memproses per ubin.</div>
         <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-[#a7a7b0]">
           <input type="checkbox" checked={light} onChange={(e) => setLight(e.target.checked)} className="accent-[#2f7cf6]" /> Mode ringan (hemat RAM)
         </label>
@@ -301,14 +301,14 @@ export default function AdjustPanel() {
         </div>
         <div className="flex flex-wrap gap-1 font-mono text-[10px] text-[#a7a7b0]">{queue.length === 0 ? "Antrean kosong" : queue.map((o, i) => <span key={i} className="rounded bg-[#232327] px-1.5 py-0.5">{(o as any).op}</span>)}</div>
         <div className="flex gap-1.5">
-          <button disabled={queue.length === 0 || !!busy} onClick={runQueue} className="avero-btn-primary flex-1 rounded-md py-2 text-[11px] font-semibold text-white disabled:opacity-40">{busy === "pipeline" ? "Menjalankan..." : `Jalankan ${queue.length} ops`}</button>
+          <button disabled={queue.length === 0 || !!busy} onClick={runQueue} className="avero-btn-primary flex-1 rounded-md py-2 text-[11px] font-semibold text-white disabled:opacity-40">{busy === "pipeline" ? "Menjalankan..." : `Jalankan ${queue.length} operasi`}</button>
           <button disabled={queue.length === 0 || !!busy} onClick={() => setQueue([])} className="rounded-md bg-[#232327] px-3 py-2 text-[11px] text-white hover:bg-[#2c2c31] disabled:opacity-40">Clear</button>
         </div>
       </div>
 
       {/* Non-destruktif JS stack */}
       <div className="border-t border-[#2c2c31] pt-3">
-        <div className="avero-micro mb-2">Adjustment stack non-destruktif (JS)</div>
+        <div className="avero-micro mb-2">Penumpuk penyesuaian non destruktif</div>
         <div className="flex flex-wrap gap-1">
           {addable.map((a) => (
             <button key={a.id} onClick={() => { addAdjustment(a.id); useAutomationStore.getState().pushStep(`Add ${a.label}`, { type: "adjustment/add", payload: { kind: a.id } }); }} className="avero-btn-primary flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-semibold text-white">

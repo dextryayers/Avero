@@ -89,8 +89,8 @@ export default function FilterPanel() {
       await nativeProcessCanvas(c, "filter", op);
       st.markDirty();
       useProStore.getState().bumpHistogram();
-      useAutomationStore.getState().pushStep(`Native ${key}`, { type: "filter/add", payload: { kind: key } });
-    } catch (e) { alert(`Native C++ gagal: ${String(e)}`); } finally { setBusy(null); }
+      useAutomationStore.getState().pushStep(`Filter ${key}`, { type: "filter/add", payload: { kind: key } });
+    } catch (e) { alert(`Filter gagal: ${String(e)}`); } finally { setBusy(null); }
   }
 
   async function runQ() {
@@ -115,12 +115,12 @@ export default function FilterPanel() {
         <div className="flex items-center gap-2 border-b border-[#2c2c31] bg-[#161618] px-3 py-2.5">
           <span className="grid h-7 w-7 place-items-center rounded-md bg-[#2f7cf6] text-white"><Cpu size={14} /></span>
           <div className="min-w-0">
-            <div className="text-[11.5px] font-bold leading-none text-white">Native C++ filters v2</div>
-            <div className="truncate font-mono text-[10px] text-[#6e6e78]">{nat ? `${nat.cpp_engine} ${nat.cpp_version}` : isTauri() ? "memuat engine..." : "web only"}</div>
+            <div className="text-[11.5px] font-bold leading-none text-white">Gudang Filter v2</div>
+            <div className="truncate font-mono text-[10px] text-[#6e6e78]">{nat ? "20 filter siap pakai · proses dua arah presisi" : isTauri() ? "memuat filter..." : "pratinjau web"}</div>
           </div>
-          <span className={`ml-auto rounded px-1.5 py-0.5 font-mono text-[10px] ${nat?.ready ? "bg-[#232327] text-[#8fb6f5]" : "bg-[#2c2c31] text-[#6e6e78]"}`}>{nat?.ready ? "16 filters" : "offline"}</span>
+          <span className={`ml-auto rounded px-1.5 py-0.5 font-mono text-[10px] ${nat?.ready ? "bg-[#232327] text-[#8fb6f5]" : "bg-[#2c2c31] text-[#6e6e78]"}`}>{nat?.ready ? "20 filter" : "offline"}</span>
         </div>
-        <div className="px-3 py-2 text-[10px] leading-relaxed text-[#6e6e78]">Dua-pass src→dst, separable blur dan kernel convolve. Untuk pipeline batch gunakan antrean.</div>
+        <div className="px-3 py-2 text-[10px] leading-relaxed text-[#6e6e78]">Diproses dua arah dari sumber ke tujuan, blur terpisah dan konvolusi kernel. Untuk beberapa filter sekaligus gunakan antrean.</div>
       </div>
 
       <div className="space-y-2">
@@ -195,30 +195,30 @@ export default function FilterPanel() {
       </div>
 
       <div className="space-y-2">
-        <div className="avero-micro flex items-center gap-1.5"><Leaf size={11} className="text-[#7ad69e]" /> Ringan RAM tiled 512</div>
+        <div className="avero-micro flex items-center gap-1.5"><Leaf size={11} className="text-[#7ad69e]" /> Mode hemat RAM</div>
         <div className="grid gap-2">
-          <NativeFRow label="Box Blur Light" desc="tiled, <64KB overhead" busy={busy === "boxLight"} onApply={() => runFilter({ op: "boxBlurLight", radius: p.box }, "boxLight")}>
+          <NativeFRow label="Box Blur Ringan" desc="per ubin, tambahan <64KB" busy={busy === "boxLight"} onApply={() => runFilter({ op: "boxBlurLight", radius: p.box }, "boxLight")}>
             <Row label="Radius" value={p.box} min={0} max={16} onChange={(v) => setP({ ...p, box: v })} />
           </NativeFRow>
-          <NativeFRow label="Gaussian Light" desc="sigma 0.1..8, tiled" busy={busy === "gaussLight"} onApply={() => runFilter({ op: "gaussianLight", sigma: p.sigma }, "gaussLight")}>
+          <NativeFRow label="Gaussian Ringan" desc="sigma 0.1..8, per ubin" busy={busy === "gaussLight"} onApply={() => runFilter({ op: "gaussianLight", sigma: p.sigma }, "gaussLight")}>
             <Row label="Sigma" value={p.sigma} min={0.1} max={8} step={0.1} onChange={(v) => setP({ ...p, sigma: v })} />
           </NativeFRow>
-          <NativeFRow label="Bilateral Light" desc="edge-preserving ringan" busy={busy === "bilat"} onApply={() => runFilter({ op: "bilateralLight", radius: p.median, sigmaColor: 30 }, "bilat")}>
+          <NativeFRow label="Bilateral Ringan" desc="jaga tepi, sangat ringan" busy={busy === "bilat"} onApply={() => runFilter({ op: "bilateralLight", radius: p.median, sigmaColor: 30 }, "bilat")}>
             <Row label="Radius" value={p.median} min={1} max={4} onChange={(v) => setP({ ...p, median: v })} />
           </NativeFRow>
-          <NativeFRow label="Unsharp Light" desc="tiled unsharp" busy={busy === "unsharpLight"} onApply={() => runFilter({ op: "unsharpLight", amount: p.unsharpAmt, radius: p.unsharpRad }, "unsharpLight")}>
+          <NativeFRow label="Unsharp Ringan" desc="per ubin hemat RAM" busy={busy === "unsharpLight"} onApply={() => runFilter({ op: "unsharpLight", amount: p.unsharpAmt, radius: p.unsharpRad }, "unsharpLight")}>
             <Row label="Amount" value={p.unsharpAmt} min={0} max={4} step={0.1} onChange={(v) => setP({ ...p, unsharpAmt: v })} />
             <Row label="Radius" value={p.unsharpRad} min={1} max={6} onChange={(v) => setP({ ...p, unsharpRad: v })} />
           </NativeFRow>
         </div>
-        <div className="rounded-md bg-[#1a2b1f] px-2 py-1.5 text-[10px] text-[#7ad69e]">Hanya 2 scanline buffer, bukan full duplicate. Untuk 8K hemat ~100MB.</div>
+        <div className="rounded-md bg-[#1a2b1f] px-2 py-1.5 text-[10px] text-[#7ad69e]">Hanya 2 penyangga baris, bukan salinan penuh. Untuk 8K hemat ~100MB.</div>
       </div>
 
       <div className="avero-card space-y-2 p-3">
-        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-white"><Zap size={12} className="text-[#8fb6f5]" /> Studio pipeline</div>
-        <div className="text-[10px] text-[#6e6e78]">Antrekan filter C++ dan jalankan satu IPC. Centang ringan untuk tiled hemat RAM.</div>
+        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-white"><Zap size={12} className="text-[#8fb6f5]" /> Antrean filter</div>
+        <div className="text-[10px] text-[#6e6e78]">Antrekan beberapa filter lalu jalankan sekaligus. Centang mode ringan untuk memproses per ubin.</div>
         <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-[#a7a7b0]">
-          <input type="checkbox" checked={light} onChange={(e) => setLight(e.target.checked)} className="accent-[#2f7cf6]" /> Mode ringan tiled 512
+          <input type="checkbox" checked={light} onChange={(e) => setLight(e.target.checked)} className="accent-[#2f7cf6]" /> Mode ringan (hemat RAM)
         </label>
         <div className="flex flex-wrap gap-1">
           {[
@@ -238,7 +238,7 @@ export default function FilterPanel() {
       </div>
 
       <div className="border-t border-[#2c2c31] pt-3">
-        <div className="avero-micro mb-2">Filter stack non-destruktif (JS)</div>
+        <div className="avero-micro mb-2">Penumpuk filter non destruktif</div>
         <div className="flex flex-wrap gap-1">
           {addable.map((f) => (
             <button key={f.id} onClick={() => { addFilter(f.id); useAutomationStore.getState().pushStep(`Add ${f.label}`, { type: "filter/add", payload: { kind: f.id } }); }} className="flex items-center gap-1 rounded-md bg-[#232327] px-2 py-1 text-[10px] font-semibold text-white hover:bg-[#2c2c31]">

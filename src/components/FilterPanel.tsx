@@ -12,6 +12,7 @@ import {
   type NativeFilterOp,
 } from "../io/nativeEngine";
 import { ChevronDown, ChevronUp, Cpu, Layers, Leaf, Plus, Trash2, Zap } from "lucide-react";
+import { showError } from "../ui/notify";
 
 const addable: { id: FilterType; label: string }[] = [
   { id: "gaussianBlur", label: "Gaussian" },
@@ -91,7 +92,7 @@ export default function FilterPanel() {
       st.markDirty();
       useProStore.getState().bumpHistogram();
       useAutomationStore.getState().pushStep(`Filter ${key}`, { type: "filter/add", payload: { kind: key } });
-    } catch (e) { alert(`Filter failed: ${String(e)}`); } finally { setBusy(null); }
+    } catch (e) { await showError(`Filter failed: ${String(e)}`); } finally { setBusy(null); }
   }
 
   async function runQ() {
@@ -107,7 +108,7 @@ export default function FilterPanel() {
       useProStore.getState().bumpHistogram();
       useAutomationStore.getState().pushStep(`Pipeline ${queue.length} filters`, { type: "pipeline/native", payload: { n: queue.length } });
       setQueue([]);
-    } catch (e) { alert(`Pipeline failed: ${String(e)}`); } finally { setBusy(null); }
+    } catch (e) { await showError(`Pipeline failed: ${String(e)}`); } finally { setBusy(null); }
   }
 
   return (

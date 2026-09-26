@@ -3,6 +3,7 @@ import { useEditorStore } from "../stores/useEditorStore";
 import { useProStore } from "../stores/useProStore";
 import { isTauri, nativeBenchmark, nativeInfo, nativeStats, type NativeInfo } from "../io/nativeEngine";
 import { layerManager } from "../engine/layerManager";
+import { showMessage, showError, askText } from "../ui/notify";
 
 export default function StatusBar() {
   const zoom = useEditorStore((s) => s.zoom);
@@ -28,7 +29,7 @@ export default function StatusBar() {
   }, []);
 
   async function runStats() {
-    if (!isTauri()) { alert("Stats is only available on desktop."); return; }
+    if (!isTauri()) { await showMessage("Stats is only available in the desktop app.", "AVERO STUDIO"); return; }
     const st = useEditorStore.getState();
     const id = st.activeLayerId ?? st.layers[0]?.id;
     if (!id) return;
@@ -36,9 +37,25 @@ export default function StatusBar() {
     if (!c) return;
     const ctx = c.getContext("2d", { willReadFrequently: true });
     if (!ctx) return;
-    const d = ctx.getImageData(0, 0, c.width, c.height);
-    const s = await nativeStats(d.data);
-    alert(`Mean R ${s.mean_r.toFixed(1)} G ${s.mean_g.toFixed(1)} B ${s.mean_b.toFixed(1)}\nStd R ${s.std_r.toFixed(1)} G ${s.std_g.toFixed(1)} B ${s.std_b.toFixed(1)}\nPixels ${s.pixels}`);
+    try {
+      // Sample max 512px side for stats to avoid multi-MB IPC + RAM spike.
+      const maxSide = 512;
+      const sc = Math.min(1, maxSide / Math.max(c.width, c.height));
+      const tw = Math.max(1, Math.round(c.width * sc));
+      const th = Math.max(1, Math.round(c.height * sc));
+      const tmp = document.createElement("canvas");
+      tmp.width = tw;
+      tmp.height = th;
+      tmp.getContext("2d")!.drawImage(c, 0, 0, tw, th);
+      const d = tmp.getContext("2d", { willReadFrequently: true })!.getImageData(0, 0, tw, th);
+      const s = await nativeStats(d.data);
+      await showMessage(
+        `Mean R ${s.mean_r.toFixed(1)} G ${s.mean_g.toFixed(1)} B ${s.mean_b.toFixed(1)}\nStd R ${s.std_r.toFixed(1)} G ${s.std_g.toFixed(1)} B ${s.std_b.toFixed(1)}\nPixels ${s.pixels} (sampled ${tw}x${th})`,
+        "Layer Stats",
+      );
+    } catch (e) {
+      await showError(String(e));
+    }
   }
 
   async function runBench() {
@@ -118,9 +135,12 @@ export default function StatusBar() {
         Grid {showGrid ? gridSize : "off"}
       </button>
       <button
-        onClick={() => {
-          const v = prompt("Grid size in px (8-512):", String(gridSize));
-          if (v) useProStore.getState().setGridSize(Number(v) || gridSize);
+        onClick={async () => {
+          const v = await askText("Grid Size", "Grid size in px (8-512):", String(gridSize), "e.g. 64");
+          if (v !== null && v !== "") {
+            const n = Math.max(8, Math.min(512, Number(v) || gridSize));
+            useProStore.getState().setGridSize(n);
+          }
         }}
         className="hidden rounded px-1 py-0.5 font-mono hover:bg-[#2c2c31] hover:text-white xl:block"
         title="Change grid size"

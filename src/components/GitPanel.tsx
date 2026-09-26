@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useGitStore } from "../stores/useGitStore";
 import { useEditorStore } from "../stores/useEditorStore";
 import { getCompositeCanvas } from "./CanvasArea";
+import { askText } from "../ui/notify";
 
 export default function GitPanel() {
   const snaps = useGitStore((s) => s.snaps);
@@ -15,7 +16,7 @@ export default function GitPanel() {
   const setCompare = useGitStore((s) => s.setCompare);
   const [pos, setPos] = useState(50);
 
-  function takeSnapshot() {
+  async function takeSnapshot() {
     const comp = getCompositeCanvas();
     const layers = useEditorStore.getState().layers.length;
     let thumb = "";
@@ -27,10 +28,11 @@ export default function GitPanel() {
       thumb = t.toDataURL("image/jpeg", 0.72);
     }
     const label =
-      prompt(
+      (await askText(
+        "Take Snapshot",
         "Snapshot name:",
         `Edit ${snaps.filter((s) => s.branch === activeBranch).length + 1}`,
-      ) ?? `Edit ${snaps.length + 1}`;
+      )) ?? `Edit ${snaps.length + 1}`;
     snapshot(label, thumb, layers);
   }
 
@@ -52,8 +54,8 @@ export default function GitPanel() {
           ))}
         </select>
         <button
-          onClick={() => {
-            const n = prompt("New variant name:");
+          onClick={async () => {
+            const n = await askText("New Branch", "New variant name:", "");
             if (n) createBranch(n);
           }}
           className="rounded bg-[#2f7cf6] px-2 py-1.5 text-white"

@@ -289,11 +289,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }),
 
   pushHistory: (e) =>
-    set((s) => ({
-      // simpan max MAX_HISTORY, buang paling lama + bebaskan referensi ImageData lama via GC
-      history: [...s.history.slice(-(MAX_HISTORY - 1)), { ...e, id: uid("h"), time: Date.now() }],
-      future: s.future.slice(-(MAX_HISTORY - 1)),
-    })),
+    set((s) => {
+      // Adaptive cap: large snapshots (>8MP ~32MB) keep max 8, small keep MAX_HISTORY (15).
+      // Prevents multi-GB history on 4K docs while keeping generous undo on HD.
+      const px = e.snapshot ? e.snapshot.width * e.snapshot.height : 0;
+      const cap = px > 8_000_000 ? 8 : MAX_HISTORY;
+      return {
+        history: [...s.history.slice(-(cap - 1)), { ...e, id: uid("h"), time: Date.now() }],
+        future: s.future.slice(-(cap - 1)),
+      };
+    }),
   undoMeta: () => {
     const s = get();
     if (s.history.length === 0) return null;

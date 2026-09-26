@@ -47,6 +47,7 @@ import PluginPanel from "./PluginPanel";
 import MockupPanel from "./MockupPanel";
 import NativeLabPanel from "./NativeLabPanel";
 import { useWorkspaceStore } from "../stores/useWorkspaceStore";
+import { showError, askConfirm } from "../ui/notify";
 
 type Tab =
   | "layers"
@@ -161,16 +162,16 @@ export default function RightPanel() {
     st.addLayer(nl);
   }
 
-  function mergeDown(id: string) {
+  async function mergeDown(id: string) {
     const st = useEditorStore.getState();
     const idx = st.layers.findIndex((l) => l.id === id);
     if (idx <= 0) {
-      alert("No layer below to merge into.");
+      await showError("No layer below to merge into.");
       return;
     }
     const top = st.layers[idx];
     const below = st.layers[idx - 1];
-    if (!window.confirm(`Merge "${top.name}" into "${below.name}"? This is destructive.`)) return;
+    if (!(await askConfirm(`Merge "${top.name}" into "${below.name}"? This is destructive.`))) return;
     const bc = layerManager.get(below.id);
     const tc = layerManager.get(id);
     if (bc && tc) {
@@ -195,10 +196,10 @@ export default function RightPanel() {
     useProStore.getState().bumpHistogram();
   }
 
-  function flattenImage() {
+  async function flattenImage() {
     const st = useEditorStore.getState();
     if (st.layers.length <= 1) return;
-    if (!window.confirm(`Merge ${st.layers.length} layers into one? This is destructive.`)) return;
+    if (!(await askConfirm(`Merge ${st.layers.length} layers into one? This is destructive.`))) return;
     const bottom = st.layers[0];
     const bc = layerManager.ensure(bottom.id, st.doc.width, st.doc.height);
     const bctx = bc.getContext("2d")!;
@@ -281,7 +282,9 @@ export default function RightPanel() {
                 <Trash2 size={13} />
               </button>
               <button
-                onClick={() => activeLayerId && mergeDown(activeLayerId)}
+                onClick={() => {
+                  if (activeLayerId) void mergeDown(activeLayerId);
+                }}
                 disabled={layers.length <= 1}
                 title="Merge down"
                 className="rounded-md bg-[#232327] px-2 py-1 text-white disabled:opacity-40"
@@ -289,7 +292,7 @@ export default function RightPanel() {
                 <ArrowDownToLine size={13} />
               </button>
               <button
-                onClick={flattenImage}
+                onClick={() => void flattenImage()}
                 disabled={layers.length <= 1}
                 title="Flatten image"
                 className="rounded-md bg-[#232327] px-2 py-1 text-white disabled:opacity-40"

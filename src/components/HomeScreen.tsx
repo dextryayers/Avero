@@ -29,6 +29,7 @@ import { useProStore } from "../stores/useProStore";
 import { layerManager } from "../engine/layerManager";
 import { openAvxProject } from "../io/projectIo";
 import { pickImageToOpen, rustDecodeToDataUrl, rustImageInfo } from "../io/tauriIo";
+import { showError } from "../ui/notify";
 import clsx from "clsx";
 
 type PresetCat = "Photo" | "Print" | "Art" | "Web" | "Mobile" | "Film";
@@ -115,7 +116,7 @@ export async function openImageViaDialog(): Promise<boolean> {
     return true;
   } catch (e) {
     console.error(e);
-    alert(`Failed to open image: ${String(e)}`);
+    await showError(`Failed to open image: ${String(e)}`);
     return false;
   }
 }
@@ -173,12 +174,12 @@ export default function HomeScreen() {
     try {
       if (r.path && r.path.toLowerCase().endsWith(".avx")) {
         const ok = await openAvxProject(r.path);
-        if (!ok) alert("Could not open project.");
+        if (!ok) await showError("Could not open project.");
         return;
       }
       const res = await resolveRecent(r);
       if (!res) {
-        alert("This session file is no longer available. Please reopen it from disk.");
+        await showError("This session file is no longer available. Please reopen it from disk.");
         return;
       }
       const st = useEditorStore.getState();
@@ -187,7 +188,7 @@ export default function HomeScreen() {
       setTimeout(() => drawDataUrlToActive(res.dataUrl, res.w, res.h), 60);
       setHome(false);
     } catch (e) {
-      alert(`Failed to open: ${String(e)}`);
+      await showError(`Failed to open: ${String(e)}`);
     } finally {
       setBusy(null);
     }
@@ -231,7 +232,7 @@ export default function HomeScreen() {
         <div className="ml-auto flex items-center gap-2">
           <span className="hidden font-mono text-[10px] text-[#6e6e78] lg:block">Ctrl+K all actions • Ctrl+S .avx</span>
           <button
-            onClick={() => openAvxProject().catch((e) => alert(`Failed to open project: ${String(e)}`))}
+            onClick={() => void openAvxProject().catch((e) => showError(`Failed to open project: ${String(e)}`))}
             className="flex items-center gap-1.5 rounded-full border border-[#2c2c31] bg-[#232327] px-3.5 py-2 text-[12px] font-medium text-white hover:bg-[#2c2c31] hover:border-[#3a3a41] transition-colors"
           >
             <FileBox size={14} /> .avx Project
@@ -295,7 +296,7 @@ export default function HomeScreen() {
           </div>
           <div className="mt-auto space-y-2">
             <button
-              onClick={() => openAvxProject().catch((e) => alert(`Failed to open project: ${String(e)}`))}
+              onClick={() => void openAvxProject().catch((e) => showError(`Failed to open project: ${String(e)}`))}
               className="w-full rounded-xl border border-[#2c2c31] bg-gradient-to-br from-[#1a2b45] to-[#161618] p-3 text-left transition-all hover:border-[#2f7cf6]/50 hover:from-[#1e3457]"
             >
               <div className="flex items-center gap-1.5 text-[11.5px] font-bold text-white">
@@ -335,7 +336,7 @@ export default function HomeScreen() {
                   <button onClick={() => openImageViaDialog()} className="inline-flex items-center gap-1.5 rounded-full border border-[#2c2c31] bg-[#232327] px-4 py-2 text-[12px] font-medium text-white hover:bg-[#2c2c31]">
                     <FolderOpen size={14} /> Open image
                   </button>
-                  <button onClick={() => openAvxProject().catch((e) => alert(String(e)))} className="inline-flex items-center gap-1.5 rounded-full border border-[#2c2c31] bg-[#161618] px-4 py-2 text-[12px] text-[#a7a7b0] hover:text-white">
+                  <button onClick={() => void openAvxProject().catch((e) => showError(String(e)))} className="inline-flex items-center gap-1.5 rounded-full border border-[#2c2c31] bg-[#161618] px-4 py-2 text-[12px] text-[#a7a7b0] hover:text-white">
                     <FileBox size={14} /> Open .avx
                   </button>
                 </div>

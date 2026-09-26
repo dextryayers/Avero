@@ -21,9 +21,27 @@ import { applySoftProof, convertWorkingSpace } from "../engine/color";
 import { renderShapeToLayer, renderTextToLayer } from "../engine/textShape";
 import ToolOptionsBar from "./ToolOptionsBar";
 import { TOOL_LABEL } from "./ToolBar";
+import { askText } from "../ui/notify";
 
 export function getCompositeCanvas(): HTMLCanvasElement | null {
   return (window as any).__avero_comp ?? null;
+}
+
+// Pooled doc-size composite canvas: reuses one canvas across renders
+// instead of allocating a full doc-size canvas per frame (8MB+ for HD).
+let pooledComp: HTMLCanvasElement | null = null;
+function getPooledComp(w: number, h: number): HTMLCanvasElement {
+  if (!pooledComp) {
+    pooledComp = document.createElement("canvas");
+    pooledComp.width = w;
+    pooledComp.height = h;
+    return pooledComp;
+  }
+  if (pooledComp.width !== w || pooledComp.height !== h) {
+    pooledComp.width = w;
+    pooledComp.height = h;
+  }
+  return pooledComp;
 }
 
 export default function CanvasArea() {
@@ -397,10 +415,8 @@ export default function CanvasArea() {
     }
     ctx.restore();
 
-    // 1. Komposit layer ke offscreen doc-size
-    const comp = document.createElement("canvas");
-    comp.width = Math.max(1, doc.width);
-    comp.height = Math.max(1, doc.height);
+    // 1. Composite layers to doc-size offscreen (pooled: no alloc per frame)
+    const comp = getPooledComp(Math.max(1, doc.width), Math.max(1, doc.height));
     const cctx = comp.getContext("2d", { willReadFrequently: true })!;
     cctx.clearRect(0, 0, comp.width, comp.height);
     layers.forEach((l) => {
@@ -1557,7 +1573,7 @@ export default function CanvasArea() {
             setPan(panX - e.deltaX, panY - e.deltaY);
           }
         }}
-        onMouseDown={(e) => {
+        onMouseDown={async (e) => {
           if (e.button === 1 || tool === "pan" || tool === "hand" || tool === "rotate-view") {
             panning.current = { sx: e.clientX, sy: e.clientY, px: panX, py: panY };
             return;
@@ -1652,7 +1668,7 @@ export default function CanvasArea() {
             return;
           }
           if (tool === "note") {
-            const t = prompt("Note text:", "");
+            const t = await askText("Add Note", "Note text:", "");
             if (t) createTextLayer(p, t);
             return;
           }

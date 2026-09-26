@@ -13,6 +13,9 @@ import Onboarding from "./components/Onboarding";
 import BootSplash from "./components/BootSplash";
 import HomeScreen, { openImageViaDialog } from "./components/HomeScreen";
 import ExportDialog from "./components/ExportDialog";
+import Notifier from "./components/Notifier";
+import AppDialog from "./components/AppDialog";
+import { showError, askText } from "./ui/notify";
 import { openAvxProject, saveAvxProject } from "./io/projectIo";
 import { useEditorStore } from "./stores/useEditorStore";
 import { useProStore } from "./stores/useProStore";
@@ -111,7 +114,7 @@ export default function App() {
       if (mod && e.key.toLowerCase() === "s") {
         e.preventDefault();
         if (inInput) return;
-        saveAvxProject(e.shiftKey).catch((err) => alert(`Failed to save project: ${String(err)}`));
+        saveAvxProject(e.shiftKey).catch((err) => showError(`Failed to save project: ${String(err)}`));
         return;
       }
       if (mod && e.key.toLowerCase() === "e") {
@@ -322,10 +325,10 @@ export default function App() {
       setExportOpen(true);
     }
     function onSaveEvent() {
-      saveAvxProject(false).catch((err) => alert(`Failed to save project: ${String(err)}`));
+      saveAvxProject(false).catch((err) => showError(`Failed to save project: ${String(err)}`));
     }
     function onOpenAvxEvent() {
-      openAvxProject().catch((err) => alert(`Failed to open project: ${String(err)}`));
+      openAvxProject().catch((err) => showError(`Failed to open project: ${String(err)}`));
     }
     async function onSelectEvent(e: Event) {
       const detail = (e as CustomEvent).detail as string;
@@ -359,8 +362,9 @@ export default function App() {
           window.dispatchEvent(new Event("avero:selection-changed"));
         }
       } else if (detail === "sel-feather") {
-        const v = prompt("Feather px (0-100):", "2");
-        if (v) sel.featherSelection(Number(v) || 0);
+        askText("Feather Selection", "Feather radius in px (0-100):", "2").then((v) => {
+          if (v !== null && v !== "") sel.featherSelection(Math.max(0, Math.min(100, Number(v) || 0)));
+        });
       }
     }
     function onClipEvent(e: Event) {
@@ -474,6 +478,8 @@ export default function App() {
       <CommandPalette open={palette} onClose={() => setPalette(false)} />
       {!homeOpen && exportOpen && <ExportDialog onClose={() => setExportOpen(false)} />}
       {booted && <Onboarding />}
+      <AppDialog />
+      <Notifier />
 
       <div className="flex items-center gap-2 border-t border-[#2c2c31] bg-[#1c1c1f] px-3 py-1 font-mono text-[10px] text-[#6e6e78]">
         <span>

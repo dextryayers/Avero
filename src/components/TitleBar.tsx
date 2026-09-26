@@ -8,6 +8,7 @@ import { useProStore } from "../stores/useProStore";
 import { House, Search } from "lucide-react";
 import clsx from "clsx";
 import { MENUS } from "../app/menus";
+import { showError, showMessage } from "../ui/notify";
 
 
 export default function TitleBar({
@@ -70,7 +71,7 @@ export default function TitleBar({
       openPath(path)
         .catch((err) => {
           console.error(err);
-          alert(`Failed to open image: ${String(err)}`);
+          void showError(`Failed to open image: ${String(err)}`);
         })
         .finally(() => setBusy(false));
     }
@@ -100,7 +101,7 @@ export default function TitleBar({
       await openPath(path);
     } catch (e) {
       console.error(e);
-      alert(`Failed to open image: ${String(e)}`);
+      await showError(`Failed to open image: ${String(e)}`);
     } finally {
       setBusy(false);
     }
@@ -126,19 +127,19 @@ export default function TitleBar({
         handleOpen();
         break;
       case "open-avx":
-        openAvxProject().catch((e) => alert(`Failed to open project: ${String(e)}`));
+        void openAvxProject().catch((e) => showError(`Failed to open project: ${String(e)}`));
         break;
       case "save-avx":
-        saveAvxProject(false).catch((e) => alert(`Failed to save project: ${String(e)}`));
+        void saveAvxProject(false).catch((e) => showError(`Failed to save project: ${String(e)}`));
         break;
       case "save-avx-as":
-        saveAvxProject(true).catch((e) => alert(`Failed to save project: ${String(e)}`));
+        void saveAvxProject(true).catch((e) => showError(`Failed to save project: ${String(e)}`));
         break;
       case "export":
         onOpenExport();
         break;
       case "export-png":
-        pick().catch((e) => alert(String(e)));
+        void pick().catch((e) => showError(String(e)));
         break;
       case "new-doc":
         layerManager.clear();
@@ -450,7 +451,7 @@ export default function TitleBar({
             ed.markDirty();
             pro.bumpHistogram();
           } catch (e) {
-            alert(`Filter failed: ${String(e)}`);
+            await showError(`Filter failed: ${String(e)}`);
           }
         })();
         break;
@@ -473,7 +474,7 @@ export default function TitleBar({
             ed.markDirty();
             pro.bumpHistogram();
           } catch (e) {
-            alert(`Adjustment failed: ${String(e)}`);
+            await showError(`Adjustment failed: ${String(e)}`);
           }
         })();
         break;
@@ -546,7 +547,7 @@ export default function TitleBar({
         window.location.reload();
         break;
       case "about":
-        alert("AVERO STUDIO v2.0.0. Professional photo studio. Offline, non-destructive, open source.");
+        void showMessage("AVERO STUDIO v2.0.0. Professional photo studio. Offline, non-destructive, open source.");
         break;
     }
   }

@@ -4,6 +4,7 @@ import { save } from "@tauri-apps/plugin-dialog";
 import { useEditorStore } from "../stores/useEditorStore";
 import { exportDataUrl, writeTextFile, type ExportFormat } from "../io/projectIo";
 import { rustSaveDataUrl } from "../io/tauriIo";
+import { showError, showMessage } from "../ui/notify";
 import clsx from "clsx";
 
 const FORMATS: { id: ExportFormat; label: string; desc: string }[] = [
@@ -82,7 +83,7 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
       } else {
         if (format === "svg" || format === "bmp" || format === "tiff") {
           if (format !== "svg") {
-            alert("This format requires the desktop app. In the web preview, PNG is used instead.");
+            await showMessage("This format requires the desktop app. In the web preview, PNG is used instead.");
             const png = exportDataUrl({ format: "png", quality, scale, matte: effMatte, fileName: name });
             triggerDownload(png.dataUrl, `${name.trim() || "Untitled"}.png`);
             return;
@@ -92,7 +93,7 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
       }
       onClose();
     } catch (e) {
-      alert(`Export failed: ${String(e)}`);
+      await showError(`Export failed: ${String(e)}`);
     } finally {
       setBusy(false);
     }

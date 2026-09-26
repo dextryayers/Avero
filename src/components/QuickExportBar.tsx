@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Save, Download, ChevronDown, FileImage, FileBox, Layers } from "lucide-react";
 import { saveAvxProject, openAvxProject, exportDataUrl, type ExportFormat } from "../io/projectIo";
 import { useEditorStore } from "../stores/useEditorStore";
+import { showError } from "../ui/notify";
 import clsx from "clsx";
 
 const IMG_FORMATS: { id: ExportFormat; label: string; ext: string }[] = [
@@ -24,7 +25,7 @@ export default function QuickExportBar({ onOpenExport }: { onOpenExport: () => v
     try {
       await saveAvxProject(as);
     } catch (e) {
-      alert(`Failed to save .avx: ${String(e)}`);
+      await showError(`Failed to save .avx: ${String(e)}`);
     } finally {
       setBusy(false);
     }
@@ -59,7 +60,7 @@ export default function QuickExportBar({ onOpenExport }: { onOpenExport: () => v
         a.click();
       }
     } catch (e) {
-      alert(`Export failed: ${String(e)}`);
+      await showError(`Export failed: ${String(e)}`);
     } finally {
       setBusy(false);
     }
@@ -90,7 +91,7 @@ export default function QuickExportBar({ onOpenExport }: { onOpenExport: () => v
             <button onClick={() => quickSaveAvx(true)} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[11px] text-[#c9c9d1] hover:bg-[#232327] hover:text-white">
               <FileBox size={12} /> Save As
             </button>
-            <button onClick={() => openAvxProject().catch((e) => alert(String(e)))} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[11px] text-[#c9c9d1] hover:bg-[#232327] hover:text-white">
+            <button onClick={() => void openAvxProject().catch((e) => showError(String(e)))} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[11px] text-[#c9c9d1] hover:bg-[#232327] hover:text-white">
               <Layers size={12} /> Open .avx
             </button>
           </div>

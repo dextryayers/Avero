@@ -1,6 +1,7 @@
 import { useAutomationStore } from "../stores/useAutomationStore";
 import { useProStore } from "../stores/useProStore";
 import { open } from "@tauri-apps/plugin-dialog";
+import { askText } from "../ui/notify";
 
 export default function BatchPanel() {
   const recording = useAutomationStore((s) => s.recording);
@@ -97,8 +98,8 @@ export default function BatchPanel() {
         </div>
         {macro.length > 0 && (
           <button
-            onClick={() => {
-              const name = prompt("Preset name:", `Preset ${presets.length + 1}`);
+            onClick={async () => {
+              const name = await askText("Save Preset", "Preset name:", `Preset ${presets.length + 1}`);
               if (name) savePreset(name);
             }}
             className="mt-1.5 w-full rounded bg-[#5a5a64] px-2 py-1.5 text-white"

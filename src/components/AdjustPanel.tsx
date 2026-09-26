@@ -12,6 +12,7 @@ import {
   type NativeOp,
 } from "../io/nativeEngine";
 import { ChevronDown, ChevronUp, Cpu, Layers, Leaf, Plus, Trash2, Zap } from "lucide-react";
+import { showError } from "../ui/notify";
 
 const addable: { id: AdjustmentType; label: string }[] = [
   { id: "brightnessContrast", label: "Brightness" },
@@ -144,7 +145,7 @@ export default function AdjustPanel() {
       useProStore.getState().bumpHistogram();
       useAutomationStore.getState().pushStep(`Adjustment ${label}`, { type: "adjustment/add", payload: { kind: label } });
     } catch (e) {
-      alert(`Adjustment failed: ${String(e)}`);
+      await showError(`Adjustment failed: ${String(e)}`);
     } finally {
       setBusy(null);
     }
@@ -164,7 +165,7 @@ export default function AdjustPanel() {
       useAutomationStore.getState().pushStep(`Pipeline ${queue.length} ops`, { type: "pipeline/native", payload: { n: queue.length } });
       setQueue([]);
     } catch (e) {
-      alert(`Pipeline failed: ${String(e)}`);
+      await showError(`Pipeline failed: ${String(e)}`);
     } finally {
       setBusy(null);
     }

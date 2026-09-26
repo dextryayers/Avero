@@ -1,5 +1,7 @@
 import { create } from "zustand";
 
+let lastHistBump = 0;
+
 // Adjustment non-destructive lengkap ala Photoshop
 export type AdjustmentType =
   | "brightnessContrast"
@@ -458,7 +460,14 @@ export const useProStore = create<ProState>((set) => ({
   setTextSpec: (layerId, spec) => set((s) => ({ textSpecs: { ...s.textSpecs, [layerId]: spec } })),
   setShapeSpec: (layerId, spec) =>
     set((s) => ({ shapeSpecs: { ...s.shapeSpecs, [layerId]: spec } })),
-  bumpHistogram: () => set((s) => ({ histogramTick: s.histogramTick + 1 })),
+  // Throttled to max 1 tick per 400ms: Histogram does a 256px downscale +
+  // getImageData per tick, and brush strokes fire dozens of bumps per second.
+  bumpHistogram: () => {
+    const now = Date.now();
+    if (now - lastHistBump < 400) return;
+    lastHistBump = now;
+    set((s) => ({ histogramTick: s.histogramTick + 1 }));
+  },
 }));
 
 export function defaultAdjustmentParams(type: AdjustmentType) {

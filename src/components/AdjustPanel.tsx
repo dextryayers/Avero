@@ -142,9 +142,9 @@ export default function AdjustPanel() {
       await nativeProcessCanvas(c, "op", op);
       st.markDirty();
       useProStore.getState().bumpHistogram();
-      useAutomationStore.getState().pushStep(`Penyesuaian ${label}`, { type: "adjustment/add", payload: { kind: label } });
+      useAutomationStore.getState().pushStep(`Adjustment ${label}`, { type: "adjustment/add", payload: { kind: label } });
     } catch (e) {
-      alert(`Penyesuaian gagal: ${String(e)}`);
+      alert(`Adjustment failed: ${String(e)}`);
     } finally {
       setBusy(null);
     }
@@ -164,7 +164,7 @@ export default function AdjustPanel() {
       useAutomationStore.getState().pushStep(`Pipeline ${queue.length} ops`, { type: "pipeline/native", payload: { n: queue.length } });
       setQueue([]);
     } catch (e) {
-      alert(`Pipeline gagal: ${String(e)}`);
+      alert(`Pipeline failed: ${String(e)}`);
     } finally {
       setBusy(null);
     }
@@ -172,34 +172,34 @@ export default function AdjustPanel() {
 
   return (
     <div className="space-y-3 p-2 text-[12px]">
-      {/* Penyesuaian cepat */}
+      {/* Quick adjustments */}
       <div className="avero-card overflow-hidden p-0">
         <div className="flex items-center gap-2 border-b border-[#2c2c31] bg-[#161618] px-3 py-2.5">
           <span className="grid h-7 w-7 place-items-center rounded-md bg-[#2f7cf6] text-white"><Cpu size={14} /></span>
           <div className="min-w-0">
-            <div className="text-[11.5px] font-bold leading-none text-white">Penyesuaian Cepat v2</div>
-            <div className="truncate font-mono text-[10px] text-[#6e6e78]">{nat ? "23 operasi siap pakai · proses langsung ke layer" : isTauri() ? "memuat operasi..." : "pratinjau web (fallback)"}</div>
+            <div className="text-[11.5px] font-bold leading-none text-white">Quick Adjustments v2</div>
+            <div className="truncate font-mono text-[10px] text-[#6e6e78]">{nat ? "23 ready-to-use ops · processes directly on layer" : isTauri() ? "loading operations..." : "web preview (fallback)"}</div>
           </div>
-          <span className={`ml-auto rounded px-1.5 py-0.5 font-mono text-[10px] ${nat?.ready ? "bg-[#232327] text-[#8fb6f5]" : "bg-[#2c2c31] text-[#6e6e78]"}`}>{nat?.ready ? "23 ops siap" : "offline"}</span>
+          <span className={`ml-auto rounded px-1.5 py-0.5 font-mono text-[10px] ${nat?.ready ? "bg-[#232327] text-[#8fb6f5]" : "bg-[#2c2c31] text-[#6e6e78]"}`}>{nat?.ready ? "23 ops ready" : "offline"}</span>
         </div>
         <div className="px-3 py-2 text-[10px] leading-relaxed text-[#6e6e78]">
-          Diterapkan langsung ke layer aktif tanpa penyalinan gambar. Untuk beberapa operasi sekaligus gunakan antrean di bawah, terpisah dari penumpuk penyesuaian non destruktif.
+          Applies directly to the active layer with no image copy. To run several operations at once use the queue below, separate from the non-destructive adjustment stack.
         </div>
       </div>
 
-      {/* Grup Dasar */}
+      {/* Basic group */}
       <div className="space-y-2">
-        <div className="avero-micro flex items-center gap-1.5"><Layers size={11} /> Dasar</div>
+        <div className="avero-micro flex items-center gap-1.5"><Layers size={11} /> Basic</div>
         <div className="grid gap-2">
           <NativeRow label="Grayscale" desc="Luminance Rec.709" busy={busy === "gray"} onApply={() => runOp({ op: "gray" }, "gray")} />
           <NativeRow label="Invert" desc="255 - channel" busy={busy === "invert"} onApply={() => runOp({ op: "invert" }, "invert")} />
-          <NativeRow label="Brightness" desc="geser -100..100" busy={busy === "brightness"} onApply={() => runOp({ op: "brightness", amount: p.brightness }, "brightness")}>
+          <NativeRow label="Brightness" desc="shift -100..100" busy={busy === "brightness"} onApply={() => runOp({ op: "brightness", amount: p.brightness }, "brightness")}>
             <Slider label="Amount" value={p.brightness} min={-100} max={100} onChange={(v) => setP({ ...p, brightness: v })} />
           </NativeRow>
-          <NativeRow label="Contrast" desc="factor sekitar 1.0" busy={busy === "contrast"} onApply={() => runOp({ op: "contrast", amount: p.contrast }, "contrast")}>
+          <NativeRow label="Contrast" desc="factor around 1.0" busy={busy === "contrast"} onApply={() => runOp({ op: "contrast", amount: p.contrast }, "contrast")}>
             <Slider label="Amount" value={p.contrast} min={-100} max={100} onChange={(v) => setP({ ...p, contrast: v })} />
           </NativeRow>
-          <NativeRow label="Desaturate" desc="campur ke luma 0..100" busy={busy === "desat"} onApply={() => runOp({ op: "desaturate", amount: p.desat }, "desat")}>
+          <NativeRow label="Desaturate" desc="blend to luma 0..100" busy={busy === "desat"} onApply={() => runOp({ op: "desaturate", amount: p.desat }, "desat")}>
             <Slider label="Amount" value={p.desat} min={0} max={100} onChange={(v) => setP({ ...p, desat: v })} />
           </NativeRow>
           <NativeRow label="Opacity" desc="alpha layer 0..100" busy={busy === "opacity"} onApply={() => runOp({ op: "opacity", opacity: p.opacity }, "opacity")}>

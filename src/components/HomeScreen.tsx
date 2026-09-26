@@ -31,47 +31,47 @@ import { openAvxProject } from "../io/projectIo";
 import { pickImageToOpen, rustDecodeToDataUrl, rustImageInfo } from "../io/tauriIo";
 import clsx from "clsx";
 
-type PresetCat = "Foto" | "Print" | "Art" | "Web" | "Mobile" | "Film";
+type PresetCat = "Photo" | "Print" | "Art" | "Web" | "Mobile" | "Film";
 
 const PRESETS: Record<PresetCat, { name: string; w: number; h: number; desc: string }[]> = {
-  Foto: [
-    { name: "Foto HD", w: 1920, h: 1080, desc: "Editing umum 16:9" },
-    { name: "Foto 4K", w: 3840, h: 2160, desc: "Resolusi tinggi" },
-    { name: "Portrait 4:5", w: 1080, h: 1350, desc: "Carousel IG" },
-    { name: "Square 1:1", w: 1080, h: 1080, desc: "IG Post" },
-    { name: "Story 9:16", w: 1080, h: 1920, desc: "Vertikal penuh" },
-    { name: "Landscape 3:2", w: 3000, h: 2000, desc: "Cetak foto" },
+  Photo: [
+    { name: "HD Photo", w: 1920, h: 1080, desc: "General 16:9 editing" },
+    { name: "4K Photo", w: 3840, h: 2160, desc: "High resolution" },
+    { name: "Portrait 4:5", w: 1080, h: 1350, desc: "IG carousel" },
+    { name: "Square 1:1", w: 1080, h: 1080, desc: "IG post" },
+    { name: "Story 9:16", w: 1080, h: 1920, desc: "Full vertical" },
+    { name: "Landscape 3:2", w: 3000, h: 2000, desc: "Photo print" },
   ],
   Print: [
-    { name: "A4 300dpi", w: 2480, h: 3508, desc: "Dokumen cetak" },
-    { name: "A3 300dpi", w: 3508, h: 4960, desc: "Poster kecil" },
+    { name: "A4 300dpi", w: 2480, h: 3508, desc: "Print document" },
+    { name: "A3 300dpi", w: 3508, h: 4960, desc: "Small poster" },
     { name: "Letter", w: 2550, h: 3300, desc: "US Letter" },
-    { name: "Kartu Nama", w: 1050, h: 600, desc: "90 x 50mm" },
+    { name: "Business Card", w: 1050, h: 600, desc: "90 x 50mm" },
   ],
   Art: [
-    { name: "Kanvas HD", w: 1920, h: 1080, desc: "Lukis digital" },
-    { name: "Kanvas 4K", w: 3840, h: 2160, desc: "Detail tinggi" },
-    { name: "Square Art", w: 2048, h: 2048, desc: "Ilustrasi" },
+    { name: "HD Canvas", w: 1920, h: 1080, desc: "Digital painting" },
+    { name: "4K Canvas", w: 3840, h: 2160, desc: "High detail" },
+    { name: "Square Art", w: 2048, h: 2048, desc: "Illustration" },
   ],
   Web: [
-    { name: "Hero Web", w: 1920, h: 1080, desc: "Landing page" },
-    { name: "Banner 1200", w: 1200, h: 628, desc: "OG dan Ads" },
-    { name: "Thumbnail YT", w: 1280, h: 720, desc: "16:9" },
+    { name: "Web Hero", w: 1920, h: 1080, desc: "Landing page" },
+    { name: "Banner 1200", w: 1200, h: 628, desc: "OG and ads" },
+    { name: "YT Thumbnail", w: 1280, h: 720, desc: "16:9" },
   ],
   Mobile: [
     { name: "IG Story", w: 1080, h: 1920, desc: "9:16" },
-    { name: "Wallpaper HP", w: 1440, h: 3088, desc: "Layar penuh" },
-    { name: "App Cover", w: 1024, h: 1024, desc: "Icon dan cover" },
+    { name: "Phone Wallpaper", w: 1440, h: 3088, desc: "Full screen" },
+    { name: "App Cover", w: 1024, h: 1024, desc: "Icon and cover" },
   ],
   Film: [
-    { name: "FHD Video", w: 1920, h: 1080, desc: "Frame film" },
-    { name: "2K DCI", w: 2048, h: 1080, desc: "Sinema" },
-    { name: "Vertical Film", w: 1080, h: 1920, desc: "Shorts dan Reels" },
+    { name: "FHD Video", w: 1920, h: 1080, desc: "Film frame" },
+    { name: "2K DCI", w: 2048, h: 1080, desc: "Cinema" },
+    { name: "Vertical Film", w: 1080, h: 1920, desc: "Shorts and Reels" },
   ],
 };
 
 const CAT_ICON: Record<PresetCat, any> = {
-  Foto: Monitor,
+  Photo: Monitor,
   Print: Printer,
   Art: Star,
   Web: Globe,
@@ -115,7 +115,7 @@ export async function openImageViaDialog(): Promise<boolean> {
     return true;
   } catch (e) {
     console.error(e);
-    alert(`Gagal membuka gambar: ${String(e)}`);
+    alert(`Failed to open image: ${String(e)}`);
     return false;
   }
 }
@@ -127,7 +127,7 @@ export default function HomeScreen() {
   const clearRecents = useHomeStore((s) => s.clearRecents);
   const pushRecent = useHomeStore((s) => s.pushRecent);
   const newDocument = useEditorStore((s) => s.newDocument);
-  const [cat, setCat] = useState<PresetCat>("Foto");
+  const [cat, setCat] = useState<PresetCat>("Photo");
   const [query, setQuery] = useState("");
   const [showNew, setShowNew] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -173,12 +173,12 @@ export default function HomeScreen() {
     try {
       if (r.path && r.path.toLowerCase().endsWith(".avx")) {
         const ok = await openAvxProject(r.path);
-        if (!ok) alert("Proyek tidak bisa dibuka.");
+        if (!ok) alert("Could not open project.");
         return;
       }
       const res = await resolveRecent(r);
       if (!res) {
-        alert("File sesi ini sudah tidak tersedia. Buka ulang dari disk.");
+        alert("This session file is no longer available. Please reopen it from disk.");
         return;
       }
       const st = useEditorStore.getState();
@@ -187,7 +187,7 @@ export default function HomeScreen() {
       setTimeout(() => drawDataUrlToActive(res.dataUrl, res.w, res.h), 60);
       setHome(false);
     } catch (e) {
-      alert(`Gagal membuka: ${String(e)}`);
+      alert(`Failed to open: ${String(e)}`);
     } finally {
       setBusy(null);
     }
@@ -224,29 +224,29 @@ export default function HomeScreen() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Cari file, preset 1920x1080, tutorial"
+            placeholder="Search files, 1920x1080 presets, tutorials"
             className="w-full rounded-full border border-[#2c2c31] bg-[#161618] py-2 pl-8 pr-3 text-[12px] text-white outline-none placeholder:text-[#6e6e78] focus:border-[#2f7cf6] focus:bg-[#1c1c1f]"
           />
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <span className="hidden font-mono text-[10px] text-[#6e6e78] lg:block">Ctrl+K semua aksi • Ctrl+S .avx</span>
+          <span className="hidden font-mono text-[10px] text-[#6e6e78] lg:block">Ctrl+K all actions • Ctrl+S .avx</span>
           <button
-            onClick={() => openAvxProject().catch((e) => alert(`Gagal membuka proyek: ${String(e)}`))}
+            onClick={() => openAvxProject().catch((e) => alert(`Failed to open project: ${String(e)}`))}
             className="flex items-center gap-1.5 rounded-full border border-[#2c2c31] bg-[#232327] px-3.5 py-2 text-[12px] font-medium text-white hover:bg-[#2c2c31] hover:border-[#3a3a41] transition-colors"
           >
-            <FileBox size={14} /> Proyek .avx
+            <FileBox size={14} /> .avx Project
           </button>
           <button
             onClick={() => setShowNew(true)}
             className="avero-btn-primary flex items-center gap-1.5 rounded-full px-4 py-2 text-[12px] font-semibold text-white shadow-[0_4px_12px_rgba(47,124,246,0.3)]"
           >
-            <Plus size={14} /> Baru
+            <Plus size={14} /> New
           </button>
           <button
             onClick={() => openImageViaDialog()}
             className="flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-[12px] font-semibold text-[#161618] hover:bg-[#ececee] transition-colors"
           >
-            <FolderOpen size={14} /> Buka
+            <FolderOpen size={14} /> Open
           </button>
         </div>
       </div>
@@ -258,9 +258,9 @@ export default function HomeScreen() {
             <LayoutGrid size={14} className="text-[#8fb6f5]" /> Studio
           </div>
           {[
-            { id: "home", label: "Beranda", icon: LayoutGrid },
-            { id: "recent", label: "Terbaru", icon: Clock, count: recents.length },
-            { id: "learn", label: "Belajar", icon: BookOpen },
+            { id: "home", label: "Home", icon: LayoutGrid },
+            { id: "recent", label: "Recent", icon: Clock, count: recents.length },
+            { id: "learn", label: "Learn", icon: BookOpen },
           ].map((n) => (
             <button
               key={n.id}
@@ -275,7 +275,7 @@ export default function HomeScreen() {
             </button>
           ))}
           <div className="mt-3 border-t border-[#2c2c31] pt-3">
-            <div className="avero-micro mb-1.5 px-2">Kategori preset</div>
+            <div className="avero-micro mb-1.5 px-2">Preset categories</div>
             {(Object.keys(PRESETS) as PresetCat[]).map((c) => {
               const Icon = CAT_ICON[c];
               return (

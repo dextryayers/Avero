@@ -146,14 +146,14 @@ export default function StatusBar() {
       <button
         onClick={runStats}
         className="hidden rounded border border-[#2c2c31] bg-[#232327] px-1.5 py-0.5 font-mono text-[#a7a7b0] hover:text-white md:block"
-        title="Native Rust stats (rayon) layer aktif"
+        title="Statistik warna layer aktif"
       >
         Stats
       </button>
       <button
         onClick={runBench}
         className="hidden rounded border border-[#2c2c31] bg-[#232327] px-1.5 py-0.5 font-mono text-[#a7a7b0] hover:text-white md:block"
-        title="Benchmark C/C++ + Rust"
+        title="Uji kecepatan pemrosesan"
       >
         {bench || "Bench"}
       </button>
@@ -161,9 +161,9 @@ export default function StatusBar() {
         className={`hidden max-w-[220px] truncate rounded border px-1.5 py-0.5 font-mono md:block ${
           nat?.ready ? "border-[#2c2c31] bg-[#232327] text-[#8fb6f5]" : "border-[#2c2c31] text-[#6e6e78]"
         }`}
-        title={nat ? `${nat.c_engine} ${nat.c_version} | ${nat.cpp_engine} ${nat.cpp_version} | Rust ${nat.rust_version}` : "Native engine"}
+        title={nat ? "Mesin pemrosesan gambar siap pakai" : "Pratinjau web"}
       >
-        {nat?.ready ? `C ${nat.c_version} • C++ ${nat.cpp_version} • Rust ${nat.rust_version}` : "Rust/TS"}
+        {nat?.ready ? `Mesin pemrosesan v2 · ${nat.c_version} siap` : "Pratinjau web"}
       </span>
       <span
         className="ml-auto hidden max-w-[300px] truncate md:block font-mono"

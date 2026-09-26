@@ -39,7 +39,7 @@ export default function BatchPanel() {
       setBatchStatus(item.id, "working", `Terapkan ${steps.length} langkah...`);
       await new Promise((r) => setTimeout(r, 420));
       // Eksekusi nyata untuk preset: terapkan adjustment/filter ke dokumen aktif sebagai demo batch.
-      // Batch file penuh (headless per file) masuk trek 1.0 dengan Rust pipeline.
+      // Batch file penuh (tanpa jendela per file) masuk tahap 1.0 dengan proses otomatis.
       steps.forEach((st) => {
         if (st.action.type === "adjustment/exposure")
           useProStore.getState().addAdjustment("exposure");

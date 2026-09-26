@@ -183,12 +183,12 @@ pub fn cmd_native_info() -> NativeInfo {
         cpp_engine: cstr_to_string(unsafe { avero_cpp_engine_name() }),
         cpp_version: cstr_to_string(unsafe { avero_cpp_version() }),
         rust_version: env!("CARGO_PKG_VERSION").to_string(),
-        languages: vec!["C".into(), "C++".into(), "Rust".into(), "TypeScript".into()],
+        languages: vec!["Penyesuaian".into(), "Filter".into(), "Analisis".into(), "Antrean".into()],
         features: vec![
-            "C: 18 ops + 5 lightweight (gray..alphaPremultiply + equalize/dither/noise/channelSwap) — in-place, tanpa duplikat gambar".into(),
-            "C++: 16 filters + 4 lightweight tiled (boxLight/gaussLight/bilateralLight/unsharpLight) — tiled 512, <64KB overhead".into(),
-            "Rust: rayon histogram/stats/pipeline tiled/memory budget/benchmark/orchestrator".into(),
-            "TS: invoke bridge/canvas pipeline/tiled renderer/memory manager/command palette".into(),
+            "23 operasi penyesuaian cepat, diproses langsung di tempat tanpa menyalin gambar".into(),
+            "20 filter studio, diproses dua arah, dengan varian hemat per ubin".into(),
+            "Analisis histogram, statistik warna, tolok ukur, dan anggaran memori".into(),
+            "Antrean proses bertumpuk dan renderer kanvas per ubin untuk dokumen besar".into(),
         ],
         ready: true,
     }

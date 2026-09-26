@@ -387,31 +387,31 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
       { id: "about", title: "About AVERO STUDIO", run: () => alert("AVERO STUDIO v2.0.0. Offline, non-destruktif, open source.") },
       {
         id: "native-info",
-        title: "Info native engine C v2 / C++ v2 / Rust",
+        title: "Info kesiapan pemrosesan studio",
         run: async () => {
           try {
             const { nativeInfo, isTauri } = await import("../io/nativeEngine");
-            if (!isTauri()) { alert("Native engine hanya di aplikasi desktop."); return; }
+            if (!isTauri()) { alert("Info ini hanya tersedia di aplikasi desktop."); return; }
             const info = await nativeInfo();
-            alert(`C: ${info.c_engine} ${info.c_version}\nC++: ${info.cpp_engine} ${info.cpp_version}\nRust: ${info.rust_version}\n${info.features.join("\n")}`);
+            alert(`Kesiapan: ${info.ready ? "Siap" : "Tidak siap"}\nOperasi penyesuaian: 23\nFilter: 20\nAnalisis: histogram, statistik, tolok ukur\n${info.features.join("\n")}`);
           } catch (e) { alert(String(e)); }
         },
       },
-      { id: "native-gray", title: "Native C: grayscale layer aktif", run: async () => {
+      { id: "native-gray", title: "Penyesuaian cepat: grayscale layer aktif", run: async () => {
         try { const { isTauri, nativeProcessCanvas } = await import("../io/nativeEngine"); const { layerManager } = await import("../engine/layerManager"); const st = useEditorStore.getState(); const id = st.activeLayerId; if (!isTauri() || !id) return; const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height); await nativeProcessCanvas(c, "op", { op: "gray" }); st.markDirty(); } catch (e) { alert(String(e)); }
       } },
-      { id: "native-exposure", title: "Native C: exposure +1 EV layer aktif", run: async () => {
+      { id: "native-exposure", title: "Penyesuaian cepat: exposure +1 EV layer aktif", run: async () => {
         try { const { isTauri, nativeProcessCanvas } = await import("../io/nativeEngine"); const { layerManager } = await import("../engine/layerManager"); const st = useEditorStore.getState(); const id = st.activeLayerId; if (!isTauri() || !id) return; const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height); await nativeProcessCanvas(c, "op", { op: "exposure", ev: 1.0 }); st.markDirty(); } catch (e) { alert(String(e)); }
       } },
-      { id: "native-vibrance", title: "Native C: vibrance +30 layer aktif", run: async () => {
+      { id: "native-vibrance", title: "Penyesuaian cepat: vibrance +30 layer aktif", run: async () => {
         try { const { isTauri, nativeProcessCanvas } = await import("../io/nativeEngine"); const { layerManager } = await import("../engine/layerManager"); const st = useEditorStore.getState(); const id = st.activeLayerId; if (!isTauri() || !id) return; const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height); await nativeProcessCanvas(c, "op", { op: "vibrance", amount: 30 }); st.markDirty(); } catch (e) { alert(String(e)); }
       } },
-      { id: "native-auto-levels", title: "Native C: auto levels layer aktif", run: async () => {
+      { id: "native-auto-levels", title: "Penyesuaian cepat: auto levels layer aktif", run: async () => {
         try { const { isTauri, nativeProcessCanvas } = await import("../io/nativeEngine"); const { layerManager } = await import("../engine/layerManager"); const st = useEditorStore.getState(); const id = st.activeLayerId; if (!isTauri() || !id) return; const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height); await nativeProcessCanvas(c, "op", { op: "autoLevels" }); st.markDirty(); } catch (e) { alert(String(e)); }
       } },
       {
         id: "native-box",
-        title: "Native C++: box blur layer aktif",
+        title: "Filter: box blur layer aktif",
         run: async () => {
           try {
             const { isTauri, nativeProcessCanvas } = await import("../io/nativeEngine");
@@ -425,15 +425,15 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
           } catch (e) { alert(String(e)); }
         },
       },
-      { id: "native-gauss", title: "Native C++: gaussian sigma 2 layer aktif", run: async () => {
+      { id: "native-gauss", title: "Filter: gaussian sigma 2 layer aktif", run: async () => {
         try { const { isTauri, nativeProcessCanvas } = await import("../io/nativeEngine"); const { layerManager } = await import("../engine/layerManager"); const st = useEditorStore.getState(); const id = st.activeLayerId; if (!isTauri() || !id) return; const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height); await nativeProcessCanvas(c, "filter", { op: "gaussian", sigma: 2.0 }); st.markDirty(); } catch (e) { alert(String(e)); }
       } },
-      { id: "native-median", title: "Native C++: median denoise layer aktif", run: async () => {
+      { id: "native-median", title: "Filter: median denoise layer aktif", run: async () => {
         try { const { isTauri, nativeProcessCanvas } = await import("../io/nativeEngine"); const { layerManager } = await import("../engine/layerManager"); const st = useEditorStore.getState(); const id = st.activeLayerId; if (!isTauri() || !id) return; const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height); await nativeProcessCanvas(c, "filter", { op: "median", radius: 2 }); st.markDirty(); } catch (e) { alert(String(e)); }
       } },
       {
         id: "native-sharpen",
-        title: "Native C++: sharpen layer aktif",
+        title: "Filter: sharpen layer aktif",
         run: async () => {
           try {
             const { isTauri, nativeProcessCanvas } = await import("../io/nativeEngine");
@@ -447,13 +447,13 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
           } catch (e) { alert(String(e)); }
         },
       },
-      { id: "native-vignette", title: "Native C++: vignette layer aktif", run: async () => {
+      { id: "native-vignette", title: "Filter: vignette layer aktif", run: async () => {
         try { const { isTauri, nativeProcessCanvas } = await import("../io/nativeEngine"); const { layerManager } = await import("../engine/layerManager"); const st = useEditorStore.getState(); const id = st.activeLayerId; if (!isTauri() || !id) return; const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height); await nativeProcessCanvas(c, "filter", { op: "vignette", amount: 0.45 }); st.markDirty(); } catch (e) { alert(String(e)); }
       } },
-      { id: "native-stats", title: "Native Rust: stats layer aktif", run: async () => {
+      { id: "native-stats", title: "Analisis: stats layer aktif", run: async () => {
         try { const { isTauri, nativeStats } = await import("../io/nativeEngine"); const { layerManager } = await import("../engine/layerManager"); const st = useEditorStore.getState(); const id = st.activeLayerId ?? st.layers[0]?.id; if (!isTauri() || !id) return; const c = layerManager.get(id); if (!c) return; const ctx = c.getContext("2d", { willReadFrequently: true })!; const d = ctx.getImageData(0,0,c.width,c.height); const s = await nativeStats(d.data); alert(`Mean ${s.mean_r.toFixed(1)}/${s.mean_g.toFixed(1)}/${s.mean_b.toFixed(1)} Std ${s.std_r.toFixed(1)}/${s.std_g.toFixed(1)}/${s.std_b.toFixed(1)}`);} catch(e){alert(String(e));}
       } },
-      { id: "native-bench", title: "Native Rust: benchmark", run: async () => {
+      { id: "native-bench", title: "Analisis: benchmark", run: async () => {
         try { const { nativeBenchmark } = await import("../io/nativeEngine"); const r = await nativeBenchmark(1920,1080,20); alert(`${r.ops}\n${r.mpix_per_sec.toFixed(1)} MP/s`);}catch(e){alert(String(e));}
       } },
     ];

@@ -163,7 +163,7 @@ export default function StatusBar() {
         }`}
         title={nat ? "Mesin pemrosesan gambar siap pakai" : "Pratinjau web"}
       >
-        {nat?.ready ? `Mesin pemrosesan v2 · ${nat.c_version} siap` : "Pratinjau web"}
+        {nat?.ready ? `Mesin pemrosesan v2 · siap` : "Pratinjau web"}
       </span>
       <span
         className="ml-auto hidden max-w-[300px] truncate md:block font-mono"

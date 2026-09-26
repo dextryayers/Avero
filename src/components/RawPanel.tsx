@@ -57,7 +57,7 @@ export default function RawPanel() {
           </>
         ) : (
           <>
-            Panel Develop bekerja untuk foto apapun. Buka CR2 NEF ARW RAF DNG, Rust akan decode
+            Panel Develop bekerja untuk foto apapun. Buka CR2 NEF ARW RAF DNG, gambar didekode otomatis
             preview bila didukung, jika tidak tetap bisa develop JPEG PNG.
           </>
         )}

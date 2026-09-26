@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   FolderOpen,
   ImagePlus,
@@ -131,11 +131,23 @@ export default function HomeScreen() {
   const [query, setQuery] = useState("");
   const [showNew, setShowNew] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const [view, setView] = useState<"home" | "recent" | "learn">("home");
 
   const [dn, setDn] = useState("Untitled-1");
   const [dw, setDw] = useState("1920");
   const [dh, setDh] = useState("1080");
   const [bg, setBg] = useState<"white" | "black" | "transparent">("white");
+
+  useEffect(() => {
+    if (!showNew) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowNew(false);
+      if (e.key === "Enter") createNew(dn.trim() || "Untitled", Math.max(1, parseInt(dw) || 1920), Math.max(1, parseInt(dh) || 1080));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showNew, dn, dw, dh]);
 
   function createNew(name: string, w: number, h: number) {
     layerManager.clear();
@@ -241,15 +253,16 @@ export default function HomeScreen() {
             <LayoutGrid size={14} className="text-[#8fb6f5]" /> Studio
           </div>
           {[
-            { id: "home", label: "Beranda", icon: LayoutGrid, active: true },
-            { id: "recent", label: "Terbaru", icon: Clock, active: false, count: recents.length },
-            { id: "learn", label: "Belajar", icon: BookOpen, active: false },
+            { id: "home", label: "Beranda", icon: LayoutGrid },
+            { id: "recent", label: "Terbaru", icon: Clock, count: recents.length },
+            { id: "learn", label: "Belajar", icon: BookOpen },
           ].map((n) => (
             <button
               key={n.id}
+              onClick={() => setView(n.id as any)}
               className={clsx(
                 "flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-[12.5px] font-medium transition-colors",
-                n.active ? "bg-[#2f7cf6] text-white shadow-[0_2px_8px_rgba(47,124,246,0.3)]" : "text-[#a7a7b0] hover:bg-[#232327] hover:text-white",
+                view === n.id ? "bg-[#2f7cf6] text-white shadow-[0_2px_8px_rgba(47,124,246,0.3)]" : "text-[#a7a7b0] hover:bg-[#232327] hover:text-white",
               )}
             >
               <n.icon size={16} /> {n.label}
@@ -276,7 +289,10 @@ export default function HomeScreen() {
             })}
           </div>
           <div className="mt-auto space-y-2">
-            <div className="rounded-xl border border-[#2c2c31] bg-gradient-to-br from-[#1a2b45] to-[#161618] p-3">
+            <button
+              onClick={() => openAvxProject().catch((e) => alert(`Gagal membuka proyek: ${String(e)}`))}
+              className="w-full rounded-xl border border-[#2c2c31] bg-gradient-to-br from-[#1a2b45] to-[#161618] p-3 text-left transition-all hover:border-[#2f7cf6]/50 hover:from-[#1e3457]"
+            >
               <div className="flex items-center gap-1.5 text-[11.5px] font-bold text-white">
                 <Layers size={13} className="text-[#8fb6f5]" /> Proyek .avx
               </div>
@@ -287,16 +303,17 @@ export default function HomeScreen() {
                 <span className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-[9px] text-white">Ctrl+S</span>
                 <span className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-[9px] text-white">Ctrl+Shift+S</span>
               </div>
-            </div>
+            </button>
             <div className="rounded-lg border border-[#2c2c31] bg-[#161618] p-2.5 text-[11px]">
               <div className="flex items-center gap-1.5 font-semibold text-white"><Zap size={12} className="text-[#8fb6f5]" /> Ringan RAM</div>
-              <div className="mt-1 text-[10.5px] text-[#6e6e78]">Tiled 512 • C 23 ops • C++ 20 filters</div>
+              <div className="mt-1 text-[10.5px] text-[#6e6e78]">Proses per ubin otomatis, ringan RAM</div>
             </div>
           </div>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto bg-[#101012]">
           {/* Hero */}
+          {view === "home" && (
           <div className="relative overflow-hidden border-b border-[#2c2c31] bg-[#1c1c1f]">
             <img src="/img/1.jpg" alt="" className="absolute inset-0 h-full w-full object-cover opacity-[0.08]" />
             <div className="absolute inset-0 bg-gradient-to-r from-[#1c1c1f] via-[#1c1c1f]/80 to-transparent" />
@@ -324,8 +341,10 @@ export default function HomeScreen() {
               </div>
             </div>
           </div>
+          )}
 
           <div className="p-5">
+            {view !== "learn" && (<>
             <div className="mb-3 flex items-center justify-between">
               <h3 className="flex items-center gap-2 text-[13px] font-bold text-white">
                 <Clock size={14} className="text-[#8fb6f5]" /> Terbaru
@@ -380,7 +399,9 @@ export default function HomeScreen() {
                 ))}
               </div>
             )}
+            </>)}
 
+            {view === "home" && (<>
             <h3 className="mb-3 mt-8 flex items-center gap-2 text-[13px] font-bold text-white">
               <ImagePlus size={14} className="text-[#8fb6f5]" /> Preset {cat}
               <span className="rounded-full bg-[#232327] px-2 py-0.5 font-mono text-[10px] text-[#a7a7b0]">{filteredPresets.length}</span>
@@ -408,7 +429,9 @@ export default function HomeScreen() {
                 </button>
               ))}
             </div>
+            </>)}
 
+            {view !== "recent" && (<>
             <h3 className="mb-3 mt-8 flex items-center gap-2 text-[13px] font-bold text-white">
               <BookOpen size={14} className="text-[#8fb6f5]" /> Pelajari dalam 1 menit
             </h3>
@@ -416,7 +439,7 @@ export default function HomeScreen() {
               {[
                 { t: "Masking presisi", d: "Select, feather, refine edge, paint mask. Tahan Shift untuk tambah seleksi.", tag: "Select", icon: Wand2 },
                 { t: "Retouch natural", d: "Spot Heal (J), Healing Brush, Clone Stamp (S), Patch. Alt+klik sumber.", tag: "Retouch", icon: Sparkles },
-                { t: "Grade sinematik", d: "Exposure, HSL, Vibrance, Warmth, Vignette, Grain. C/C++ tiled ringan.", tag: "Color", icon: Star },
+                { t: "Grade sinematik", d: "Exposure, HSL, Vibrance, Warmth, Vignette, Grain. Proses per ubin hemat RAM.", tag: "Color", icon: Star },
                 { t: "Varian tanpa duplikat", d: "Tab Git: snapshot, branch, compare slider untuk eksplor varian.", tag: "Git", icon: Layers },
                 { t: "Simpan proyek .avx", d: "Ctrl+S menyimpan layer dan edit utuh. Buka lagi 100% sama.", tag: "Project", icon: FileBox },
                 { t: "Export banyak format", d: "PNG, JPG, WEBP, BMP, SVG, TIFF. Matte dan skala fleksibel.", tag: "Export", icon: Globe },
@@ -431,6 +454,7 @@ export default function HomeScreen() {
                 </div>
               ))}
             </div>
+            </>)}
             <div className="mt-8 flex items-center justify-center gap-2 pb-2 font-mono text-[10px] text-[#4a4a52]">
               <span>AVERO STUDIO v2.0.0</span>
               <span className="h-1 w-1 rounded-full bg-[#3a3a41]" />
@@ -451,7 +475,7 @@ export default function HomeScreen() {
               <div className="grid h-9 w-9 place-items-center rounded-lg bg-[#2f7cf6] text-white"><ImagePlus size={18} /></div>
               <div>
                 <div className="text-[13px] font-bold text-white">Dokumen Baru</div>
-                <div className="text-[10.5px] text-[#6e6e78]">Preset dan ukuran kustom • ringan RAM tiled pipeline</div>
+                <div className="text-[10.5px] text-[#6e6e78]">Preset dan ukuran kustom • ringan RAM, proses per ubin</div>
               </div>
               <button onClick={() => setShowNew(false)} className="ml-auto rounded-full p-1.5 text-[#a7a7b0] hover:bg-[#232327] hover:text-white">
                 <X size={16} />

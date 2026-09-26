@@ -100,10 +100,10 @@ const MENUS: Record<string, { label: string; hint?: string; action: string }[]> 
   ],
   Filter: [
     { label: "Gaussian Blur", hint: "", action: "f-blur" },
-    { label: "Native Box Blur (C++)", hint: "", action: "f-native-box" },
-    { label: "Native Sharpen (C++)", hint: "", action: "f-native-sharpen" },
-    { label: "Native Unsharp (C++)", hint: "", action: "f-native-unsharp" },
-    { label: "Native Emboss (C++)", hint: "", action: "f-native-emboss" },
+    { label: "Box Blur", hint: "", action: "f-native-box" },
+    { label: "Sharpen", hint: "", action: "f-native-sharpen" },
+    { label: "Unsharp Mask", hint: "", action: "f-native-unsharp" },
+    { label: "Emboss", hint: "", action: "f-native-emboss" },
     { label: "Motion Blur", hint: "", action: "f-motion" },
     { label: "Box Blur", hint: "", action: "f-box" },
     { label: "Sharpen", hint: "", action: "f-sharpen" },
@@ -123,9 +123,9 @@ const MENUS: Record<string, { label: string; hint?: string; action: string }[]> 
     { label: "Filter Gallery", hint: "", action: "filter-gallery" },
   ],
   Adjust: [
-    { label: "Native Grayscale (C)", hint: "", action: "a-native-gray" },
-    { label: "Native Invert (C)", hint: "", action: "a-native-invert" },
-    { label: "Native Contrast (C)", hint: "", action: "a-native-contrast" },
+    { label: "Grayscale", hint: "", action: "a-native-gray" },
+    { label: "Invert", hint: "", action: "a-native-invert" },
+    { label: "Contrast", hint: "", action: "a-native-contrast" },
     { label: "Brightness/Contrast", hint: "", action: "a-bc" },
     { label: "Levels", hint: "Ctrl+L", action: "a-levels" },
     { label: "Curves", hint: "Ctrl+M", action: "a-curves" },
@@ -591,7 +591,7 @@ export default function TitleBar({
             ed.markDirty();
             pro.bumpHistogram();
           } catch (e) {
-            alert(`Native C++ gagal: ${String(e)}`);
+            alert(`Filter gagal: ${String(e)}`);
           }
         })();
         break;
@@ -614,7 +614,7 @@ export default function TitleBar({
             ed.markDirty();
             pro.bumpHistogram();
           } catch (e) {
-            alert(`Native C gagal: ${String(e)}`);
+            alert(`Penyesuaian gagal: ${String(e)}`);
           }
         })();
         break;

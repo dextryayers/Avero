@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 
-// --- C ops (18 + 5 lightweight) ---
+// --- 23 operasi penyesuaian ---
 export type NativeOp =
   | { op: "gray" }
   | { op: "invert" }
@@ -26,7 +26,7 @@ export type NativeOp =
   | { op: "channelSwap"; mode: number }
   | { op: "alphaPremultiply" };
 
-// --- C++ filters (16 + 4 lightweight) ---
+// --- 20 filter studio ---
 export type NativeFilterOp =
   | { op: "boxBlur"; radius: number }
   | { op: "sharpen"; amount: number }
@@ -111,14 +111,14 @@ export async function nativePipelineLight(rgba: Uint8ClampedArray | Uint8Array, 
 function clampSize(len: number): boolean { return len > 0 && len % 4 === 0; }
 
 export async function nativeApplyOp(rgba: Uint8ClampedArray | Uint8Array, op: NativeOp): Promise<Uint8ClampedArray> {
-  if (!isTauri() || !clampSize(rgba.length)) throw new Error("Native C tidak tersedia atau buffer tidak valid");
+  if (!isTauri() || !clampSize(rgba.length)) throw new Error("Pemrosesan tidak tersedia atau buffer tidak valid");
   const out = await invoke<number[] | Uint8Array>("cmd_native_apply_op", { rgba: Array.from(rgba), op });
   const arr = out instanceof Uint8Array ? out : Uint8Array.from(out as number[]);
   return new Uint8ClampedArray(arr.buffer, arr.byteOffset, arr.length);
 }
 export async function nativeApplyFilter(rgba: Uint8ClampedArray | Uint8Array, width: number, height: number, op: NativeFilterOp): Promise<Uint8ClampedArray> {
   const need = width * height * 4;
-  if (!isTauri() || rgba.length !== need) throw new Error("Native C++ tidak tersedia atau dimensi tidak cocok");
+  if (!isTauri() || rgba.length !== need) throw new Error("Filter tidak tersedia atau dimensi tidak cocok");
   const out = await invoke<number[] | Uint8Array>("cmd_native_apply_filter", { rgba: Array.from(rgba), width, height, op });
   const arr = out instanceof Uint8Array ? out : Uint8Array.from(out as number[]);
   return new Uint8ClampedArray(arr.buffer, arr.byteOffset, arr.length);

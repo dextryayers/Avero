@@ -29,7 +29,7 @@ export function snapshotMemory(w: number, h: number, layers: number): MemorySnap
   const totalMB = canvasMB + (heapMB ?? 0);
   let rec: MemorySnapshot["recommendation"] = "full";
   let msg = "RAM aman untuk pipeline penuh.";
-  if (totalMB > 900 || perLayer > 64) { rec = "critical"; msg = "Dokumen sangat besar. Pakai Light pipeline tiled 512."; }
+  if (totalMB > 900 || perLayer > 64) { rec = "critical"; msg = "Dokumen sangat besar. Pakai mode ringan per ubin."; }
   else if (totalMB > 500 || perLayer > 32) { rec = "light"; msg = "Disarankan Light filter untuk hemat RAM."; }
   const s: MemorySnapshot = { heapMB, canvasMB, layersMB: canvasMB, totalMB, lightSavingMB, recommendation: rec, message: msg };
   last = s;

@@ -71,7 +71,7 @@ const tabs: { id: Tab; label: string; icon: any }[] = [
   { id: "mask", label: "Mask", icon: Square },
   { id: "adjust", label: "Adjust", icon: Sliders },
   { id: "filter", label: "Filter", icon: Filter },
-  { id: "lab", label: "Lab", icon: FlaskConical },
+  { id: "lab", label: "Memori", icon: FlaskConical },
   { id: "text", label: "Text", icon: Type },
   { id: "color", label: "Color", icon: Palette },
   { id: "raw", label: "RAW", icon: Camera },

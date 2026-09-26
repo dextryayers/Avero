@@ -73,7 +73,11 @@ export default function CanvasArea() {
   const spriteCache = useRef(new Map<string, HTMLCanvasElement>());
   const cloneRef = useRef<{ x: number; y: number } | null>(null);
   const cloneOrigin = useRef<{ x: number; y: number } | null>(null);
+  const healRef = useRef<{ x: number; y: number } | null>(null);
+  const historySource = useRef<ImageData | null>(null);
   const [penDrag, setPenDrag] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
+  const [shapeDrag, setShapeDrag] = useState<{ x0: number; y0: number; x1: number; y1: number; kind: string } | null>(null);
+  const [ring, setRing] = useState<{ x: number; y: number } | null>(null);
   const smudgeColor = useRef<string | null>(null);
 
   const doc = useEditorStore((s) => s.doc);
@@ -82,12 +86,18 @@ export default function CanvasArea() {
   const tool = useEditorStore((s) => s.tool);
   // Each tool has a distinct engine behavior (no duplicates).
   // Brush family: soft paint variants with different flow / hardness.
+  // NOTE: healing-brush/patch are heal tools (Alt sets heal source), NOT clone.
   const isBrush = tool === "brush" || tool === "pencil" || tool === "mixer-brush" || tool === "history-brush" || tool === "art-history-brush" || tool === "color-replacement" || tool === "airbrush" || tool === "soft-brush";
   const isEraser = tool === "eraser" || tool === "background-eraser" || tool === "magic-eraser" || tool === "eraser-hard";
   const isHeal = tool === "spot-heal" || tool === "healing-brush" || tool === "patch" || tool === "red-eye" || tool === "content-move" || tool === "content-fill";
-  const isClone = tool === "clone" || tool === "healing-brush" || tool === "patch" || tool === "pattern-stamp";
+  const needsHealSource = tool === "healing-brush" || tool === "patch";
+  const isClone = tool === "clone" || tool === "pattern-stamp";
   const isEyedropper = tool === "eyedropper" || tool === "color-sampler";
-  const isCrop = tool === "crop" || tool === "frame" || tool === "perspective-crop";
+  const isCrop = tool === "crop" || tool === "perspective-crop";
+  const showBrushRing =
+    isBrush || isEraser || tool === "dodge" || tool === "burn" || tool === "sponge" || tool === "vibrance-brush" ||
+    tool === "blur" || tool === "blur-iris" || tool === "sharpen" || tool === "sharpen-edge" || tool === "smudge" ||
+    tool === "noise-reduction" || isHeal || isClone || tool === "liquify" || tool === "warp";
   const zoom = useEditorStore((s) => s.zoom);
   const panX = useEditorStore((s) => s.panX);
   const panY = useEditorStore((s) => s.panY);
@@ -595,7 +605,26 @@ export default function CanvasArea() {
         if (i === 0) ctx.moveTo(sx, sy);
         else ctx.lineTo(sx, sy);
       });
+      // polygon mode: line back to start when 3+ points
+      if ((tool === "select-polygon") && lassoPts.length > 2) {
+        ctx.lineTo(ox + lassoPts[0].x * s, oy + lassoPts[0].y * s);
+      }
       ctx.stroke();
+      ctx.restore();
+    }
+    // shape drag preview (pro blue outline)
+    if (shapeDrag) {
+      const x = ox + Math.min(shapeDrag.x0, shapeDrag.x1) * s;
+      const y = oy + Math.min(shapeDrag.y0, shapeDrag.y1) * s;
+      const wpx = Math.abs(shapeDrag.x1 - shapeDrag.x0) * s;
+      const hpx = Math.abs(shapeDrag.y1 - shapeDrag.y0) * s;
+      ctx.save();
+      ctx.setLineDash([]);
+      ctx.strokeStyle = "#2f7cf6";
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x, y, wpx, hpx);
+      ctx.fillStyle = "rgba(47,124,246,0.12)";
+      ctx.fillRect(x, y, wpx, hpx);
       ctx.restore();
     }
 
@@ -774,6 +803,7 @@ export default function CanvasArea() {
     cropDrag,
     gradDrag,
     penDrag,
+    shapeDrag,
     measureDrag,
     guidesH,
     guidesV,
@@ -897,6 +927,26 @@ export default function CanvasArea() {
       magicEraseAt(x, y);
       return;
     }
+    if (curTool === "history-brush" || curTool === "art-history-brush") {
+      ctx.restore();
+      historyBrushTo(x, y, curTool === "art-history-brush");
+      return;
+    }
+    if (curTool === "color-replacement") {
+      ctx.restore();
+      colorReplaceTo(x, y);
+      return;
+    }
+    if (curTool === "mixer-brush") {
+      ctx.restore();
+      mixerBrushTo(x, y);
+      return;
+    }
+    if (curTool === "pattern-stamp") {
+      ctx.restore();
+      patternStampTo(x, y);
+      return;
+    }
     const isPencil = curTool === "pencil";
     const isAir = curTool === "airbrush";
     const isSoft = curTool === "soft-brush";
@@ -985,6 +1035,150 @@ export default function CanvasArea() {
     lastPos.current = { x, y };
   }
 
+  // History Brush: paint back from stroke-start snapshot (or last undo entry).
+  // Art variant adds hue jitter for a stylized look.
+  function historyBrushTo(x: number, y: number, art: boolean) {
+    if (!activeLayerId) return;
+    const src = historySource.current;
+    if (!src) return;
+    const c = layerManager.ensure(activeLayerId, doc.width, doc.height);
+    const ctx = c.getContext("2d")!;
+    const last = lastPos.current ?? { x, y };
+    const r = brushSize / 2;
+    const dx = x - last.x;
+    const dy = y - last.y;
+    const dist = Math.hypot(dx, dy);
+    const steps = Math.max(1, Math.floor(dist / Math.max(1, brushSize * 0.18)));
+    ctx.save();
+    ctx.globalAlpha = (art ? 0.7 : 0.9) * (brushOpacity / 100) + 0.1;
+    for (let i = 0; i <= steps; i++) {
+      const px = Math.round(last.x + (dx * i) / steps);
+      const py = Math.round(last.y + (dy * i) / steps);
+      if (!isPointInSelection(px, py)) continue;
+      const s = Math.max(1, Math.round(r * 2));
+      const sx = Math.max(0, Math.min(src.width - s, px - Math.round(r)));
+      const sy = Math.max(0, Math.min(src.height - s, py - Math.round(r)));
+      try {
+        const tmp = document.createElement("canvas");
+        tmp.width = s;
+        tmp.height = s;
+        const tctx = tmp.getContext("2d")!;
+        const sd = new ImageData(new Uint8ClampedArray(src.data), src.width, src.height);
+        const full = document.createElement("canvas");
+        full.width = src.width;
+        full.height = src.height;
+        full.getContext("2d")!.putImageData(sd, 0, 0);
+        tctx.drawImage(full, sx, sy, s, s, 0, 0, s, s);
+        if (art) {
+          tctx.globalCompositeOperation = "source-atop";
+          tctx.globalAlpha = 0.25;
+          tctx.fillStyle = brushColor;
+          tctx.fillRect(0, 0, s, s);
+          tctx.globalAlpha = 1;
+          tctx.globalCompositeOperation = "source-over";
+        }
+        ctx.drawImage(tmp, px - Math.round(r), py - Math.round(r));
+      } catch { /* ignore edges */ }
+    }
+    ctx.restore();
+    lastPos.current = { x, y };
+    markDirty();
+  }
+
+  // Color Replacement: shift hue toward brush color, keep luminance.
+  function colorReplaceTo(x: number, y: number) {
+    if (!activeLayerId) return;
+    const c = layerManager.ensure(activeLayerId, doc.width, doc.height);
+    const ctx = c.getContext("2d", { willReadFrequently: true })!;
+    const last = lastPos.current ?? { x, y };
+    const r = Math.max(1, brushSize / 2);
+    const strength = brushOpacity / 100;
+    const fr = parseInt(brushColor.slice(1, 3), 16);
+    const fg = parseInt(brushColor.slice(3, 5), 16);
+    const fb = parseInt(brushColor.slice(5, 7), 16);
+    for (const { px, py } of dabPath(last.x, last.y, x, y)) {
+      if (!isPointInSelection(px, py)) continue;
+      const s = Math.round(r * 2);
+      const sx = Math.round(px - r);
+      const sy = Math.round(py - r);
+      if (sx < 0 || sy < 0 || sx + s > c.width || sy + s > c.height) continue;
+      try {
+        const id = ctx.getImageData(sx, sy, s, s);
+        const d = id.data;
+        for (let i = 0; i < d.length; i += 4) {
+          const lum = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114) / 255;
+          const tr = (fr / 255);
+          const tg = (fg / 255);
+          const tb = (fb / 255);
+          const tAvg = (tr + tg + tb) / 3 || 1;
+          d[i] = Math.max(0, Math.min(255, (d[i] + (tr / tAvg) * lum * 255 * 0.9) * (1 - strength * 0.6) + (tr * lum * 255) * strength * 0.6));
+          d[i + 1] = Math.max(0, Math.min(255, (d[i + 1] + (tg / tAvg) * lum * 255 * 0.9) * (1 - strength * 0.6) + (tg * lum * 255) * strength * 0.6));
+          d[i + 2] = Math.max(0, Math.min(255, (d[i + 2] + (tb / tAvg) * lum * 255 * 0.9) * (1 - strength * 0.6) + (tb * lum * 255) * strength * 0.6));
+        }
+        ctx.putImageData(id, sx, sy);
+      } catch { /* ignore */ }
+    }
+    lastPos.current = { x, y };
+    markDirty();
+  }
+
+  // Mixer Brush: wet mix of canvas color + brush color at 45% strength.
+  function mixerBrushTo(x: number, y: number) {
+    if (!activeLayerId) return;
+    pickSmudgeColor({ x, y });
+    const c = layerManager.ensure(activeLayerId, doc.width, doc.height);
+    const ctx = c.getContext("2d")!;
+    const last = lastPos.current ?? { x, y };
+    const col = smudgeColor.current ?? brushColor;
+    ctx.save();
+    ctx.globalAlpha = 0.45 * (brushOpacity / 100) + 0.05;
+    const sp = brushSprite(brushSize, Math.max(0, brushHardness - 30), col);
+    stampLine(ctx, sp, brushSize, last.x, last.y, x, y, true);
+    ctx.globalAlpha = 0.25 * (brushOpacity / 100);
+    const sp2 = brushSprite(brushSize * 0.7, 0, brushColor);
+    stampLine(ctx, sp2, brushSize * 0.7, last.x, last.y, x, y, true);
+    ctx.restore();
+    lastPos.current = { x, y };
+    markDirty();
+  }
+
+  // Pattern Stamp: neutral checker weave stamped with brush color tint.
+  function patternStampTo(x: number, y: number) {
+    if (!activeLayerId) return;
+    const c = layerManager.ensure(activeLayerId, doc.width, doc.height);
+    const ctx = c.getContext("2d")!;
+    const last = lastPos.current ?? { x, y };
+    const s = Math.max(8, Math.round(brushSize));
+    const pat = document.createElement("canvas");
+    pat.width = s;
+    pat.height = s;
+    const pctx = pat.getContext("2d")!;
+    const cell = Math.max(2, Math.round(s / 8));
+    for (let yy = 0; yy < s; yy += cell) {
+      for (let xx = 0; xx < s; xx += cell) {
+        pctx.fillStyle = ((xx + yy) / cell) % 2 === 0 ? brushColor : "#ffffff";
+        pctx.globalAlpha = 0.85;
+        pctx.fillRect(xx, yy, cell, cell);
+      }
+    }
+    pctx.globalAlpha = 1;
+    ctx.save();
+    ctx.globalAlpha = brushOpacity / 100;
+    const dx = x - last.x;
+    const dy = y - last.y;
+    const dist = Math.hypot(dx, dy);
+    const steps = Math.max(1, Math.floor(dist / Math.max(1, s * 0.3)));
+    for (let i = 0; i <= steps; i++) {
+      const px = last.x + (dx * i) / steps;
+      const py = last.y + (dy * i) / steps;
+      if (!isPointInSelection(px, py)) continue;
+      ctx.drawImage(pat, px - s / 2, py - s / 2, s, s);
+    }
+    ctx.restore();
+    lastPos.current = { x, y };
+    markDirty();
+  }
+
   // Clone stamp: Alt+click sets the source, paint to copy.
   function cloneTo(x: number, y: number) {
     if (!activeLayerId) return;
@@ -1030,7 +1224,7 @@ export default function CanvasArea() {
     return pts;
   }
 
-  function retouchTo(x: number, y: number, mode: "dodge" | "burn" | "sponge" | "vibrance" | "blur" | "blur-iris" | "sharpen" | "sharpen-edge" | "heal" | "smudge" | "noise" | "content-fill") {
+  function retouchTo(x: number, y: number, mode: "dodge" | "burn" | "sponge" | "vibrance" | "blur" | "blur-iris" | "sharpen" | "sharpen-edge" | "heal" | "heal-source" | "red-eye" | "content-move" | "smudge" | "noise" | "content-fill") {
     if (!activeLayerId) return;
     const meta = layers.find((l) => l.id === activeLayerId);
     if (!meta || meta.locked || !meta.visible) return;
@@ -1054,19 +1248,65 @@ export default function CanvasArea() {
           ctx.arc(px, py, r * (brushHardness / 130 + 0.35), 0, Math.PI * 2);
           ctx.fill();
           ctx.restore();
-        } else if (mode === "blur" || mode === "blur-iris" || mode === "heal") {
+        } else if (mode === "blur" || mode === "blur-iris" || mode === "heal" || mode === "heal-source") {
+          const hs = healRef.current;
+          const ox = mode === "heal-source" && hs ? px - hs.x : 0;
+          const oy = mode === "heal-source" && hs ? py - hs.y : 0;
           const tmp = document.createElement("canvas");
           tmp.width = s;
           tmp.height = s;
           const tctx = tmp.getContext("2d")!;
-          const blurR = mode === "blur-iris" ? Math.max(2, r / 1.5) : Math.max(1, r / 3);
-          tctx.filter = `blur(${blurR}px)`;
-          tctx.drawImage(c, sx, sy, s, s, 0, 0, s, s);
-          tctx.filter = "none";
+          // Low-spec guard: CSS blur with r>48 is extremely slow per dab.
+          // Use cheap downscale-upscale blur approximation for large brushes.
+          if (r > 48) {
+            const ds = Math.max(8, Math.round(s / 4));
+            const tiny = document.createElement("canvas");
+            tiny.width = ds;
+            tiny.height = ds;
+            const ictx = tiny.getContext("2d")!;
+            if (mode === "heal-source" && hs) ictx.drawImage(c, sx - Math.round(ox), sy - Math.round(oy), s, s, 0, 0, ds, ds);
+            else ictx.drawImage(c, sx, sy, s, s, 0, 0, ds, ds);
+            tctx.imageSmoothingEnabled = true;
+            tctx.drawImage(tiny, 0, 0, s, s);
+          } else {
+            const blurR = mode === "blur-iris" ? Math.max(2, r / 1.5) : Math.max(1, r / 3);
+            tctx.filter = `blur(${blurR}px)`;
+            if (mode === "heal-source" && hs) tctx.drawImage(c, sx - Math.round(ox), sy - Math.round(oy), s, s, 0, 0, s, s);
+            else tctx.drawImage(c, sx, sy, s, s, 0, 0, s, s);
+            tctx.filter = "none";
+          }
           ctx.save();
-          ctx.globalAlpha = mode === "heal" ? 0.85 * strength + 0.15 : mode === "blur-iris" ? 0.8 * strength + 0.15 : 0.55 * strength + 0.1;
+          ctx.globalAlpha = mode === "heal" || mode === "heal-source" ? 0.85 * strength + 0.15 : mode === "blur-iris" ? 0.8 * strength + 0.15 : 0.55 * strength + 0.1;
           ctx.drawImage(tmp, sx, sy);
           ctx.restore();
+        } else if (mode === "red-eye") {
+          const id = ctx.getImageData(sx, sy, s, s);
+          const d = id.data;
+          for (let i = 0; i < d.length; i += 4) {
+            // red eye: red channel dominates green+blue
+            if (d[i] > 90 && d[i] > d[i + 1] * 1.4 && d[i] > d[i + 2] * 1.4) {
+              const lum = Math.round(d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114);
+              const k = 0.75 * strength + 0.25;
+              d[i] = Math.round(d[i] * (1 - k) + lum * k);
+              d[i + 1] = Math.round(d[i + 1] * (1 - k * 0.4) + lum * k * 0.4);
+              d[i + 2] = Math.round(d[i + 2] * (1 - k * 0.4) + lum * k * 0.4);
+            }
+          }
+          ctx.putImageData(id, sx, sy);
+        } else if (mode === "content-move") {
+          const mvx = Math.round(r * 0.6);
+          const mvy = Math.round(r * 0.3);
+          try {
+            const id = ctx.getImageData(sx, sy, s, s);
+            const tmp = document.createElement("canvas");
+            tmp.width = s;
+            tmp.height = s;
+            tmp.getContext("2d")!.putImageData(id, 0, 0);
+            ctx.save();
+            ctx.globalAlpha = 0.9 * strength + 0.1;
+            ctx.drawImage(tmp, sx + mvx, sy + mvy, s, s, sx, sy, s, s);
+            ctx.restore();
+          } catch { /* ignore */ }
         } else if (mode === "sharpen" || mode === "sharpen-edge") {
           const id = ctx.getImageData(sx, sy, s, s);
           const d = id.data;
@@ -1483,10 +1723,10 @@ export default function CanvasArea() {
     markDirty();
   }
 
-  function createShapeLayer(kind: "rect" | "ellipse" | "polygon", sides = 6) {
+  function createShapeLayer(kind: "rect" | "ellipse" | "polygon", sides = 6, namePrefix?: string) {
     const st = useEditorStore.getState();
     const pro = useProStore.getState();
-    const l = makeLayer(`Shape ${st.layers.length + 1}`);
+    const l = makeLayer(`${namePrefix ?? "Shape"} ${st.layers.length + 1}`);
     layerManager.ensure(l.id, doc.width, doc.height);
     const spec = {
       kind,
@@ -1562,11 +1802,41 @@ export default function CanvasArea() {
         }}
         onDragLeave={() => setDragging(false)}
         onDrop={handleDrop}
+        onDoubleClick={() => {
+          if (tool === "select-polygon" && lassoPts.length > 2) {
+            drawLassoSelection(doc.width, doc.height, lassoPts);
+            const feather = useProStore.getState().selFeather;
+            if (feather > 0) featherSelection(feather);
+            setLassoPts([]);
+            window.dispatchEvent(new Event("avero:selection-changed"));
+          }
+        }}
         onWheel={(e) => {
           if (e.ctrlKey || e.metaKey) {
+            // zoom to cursor: keep doc point under pointer stable
             e.preventDefault();
-            const delta = -e.deltaY;
-            setZoom(zoom + (delta > 0 ? 10 : -10));
+            const canvas = canvasRef.current;
+            const wrap = wrapRef.current;
+            if (!canvas || !wrap) return;
+            const rect = canvas.getBoundingClientRect();
+            const s0 = zoom / 100;
+            const z1 = Math.max(10, Math.min(800, zoom + (e.deltaY < 0 ? 10 : -10)));
+            if (z1 === zoom) return;
+            const s1 = z1 / 100;
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+            const dw0 = doc.width * s0;
+            const dh0 = doc.height * s0;
+            const ox0 = (rect.width - dw0) / 2 + panX;
+            const oy0 = (rect.height - dh0) / 2 + panY;
+            const dx = (mx - ox0) / s0;
+            const dy = (my - oy0) / s0;
+            const dw1 = doc.width * s1;
+            const dh1 = doc.height * s1;
+            const ox1 = (rect.width - dw1) / 2;
+            const oy1 = (rect.height - dh1) / 2;
+            setZoom(z1);
+            setPan(mx - ox1 - dx * s1, my - oy1 - dy * s1);
           } else if (e.shiftKey) {
             setPan(panX - e.deltaY, panY);
           } else {
@@ -1623,14 +1893,34 @@ export default function CanvasArea() {
             gradientFillAt(p.x, p.y, true);
             return;
           }
-          if (tool === "select-rect" || tool === "select-ellipse" || tool === "select-polygon" || tool === "quick-select" || tool === "single-row" || tool === "single-column" || tool === "object-select") {
-            // single row/column: 1px strip
+          if (tool === "select-rect" || tool === "select-ellipse" || tool === "single-row" || tool === "single-column") {
             if (tool === "single-row") setSelDrag({ x0: 0, y0: p.y, x1: doc.width, y1: p.y + 1 });
             else if (tool === "single-column") setSelDrag({ x0: p.x, y0: 0, x1: p.x + 1, y1: doc.height });
             else setSelDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
             return;
           }
-          if (tool === "slice" || tool === "slice-select" || tool === "artboard") {
+          if (tool === "select-polygon") {
+            setLassoPts((pts) => [...pts.slice(-800), { x: p.x, y: p.y }]);
+            return;
+          }
+          if (tool === "quick-select" || tool === "object-select") {
+            handleWandClick(p);
+            try {
+              const { expandContractSelection } = await import("../engine/selection");
+              expandContractSelection(tool === "object-select" ? Math.max(2, Math.round(brushSize / 6)) : Math.max(1, Math.round(brushSize / 8)));
+              window.dispatchEvent(new Event("avero:selection-changed"));
+            } catch { /* ignore */ }
+            return;
+          }
+          if (tool === "frame") {
+            createShapeLayer("rect", 4, "Frame");
+            return;
+          }
+          if (tool === "artboard") {
+            createShapeLayer("rect", 4, "Artboard");
+            return;
+          }
+          if (tool === "slice" || tool === "slice-select") {
             setSelDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
             return;
           }
@@ -1678,19 +1968,19 @@ export default function CanvasArea() {
             return;
           }
           if (tool === "shape-rect") {
-            createShapeLayer("rect");
+            setShapeDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y, kind: "rect" });
             return;
           }
           if (tool === "shape-ellipse") {
-            createShapeLayer("ellipse");
+            setShapeDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y, kind: "ellipse" });
             return;
           }
           if (tool === "triangle-shape") {
-            createShapeLayer("polygon", 3);
+            setShapeDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y, kind: "triangle" });
             return;
           }
           if (tool === "shape-polygon" || tool === "shape-line" || tool === "shape-custom" || tool === "shape-star" || tool === "shape-arrow") {
-            createShapeLayer("polygon");
+            setShapeDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y, kind: tool });
             return;
           }
           if (tool === "ruler") {
@@ -1751,18 +2041,32 @@ export default function CanvasArea() {
             setIsPainting(true);
             lastPos.current = null;
             if (tool === "smudge" || distort) pickSmudgeColor(p);
+            // Alt sets heal source for healing-brush / patch (does not paint)
+            if (needsHealSource && e.altKey) {
+              healRef.current = { x: p.x, y: p.y };
+              setCursor(`Heal source ${Math.round(p.x)}, ${Math.round(p.y)}`);
+              setIsPainting(false);
+              return;
+            }
+            // capture history source BEFORE this stroke mutates pixels
+            if (tool === "history-brush" || tool === "art-history-brush") {
+              historySource.current = snap ?? null;
+            }
             if (isBrush || isEraser) paintTo(p.x, p.y, isEraser);
             else if ((tool as string) === "blur-iris") retouchTo(p.x, p.y, "blur-iris");
             else if ((tool as string) === "sharpen-edge") retouchTo(p.x, p.y, "sharpen-edge");
             else if ((tool as string) === "vibrance-brush") retouchTo(p.x, p.y, "vibrance");
             else if ((tool as string) === "noise-reduction") retouchTo(p.x, p.y, "noise");
+            else if (tool === "healing-brush" || tool === "patch") retouchTo(p.x, p.y, "heal-source");
+            else if (tool === "red-eye") retouchTo(p.x, p.y, "red-eye");
+            else if (tool === "content-move") retouchTo(p.x, p.y, "content-move");
             else
               retouchTo(
                 p.x,
                 p.y,
-                (distort ? "smudge" : tool) as "dodge" | "burn" | "sponge" | "vibrance" | "blur" | "blur-iris" | "sharpen" | "sharpen-edge" | "smudge" | "heal" | "noise" | "content-fill",
+                (distort ? "smudge" : tool) as "dodge" | "burn" | "sponge" | "vibrance" | "blur" | "blur-iris" | "sharpen" | "sharpen-edge" | "smudge" | "heal" | "heal-source" | "red-eye" | "content-move" | "noise" | "content-fill",
               );
-            if (isHeal) retouchTo(p.x, p.y, "heal");
+            if (tool === "spot-heal") retouchTo(p.x, p.y, "heal");
             setCursor(`${Math.round(p.x)}, ${Math.round(p.y)}`);
           }
           if (tool === "zoom") {
@@ -1772,6 +2076,16 @@ export default function CanvasArea() {
         onMouseMove={(e) => {
           const p = toDocCoords(e);
           setCursor(`${Math.round(p.x)}, ${Math.round(p.y)}`);
+          // brush ring follows pointer in screen space (hidden while panning)
+          if (!panning.current && showBrushRing) {
+            const wrap = wrapRef.current;
+            if (wrap) {
+              const r = wrap.getBoundingClientRect();
+              setRing({ x: e.clientX - r.left, y: e.clientY - r.top });
+            }
+          } else if (panning.current) {
+            setRing(null);
+          }
           if (panning.current) {
             setPan(
               panning.current.px + (e.clientX - panning.current.sx),
@@ -1881,6 +2195,10 @@ export default function CanvasArea() {
             setPenDrag({ ...penDrag, x1, y1 });
             return;
           }
+          if (shapeDrag) {
+            setShapeDrag({ ...shapeDrag, x1: p.x, y1: p.y });
+            return;
+          }
           if (isPainting) {
             if (isClone) cloneTo(p.x, p.y);
             else if (isBrush || isEraser) paintTo(p.x, p.y, isEraser);
@@ -1890,15 +2208,19 @@ export default function CanvasArea() {
             else if ((tool as string) === "sharpen-edge") retouchTo(p.x, p.y, "sharpen-edge");
             else if ((tool as string) === "vibrance-brush") retouchTo(p.x, p.y, "vibrance");
             else if ((tool as string) === "noise-reduction") retouchTo(p.x, p.y, "noise");
+            else if (tool === "healing-brush" || tool === "patch") retouchTo(p.x, p.y, "heal-source");
+            else if (tool === "red-eye") retouchTo(p.x, p.y, "red-eye");
+            else if (tool === "content-move") retouchTo(p.x, p.y, "content-move");
             else if (
               tool === "dodge" ||
               tool === "burn" ||
               tool === "sponge" ||
               tool === "blur" ||
               tool === "sharpen" ||
-              isHeal
+              tool === "spot-heal" ||
+              tool === "content-fill"
             ) {
-              retouchTo(p.x, p.y, isHeal ? "heal" : tool);
+              retouchTo(p.x, p.y, tool === "spot-heal" ? "heal" : tool);
             }
           }
         }}
@@ -1939,11 +2261,36 @@ export default function CanvasArea() {
             }
             setSelDrag(null);
           }
-          if (lassoPts.length > 2 && tool === "select-lasso") {
+          if (lassoPts.length > 2 && (tool === "select-lasso" || tool === "select-polygon")) {
             drawLassoSelection(doc.width, doc.height, lassoPts);
             setLassoPts([]);
-          } else if (tool === "select-lasso") {
-            setLassoPts([]);
+          } else if (tool === "select-lasso" || tool === "select-polygon") {
+            if (tool === "select-lasso") setLassoPts([]);
+            // polygon keeps points until double-click closes
+          }
+          if (shapeDrag) {
+            const w = Math.abs(shapeDrag.x1 - shapeDrag.x0);
+            const h = Math.abs(shapeDrag.y1 - shapeDrag.y0);
+            if (w > 6 && h > 6) {
+              const kind = shapeDrag.kind;
+              if (kind === "rect") createShapeLayer("rect");
+              else if (kind === "ellipse") createShapeLayer("ellipse");
+              else if (kind === "triangle") createShapeLayer("polygon", 3);
+              else createShapeLayer("polygon", kind === "shape-star" ? 5 : 6);
+              // move the new shape to drag origin via transform
+              const st = useEditorStore.getState();
+              const nid = st.activeLayerId;
+              if (nid) {
+                useProStore.getState().updateTransform(nid, {
+                  x: Math.min(shapeDrag.x0, shapeDrag.x1) - doc.width / 2,
+                  y: Math.min(shapeDrag.y0, shapeDrag.y1) - doc.height / 2,
+                  scaleX: Math.max(0.05, w / Math.max(1, doc.width)),
+                  scaleY: Math.max(0.05, h / Math.max(1, doc.height)),
+                  rotation: 0,
+                });
+              }
+            }
+            setShapeDrag(null);
           }
           if (moveDrag.current) {
             moveDrag.current = null;
@@ -1963,6 +2310,7 @@ export default function CanvasArea() {
           moveDrag.current = null;
           cloneOrigin.current = null;
           smudgeColor.current = null;
+          setRing(null);
         }}
       >
         <canvas
@@ -2092,6 +2440,20 @@ export default function CanvasArea() {
             <div className="rounded bg-black/70 px-4 py-2 text-[13px] text-white">
               Release to open image
             </div>
+          </div>
+        )}
+        {/* Brush cursor ring: true-size preview for paint/retouch tools */}
+        {ring && showBrushRing && !isPainting && (
+          <div
+            className="pointer-events-none absolute z-20 rounded-full border-[1.5px] border-white/90 shadow-[0_0_0_1px_rgba(0,0,0,0.6)]"
+            style={{
+              left: ring.x - (brushSize * (zoom / 100)) / 2,
+              top: ring.y - (brushSize * (zoom / 100)) / 2,
+              width: Math.max(4, brushSize * (zoom / 100)),
+              height: Math.max(4, brushSize * (zoom / 100)),
+            }}
+          >
+            <div className="absolute left-1/2 top-1/2 h-[3px] w-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/90" />
           </div>
         )}
         {isFresh && !dragging && (

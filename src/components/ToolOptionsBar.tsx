@@ -33,10 +33,14 @@ export default function ToolOptionsBar({
   const tool = useEditorStore((s) => s.tool);
   const brushSize = useEditorStore((s) => s.brushSize);
   const brushOpacity = useEditorStore((s) => s.brushOpacity);
+  const brushHardness = useEditorStore((s) => s.brushHardness);
   const setBrush = useEditorStore((s) => s.setBrush);
   const paintMask = useProStore((s) => s.paintMask);
   const gradTo = useProStore((s) => s.gradTo);
   const setGradTo = useProStore((s) => s.setGradTo);
+  const selTolerance = useProStore((s) => s.selTolerance);
+  const selFeather = useProStore((s) => s.selFeather);
+  const setSelParams = useProStore((s) => s.setSelParams);
   const name = TOOL_LABEL[tool] ?? tool;
 
   const retouchHint: Partial<Record<string, string>> = {
@@ -177,6 +181,31 @@ export default function ToolOptionsBar({
     );
   }
 
+  if (tool === "wand" || tool === "quick-select" || tool === "object-select") {
+    return (
+      <div className={BAR}>
+        <span className="shrink-0 rounded-md bg-[#2f7cf6] px-2 py-0.5 font-semibold text-white">{name}</span>
+        <Hint>{retouchHint[tool] ?? "Click to auto select."}</Hint>
+        <span className="hidden shrink-0 items-center gap-3 border-l border-white/10 pl-2.5 lg:flex">
+          <Slider label="Tolerance" value={selTolerance} min={1} max={100} onChange={(v) => setSelParams({ selTolerance: v })} />
+          <Slider label="Feather" value={selFeather} min={0} max={50} onChange={(v) => setSelParams({ selFeather: v })} suffix="px" />
+        </span>
+      </div>
+    );
+  }
+
+  if (tool === "select-rect" || tool === "select-ellipse" || tool === "select-polygon" || tool === "select-lasso") {
+    return (
+      <div className={BAR}>
+        <span className="shrink-0 rounded-md bg-[#2f7cf6] px-2 py-0.5 font-semibold text-white">{name}</span>
+        <Hint>{retouchHint[tool] ?? "Drag to select. Shift adds, Alt subtracts."}</Hint>
+        <span className="hidden shrink-0 items-center gap-3 border-l border-white/10 pl-2.5 lg:flex">
+          <Slider label="Feather" value={selFeather} min={0} max={50} onChange={(v) => setSelParams({ selFeather: v })} suffix="px" />
+        </span>
+      </div>
+    );
+  }
+
   if (retouchHint[tool]) {
     return (
       <div className={BAR}>
@@ -185,6 +214,7 @@ export default function ToolOptionsBar({
         {usesBrushSliders && (
           <span className="hidden shrink-0 items-center gap-3 border-l border-white/10 pl-2.5 lg:flex">
             <Slider label="Size" value={brushSize} min={1} max={300} onChange={(v) => setBrush({ size: v })} />
+            <Slider label="Hard" value={brushHardness} min={0} max={100} onChange={(v) => setBrush({ hardness: v })} suffix="%" />
             <Slider label="Strength" value={brushOpacity} min={1} max={100} onChange={(v) => setBrush({ opacity: v })} suffix="%" />
           </span>
         )}
@@ -215,13 +245,13 @@ export default function ToolOptionsBar({
     <div className={BAR}>
       <span className="rounded-md bg-[#2f7cf6] px-2 py-0.5 font-semibold text-white">{name}</span>
       <Hint>
-        {tool === "select-rect" || tool === "select-ellipse"
+        {(tool as string) === "select-rect" || (tool as string) === "select-ellipse"
           ? "Drag to select. Shift adds, Alt subtracts. Feather in Select panel."
-          : tool === "wand"
+          : (tool as string) === "wand"
             ? "Click similar colors. Tolerance in Select panel."
-            : tool === "move"
+            : (tool as string) === "move"
               ? "Drag layer. Shift snaps, Ctrl+T free transform."
-              : tool === "hand"
+              : (tool as string) === "hand"
                 ? "Drag to pan canvas. Scroll to zoom."
                 : "Select and drag on canvas to use this tool."}
       </Hint>

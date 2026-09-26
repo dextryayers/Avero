@@ -172,7 +172,7 @@ export default function App() {
           if (!id) return;
           const c = layerManager.get(id);
           if (!c) return;
-          setClip(c.toDataURL("image/png"));
+          setClip(layerToClipboardURL(c));
         } catch {}
         return;
       }
@@ -184,7 +184,7 @@ export default function App() {
           if (!id) return;
           const c = layerManager.get(id);
           if (!c) return;
-          setClip(c.toDataURL("image/png"));
+          setClip(layerToClipboardURL(c));
           const ctx = c.getContext("2d")!;
           ctx.clearRect(0, 0, c.width, c.height);
           st.markDirty();
@@ -381,7 +381,7 @@ export default function App() {
           if (!id) return;
           const c = layerManager.get(id);
           if (!c) return;
-          (window as any).__avero_clipboard = c.toDataURL("image/png");
+          (window as any).__avero_clipboard = layerToClipboardURL(c);
           if (detail === "cut") {
             c.getContext("2d")!.clearRect(0, 0, c.width, c.height);
             st.markDirty();

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Eye,
   EyeOff,
@@ -48,6 +48,33 @@ import MockupPanel from "./MockupPanel";
 import NativeLabPanel from "./NativeLabPanel";
 import { useWorkspaceStore } from "../stores/useWorkspaceStore";
 import { showError, askConfirm } from "../ui/notify";
+import { doUndo, doRedo, jumpToHistory } from "../engine/historyOps";
+
+// 40px live layer thumbnail (checkerboard behind transparency).
+function LayerThumb({ id, w, h }: { id: string; w: number; h: number }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const g = el.getContext("2d")!;
+    const S = 40;
+    el.width = S;
+    el.height = S;
+    g.fillStyle = "#2c2c31";
+    g.fillRect(0, 0, S, S);
+    g.fillStyle = "#3a3a41";
+    for (let y = 0; y < S; y += 10)
+      for (let x = 0; x < S; x += 10) if (((x + y) / 10) % 2 === 0) g.fillRect(x, y, 10, 10);
+    const src = layerManager.get(id);
+    if (src && w > 0 && h > 0) {
+      const sc = Math.min(S / w, S / h);
+      const dw = Math.max(1, w * sc);
+      const dh = Math.max(1, h * sc);
+      g.drawImage(src, (S - dw) / 2, (S - dh) / 2, dw, dh);
+    }
+  });
+  return <canvas ref={ref} className="h-10 w-10 shrink-0 rounded border border-[#2c2c31]" />;
+}
 
 type Tab =
   | "layers"
@@ -84,8 +111,7 @@ const tabs: { id: Tab; label: string; icon: any }[] = [
   { id: "history", label: "Hist", icon: History },
 ];
 
-export default function RightPanel() {
-  const [tab, setTab] = useState<Tab>("layers");
+export default function RightPanel() {  const [tab, setTab] = useState<Tab>("layers");
   const workspaceTab = useWorkspaceStore((s) => s.rightTab);
   useEffect(() => {
     if (workspaceTab && (tabs as { id: string }[]).some((t) => t.id === workspaceTab)) {
@@ -118,18 +144,11 @@ export default function RightPanel() {
   const filters = useProStore((s) => s.filters);
 
   function handleUndo() {
-    const entry = useEditorStore.getState().undoMeta();
-    if (entry) {
-      layerManager.restore(entry.layerId, entry.snapshot);
-      if (entry.maskSnapshot) layerManager.restoreMask(entry.layerId, entry.maskSnapshot);
-      useEditorStore.getState().markDirty();
-      useProStore.getState().bumpHistogram();
-    }
+    doUndo();
   }
 
   function handleRedo() {
-    const entry = useEditorStore.getState().redoMeta();
-    if (entry) useEditorStore.getState().markDirty();
+    doRedo();
   }
 
   function duplicateLayer(id: string) {
@@ -274,7 +293,15 @@ export default function RightPanel() {
                 <Plus size={13} /> Layer
               </button>
               <button
-                onClick={() => activeLayerId && removeLayer(activeLayerId)}
+                onClick={() => {
+                  if (!activeLayerId) return;
+                  // Free pixel + mask canvases too (store alone would leak them).
+                  layerManager.remove(activeLayerId);
+                  layerManager.removeMask(activeLayerId);
+                  useProStore.getState().removeMaskEntry(activeLayerId);
+                  useProStore.getState().removeTransform(activeLayerId);
+                  removeLayer(activeLayerId);
+                }}
                 disabled={layers.length <= 1}
                 title="Delete layer"
                 className="flex items-center gap-1 rounded-md bg-[#232327] px-2 py-1 text-[11px] text-white disabled:opacity-40"
@@ -330,29 +357,34 @@ export default function RightPanel() {
                     )}
                   >
                     <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          updateLayer(l.id, { visible: !l.visible });
-                        }}
-                        className="text-[#a7a7b0] hover:text-white"
-                      >
-                        {l.visible ? <Eye size={14} /> : <EyeOff size={14} />}
-                      </button>
-                      <span className="flex-1 truncate text-[12px] font-medium text-white">
-                        {l.name} <span className="text-[9px] text-[#6e6e78]">{l.kind}</span>
-                      </span>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          updateLayer(l.id, { locked: !l.locked });
-                        }}
-                        className={clsx(
-                          l.locked ? "text-[#d9a441]" : "text-[#a7a7b0] hover:text-white",
-                        )}
-                      >
-                        <Lock size={13} />
-                      </button>
+                      <LayerThumb id={l.id} w={doc.width} h={doc.height} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              updateLayer(l.id, { visible: !l.visible });
+                            }}
+                            className="text-[#a7a7b0] hover:text-white"
+                          >
+                            {l.visible ? <Eye size={14} /> : <EyeOff size={14} />}
+                          </button>
+                          <span className="flex-1 truncate text-[12px] font-medium text-white">
+                            {l.name} <span className="text-[9px] text-[#6e6e78]">{l.kind}</span>
+                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              updateLayer(l.id, { locked: !l.locked });
+                            }}
+                            className={clsx(
+                              l.locked ? "text-[#d9a441]" : "text-[#a7a7b0] hover:text-white",
+                            )}
+                          >
+                            <Lock size={13} />
+                          </button>
+                        </div>
+                      </div>
                     </div>
                     <div className="mt-2 flex items-center gap-2 text-[10px] text-[#a7a7b0]">
                       <span className="w-10 font-mono">Op {l.opacity}</span>
@@ -433,6 +465,17 @@ export default function RightPanel() {
                 className="w-full"
               />
               <label className="mb-1 mt-1 flex justify-between text-[11px] text-[#a7a7b0]">
+                Hardness <span className="font-mono text-white">{brush.hardness}%</span>
+              </label>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={brush.hardness}
+                onChange={(e) => setBrush({ hardness: Number(e.target.value) })}
+                className="w-full"
+              />
+              <label className="mb-1 mt-1 flex justify-between text-[11px] text-[#a7a7b0]">
                 Opacity <span className="font-mono text-white">{brush.opacity}%</span>
               </label>
               <input
@@ -473,16 +516,38 @@ export default function RightPanel() {
 
         {tab === "history" && (
           <div className="p-2 text-[12px]">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="font-mono text-[10px] text-[#6e6e78]">
+                {history.length} steps · click to jump
+              </span>
+              {history.length > 0 && (
+                <button
+                  onClick={() => useEditorStore.getState().clearHistory()}
+                  className="rounded bg-[#232327] px-2 py-0.5 text-[10px] text-[#a7a7b0] hover:text-white"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
             {history.length === 0 && (
               <div className="p-3 text-center text-[#6e6e78]">No history yet.</div>
             )}
-            {[...history].reverse().map((h) => (
-              <div key={h.id} className="mb-1 rounded bg-[#232327] px-2 py-1.5">
+            {history.map((h, i) => (
+              <button
+                key={h.id}
+                onClick={() => jumpToHistory(i)}
+                title="Jump to this state"
+                className={clsx(
+                  "mb-1 block w-full rounded px-2 py-1.5 text-left hover:bg-[#2c2c31]",
+                  i === history.length - 1 ? "bg-[#232327]" : "bg-transparent",
+                )}
+              >
                 <div className="font-medium text-white">{h.label}</div>
                 <div className="font-mono text-[10px] text-[#6e6e78]">
                   {new Date(h.time).toLocaleTimeString()}
+                  {i === history.length - 1 ? " · current" : ""}
                 </div>
-              </div>
+              </button>
             ))}
             {future.length > 0 && (
               <div className="p-2 text-[11px] text-[#6e6e78]">{future.length} redo available</div>

@@ -11,6 +11,8 @@ export type ToolId =
   | "select-polygon"
   | "object-select"
   | "quick-select"
+  | "color-range"
+  | "select-subject"
   | "wand"
   | "crop"
   | "perspective-crop"
@@ -24,6 +26,7 @@ export type ToolId =
   | "count"
   | "brush"
   | "pencil"
+  | "overlay-brush"
   | "color-replacement"
   | "mixer-brush"
   | "airbrush"
@@ -97,6 +100,9 @@ export interface HistoryEntry {
   layerId: string;
   snapshot: ImageData | null;
   maskSnapshot?: ImageData | null;
+  // Captured at undo time: the canvas AFTER the stroke, so redo can repaint.
+  redoSnapshot?: ImageData | null;
+  maskRedoSnapshot?: ImageData | null;
   time: number;
 }
 

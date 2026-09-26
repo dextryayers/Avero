@@ -58,6 +58,7 @@ export default function ToolOptionsBar({
     pencil: "Hard edge, no anti-alias. Pixel precise.",
     airbrush: "Soft spray. Hold to build up tone gradually.",
     "soft-brush": "Extra soft blending brush.",
+    "overlay-brush": "Overlay-blend glow. Press B to cycle brushes.",
     "color-replacement": "Replace target hue while keeping luminance.",
     "mixer-brush": "Wet oil-paint color mixing.",
     eraser: "Erase pixels or mask. Press E to cycle erasers.",
@@ -82,8 +83,10 @@ export default function ToolOptionsBar({
     "curvature-pen": "Click curve points, drag handles.",
     line: "Drag for straight line. Shift locks 45 degrees.",
     "select-polygon": "Click polygon points, double-click to close.",
-    "quick-select": "Drag for quick auto selection.",
-    "object-select": "Drag around an object to auto select it.",
+    "quick-select": "Click subject to auto select + expand.",
+    "object-select": "Click subject to auto select + expand.",
+    "color-range": "Click a color to select it everywhere.",
+    "select-subject": "One click auto-selects the subject.",
     frame: "Drag to create a placeholder frame.",
     ruler: "Drag to measure distance and angle.",
     note: "Click to attach a note.",
@@ -118,6 +121,7 @@ export default function ToolOptionsBar({
     tool === "pencil" ||
     tool === "airbrush" ||
     tool === "soft-brush" ||
+    tool === "overlay-brush" ||
     tool === "eraser" ||
     tool === "eraser-hard" ||
     tool === "clone" ||
@@ -181,7 +185,7 @@ export default function ToolOptionsBar({
     );
   }
 
-  if (tool === "wand" || tool === "quick-select" || tool === "object-select") {
+  if (tool === "wand" || tool === "quick-select" || tool === "object-select" || tool === "color-range" || tool === "select-subject") {
     return (
       <div className={BAR}>
         <span className="shrink-0 rounded-md bg-[#2f7cf6] px-2 py-0.5 font-semibold text-white">{name}</span>

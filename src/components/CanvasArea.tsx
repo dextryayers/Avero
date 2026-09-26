@@ -6,9 +6,11 @@ import { layerManager } from "../engine/layerManager";
 import { fitZoom } from "../engine/canvasMath";
 import {
   clearSelectionMask,
+  colorRangeSelection,
   drawEllipseSelection,
   drawLassoSelection,
   drawRectSelection,
+  expandContractSelection,
   featherSelection,
   hasSelection,
   isPointInSelection,
@@ -21,7 +23,7 @@ import { applySoftProof, convertWorkingSpace } from "../engine/color";
 import { renderShapeToLayer, renderTextToLayer } from "../engine/textShape";
 import ToolOptionsBar from "./ToolOptionsBar";
 import { TOOL_LABEL } from "./ToolBar";
-import { askText } from "../ui/notify";
+import { askText, notify } from "../ui/notify";
 
 export function getCompositeCanvas(): HTMLCanvasElement | null {
   return (window as any).__avero_comp ?? null;
@@ -75,6 +77,9 @@ export default function CanvasArea() {
   const cloneOrigin = useRef<{ x: number; y: number } | null>(null);
   const healRef = useRef<{ x: number; y: number } | null>(null);
   const historySource = useRef<ImageData | null>(null);
+  const paintLayerToastShown = useRef(false);
+  const cloneHintShown = useRef(false);
+  const healHintShown = useRef(false);
   const [penDrag, setPenDrag] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
   const [shapeDrag, setShapeDrag] = useState<{ x0: number; y0: number; x1: number; y1: number; kind: string } | null>(null);
   const [ring, setRing] = useState<{ x: number; y: number } | null>(null);
@@ -87,7 +92,7 @@ export default function CanvasArea() {
   // Each tool has a distinct engine behavior (no duplicates).
   // Brush family: soft paint variants with different flow / hardness.
   // NOTE: healing-brush/patch are heal tools (Alt sets heal source), NOT clone.
-  const isBrush = tool === "brush" || tool === "pencil" || tool === "mixer-brush" || tool === "history-brush" || tool === "art-history-brush" || tool === "color-replacement" || tool === "airbrush" || tool === "soft-brush";
+  const isBrush = tool === "brush" || tool === "pencil" || tool === "mixer-brush" || tool === "history-brush" || tool === "art-history-brush" || tool === "color-replacement" || tool === "airbrush" || tool === "soft-brush" || tool === "overlay-brush";
   const isEraser = tool === "eraser" || tool === "background-eraser" || tool === "magic-eraser" || tool === "eraser-hard";
   const isHeal = tool === "spot-heal" || tool === "healing-brush" || tool === "patch" || tool === "red-eye" || tool === "content-move" || tool === "content-fill";
   const needsHealSource = tool === "healing-brush" || tool === "patch";
@@ -891,18 +896,22 @@ export default function CanvasArea() {
     }
   }
 
-  function paintTo(x: number, y: number, erase: boolean) {
-    if (!activeLayerId) return;
-    const meta = layers.find((l) => l.id === activeLayerId);
+  // forceId: explicit layer for the first dab right after auto paint-layer
+  // creation (store closures are stale until React re-renders).
+  function paintTo(x: number, y: number, erase: boolean, forceId?: string) {
+    const stFresh = useEditorStore.getState();
+    const aid = forceId ?? stFresh.activeLayerId ?? activeLayerId;
+    if (!aid) return;
+    const meta = stFresh.layers.find((l) => l.id === aid);
     if (!meta || meta.locked || !meta.visible) return;
     const last = lastPos.current ?? { x, y };
-    const st = useEditorStore.getState();
+    const st = stFresh;
     const curTool = st.tool;
 
     // Mode paint mask
-    const m = masks[activeLayerId];
+    const m = masks[aid];
     if (paintMask && m?.hasMask) {
-      const mc = layerManager.ensureMask(activeLayerId, doc.width, doc.height);
+      const mc = layerManager.ensureMask(aid, doc.width, doc.height);
       const ctx = mc.getContext("2d")!;
       ctx.save();
       ctx.globalAlpha = brushOpacity / 100;
@@ -915,7 +924,7 @@ export default function CanvasArea() {
       return;
     }
 
-    const c = layerManager.ensure(activeLayerId, doc.width, doc.height);
+    const c = layerManager.ensure(aid, doc.width, doc.height);
     const ctx = c.getContext("2d")!;
     ctx.save();
     // Distinct per-tool paint behavior:
@@ -927,7 +936,7 @@ export default function CanvasArea() {
     // - magic-eraser: handled separately via magicEraseAt()
     if (curTool === "background-eraser") {
       ctx.restore();
-      eraseBackgroundTo(x, y);
+      eraseBackgroundTo(x, y, aid);
       return;
     }
     if (curTool === "magic-eraser") {
@@ -937,22 +946,27 @@ export default function CanvasArea() {
     }
     if (curTool === "history-brush" || curTool === "art-history-brush") {
       ctx.restore();
-      historyBrushTo(x, y, curTool === "art-history-brush");
+      historyBrushTo(x, y, curTool === "art-history-brush", aid);
       return;
     }
     if (curTool === "color-replacement") {
       ctx.restore();
-      colorReplaceTo(x, y);
+      colorReplaceTo(x, y, aid);
       return;
     }
     if (curTool === "mixer-brush") {
       ctx.restore();
-      mixerBrushTo(x, y);
+      mixerBrushTo(x, y, aid);
       return;
     }
     if (curTool === "pattern-stamp") {
       ctx.restore();
       patternStampTo(x, y);
+      return;
+    }
+    if (curTool === "overlay-brush") {
+      ctx.restore();
+      overlayBrushTo(x, y, aid);
       return;
     }
     const isPencil = curTool === "pencil";
@@ -971,9 +985,10 @@ export default function CanvasArea() {
   }
 
   // Background Eraser: erase only pixels similar to edge sample.
-  function eraseBackgroundTo(x: number, y: number) {
-    if (!activeLayerId) return;
-    const c = layerManager.ensure(activeLayerId, doc.width, doc.height);
+  function eraseBackgroundTo(x: number, y: number, forceId?: string) {
+    const aid = forceId ?? useEditorStore.getState().activeLayerId ?? activeLayerId;
+    if (!aid) return;
+    const c = layerManager.ensure(aid, doc.width, doc.height);
     const ctx = c.getContext("2d", { willReadFrequently: true })!;
     const r = Math.max(1, brushSize / 2);
     const s = Math.round(r * 2);
@@ -1045,11 +1060,12 @@ export default function CanvasArea() {
 
   // History Brush: paint back from stroke-start snapshot (or last undo entry).
   // Art variant adds hue jitter for a stylized look.
-  function historyBrushTo(x: number, y: number, art: boolean) {
-    if (!activeLayerId) return;
+  function historyBrushTo(x: number, y: number, art: boolean, forceId?: string) {
+    const aid = forceId ?? useEditorStore.getState().activeLayerId ?? activeLayerId;
+    if (!aid) return;
     const src = historySource.current;
     if (!src) return;
-    const c = layerManager.ensure(activeLayerId, doc.width, doc.height);
+    const c = layerManager.ensure(aid, doc.width, doc.height);
     const ctx = c.getContext("2d")!;
     const last = lastPos.current ?? { x, y };
     const r = brushSize / 2;
@@ -1094,9 +1110,10 @@ export default function CanvasArea() {
   }
 
   // Color Replacement: shift hue toward brush color, keep luminance.
-  function colorReplaceTo(x: number, y: number) {
-    if (!activeLayerId) return;
-    const c = layerManager.ensure(activeLayerId, doc.width, doc.height);
+  function colorReplaceTo(x: number, y: number, forceId?: string) {
+    const aid = forceId ?? useEditorStore.getState().activeLayerId ?? activeLayerId;
+    if (!aid) return;
+    const c = layerManager.ensure(aid, doc.width, doc.height);
     const ctx = c.getContext("2d", { willReadFrequently: true })!;
     const last = lastPos.current ?? { x, y };
     const r = Math.max(1, brushSize / 2);
@@ -1131,10 +1148,11 @@ export default function CanvasArea() {
   }
 
   // Mixer Brush: wet mix of canvas color + brush color at 45% strength.
-  function mixerBrushTo(x: number, y: number) {
-    if (!activeLayerId) return;
+  function mixerBrushTo(x: number, y: number, forceId?: string) {
+    const aid = forceId ?? useEditorStore.getState().activeLayerId ?? activeLayerId;
+    if (!aid) return;
     pickSmudgeColor({ x, y });
-    const c = layerManager.ensure(activeLayerId, doc.width, doc.height);
+    const c = layerManager.ensure(aid, doc.width, doc.height);
     const ctx = c.getContext("2d")!;
     const last = lastPos.current ?? { x, y };
     const col = smudgeColor.current ?? brushColor;
@@ -1182,6 +1200,26 @@ export default function CanvasArea() {
       if (!isPointInSelection(px, py)) continue;
       ctx.drawImage(pat, px - s / 2, py - s / 2, s, s);
     }
+    ctx.restore();
+    lastPos.current = { x, y };
+    markDirty();
+  }
+
+  // Overlay Brush (soft light): paint contrast/light with overlay blend.
+  function overlayBrushTo(x: number, y: number, forceId?: string) {
+    const aid = forceId ?? useEditorStore.getState().activeLayerId ?? activeLayerId;
+    if (!aid) return;
+    const st = useEditorStore.getState();
+    const meta = st.layers.find((l) => l.id === aid);
+    if (!meta || meta.locked || !meta.visible) return;
+    const last = lastPos.current ?? { x, y };
+    const c = layerManager.ensure(aid, doc.width, doc.height);
+    const ctx = c.getContext("2d")!;
+    ctx.save();
+    ctx.globalCompositeOperation = "overlay";
+    ctx.globalAlpha = 0.5 * (brushOpacity / 100) + 0.05;
+    const sp = brushSprite(brushSize, 0, brushColor);
+    stampLine(ctx, sp, brushSize, last.x, last.y, x, y, true);
     ctx.restore();
     lastPos.current = { x, y };
     markDirty();
@@ -1944,6 +1982,10 @@ export default function CanvasArea() {
               setCursor(`Source ${Math.round(p.x)}, ${Math.round(p.y)}`);
               return;
             }
+            if (!cloneRef.current && !cloneHintShown.current) {
+              cloneHintShown.current = true;
+              notify("Clone: Alt-click the photo first to set the source, then paint.");
+            }
             const snap = layerManager.snapshot(activeLayerId ?? "");
             if (snap && activeLayerId) {
               pushHistory({ label: "Clone stamp", layerId: activeLayerId, snapshot: snap });
@@ -1960,6 +2002,40 @@ export default function CanvasArea() {
           }
           if (tool === "wand") {
             handleWandClick(p);
+            return;
+          }
+          if (tool === "color-range") {
+            const comp = getCompositeCanvas();
+            if (comp) {
+              try {
+                const ix = Math.max(0, Math.min(comp.width - 1, Math.floor(p.x)));
+                const iy = Math.max(0, Math.min(comp.height - 1, Math.floor(p.y)));
+                const d = comp.getContext("2d", { willReadFrequently: true })!.getImageData(ix, iy, 1, 1).data;
+                const hex = `#${[d[0], d[1], d[2]].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+                const id = comp.getContext("2d", { willReadFrequently: true })!.getImageData(0, 0, comp.width, comp.height);
+                const tol = useProStore.getState().selTolerance;
+                colorRangeSelection(comp.width, comp.height, id, hex, tol);
+                setCursor(`Range ${hex}`);
+                window.dispatchEvent(new Event("avero:selection-changed"));
+              } catch { /* ignore */ }
+            }
+            return;
+          }
+          if (tool === "select-subject") {
+            // Auto subject: wand from image center, then expand + feather.
+            const comp = getCompositeCanvas();
+            if (comp) {
+              try {
+                const id = comp.getContext("2d", { willReadFrequently: true })!.getImageData(0, 0, comp.width, comp.height);
+                const tol = useProStore.getState().selTolerance;
+                wandFromImage(comp.width, comp.height, id, comp.width / 2, comp.height / 2, Math.max(tol, 30));
+                expandContractSelection(3);
+                const feather = useProStore.getState().selFeather;
+                if (feather > 0) featherSelection(feather);
+                setAnts((a) => a + 1);
+                window.dispatchEvent(new Event("avero:selection-changed"));
+              } catch { /* ignore */ }
+            }
             return;
           }
           if (tool === "text" || tool === "text-vertical") {
@@ -2026,9 +2102,32 @@ export default function CanvasArea() {
             distort ||
             isHeal
           ) {
-            const snap = layerManager.snapshot(activeLayerId ?? "");
-            const maskSnap = paintMask ? layerManager.snapshotMask(activeLayerId ?? "") : null;
-            if (snap && activeLayerId) {
+            // Keep scribbles erasable: paint-family strokes on a photo layer go
+            // to a fresh transparent paint layer above it, so the eraser removes
+            // only strokes — never the photo underneath. Erasers intentionally
+            // stay on the active layer (erasing the photo itself is valid work).
+            let strokeLayerId = activeLayerId;
+            if (isBrush && strokeLayerId && layerManager.isPhotoLayer(strokeLayerId)) {
+              const st = useEditorStore.getState();
+              const l = makeLayer(`Paint ${st.layers.length}`);
+              layerManager.ensure(l.id, st.doc.width, st.doc.height);
+              useProStore.getState().ensureTransform(l.id);
+              st.addLayer(l);
+              st.setActiveLayer(l.id);
+              strokeLayerId = l.id;
+              if (!paintLayerToastShown.current) {
+                paintLayerToastShown.current = true;
+                notify("Painting on a new transparent layer — the eraser will only remove your strokes, not the photo.");
+              }
+            }
+            // One-time hint for heal tools (cursor text alone is missed).
+            if (needsHealSource && !healRef.current && !healHintShown.current && !e.altKey) {
+              healHintShown.current = true;
+              notify("Healing: Alt-click a clean area first to set the source, then paint over the spot.");
+            }
+            const snap = layerManager.snapshot(strokeLayerId ?? "");
+            const maskSnap = paintMask ? layerManager.snapshotMask(strokeLayerId ?? "") : null;
+            if (snap && strokeLayerId) {
               const labels: Record<string, string> = {
                 brush: "Brush stroke",
                 eraser: "Eraser",
@@ -2042,7 +2141,7 @@ export default function CanvasArea() {
               };
               pushHistory({
                 label: paintMask ? "Paint mask" : (labels[tool] ?? tool),
-                layerId: activeLayerId,
+                layerId: strokeLayerId,
                 snapshot: snap,
                 maskSnapshot: maskSnap,
               });
@@ -2061,7 +2160,7 @@ export default function CanvasArea() {
             if (tool === "history-brush" || tool === "art-history-brush") {
               historySource.current = snap ?? null;
             }
-            if (isBrush || isEraser) paintTo(p.x, p.y, isEraser);
+            if (isBrush || isEraser) paintTo(p.x, p.y, isEraser, strokeLayerId ?? undefined);
             else if ((tool as string) === "blur-iris") retouchTo(p.x, p.y, "blur-iris");
             else if ((tool as string) === "sharpen-edge") retouchTo(p.x, p.y, "sharpen-edge");
             else if ((tool as string) === "vibrance-brush") retouchTo(p.x, p.y, "vibrance");
@@ -2343,6 +2442,7 @@ export default function CanvasArea() {
                     tool === "art-history-brush" ||
                     tool === "color-replacement" ||
                     tool === "mixer-brush" ||
+                    tool === "overlay-brush" ||
                     tool === "background-eraser" ||
                     tool === "magic-eraser" ||
                     tool === "liquify" ||
@@ -2366,7 +2466,9 @@ export default function CanvasArea() {
                       tool === "wand" ||
                       tool === "select-polygon" ||
                       tool === "quick-select" ||
-                      tool === "object-select"
+                      tool === "object-select" ||
+                      tool === "color-range" ||
+                      tool === "select-subject"
                     ? "crosshair"
                     : tool === "text" || tool === "text-vertical"
                       ? "text"

@@ -118,6 +118,8 @@ export const TOOL_FAMILIES: ToolFamily[] = [
       { id: "object-select", icon: Scan, label: "Object Select", shortcut: "W", description: "Auto rectangular object detection.", usage: "Drag around an object." },
       { id: "quick-select", icon: Wand, label: "Quick Select", shortcut: "W", description: "Brush-based auto selection.", usage: "Paint over the subject." },
       { id: "wand", icon: Wand2, label: "Magic Wand", shortcut: "W", description: "Select similar colors by tolerance.", usage: "Click an area. Tolerance in Select panel." },
+      { id: "color-range", icon: Palette, label: "Color Range", shortcut: "W", description: "Select every pixel similar to the clicked color.", usage: "Click a color. Tolerance in options bar." },
+      { id: "select-subject", icon: Focus, label: "Select Subject", shortcut: "W", description: "One-click auto subject selection.", usage: "Click anywhere on the subject." },
     ],
   },
   {
@@ -161,6 +163,7 @@ export const TOOL_FAMILIES: ToolFamily[] = [
       { id: "soft-brush", icon: Paintbrush, label: "Soft Brush", shortcut: "B", description: "Extra-large feather for blending.", usage: "Blend and soften." },
       { id: "color-replacement", icon: Pipette, label: "Color Replacement", shortcut: "B", description: "Replace hue while keeping luminance.", usage: "Paint over target color." },
       { id: "mixer-brush", icon: Paintbrush, label: "Mixer Brush", shortcut: "B", description: "Wet oil-paint color mixing.", usage: "Paint to mix wet colors." },
+      { id: "overlay-brush", icon: Blend, label: "Overlay Brush", shortcut: "B", description: "Paint contrast and light with overlay blend.", usage: "Paint for soft-light glow." },
     ],
   },
   {

@@ -130,7 +130,32 @@ export function drawLassoSelection(w: number, h: number, points: { x: number; y:
   markSelectionDirty();
 }
 
-// Magic wand: flood fill pada composite ImageData dengan tolerance.
+// Color Range: select ALL pixels similar to a hex color (global, not flood).
+export function colorRangeSelection(w: number, h: number, img: ImageData, hex: string, tolerance: number) {
+  const c = ensureSel(w, h);
+  const ctx = c.getContext("2d")!;
+  ctx.clearRect(0, 0, w, h);
+  const r0 = parseInt(hex.slice(1, 3), 16);
+  const g0 = parseInt(hex.slice(3, 5), 16);
+  const b0 = parseInt(hex.slice(5, 7), 16);
+  const tol = Math.round((tolerance / 100) * 160);
+  const data = img.data;
+  const out = ctx.createImageData(w, h);
+  for (let p = 0; p < w * h; p++) {
+    const idx = p * 4;
+    const dist = (Math.abs(data[idx] - r0) + Math.abs(data[idx + 1] - g0) + Math.abs(data[idx + 2] - b0)) / 3;
+    if (dist <= tol) {
+      out.data[idx] = 255;
+      out.data[idx + 1] = 255;
+      out.data[idx + 2] = 255;
+      out.data[idx + 3] = 255;
+    }
+  }
+  ctx.putImageData(out, 0, 0);
+  markSelectionDirty();
+}
+
+// Magic wand: flood fill on composite ImageData with tolerance.
 export function wandFromImage(
   w: number,
   h: number,

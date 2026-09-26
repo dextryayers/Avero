@@ -19,6 +19,10 @@ function pooledCanvas(w: number, h: number, slot: "out" | "mask"): HTMLCanvasEle
 class LayerManager {
   private canvases = new Map<string, HTMLCanvasElement>();
   private masks = new Map<string, HTMLCanvasElement>();
+  // Layers that hold an opened photo (drawImageToLayer). Brush strokes on a
+  // photo layer would merge with pixels so the eraser could never remove only
+  // the scribble — CanvasArea auto-creates a transparent paint layer instead.
+  private photoLayers = new Set<string>();
 
   ensure(id: string, w: number, h: number): HTMLCanvasElement {
     let c = this.canvases.get(id);
@@ -46,11 +50,13 @@ class LayerManager {
   remove(id: string) {
     this.canvases.delete(id);
     this.masks.delete(id);
+    this.photoLayers.delete(id);
   }
 
   clear() {
     this.canvases.clear();
     this.masks.clear();
+    this.photoLayers.clear();
   }
 
   // Fase 2.2: mask bitmap per layer, putih = tampil, hitam = sembunyi
@@ -168,6 +174,11 @@ class LayerManager {
     const ctx = c.getContext("2d")!;
     ctx.clearRect(0, 0, c.width, c.height);
     ctx.drawImage(img, 0, 0, dw, dh);
+    this.photoLayers.add(id);
+  }
+
+  isPhotoLayer(id: string): boolean {
+    return this.photoLayers.has(id);
   }
 
   fillChecker(id: string) {

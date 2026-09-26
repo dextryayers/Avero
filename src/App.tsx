@@ -34,6 +34,7 @@ import { useHomeStore } from "./stores/useHomeStore";
 import { layerManager } from "./engine/layerManager";
 import { clearSelectionMask } from "./engine/selection";
 import { loadRecovery, saveRecovery, clearRecovery } from "./engine/recovery";
+import { doUndo, doRedo } from "./engine/historyOps";
 
 export default function App() {
   const [palette, setPalette] = useState(false);
@@ -132,19 +133,13 @@ export default function App() {
       if (mod && e.key.toLowerCase() === "z" && !e.shiftKey) {
         e.preventDefault();
         if (inInput) return;
-        const entry = useEditorStore.getState().undoMeta();
-        if (entry) {
-          layerManager.restore(entry.layerId, entry.snapshot);
-          if (entry.maskSnapshot) layerManager.restoreMask(entry.layerId, entry.maskSnapshot);
-          useEditorStore.getState().markDirty();
-          useProStore.getState().bumpHistogram();
-        }
+        doUndo();
         return;
       }
       if ((mod && e.key.toLowerCase() === "y") || (mod && e.shiftKey && e.key.toLowerCase() === "z")) {
         e.preventDefault();
         if (inInput) return;
-        useEditorStore.getState().redoMeta();
+        doRedo();
         return;
       }
       if (mod && e.key.toLowerCase() === "a" && !inInput) {

@@ -66,11 +66,10 @@ export default function QuickExportBar({ onOpenExport }: { onOpenExport: () => v
   }
 
   return (
-    <div className="flex shrink-0 items-center gap-1.5 border-b border-[#2c2c31] bg-[#1c1c1f]/90 px-2 py-1.5 backdrop-blur">
+    <div className="flex shrink-0 items-center gap-1.5 border-l border-[#2c2c31] px-2 py-1">
       <span className="hidden items-center gap-1 font-mono text-[10px] text-[#6e6e78] md:flex">
         <Layers size={11} /> Ekspor
       </span>
-
       <div className="flex items-center gap-1">
         <button
           onClick={() => quickSaveAvx(false)}
@@ -133,7 +132,7 @@ export default function QuickExportBar({ onOpenExport }: { onOpenExport: () => v
         </button>
       </div>
 
-      <span className="ml-auto hidden items-center gap-1 font-mono text-[10px] text-[#6e6e78] lg:flex">
+      <span className="ml-auto hidden shrink-0 items-center gap-1 font-mono text-[10px] text-[#6e6e78] lg:flex">
         <span className="h-1 w-1 rounded-full bg-[#7ad69e]" /> {doc.width}x{doc.height} • {doc.dirty ? "belum disimpan" : "tersimpan"}
       </span>
     </div>

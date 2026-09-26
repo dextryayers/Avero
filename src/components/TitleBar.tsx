@@ -160,6 +160,7 @@ const MENUS: Record<string, { label: string; hint?: string; action: string }[]> 
     { label: "Workspace Photo", hint: "", action: "ws-photo" },
     { label: "Workspace Design", hint: "", action: "ws-design" },
     { label: "Workspace Minimal", hint: "", action: "ws-minimal" },
+    { label: "Node Graph", hint: "", action: "nodegraph" },
     { label: "Tampilkan Onboarding", hint: "", action: "onboarding" },
   ],
   Help: [
@@ -340,6 +341,12 @@ export default function TitleBar({
         break;
       case "guides":
         pro.toggleGuides();
+        break;
+      case "nodegraph":
+        import("../stores/useNodeStore").then(({ useNodeStore }) => {
+          useNodeStore.getState().toggle();
+          if (useNodeStore.getState().enabled) useNodeStore.getState().autoFromStack();
+        });
         break;
       case "add-layer": {
         import("../stores/useEditorStore").then(({ makeLayer }) => {

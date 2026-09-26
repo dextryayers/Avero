@@ -25,20 +25,7 @@ export default function NodeGraph() {
   const [drag, setDrag] = useState<{ id: string; dx: number; dy: number } | null>(null);
 
   if (!enabled) {
-    return (
-      <div className="border-b border-[#2c2c31] bg-[#1c1c1f] px-3 py-1.5 text-[11px] text-[#a7a7b0]">
-        Node graph nonaktif. Layer stack dipakai.
-        <button
-          onClick={() => {
-            toggle();
-            autoFromStack();
-          }}
-          className="ml-2 rounded bg-[#5a5a64] px-2 py-0.5 text-white"
-        >
-          Aktifkan node view
-        </button>
-      </div>
-    );
+    return null;
   }
 
   return (

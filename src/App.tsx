@@ -373,8 +373,12 @@ export default function App() {
         onOpenExport={() => setExportOpen(true)}
         onHome={() => setHome(true)}
       />
-      <WorkspaceBar />
-      {!homeOpen && <QuickExportBar onOpenExport={() => setExportOpen(true)} />}
+      {!homeOpen && (
+        <div className="flex shrink-0 items-center border-b border-[#2c2c31] bg-[#161618]">
+          <WorkspaceBar />
+          <QuickExportBar onOpenExport={() => setExportOpen(true)} />
+        </div>
+      )}
       {!homeOpen && <PsdInfo />}
       {!homeOpen && <NodeGraph />}
       {recovery && !homeOpen && (

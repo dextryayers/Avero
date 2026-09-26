@@ -14,7 +14,7 @@ export default function WorkspaceBar() {
   const setWorkspace = useWorkspaceStore((s) => s.setWorkspace);
 
   return (
-    <div className="flex shrink-0 items-center gap-1.5 border-b border-[#2c2c31] bg-[#161618]/80 px-3 py-1.5 text-[11px] backdrop-blur">
+    <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto px-3 py-1.5 text-[11px]">
       <span className="mr-2 hidden items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-[#6e6e78] sm:flex">
         <span className="h-1.5 w-1.5 rounded-full bg-[#2f7cf6]" /> Workspace
       </span>
@@ -35,9 +35,6 @@ export default function WorkspaceBar() {
           </button>
         );
       })}
-      <span className="ml-auto hidden items-center gap-1 font-mono text-[10px] text-[#6e6e78] md:flex">
-        <span className="h-1 w-1 rounded-full bg-[#7ad69e]" /> Tersimpan lokal • Retouch / Photo / Design / Minimal
-      </span>
     </div>
   );
 }

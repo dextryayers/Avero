@@ -4,7 +4,7 @@ import { useEditorStore, type LayerMeta } from "../stores/useEditorStore";
 import { useProStore } from "../stores/useProStore";
 import { useHomeStore } from "../stores/useHomeStore";
 import { layerManager } from "../engine/layerManager";
-import { clearSelectionMask } from "../engine/selection";
+import { clearSelectionMask, hasSelection, selectionMaskCanvas, restoreSelectionMask } from "../engine/selection";
 import { getCompositeCanvas } from "../components/CanvasArea";
 
 export const AVX_MAGIC = "AVX1";
@@ -97,7 +97,7 @@ interface AvxLayer {
   maskPixels: string | null;
 }
 
-interface AvxFile {
+export interface AvxFile {
   magic: string;
   version: number;
   app: string;
@@ -117,6 +117,7 @@ interface AvxFile {
   gridSize: number;
   color: unknown;
   raw: unknown;
+  selPixels?: string | null;
   ui?: {
     selKind?: string;
     selFeather?: number;
@@ -132,6 +133,23 @@ interface AvxFile {
 
 export function getProjectPath(): string | null {
   return useEditorStore.getState().doc.projectPath ?? null;
+}
+
+// Validasi isi .avx secara murni tanpa menyentuh store. Melempar Error bila tidak sah.
+export function parseAvxJson(json: string): AvxFile {
+  let file: AvxFile;
+  try {
+    file = JSON.parse(json) as AvxFile;
+  } catch {
+    throw new Error("File bukan proyek .avx yang valid");
+  }
+  if (file.magic !== AVX_MAGIC) throw new Error("File bukan proyek .avx yang valid");
+  if (file.version > AVX_VERSION) throw new Error("Proyek dibuat versi AVERO yang lebih baru");
+  if (!file.doc || typeof file.doc.width !== "number" || typeof file.doc.height !== "number") {
+    throw new Error("File bukan proyek .avx yang valid (data dokumen hilang)");
+  }
+  if (!Array.isArray(file.layers)) throw new Error("File bukan proyek .avx yang valid (data layer hilang)");
+  return file;
 }
 
 // Simpan seluruh proyek ke .avx. Jika saveAs false dan sudah ada path, tulis langsung.
@@ -169,6 +187,14 @@ export async function saveAvxProject(saveAs = false): Promise<string | null> {
   });
   const active = ed.layers.find((l) => l.id === ed.activeLayerId) ?? null;
 
+  let selPixels: string | null = null;
+  try {
+    const sc = selectionMaskCanvas();
+    if (sc && hasSelection()) selPixels = sc.toDataURL("image/png");
+  } catch {
+    selPixels = null;
+  }
+
   const file: AvxFile = {
     magic: AVX_MAGIC,
     version: AVX_VERSION,
@@ -189,6 +215,7 @@ export async function saveAvxProject(saveAs = false): Promise<string | null> {
     gridSize: pro.gridSize,
     color: pro.color,
     raw: pro.raw,
+    selPixels,
     ui: {
       selKind: pro.selKind,
       selFeather: pro.selFeather,
@@ -280,18 +307,7 @@ export async function openAvxProject(fromPath?: string): Promise<boolean> {
     path = null;
   }
 
-  let file: AvxFile;
-  try {
-    file = JSON.parse(json) as AvxFile;
-  } catch {
-    throw new Error("File bukan proyek .avx yang valid");
-  }
-  if (file.magic !== AVX_MAGIC) throw new Error("File bukan proyek .avx yang valid");
-  if (file.version > AVX_VERSION) throw new Error("Proyek dibuat versi AVERO yang lebih baru");
-  if (!file.doc || typeof file.doc.width !== "number" || typeof file.doc.height !== "number") {
-    throw new Error("File bukan proyek .avx yang valid (data dokumen hilang)");
-  }
-  if (!Array.isArray(file.layers)) throw new Error("File bukan proyek .avx yang valid (data layer hilang)");
+  const file = parseAvxJson(json);
 
   const ed = useEditorStore.getState();
   const pro = useProStore.getState();
@@ -350,6 +366,16 @@ export async function openAvxProject(fromPath?: string): Promise<boolean> {
       }
     }
     void i;
+  }
+
+  // Pulihkan mask seleksi aktif bila tersimpan
+  if (file.selPixels) {
+    try {
+      const simg = await loadImage(file.selPixels);
+      restoreSelectionMask(W, H, simg);
+    } catch {
+      clearSelectionMask();
+    }
   }
 
   // Kembalikan state non-destruktif dengan id layer baru

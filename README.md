@@ -67,9 +67,9 @@ Fokus utama: layer dan mask non destruktif, adjustment dan filter stack, color m
 
 ### Editor Studio
 
-- TitleBar sticky `backdrop-blur` dengan menu File/Edit/Image/Layer/Select/Filter/Adjust/View/Help pill `rounded-full`, search `Ctrl+K`, dan status `C 2.0.0 • C++ 2.0.0 • Rust 0.1.0`.
+- TitleBar sticky `backdrop-blur` dengan menu File/Edit/Image/Layer/Select/Filter/Adjust/View/Help pill `rounded-full`, search `Ctrl+K`, dan status `C 2.0.0 ï¿½ C++ 2.0.0 ï¿½ Rust 0.1.0`.
 - WorkspaceBar pill `Retouch/Photo/Design/Minimal` dengan icon.
-- QuickExportBar di atas canvas: tombol `.avx` primary + dropdown Simpan/Simpan Sebagai/Buka, tombol `Export` + 6 format cepat `PNG/JPG/WEBP/BMP/TIFF/SVG`, info `WxH • belum/tersimpan`.
+- QuickExportBar di atas canvas: tombol `.avx` primary + dropdown Simpan/Simpan Sebagai/Buka, tombol `Export` + 6 format cepat `PNG/JPG/WEBP/BMP/TIFF/SVG`, info `WxH ï¿½ belum/tersimpan`.
 - ToolBar kiri `w-[56px]` 60 tools dalam 5 grup `Pilih/Retouch/Cat/Vektor/Navigasi` scrollable, dot aktif `bg-[#8fb6f5]`.
 - RightPanel 300px tab dengan icon `Layers/Select/Mask/Adjust/Filter/Lab/Text/Color/RAW...` dan badge count untuk Adjust/Filter/History.
 - Canvas tengah dengan checkerboard transparansi dan shadow, rulers dan guides dapat toggle.
@@ -83,7 +83,7 @@ Fokus utama: layer dan mask non destruktif, adjustment dan filter stack, color m
 - **Retouch Lengkap**: spot heal, healing brush, patch, content-aware move, red eye, clone stamp dengan Alt+klik sumber, blur/sharpen/smudge, dodge/burn/sponge, liquify/warp, pencill dan mixer brush.
 - **Adjustment Non Destruktif JS**: brightness/contrast, levels, curves, exposure, HSL, vibrance, color balance, selective color, shadows/highlights, photo filter, channel mixer, gradient map, LUT, black/white, invert, threshold, posterize. Stack dapat reorder, toggle, opacity.
 - **Filter Non Destruktif JS**: gaussian/box/motion blur, sharpen/unsharp/high pass, denoise/noise/grain, vignette, tiltShift, halftone, oilPaint, chroma, pixelate, emboss, findEdges.
-- **Native Engine C/C++**: 23 ops C dan 20 filter C++ yang sangat ringan RAM, dipanggil via Rust FFI. Lihat bagian engine.
+- **Native Engine C/C++**: 23 ops C dan 23 filter C++ yang sangat ringan RAM, dipanggil via Rust FFI. Lihat bagian engine.
 - **Color dan RAW**: working space sRGB/AdobeRGB/ProPhoto, bit depth 8/16, soft proof CMYK, RAW develop exposure/temperature/tint/highlights/shadows.
 - **Proyek .avx Utuh**: simpan seluruh dokumen ke JSON `AVX1` dan buka kembali 100% sama termasuk thumb untuk recent.
 - **Export Fleksibel**: PNG lossless, JPG/JPEG dengan quality dan matte, WEBP modern, BMP tanpa kompresi, TIFF cetak, SVG pembungkus raster.
@@ -103,17 +103,18 @@ In place RGBA8, len harus kelipatan 4. Hanya butuh LUT 256 atau histogram 1KB, t
 
 Semua fungsi `avero_c_*` di `image_ops.c` memakai `clamp_u8` dan loop `i+=4`, build dengan `cc -O3` di `build.rs`.
 
-### C++ Filters v2 - 20 Filters Tiled `src-tauri/native/filters.hpp`
+### C++ Filters v2 - 23 Filters Tiled `src-tauri/native/filters.hpp`
 
 Wrapper `extern "C"` agar link stabil dari Rust. Dua pass src->dst.
 
 - Basis 16: `box_blur` separable, `sharpen` kernel 3x3, `unsharp` (box + mask), `emboss`, `motion_blur` (angle), `gaussian` (sigma, kernel 3*sigma), `median` (nth_element), `sobel`, `vignette` (radial), `chroma` (geser R/B), `grain` (mt19937), `halftone` (dot), `tilt_shift` (focusY/H), `oil_paint` (kuantisasi), `find_edges` (invert sobel), `pixelate`.
 - Ringan tiled 4: `box_blur_light`, `gaussian_light`, `bilateral_light` (edge preserving, radius 1..4, sigma 5..100), `unsharp_light`. Tile 512, overhead hanya 2 scanline buffer (<64KB) dibanding full duplicate `w*h*4`. Untuk 8K 8192x5464: Full ~537MB, Light ~273MB hemat ~264MB.
+- Morfologi dan distorsi: `minimize` dan `maximize` (radius 1..8) untuk bersihkan noda, `swirl` (pusat dokumen, radius dan kekuatan derajat, interpolasi bilinear).
 
 ### Rust Orchestrator `src-tauri/src/native.rs`
 
 - `extern "C"` FFI ke C dan C++, helper `cstr_to_string`, `check_rgba`, `check_wh`.
-- Enum `NativeOp` 23 varian dan `NativeFilterOp` 20 varian dengan `serde(renameAll="camelCase")` dan `allow(non_snake_case)` untuk `hueDeg/focusY`.
+- Enum `NativeOp` 23 varian dan `NativeFilterOp` 23 varian dengan `serde(renameAll="camelCase")` dan `allow(non_snake_case)` untuk `hueDeg/focusY`.
 - Command: `cmd_native_info` (versi C 2.0.0, C++ 2.0.0, Rust 0.1.0, features), `cmd_native_apply_op` (in place), `cmd_native_apply_filter` (dua pass), `cmd_native_histogram` (rayon fold+reduce 256 bins), `cmd_native_stats` (mean/std/min/max rayon), `cmd_native_pipeline` (ops C lalu filter C++ ping-pong 2 buffer), `cmd_native_pipeline_light` (remap ke light), `cmd_native_memory_budget` (per layer, total, light saving, rekomendasi), `cmd_native_benchmark` (MP/s).
 - Pipeline hemat RAM: hanya 2 `Vec<u8>` ping-pong, tidak ada alokasi per filter selain dst. Tile pipeline di TS memecah canvas besar jadi tile 512 dan yield tiap 8 tile.
 
@@ -193,8 +194,8 @@ Menu `TitleBar.tsx:11` juga memicu via `window.dispatchEvent(new CustomEvent("av
 
 Magic `AVX1`, version `1`, JSON di `src/io/projectIo.ts:10`.
 
-- Disimpan: `doc {name,width,height}`, `layers` dengan `meta` + `pixels` (PNG dataURL) + `maskPixels`, `activeLayerName`, `adjustments`, `filters`, `masks`, `transforms`, `textSpecs`, `shapeSpecs`, `guidesH/V`, `showGrid/gridSize`, `color`, `raw`.
-- `saveAvxProject(saveAs)` di `projectIo.ts:113` pilih path via `plugin-dialog` save filter `avx`, tulis via `plugin-fs writeTextFile` atau fallback blob `a.click()` untuk web, set `doc.projectPath` dan `dirty:false`, buat thumb via `getCompositeCanvas` + `thumbOf` lalu `pushRecent` dengan thumb.
+- Disimpan: `doc {name,width,height}`, `layers` dengan `meta` + `pixels` (PNG dataURL) + `maskPixels`, `activeLayerName`, `adjustments`, `filters`, `masks`, `transforms`, `textSpecs`, `shapeSpecs`, `guidesH/V`, `showGrid/gridSize`, `color`, `raw`, `selPixels` (mask seleksi aktif), `ui` (seleksi, paint mask, gradTo, snap, brush).
+- `saveAvxProject(saveAs)` di `projectIo.ts` pilih path via `plugin-dialog` save filter `avx`, tulis dan baca lewat command inti `cmd_write_text_file`/`cmd_read_text_file` (tanpa batas scope), atau fallback blob `a.click()` untuk web, set `doc.projectPath` dan `dirty:false`, buat thumb via `getCompositeCanvas` + `thumbOf` lalu `pushRecent` dengan thumb. Recent `.avx` dibuka langsung sebagai proyek lewat `openAvxProject(path)`.
 - `openAvxProject(fromPath?)` di `projectIo.ts:199` baca via `readTextFile` atau input file web, parse JSON, validasi magic dan version, `layerManager.clear()` dan `clearSelectionMask`, remap id layer baru, `openDocument` + `setState` layers/history, `ensure` canvas per layer dan `drawImage` untuk pixels dan mask, `setState` pro store dengan remap `masks/transforms/textSpecs/shapeSpecs`, push recent dengan thumb, `setHome(false)`.
 - Shortcut `Ctrl+S` dan `Ctrl+Shift+S`, menu File `Simpan Proyek` dan `Simpan Proyek Sebagai`, serta tombol `QuickExportBar` `.avx` primary.
 
@@ -232,28 +233,28 @@ Recent `src/stores/useHomeStore.ts` menyimpan `RecentFile {id,name,path,thumb,fu
 ```
 AVERO STUDIO
 +- src/
-¦  +- App.tsx               # shell, shortcut global, autosave recovery, palette, export
-¦  +- components/
-¦  ¦  +- BootSplash.tsx      # full bg img/1.jpg + img/2.jpg, kiri teks+bar, kanan logo
-¦  ¦  +- HomeScreen.tsx      # hero, search, kategori, preset 6 cat, recent grid, new dialog
-¦  ¦  +- TitleBar.tsx        # MENUS 8 kategori >80 aksi, runAction, openPath
-¦  ¦  +- ToolBar.tsx         # 60 tools 5 grup, active dot
-¦  ¦  +- ToolOptionsBar.tsx  # hint kontekstual + size/str
-¦  ¦  +- CanvasArea.tsx      # 1562 baris, pan/zoom/move/paint/mask/selection/shape
-¦  ¦  +- RightPanel.tsx      # 15 tab dengan icon, Adjust/Filter/Lab/History badge
-¦  ¦  +- AdjustPanel.tsx     # Native C 23 ops + JS stack
-¦  ¦  +- FilterPanel.tsx     # Native C++ 20 filters + JS stack
-¦  ¦  +- NativeLabPanel.tsx  # memory budget, lab info
-¦  ¦  +- StatusBar.tsx       # zoom, rulers, grid, snap, heap, Stats/Bench, C/C++/Rust badge
-¦  ¦  +- QuickExportBar.tsx  # .avx + 6 format cepat
-¦  ¦  +- ExportDialog.tsx    # dialog export lengkap
-¦  ¦  +- ...
-¦  +- stores/                # useEditorStore (ToolId 60), useProStore (adjust/filter), useWorkspaceStore, useHomeStore
-¦  +- engine/                # layerManager, selection, adjustments, filters, color, textShape, tiledRenderer
-¦  +- io/                    # projectIo (.avx), tauriIo, nativeEngine, memoryManager
+ï¿½  +- App.tsx               # shell, shortcut global, autosave recovery, palette, export
+ï¿½  +- components/
+ï¿½  ï¿½  +- BootSplash.tsx      # full bg img/1.jpg + img/2.jpg, kiri teks+bar, kanan logo
+ï¿½  ï¿½  +- HomeScreen.tsx      # hero, search, kategori, preset 6 cat, recent grid, new dialog
+ï¿½  ï¿½  +- TitleBar.tsx        # MENUS 8 kategori >80 aksi, runAction, openPath
+ï¿½  ï¿½  +- ToolBar.tsx         # 60 tools 5 grup, active dot
+ï¿½  ï¿½  +- ToolOptionsBar.tsx  # hint kontekstual + size/str
+ï¿½  ï¿½  +- CanvasArea.tsx      # 1562 baris, pan/zoom/move/paint/mask/selection/shape
+ï¿½  ï¿½  +- RightPanel.tsx      # 15 tab dengan icon, Adjust/Filter/Lab/History badge
+ï¿½  ï¿½  +- AdjustPanel.tsx     # Native C 23 ops + JS stack
+ï¿½  ï¿½  +- FilterPanel.tsx     # Native C++ 23 filters + JS stack
+ï¿½  ï¿½  +- NativeLabPanel.tsx  # memory budget, lab info
+ï¿½  ï¿½  +- StatusBar.tsx       # zoom, rulers, grid, snap, heap, Stats/Bench, C/C++/Rust badge
+ï¿½  ï¿½  +- QuickExportBar.tsx  # .avx + 6 format cepat
+ï¿½  ï¿½  +- ExportDialog.tsx    # dialog export lengkap
+ï¿½  ï¿½  +- ...
+ï¿½  +- stores/                # useEditorStore (ToolId 60), useProStore (adjust/filter), useWorkspaceStore, useHomeStore
+ï¿½  +- engine/                # layerManager, selection, adjustments, filters, color, textShape, tiledRenderer
+ï¿½  +- io/                    # projectIo (.avx), tauriIo, nativeEngine, memoryManager
 +- src-tauri/
    +- native/image_ops.h/.c       # 23 ops
-   +- native/filters.hpp/.cpp     # 20 filters
+   +- native/filters.hpp/.cpp     # 23 filters
    +- src/lib.rs                  # Tauri builder + 7 native commands
    +- src/native.rs               # FFI + pipeline + rayon
    +- src/io.rs / pro.rs / commands.rs
@@ -271,7 +272,7 @@ AVERO STUDIO
 - **TS tiledRenderer**: `tiledPipelineCanvas` pecah canvas jadi tile 512, `nativePipelineLight` per tile, `yield` tiap 8 tile agar UI tetap responsif.
 - Contoh 8K 8192x5464: Full 537MB, Light 273MB hemat 264MB. 4K 3840x2160 per layer 33MB, Full 34MB, Light 1MB.
 
-StatusBar menampilkan `MP: 12.3MB heap` dan chip `C 2.0.0 • C++ 2.0.0 • Rust 0.1.0`, tombol `Stats` (mean/std rayon) dan `Bench` (MP/s).
+StatusBar menampilkan `MP: 12.3MB heap` dan chip `C 2.0.0 ï¿½ C++ 2.0.0 ï¿½ Rust 0.1.0`, tombol `Stats` (mean/std rayon) dan `Bench` (MP/s).
 
 ---
 
@@ -384,5 +385,5 @@ MIT. Lihat `LICENSE` jika ada. Aset logo dan gambar di `public/img` milik proyek
 <p align="center">
   <img src="public/logo.png" alt="AVERO" width="64" height="64" style="border-radius: 12px;" />
   <br/>
-  <sub>AVERO STUDIO v2.0.0 - C • C++ • Rust • TypeScript - ringan RAM, tiled pipeline, .avx utuh.</sub>
+  <sub>AVERO STUDIO v2.0.0 - C ï¿½ C++ ï¿½ Rust ï¿½ TypeScript - ringan RAM, tiled pipeline, .avx utuh.</sub>
 </p>

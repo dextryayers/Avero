@@ -167,3 +167,33 @@ pub fn cmd_save_dataurl_to_file(data_url: String, path: String) -> Result<(), St
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn text_file_roundtrip_avx() {
+        let dir = std::env::temp_dir().join("avero-avx-io-test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("uji-roundtrip.avx");
+        let payload = "{\"magic\":\"AVX1\",\"version\":1}";
+        cmd_write_text_file(path.to_string_lossy().into(), payload.into()).unwrap();
+        let back = cmd_read_text_file(path.to_string_lossy().into()).unwrap();
+        assert_eq!(back, payload);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn text_file_rejects_unknown_extension() {
+        assert!(cmd_write_text_file("uji.exe".into(), "x".into()).is_err());
+        assert!(cmd_read_text_file("uji.exe".into()).is_err());
+        assert!(cmd_write_text_file("".into(), "x".into()).is_err());
+    }
+
+    #[test]
+    fn text_file_read_missing_file_fails() {
+        let path = std::env::temp_dir().join("avero-tidak-ada.avx");
+        assert!(cmd_read_text_file(path.to_string_lossy().into()).is_err());
+    }
+}

@@ -1,9 +1,8 @@
 import { useMemo, useState } from "react";
 import { Download, X } from "lucide-react";
 import { save } from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { useEditorStore } from "../stores/useEditorStore";
-import { exportDataUrl, type ExportFormat } from "../io/projectIo";
+import { exportDataUrl, writeTextFile, type ExportFormat } from "../io/projectIo";
 import { rustSaveDataUrl } from "../io/tauriIo";
 import clsx from "clsx";
 

@@ -39,7 +39,7 @@ export default function QuickExportBar({ onOpenExport }: { onOpenExport: () => v
       if ("__TAURI__" in window) {
         const { save } = await import("@tauri-apps/plugin-dialog");
         const { rustSaveDataUrl } = await import("../io/tauriIo");
-        const { writeTextFile } = await import("@tauri-apps/plugin-fs");
+        const { writeTextFile } = await import("../io/projectIo");
         const path = await save({ defaultPath: `${doc.name.replace(/\.[^.]+$/, "")}.${ext}`, filters: [{ name: ext.toUpperCase(), extensions: [ext] }] });
         if (!path) return;
         if (f === "svg") {

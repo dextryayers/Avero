@@ -124,7 +124,7 @@ export default function PluginPanel() {
       </div>
       {log && <div className="rounded bg-[#1c1c1f] p-2 text-[11px] text-[#c9c9d1]">{log}</div>}
       <p className="text-[10px] text-[#a7a7b0]">
-        SDK Python via PyO3 dan WASM sandbox masuk trek 1.0. API JS stabil: d, params, W, H.
+        API plugin stabil: draw, params, lebar, tinggi. Ekstensi plugin lain menyusul di rilis berikutnya.
       </p>
     </div>
   );

@@ -43,11 +43,11 @@ export default function App() {
 
   useEffect(() => {
     const s = useEditorStore.getState();
-    if (s.layers.length > 0 && !s.activeLayerId) {
-      useEditorStore.setState({ activeLayerId: s.layers[0].id });
+    if (s.layers.length > 0) {
+      if (!s.activeLayerId) useEditorStore.setState({ activeLayerId: s.layers[0].id });
+      layerManager.ensure(s.layers[0].id, s.doc.width, s.doc.height);
+      useProStore.getState().ensureTransform(s.layers[0].id);
     }
-    layerManager.ensure(s.layers[0].id, s.doc.width, s.doc.height);
-    useProStore.getState().ensureTransform(s.layers[0].id);
     setRecovery(loadRecovery());
   }, []);
 

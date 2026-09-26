@@ -26,7 +26,7 @@ export type NativeOp =
   | { op: "channelSwap"; mode: number }
   | { op: "alphaPremultiply" };
 
-// --- 20 filter studio ---
+  // --- 23 filter studio ---
 export type NativeFilterOp =
   | { op: "boxBlur"; radius: number }
   | { op: "sharpen"; amount: number }

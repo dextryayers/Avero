@@ -84,6 +84,7 @@ export const useHomeStore = create<HomeState>((set, get) => ({
 export async function resolveRecent(r: RecentFile): Promise<{ dataUrl: string; w: number; h: number } | null> {
   if (r.full) return { dataUrl: r.full, w: r.w, h: r.h };
   if (r.path) {
+    if (r.path.toLowerCase().endsWith(".avx")) return null;
     const { rustDecodeToDataUrl, rustImageInfo } = await import("../io/tauriIo");
     const info = await rustImageInfo(r.path);
     const dataUrl = await rustDecodeToDataUrl(r.path, 2048);

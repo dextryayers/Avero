@@ -67,7 +67,7 @@ export default function NativeLabPanel() {
         <div className="text-[11px] font-semibold text-white">Kesiapan Studio</div>
         <div className="mt-1 space-y-1 font-mono text-[10px] text-[#6e6e78]">
           <div>Penyesuaian: 23 operasi siap pakai</div>
-          <div>Filter: 20 filter siap pakai</div>
+          <div>Filter: 23 filter siap pakai</div>
           <div>Analisis: histogram, statistik, tolok ukur</div>
           <div>Integrasi: antrean proses, ubin, manajemen memori</div>
         </div>

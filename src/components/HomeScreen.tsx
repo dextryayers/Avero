@@ -171,6 +171,11 @@ export default function HomeScreen() {
     if (busy) return;
     setBusy(r.id);
     try {
+      if (r.path && r.path.toLowerCase().endsWith(".avx")) {
+        const ok = await openAvxProject(r.path);
+        if (!ok) alert("Proyek tidak bisa dibuka.");
+        return;
+      }
       const res = await resolveRecent(r);
       if (!res) {
         alert("File sesi ini sudah tidak tersedia. Buka ulang dari disk.");

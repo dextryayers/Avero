@@ -37,6 +37,14 @@ export function selectionMaskCanvas(): HTMLCanvasElement | null {
   return selCanvas;
 }
 
+// Pulihkan mask seleksi dari gambar (dipakai saat membuka proyek .avx).
+export function restoreSelectionMask(w: number, h: number, img: CanvasImageSource) {
+  const c = ensureSel(w, h);
+  const ctx = c.getContext("2d")!;
+  ctx.clearRect(0, 0, w, h);
+  ctx.drawImage(img, 0, 0, w, h);
+}
+
 export function hasSelection(): boolean {
   if (!selCanvas) return false;
   // cek cepat via alpha sampling tiap 8px agar murah

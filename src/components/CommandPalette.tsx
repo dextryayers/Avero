@@ -384,7 +384,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
       { id: "crop-tool", title: "Tool crop (C)", run: () => s.setTool("crop") },
       { id: "eyedropper", title: "Tool eyedropper (I)", run: () => s.setTool("eyedropper") },
       { id: "shape-rect", title: "Tool rectangle shape (U)", run: () => s.setTool("shape-rect") },
-      { id: "about", title: "About AVERO STUDIO", run: () => alert("AVERO STUDIO v2.0.0. Offline, non-destruktif, open source.") },
+      { id: "about", title: "About AVERO STUDIO", run: () => alert("AVERO STUDIO v2.0.0. Offline, non-destructive, open source.") },
       {
         id: "native-info",
         title: "Studio processing readiness info",

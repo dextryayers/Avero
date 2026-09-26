@@ -33,7 +33,7 @@ export default function NodeGraph() {
       <div className="flex items-center gap-1.5 px-3 py-1.5 text-[11px]">
         <span className="font-semibold text-white">Node graph</span>
         <span className="text-[#a7a7b0]">
-          {nodes.length} nodes • {edges.length} links • auto-convert dari stack
+          {nodes.length} nodes • {edges.length} links • auto-converted from stack
         </span>
         <button
           onClick={autoFromStack}
@@ -58,11 +58,11 @@ export default function NodeGraph() {
             onClick={() => removeNode(selected)}
             className="rounded bg-[#5a1f1f] px-2 py-0.5 text-white"
           >
-            Hapus node
+            Delete node
           </button>
         )}
         <button onClick={toggle} className="ml-auto rounded bg-[#232327] px-2 py-0.5">
-          Tutup
+          Close
         </button>
       </div>
       <div
@@ -104,7 +104,7 @@ export default function NodeGraph() {
             onDoubleClick={() => {
               if (selected && selected !== n.id) connect(selected, n.id);
             }}
-            title="Drag pindah, double-klik dari node terpilih untuk connect"
+            title="Drag to move, double-click from the selected node to connect"
             className={`absolute w-24 rounded-md border p-1.5 text-[10px] ${selected === n.id ? "border-white" : "border-[#2c2c31]"}`}
             style={{ left: n.x, top: n.y, background: kindColor[n.kind] ?? "#333" }}
           >
@@ -116,8 +116,8 @@ export default function NodeGraph() {
         ))}
       </div>
       <div className="px-3 pb-1.5 text-[10px] text-[#a7a7b0]">
-        Klik node untuk pilih, double-klik node lain untuk sambung. Toggle di node mematikan
-        adjustment/filter asli secara live.
+        Click a node to select, double-click another node to connect. The toggle on a node live-disables
+        the original adjustment/filter.
       </div>
     </div>
   );

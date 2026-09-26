@@ -51,7 +51,7 @@ export default function App() {
     setRecovery(loadRecovery());
   }, []);
 
-  // Autosave recovery tiap 2 menit
+  // Autosave recovery every 2 minutes
   useEffect(() => {
     const t = setInterval(() => {
       try {
@@ -65,7 +65,7 @@ export default function App() {
         th.getContext("2d")!.drawImage(comp, 0, 0, th.width, th.height);
         saveRecovery(th.toDataURL("image/jpeg", 0.6), st.doc.name, st.doc.width, st.doc.height);
       } catch {
-        /* abaikan */
+        /* ignore */
       }
     }, 120000);
     return () => clearInterval(t);
@@ -77,8 +77,8 @@ export default function App() {
     Object.entries(shortcuts).forEach(([tool, key]) => {
       inv[key.toLowerCase()] = tool;
     });
-    // clipboard ringan in-memory untuk Ctrl+X/C/V
-    // Jalur A: batasi clipboard max 2048px sisi panjang agar base64 PNG tidak 20-30MB untuk 4K.
+    // lightweight in-memory clipboard for Ctrl+X/C/V
+    // Path A: cap clipboard at 2048px on the long side so base64 PNG stays manageable for 4K.
     const clipKey = "__avero_clipboard" as const;
     function getClip(): string | null {
       try { return (window as any)[clipKey] as string | null; } catch { return null; }
@@ -111,7 +111,7 @@ export default function App() {
       if (mod && e.key.toLowerCase() === "s") {
         e.preventDefault();
         if (inInput) return;
-        saveAvxProject(e.shiftKey).catch((err) => alert(`Gagal menyimpan proyek: ${String(err)}`));
+        saveAvxProject(e.shiftKey).catch((err) => alert(`Failed to save project: ${String(err)}`));
         return;
       }
       if (mod && e.key.toLowerCase() === "e") {
@@ -218,7 +218,7 @@ export default function App() {
       }
       if ((e.key === "Delete" || e.key === "Backspace") && !inInput) {
         e.preventDefault();
-        // hapus isi seleksi pada layer aktif
+        // delete selection contents on the active layer
         try {
           const st = useEditorStore.getState();
           const id = st.activeLayerId;
@@ -240,7 +240,7 @@ export default function App() {
         if (ae === "INPUT" || ae === "TEXTAREA") return;
         const ed = useEditorStore.getState();
         const pro = useProStore.getState();
-        // M bolak-balik rect/ellipse, U putar shapes, R/J/O/G/P cycling ala Photoshop
+        // M toggles rect/ellipse, U cycles shapes, R/J/O/G/P Photoshop-style cycling
         if (t === "m") {
           const next = ed.tool === "select-rect" ? "select-ellipse" : "select-rect";
           ed.setTool(next);
@@ -288,7 +288,7 @@ export default function App() {
         }
       }
 
-      // Aksi menu global sesuai shortcut yang tercantum pada menu
+      // Global menu actions matching the shortcuts listed in the menu
       const hasMod = e.ctrlKey || e.metaKey || e.altKey;
       const isLetter = e.key.length === 1 && /[a-z]/i.test(e.key);
       if (hasMod || !isLetter) {
@@ -300,7 +300,7 @@ export default function App() {
         }
       }
       if (inInput) return;
-      // Shift+huruf: cycling keluarga tool (M marquee, R blur/sharpen/smudge, dst)
+      // Shift+letter: tool family cycling (M marquee, R blur/sharpen/smudge, etc.)
       if (!hasMod && e.shiftKey && isLetter) {
         if (cycleFamily(e.key.toUpperCase())) e.preventDefault();
         return;
@@ -322,10 +322,10 @@ export default function App() {
       setExportOpen(true);
     }
     function onSaveEvent() {
-      saveAvxProject(false).catch((err) => alert(`Gagal menyimpan proyek: ${String(err)}`));
+      saveAvxProject(false).catch((err) => alert(`Failed to save project: ${String(err)}`));
     }
     function onOpenAvxEvent() {
-      openAvxProject().catch((err) => alert(`Gagal membuka proyek: ${String(err)}`));
+      openAvxProject().catch((err) => alert(`Failed to open project: ${String(err)}`));
     }
     async function onSelectEvent(e: Event) {
       const detail = (e as CustomEvent).detail as string;
@@ -367,13 +367,13 @@ export default function App() {
       const detail = (e as CustomEvent).detail as string;
       const ae = document.activeElement?.tagName;
       if (ae === "INPUT" || ae === "TEXTAREA") return;
-      // simulasi Ctrl+C/X/V via dispatch KeyboardEvent agar pakai handler yang sama
+      // simulate Ctrl+C/X/V via KeyboardEvent dispatch to reuse the same handler
       const key = detail === "cut" ? "x" : detail === "copy" ? "c" : detail === "paste" ? "v" : "";
       if (!key) return;
       const ev = new KeyboardEvent("keydown", { key, ctrlKey: true, bubbles: true });
       window.dispatchEvent(ev);
-      // fallback langsung jika KeyboardEvent tidak tertangani (karena listener cek e.ctrlKey)
-      // panggil logika clipboard langsung
+      // direct fallback if the KeyboardEvent is unhandled (listener checks e.ctrlKey)
+      // call clipboard logic directly
       if (detail === "copy" || detail === "cut") {
         try {
           const st = useEditorStore.getState();
@@ -444,11 +444,11 @@ export default function App() {
       {recovery && !homeOpen && (
         <div className="flex items-center gap-2 border-b border-amber-600 bg-[#3a2f14] px-3 py-1.5 text-[11px] text-amber-100">
           <span>
-            Ditemukan autosave {recovery.docName} {recovery.width}x{recovery.height}. Lanjutkan atau
-            abaikan.
+            Recovery found {recovery.docName} {recovery.width}x{recovery.height}. Continue or
+            discard.
           </span>
           <button onClick={() => setRecovery(null)} className="rounded bg-[#5a4a1a] px-2 py-0.5">
-            Lanjut sesi ini
+            Continue this session
           </button>
           <button
             onClick={() => {
@@ -457,7 +457,7 @@ export default function App() {
             }}
             className="rounded bg-[#2c2c31] px-2 py-0.5"
           >
-            Hapus recovery
+            Discard recovery
           </button>
         </div>
       )}
@@ -477,7 +477,7 @@ export default function App() {
 
       <div className="flex items-center gap-2 border-t border-[#2c2c31] bg-[#1c1c1f] px-3 py-1 font-mono text-[10px] text-[#6e6e78]">
         <span>
-          AVERO STUDIO v2.0.0. Ctrl+S simpan .avx. Ctrl+E export. Ctrl+K semua aksi. Del hapus seleksi.
+          AVERO STUDIO v2.0.0. Ctrl+S saves .avx. Ctrl+E exports. Ctrl+K all actions. Del deletes selection.
         </span>
         <button
           onClick={() => {

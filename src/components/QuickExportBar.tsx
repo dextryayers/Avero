@@ -24,7 +24,7 @@ export default function QuickExportBar({ onOpenExport }: { onOpenExport: () => v
     try {
       await saveAvxProject(as);
     } catch (e) {
-      alert(`Gagal simpan .avx: ${String(e)}`);
+      alert(`Failed to save .avx: ${String(e)}`);
     } finally {
       setBusy(false);
     }
@@ -59,7 +59,7 @@ export default function QuickExportBar({ onOpenExport }: { onOpenExport: () => v
         a.click();
       }
     } catch (e) {
-      alert(`Gagal export: ${String(e)}`);
+      alert(`Export failed: ${String(e)}`);
     } finally {
       setBusy(false);
     }
@@ -68,14 +68,14 @@ export default function QuickExportBar({ onOpenExport }: { onOpenExport: () => v
   return (
     <div className="flex shrink-0 items-center gap-1.5 border-l border-[#2c2c31] px-2 py-1">
       <span className="hidden items-center gap-1 font-mono text-[10px] text-[#6e6e78] md:flex">
-        <Layers size={11} /> Ekspor
+        <Layers size={11} /> Export
       </span>
       <div className="flex items-center gap-1">
         <button
           onClick={() => quickSaveAvx(false)}
           disabled={busy}
           className="flex items-center gap-1.5 rounded-full bg-[#2f7cf6] px-3 py-1 text-[11px] font-semibold text-white hover:bg-[#3b8bff] disabled:opacity-40"
-          title="Simpan proyek .avx utuh (Ctrl+S)"
+          title="Save full .avx project (Ctrl+S)"
         >
           <Save size={12} /> .avx {doc.dirty ? "*" : ""}
         </button>
@@ -85,13 +85,13 @@ export default function QuickExportBar({ onOpenExport }: { onOpenExport: () => v
           </button>
           <div className="absolute left-0 top-full z-20 mt-1 hidden w-40 overflow-hidden rounded-xl border border-[#2c2c31] bg-[#1c1c1f] p-1 shadow-xl group-hover:block">
             <button onClick={() => quickSaveAvx(false)} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[11px] text-[#c9c9d1] hover:bg-[#232327] hover:text-white">
-              <Save size={12} /> Simpan (Ctrl+S)
+              <Save size={12} /> Save (Ctrl+S)
             </button>
             <button onClick={() => quickSaveAvx(true)} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[11px] text-[#c9c9d1] hover:bg-[#232327] hover:text-white">
-              <FileBox size={12} /> Simpan Sebagai
+              <FileBox size={12} /> Save As
             </button>
             <button onClick={() => openAvxProject().catch((e) => alert(String(e)))} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[11px] text-[#c9c9d1] hover:bg-[#232327] hover:text-white">
-              <Layers size={12} /> Buka .avx
+              <Layers size={12} /> Open .avx
             </button>
           </div>
         </div>
@@ -103,7 +103,7 @@ export default function QuickExportBar({ onOpenExport }: { onOpenExport: () => v
         <button
           onClick={onOpenExport}
           className="flex items-center gap-1.5 rounded-full border border-[#2c2c31] bg-[#232327] px-3 py-1 text-[11px] font-medium text-white hover:bg-[#2c2c31] hover:border-[#3a3a41]"
-          title="Export dialog lengkap (Ctrl+E)"
+          title="Full export dialog (Ctrl+E)"
         >
           <Download size={12} /> Export
         </button>
@@ -118,7 +118,7 @@ export default function QuickExportBar({ onOpenExport }: { onOpenExport: () => v
                 fmt === f.id ? "bg-[#2f7cf6] text-white" : "bg-[#1c1c1f] text-[#a7a7b0] border border-[#2c2c31] hover:text-white hover:border-[#3a3a41]",
               )}
               onMouseEnter={() => setFmt(f.id)}
-              title={`Export cepat ${f.ext.toUpperCase()}`}
+              title={`Quick export ${f.ext.toUpperCase()}`}
             >
               {f.label}
             </button>
@@ -133,7 +133,7 @@ export default function QuickExportBar({ onOpenExport }: { onOpenExport: () => v
       </div>
 
       <span className="ml-auto hidden shrink-0 items-center gap-1 font-mono text-[10px] text-[#6e6e78] lg:flex">
-        <span className="h-1 w-1 rounded-full bg-[#7ad69e]" /> {doc.width}x{doc.height} • {doc.dirty ? "belum disimpan" : "tersimpan"}
+        <span className="h-1 w-1 rounded-full bg-[#7ad69e]" /> {doc.width}x{doc.height} • {doc.dirty ? "unsaved" : "saved"}
       </span>
     </div>
   );

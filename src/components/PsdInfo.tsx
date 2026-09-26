@@ -21,10 +21,10 @@ export default function PsdInfo() {
         .then((l) => {
           setLayers(l);
           setNote(
-            `${l.length} layer terbaca dari PSD. Import multi-layer penuh masuk Fase 5, saat ini flatten composite + metadata.`,
+            `${l.length} layers read from PSD. Full multi-layer import is planned for Phase 5; currently flattened composite + metadata.`,
           );
         })
-        .catch((e) => setNote(`PSD info gagal: ${String(e)}`));
+        .catch((e) => setNote(`PSD info failed: ${String(e)}`));
     } else {
       setLayers(null);
       rustRawInfo(filePath)
@@ -57,7 +57,7 @@ export default function PsdInfo() {
               </span>
             </div>
           ))}
-          {layers.length > 24 && <div>... +{layers.length - 24} lagi</div>}
+          {layers.length > 24 && <div>... +{layers.length - 24} more</div>}
         </div>
       )}
     </div>

@@ -7,13 +7,13 @@ import { rustSaveDataUrl } from "../io/tauriIo";
 import clsx from "clsx";
 
 const FORMATS: { id: ExportFormat; label: string; desc: string }[] = [
-  { id: "png", label: "PNG", desc: "Lossless, transparan" },
-  { id: "jpg", label: "JPG", desc: "Foto kecil, tanpa alpha" },
-  { id: "jpeg", label: "JPEG", desc: "Sama dengan JPG" },
-  { id: "webp", label: "WEBP", desc: "Modern, kecil" },
-  { id: "bmp", label: "BMP", desc: "Tanpa kompresi" },
-  { id: "tiff", label: "TIFF", desc: "Cetak dan arsip" },
-  { id: "svg", label: "SVG", desc: "Vektor pembungkus raster" },
+  { id: "png", label: "PNG", desc: "Lossless, transparent" },
+  { id: "jpg", label: "JPG", desc: "Small photo, no alpha" },
+  { id: "jpeg", label: "JPEG", desc: "Same as JPG" },
+  { id: "webp", label: "WEBP", desc: "Modern, small" },
+  { id: "bmp", label: "BMP", desc: "Uncompressed" },
+  { id: "tiff", label: "TIFF", desc: "Print and archive" },
+  { id: "svg", label: "SVG", desc: "Vector wrapper around raster" },
 ];
 
 function isTauri(): boolean {
@@ -82,7 +82,7 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
       } else {
         if (format === "svg" || format === "bmp" || format === "tiff") {
           if (format !== "svg") {
-            alert("Format ini butuh aplikasi desktop. Di pratinjau web, PNG dipakai sebagai ganti.");
+            alert("This format requires the desktop app. In the web preview, PNG is used instead.");
             const png = exportDataUrl({ format: "png", quality, scale, matte: effMatte, fileName: name });
             triggerDownload(png.dataUrl, `${name.trim() || "Untitled"}.png`);
             return;
@@ -92,7 +92,7 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
       }
       onClose();
     } catch (e) {
-      alert(`Gagal export: ${String(e)}`);
+      alert(`Export failed: ${String(e)}`);
     } finally {
       setBusy(false);
     }
@@ -114,9 +114,9 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
         <div className="flex items-center gap-2.5 border-b border-[#2c2c31] px-5 py-3.5">
           <Download size={16} className="text-[#8fb6f5]" />
           <div>
-            <div className="text-[13px] font-bold text-white">Export Gambar</div>
+            <div className="text-[13px] font-bold text-white">Export Image</div>
             <div className="font-mono text-[10.5px] text-[#6e6e78]">
-              {outW} x {outH} px, perkiraan {approx}
+              {outW} x {outH} px, about {approx}
             </div>
           </div>
           <button onClick={onClose} className="ml-auto rounded p-1.5 text-[#a7a7b0] hover:bg-[#232327] hover:text-white">
@@ -150,7 +150,7 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
 
           <div className="space-y-4">
             <label className="block">
-              <span className="avero-micro mb-1 block">Nama file</span>
+              <span className="avero-micro mb-1 block">File name</span>
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -160,14 +160,14 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
             {showQuality && (
               <div>
                 <div className="mb-1 flex justify-between text-[11px] text-[#a7a7b0]">
-                  Kualitas <span className="font-mono text-white">{quality}%</span>
+                  Quality <span className="font-mono text-white">{quality}%</span>
                 </div>
                 <input type="range" min={10} max={100} value={quality} onChange={(e) => setQuality(Number(e.target.value))} className="w-full" />
               </div>
             )}
             <div>
               <div className="mb-1 flex justify-between text-[11px] text-[#a7a7b0]">
-                Skala <span className="font-mono text-white">{scale}%</span>
+                Scale <span className="font-mono text-white">{scale}%</span>
               </div>
               <input type="range" min={10} max={400} step={5} value={scale} onChange={(e) => setScale(Number(e.target.value))} className="w-full" />
               <div className="mt-1 flex gap-1.5">
@@ -179,7 +179,7 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
               </div>
             </div>
             <div>
-              <div className="avero-micro mb-1.5">Latar transparan</div>
+              <div className="avero-micro mb-1.5">Transparent background</div>
               <div className="grid grid-cols-3 gap-1.5">
                 {(["none", "white", "black"] as const).map((m) => (
                   <button
@@ -190,12 +190,12 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
                       matte === m ? "border-[#2f7cf6] bg-[#2f7cf6]/10 text-white" : "border-[#2c2c31] text-[#a7a7b0] hover:text-white",
                     )}
                   >
-                    {m === "none" ? "Alpha" : m === "white" ? "Putih" : "Hitam"}
+                    {m === "none" ? "Alpha" : m === "white" ? "White" : "Black"}
                   </button>
                 ))}
               </div>
               {needsMatte && (
-                <div className="mt-1.5 text-[10.5px] text-[#6e6e78]">JPG tidak menyimpan alpha. Putih dipakai otomatis.</div>
+                <div className="mt-1.5 text-[10.5px] text-[#6e6e78]">JPG does not store alpha. White is used automatically.</div>
               )}
             </div>
           </div>
@@ -207,14 +207,14 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
           </span>
           <div className="ml-auto flex gap-2">
             <button onClick={onClose} className="rounded-md bg-[#232327] px-4 py-2 text-[12px] text-white hover:bg-[#2c2c31]">
-              Batal
+              Cancel
             </button>
             <button
               onClick={doExport}
               disabled={busy}
               className="avero-btn-primary rounded-md px-5 py-2 text-[12px] font-semibold text-white disabled:opacity-50"
             >
-              {busy ? "Mengekspor..." : "Export"}
+              {busy ? "Exporting..." : "Export"}
             </button>
           </div>
         </div>

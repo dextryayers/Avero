@@ -139,18 +139,18 @@ export default function CanvasArea() {
 
   useEffect(() => {
     fitToView();
-    // deps render komposit disengaja
+    // composite render deps intentional
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc.width, doc.height]);
 
-  // Tombol Fit di status bar memicu event ini
+  // Fit button in the status bar triggers this event
   useEffect(() => {
     window.addEventListener("avero:fit-zoom", fitToView);
     return () => window.removeEventListener("avero:fit-zoom", fitToView);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Drag and drop file gambar dari Explorer langsung jadi layer
+  // Drag and drop image files from Explorer straight into a layer
   async function handleDrop(e: React.DragEvent) {
     e.preventDefault();
     setDragging(false);
@@ -160,7 +160,7 @@ export default function CanvasArea() {
       const bmp = await createImageBitmap(f);
       const st = useEditorStore.getState();
       st.openDocument(f.name, bmp.width, bmp.height, null, f.size);
-      // thumb recent dari bitmap (kecil), full hanya bila file di bawah 2MB
+      // recent thumb from bitmap (small), full only when file is under 2MB
       let thumb: string | null = null;
       let full: string | null = null;
       try {
@@ -179,7 +179,7 @@ export default function CanvasArea() {
           });
         }
       } catch {
-        /* abaikan */
+        /* ignore */
       }
       useHomeStore.getState().pushRecent({
         name: f.name,
@@ -202,9 +202,9 @@ export default function CanvasArea() {
         useProStore.getState().bumpHistogram();
         fitToView();
       }, 60);
-    } catch {
-      /* abaikan file tak terbaca */
-    }
+      } catch {
+        /* ignore unreadable file */
+      }
   }
 
   // Marching ants animation
@@ -214,7 +214,7 @@ export default function CanvasArea() {
     return () => clearInterval(t);
   }, [layers, zoom, panX, panY, adjustments, filters, selDrag, lassoPts]);
 
-  // Penggaris pixel profesional (digambar terpisah agar ringan saat kursor bergerak)
+  // Professional pixel rulers (drawn separately to stay light while the cursor moves)
   function drawRulers() {
     const wrap = wrapRef.current;
     if (!wrap || !showRulers) return;
@@ -327,7 +327,7 @@ export default function CanvasArea() {
     return () => window.removeEventListener("resize", onResize);
   }, [showRulers, zoom, panX, panY, doc.width, doc.height, cursor, rulerDrag]);
 
-  // Render komposit non-destructive
+  // Non-destructive composite render
   useEffect(() => {
     const canvas = canvasRef.current;
     const wrap = wrapRef.current;
@@ -339,7 +339,7 @@ export default function CanvasArea() {
 
     const ctx = canvas.getContext("2d")!;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    // workspace: dasar gelap + kisi titik halus + vignette studio
+    // workspace: dark base + fine dot grid + studio vignette
     ctx.fillStyle = "#101012";
     ctx.fillRect(0, 0, rect.width, rect.height);
     ctx.save();
@@ -371,7 +371,7 @@ export default function CanvasArea() {
     const oy = (rect.height - dh) / 2 + panY;
 
 
-    // backing dokumen: papan catur transparansi ala editor profesional
+    // document backing: pro-editor style transparency checkerboard
     ctx.save();
     ctx.shadowColor = "rgba(0,0,0,0.7)";
     ctx.shadowBlur = 28;
@@ -429,7 +429,7 @@ export default function CanvasArea() {
         cctx.scale(t.scaleX, t.scaleY);
         cctx.translate(-comp.width / 2, -comp.height / 2);
       }
-      // clipping mask sederhana: jika clipped, potong dengan alpha layer di bawah
+      // simple clipping mask: when clipped, cut with the layer-below alpha
       cctx.drawImage(src, 0, 0);
       cctx.restore();
     });
@@ -449,13 +449,13 @@ export default function CanvasArea() {
         applyRawDevelop(id, raw);
         cctx.putImageData(id, 0, 0);
       } catch {
-        /* abaikan */
+        /* ignore */
       }
     }
 
     // 3. Adjustments berurutan
-    // Jalur A: hindari 1x copy ImageData ekstra saat opacity 100% (kasus umum).
-    // applyAdjustmentToImageData mutasi in-place, jadi langsung ke id tanpa copy.
+    // Path A: avoid 1 extra ImageData copy at 100% opacity (common case).
+    // applyAdjustmentToImageData mutates in place, so apply directly to id with no copy.
     adjustments.forEach((adj) => {
       if (!adj.enabled || adj.opacity <= 0) return;
       try {
@@ -477,7 +477,7 @@ export default function CanvasArea() {
           cctx.restore();
         }
       } catch {
-        /* abaikan */
+        /* ignore */
       }
     });
 
@@ -499,12 +499,12 @@ export default function CanvasArea() {
         filtered.getContext("2d")!.putImageData(id, 0, 0);
       }
     } catch {
-      /* abaikan */
+      /* ignore */
     }
 
     (window as any).__avero_comp = filtered;
 
-    // 6. Gambar ke layar
+    // 6. Draw to screen
     ctx.save();
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
@@ -534,19 +534,19 @@ export default function CanvasArea() {
     const sel = selectionMaskCanvas();
     if (sel && hasSelection()) {
       ctx.save();
-      // redupkan luar seleksi
+      // dim outside selection
       ctx.beginPath();
       ctx.rect(ox, oy, dw, dh);
       ctx.rect(0, 0, rect.width, rect.height);
       ctx.fillStyle = "rgba(0,0,0,0.28)";
       ctx.fill("evenodd");
-      // marching ants dari mask bounding via drawImage + dashed stroke rect aproksimasi
+      // marching ants from mask bounds via drawImage + approximate dashed stroke rect
       ctx.setLineDash([6, 4]);
       ctx.lineDashOffset = -ants;
       ctx.strokeStyle = "#ffffff";
       ctx.lineWidth = 1.2;
-      // Jalur A: gambar mask langsung, tanpa canvas temp duplikat (hemat 1x memori doc-size per frame).
-      // trace tepi kasar: gunakan rect seleksi drag jika ada, jika tidak full mask outline via shadow
+      // Path A: draw mask directly, no duplicate temp canvas (saves 1x doc-size memory per frame).
+      // rough edge trace: use drag selection rect when present, otherwise full mask outline via shadow
       ctx.drawImage(sel, ox, oy, dw, dh);
       ctx.globalCompositeOperation = "overlay";
       ctx.setLineDash([6, 4]);
@@ -584,7 +584,7 @@ export default function CanvasArea() {
       ctx.restore();
     }
 
-    // 7b. Grid pro ala Photoshop
+    // 7b. Photoshop-style pro grid
     if (showGrid) {
       ctx.save();
       ctx.strokeStyle = "rgba(56,160,255,0.16)";
@@ -634,7 +634,7 @@ export default function CanvasArea() {
       ctx.restore();
     }
 
-    // 9. Crop preview: gelapkan luar area + bingkai
+    // 9. Crop preview: darken outside area + frame
     if (cropDrag) {
       const x = ox + Math.min(cropDrag.x0, cropDrag.x1) * s;
       const y = oy + Math.min(cropDrag.y0, cropDrag.y1) * s;
@@ -743,7 +743,7 @@ export default function CanvasArea() {
       ctx.stroke();
       ctx.restore();
     }
-    // deps render komposit disengaja
+    // composite render deps intentional
   }, [
     layers,
     activeLayerId,
@@ -787,8 +787,8 @@ export default function CanvasArea() {
     return { x: (sx - ox) / s, y: (sy - oy) / s, sx, sy };
   }
 
-  // Brush engine: sprite radial sesuai hardness, di-stamp sepanjang stroke.
-  // Hardness 100 = cakram solid, 0 = gaussian lembut.
+  // Brush engine: radial sprite per hardness, stamped along the stroke.
+  // Hardness 100 = solid disc, 0 = soft gaussian.
   function brushSprite(size: number, hardness: number, color: string): HTMLCanvasElement {
     const key = `${Math.round(size)}|${Math.round(hardness)}|${color}`;
     let sp = spriteCache.current.get(key);
@@ -970,7 +970,7 @@ export default function CanvasArea() {
     lastPos.current = { x, y };
   }
 
-  // Clone stamp: Alt+klik tentukan sumber, lukis untuk salin.
+  // Clone stamp: Alt+click sets the source, paint to copy.
   function cloneTo(x: number, y: number) {
     if (!activeLayerId) return;
     const meta = layers.find((l) => l.id === activeLayerId);
@@ -1118,7 +1118,7 @@ export default function CanvasArea() {
           ctx.restore();
         }
       } catch {
-        /* abaikan tepi */
+        /* ignore edges */
       }
     }
     lastPos.current = { x, y };
@@ -1134,7 +1134,7 @@ export default function CanvasArea() {
       const d = c.getContext("2d", { willReadFrequently: true })!.getImageData(ix, iy, 1, 1).data;
       smudgeColor.current = `#${[d[0], d[1], d[2]].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
     } catch {
-      /* abaikan */
+      /* ignore */
     }
   }
 
@@ -1150,7 +1150,7 @@ export default function CanvasArea() {
     const ctx = c.getContext("2d", { willReadFrequently: true })!;
     const ix = Math.max(0, Math.min(c.width - 1, Math.floor(x)));
     const iy = Math.max(0, Math.min(c.height - 1, Math.floor(y)));
-    // Jika ada seleksi, isi seleksi dengan warna (cepat, ala Photoshop fill selection)
+    // If a selection exists, fill the selection with color (fast, Photoshop-style fill selection)
     try {
       const selOn = isPointInSelection(ix, iy);
       if (hasSelection() && selOn) {
@@ -1172,7 +1172,7 @@ export default function CanvasArea() {
     } catch {
       /* lanjut flood fill */
     }
-    // Flood fill toleran sederhana
+    // Simple tolerant flood fill
     try {
       const img = ctx.getImageData(0, 0, c.width, c.height);
       const d = img.data;
@@ -1231,7 +1231,7 @@ export default function CanvasArea() {
       st.markDirty();
       useProStore.getState().bumpHistogram();
     } catch {
-      /* abaikan */
+      /* ignore */
     }
   }
 
@@ -1276,7 +1276,7 @@ export default function CanvasArea() {
       setCropDrag(null);
       return;
     }
-    // snapshot semua layer agar crop bisa di-undo per layer
+    // snapshot all layers so crop can be undone per layer
     st.layers.forEach((l) => {
       const snap = layerManager.snapshot(l.id);
       if (snap) st.pushHistory({ label: "Crop", layerId: l.id, snapshot: snap });
@@ -1302,7 +1302,7 @@ export default function CanvasArea() {
         mc.height = h;
         mc.getContext("2d")!.drawImage(tmp, 0, 0);
       }
-      // transform di-reset karena origin dokumen berubah
+      // transform reset because document origin changed
       useProStore.getState().updateTransform(l.id, { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 });
     });
     st.setDocSize(w, h);
@@ -1384,7 +1384,7 @@ export default function CanvasArea() {
     ctx.globalAlpha = st.brushOpacity / 100;
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, c.width, c.height);
-    // hormati seleksi: potong ke mask seleksi
+    // respect selection: clip to selection mask
     const sel = selectionMaskCanvas();
     if (sel && hasSelection()) {
       ctx.globalCompositeOperation = "destination-in";
@@ -1396,7 +1396,7 @@ export default function CanvasArea() {
     useProStore.getState().bumpHistogram();
   }
 
-  // Enter terapkan crop, Esc batal. Hanya saat tool crop aktif.
+  // Enter applies crop, Esc cancels. Only while the crop tool is active.
   useEffect(() => {
     if (tool !== "crop" || !cropDrag) return;
     function onKey(e: KeyboardEvent) {
@@ -1408,7 +1408,7 @@ export default function CanvasArea() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tool, cropDrag]);
 
-  // Eyedropper: ambil warna dari komposit lalu kembali ke brush.
+  // Eyedropper: pick color from the composite then return to brush.
   function pickColor(p: { x: number; y: number }) {
     const comp = getCompositeCanvas();
     if (!comp) return;
@@ -1420,9 +1420,9 @@ export default function CanvasArea() {
       const st = useEditorStore.getState();
       st.setBrush({ color: hex });
       st.setTool("brush");
-      setCursor(`Warna ${hex}`);
+      setCursor(`Color ${hex}`);
     } catch {
-      /* abaikan */
+      /* ignore */
     }
   }
 
@@ -1439,7 +1439,7 @@ export default function CanvasArea() {
       if (feather > 0) featherSelection(feather);
       setAnts((a) => a + 1);
     } catch {
-      /* abaikan */
+      /* ignore */
     }
   }
 
@@ -1450,7 +1450,7 @@ export default function CanvasArea() {
     (l as any).kind = "text";
     layerManager.ensure(l.id, doc.width, doc.height);
     const spec = {
-      text: presetText ?? "Edit teks di panel",
+      text: presetText ?? "Edit text in panel",
       fontFamily: "Inter",
       fontSize: Math.max(24, Math.round(doc.width / 24)),
       color: "#ffffff",
@@ -1487,7 +1487,7 @@ export default function CanvasArea() {
     pro.ensureTransform(l.id);
   }
 
-  // Seret dari penggaris untuk membuat guide baru ala editor profesional
+  // Drag from the ruler to create a new guide, pro-editor style
   function startRulerDrag(kind: "h" | "v", e: React.MouseEvent) {
     const wrap = wrapRef.current;
     if (!wrap) return;
@@ -1530,7 +1530,7 @@ export default function CanvasArea() {
           <button
             onMouseDown={(e) => e.stopPropagation()}
             onClick={() => setZoom(100)}
-            title="Klik untuk zoom 100%"
+            title="Click for 100% zoom"
             className="absolute left-0 top-0 z-10 grid h-full w-[18px] place-items-center border-r border-[#2c2c31] bg-[#1c1c1f] font-mono text-[8px] leading-none text-[#8fb6f5] hover:bg-[#232327]"
           >
             {zoom}
@@ -1565,7 +1565,7 @@ export default function CanvasArea() {
           }
           const p = toDocCoords(e);
           if (tool === "move" || tool === "path-select" || tool === "direct-select") {
-            // dahulukan drag guide ala Photoshop bila kena garis
+            // prefer Photoshop-style guide drag when hitting a line
             if (showGuides) {
               const thr = 7 / (zoom / 100);
               let bestKind: "h" | "v" = "v";
@@ -1627,7 +1627,7 @@ export default function CanvasArea() {
             if (e.altKey) {
               cloneRef.current = { x: p.x, y: p.y };
               cloneOrigin.current = null;
-              setCursor(`Sumber ${Math.round(p.x)}, ${Math.round(p.y)}`);
+              setCursor(`Source ${Math.round(p.x)}, ${Math.round(p.y)}`);
               return;
             }
             const snap = layerManager.snapshot(activeLayerId ?? "");
@@ -1770,7 +1770,7 @@ export default function CanvasArea() {
             let dx = (e.clientX - moveDrag.current.sx) / s;
             let dy = (e.clientY - moveDrag.current.sy) / s;
             const pro0 = useProStore.getState();
-            // Snap ala Photoshop: ke guides + grid + center dokumen
+            // Photoshop-style snap: to guides + grid + document center
             if (pro0.snapEnabled && !e.altKey) {
               const thr = 10 / s + 3;
               let nx = moveDrag.current.ox + dx;

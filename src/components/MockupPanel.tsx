@@ -12,10 +12,10 @@ export default function MockupPanel() {
   function apply() {
     const comp = getCompositeCanvas();
     if (!comp) {
-      setLog("Composite belum siap");
+      setLog("Composite not ready");
       return;
     }
-    // sumber = layer aktif (desain), tujuan = quad di dokumen
+    // source = active layer (design), destination = quad in document
     const st = useEditorStore.getState();
     const id = st.activeLayerId ?? st.layers[0]?.id;
     if (!id) return;
@@ -35,13 +35,13 @@ export default function MockupPanel() {
     layerManager.ensure(l.id, doc.width, doc.height);
     layerManager.get(l.id)!.getContext("2d")!.drawImage(warped, 0, 0);
     st.addLayer(l);
-    setLog("Desain di-warp ke perspektif mockup sebagai layer baru.");
+    setLog("Design warped to mockup perspective as a new layer.");
   }
 
   return (
     <div className="space-y-2 p-3 text-[12px]">
       <div className="rounded border border-[#2c2c31] bg-[#232327] p-2 text-[11px] text-[#a7a7b0]">
-        Drag desain (layer aktif) ke quad mockup kaos/botol/buku. Atur 4 titik lalu Apply.
+        Drag the design (active layer) onto the tee/bottle/book mockup quad. Adjust the 4 points, then Apply.
       </div>
       <div className="grid grid-cols-2 gap-1.5">
         {(["x0", "y0", "x1", "y1", "x2", "y2", "x3", "y3"] as const).map((k) => (
@@ -61,7 +61,7 @@ export default function MockupPanel() {
           onClick={() => setQuad(autoQuad(1920, 1080))}
           className="rounded bg-[#2c2c31] px-2 py-1.5"
         >
-          Auto deteksi
+          Auto detect
         </button>
         <button onClick={apply} className="rounded bg-[#2f7cf6] px-2 py-1.5 text-white">
           Apply mockup

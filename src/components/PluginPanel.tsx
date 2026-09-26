@@ -77,7 +77,7 @@ export default function PluginPanel() {
               onClick={() => remove(p.id)}
               className="rounded bg-[#5a1f1f] px-1.5 py-0.5 text-[10px] text-white"
             >
-              Hapus
+              Delete
             </button>
           </div>
           <div className="text-[11px] text-[#a7a7b0]">
@@ -101,13 +101,13 @@ export default function PluginPanel() {
             onClick={() => applyPlugin(p)}
             className="mt-1.5 w-full rounded bg-[#2f7cf6] px-2 py-1.5 text-white disabled:opacity-40"
           >
-            Terapkan ke layer aktif
+            Apply to active layer
           </button>
         </div>
       ))}
 
       <div className="rounded border border-dashed border-[#3a3a41] p-2">
-        <h4 className="mb-1 font-semibold text-white">Buat plugin (JS 50 baris)</h4>
+        <h4 className="mb-1 font-semibold text-white">Create plugin (50-line JS)</h4>
         <textarea
           value={code}
           onChange={(e) => setCode(e.target.value)}
@@ -119,12 +119,12 @@ export default function PluginPanel() {
           onClick={installCustom}
           className="mt-1.5 w-full rounded bg-[#2f7cf6] px-2 py-1.5 text-white"
         >
-          Install plugin custom
+          Install custom plugin
         </button>
       </div>
       {log && <div className="rounded bg-[#1c1c1f] p-2 text-[11px] text-[#c9c9d1]">{log}</div>}
       <p className="text-[10px] text-[#a7a7b0]">
-        API plugin stabil: draw, params, lebar, tinggi. Ekstensi plugin lain menyusul di rilis berikutnya.
+        Stable plugin API: draw, params, width, height. More plugin extensions arrive in the next release.
       </p>
     </div>
   );

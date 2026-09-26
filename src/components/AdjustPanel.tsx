@@ -202,23 +202,23 @@ export default function AdjustPanel() {
           <NativeRow label="Desaturate" desc="blend to luma 0..100" busy={busy === "desat"} onApply={() => runOp({ op: "desaturate", amount: p.desat }, "desat")}>
             <Slider label="Amount" value={p.desat} min={0} max={100} onChange={(v) => setP({ ...p, desat: v })} />
           </NativeRow>
-          <NativeRow label="Opacity" desc="alpha layer 0..100" busy={busy === "opacity"} onApply={() => runOp({ op: "opacity", opacity: p.opacity }, "opacity")}>
+          <NativeRow label="Opacity" desc="layer alpha 0..100" busy={busy === "opacity"} onApply={() => runOp({ op: "opacity", opacity: p.opacity }, "opacity")}>
             <Slider label="Opacity" value={p.opacity} min={0} max={100} onChange={(v) => setP({ ...p, opacity: v })} />
           </NativeRow>
         </div>
       </div>
 
-      {/* Grup Exposure */}
+      {/* Exposure group */}
       <div className="space-y-2">
-        <div className="avero-micro flex items-center gap-1.5"><Zap size={11} /> Exposure dan tone</div>
+        <div className="avero-micro flex items-center gap-1.5"><Zap size={11} /> Exposure and tone</div>
         <div className="grid gap-2">
           <NativeRow label="Exposure" desc="EV -6..6 (pow2)" busy={busy === "exposure"} onApply={() => runOp({ op: "exposure", ev: p.exposure }, "exposure")}>
             <Slider label="EV" value={p.exposure} min={-4} max={4} step={0.1} onChange={(v) => setP({ ...p, exposure: v })} />
           </NativeRow>
-          <NativeRow label="Gamma" desc="koreksi 0.1..4" busy={busy === "gamma"} onApply={() => runOp({ op: "gamma", gamma: p.gamma }, "gamma")}>
+          <NativeRow label="Gamma" desc="correction 0.1..4" busy={busy === "gamma"} onApply={() => runOp({ op: "gamma", gamma: p.gamma }, "gamma")}>
             <Slider label="Gamma" value={p.gamma} min={0.1} max={4} step={0.05} onChange={(v) => setP({ ...p, gamma: v })} />
           </NativeRow>
-          <NativeRow label="Shadows / Highlights" desc="angkat bayangan, tekan highlight" busy={busy === "shhi"} onApply={() => runOp({ op: "shadowsHighlights", shadows: p.shadows, highlights: p.highlights }, "shhi")}>
+          <NativeRow label="Shadows / Highlights" desc="lift shadows, tame highlights" busy={busy === "shhi"} onApply={() => runOp({ op: "shadowsHighlights", shadows: p.shadows, highlights: p.highlights }, "shhi")}>
             <Slider label="Shadows" value={p.shadows} min={-100} max={100} onChange={(v) => setP({ ...p, shadows: v })} />
             <Slider label="Highlights" value={p.highlights} min={-100} max={100} onChange={(v) => setP({ ...p, highlights: v })} />
           </NativeRow>
@@ -229,14 +229,14 @@ export default function AdjustPanel() {
         </div>
       </div>
 
-      {/* Grup Warna */}
+      {/* Color group */}
       <div className="space-y-2">
-        <div className="avero-micro">Warna kreatif</div>
+        <div className="avero-micro">Creative color</div>
         <div className="grid gap-2">
-          <NativeRow label="Vibrance" desc="boost saturasi rendah" busy={busy === "vibrance"} onApply={() => runOp({ op: "vibrance", amount: p.vibrance }, "vibrance")}>
+          <NativeRow label="Vibrance" desc="boost low saturation" busy={busy === "vibrance"} onApply={() => runOp({ op: "vibrance", amount: p.vibrance }, "vibrance")}>
             <Slider label="Amount" value={p.vibrance} min={-100} max={100} onChange={(v) => setP({ ...p, vibrance: v })} />
           </NativeRow>
-          <NativeRow label="Warmth" desc="hangat -100 dingin +100" busy={busy === "warmth"} onApply={() => runOp({ op: "warmth", warmth: p.warmth }, "warmth")}>
+          <NativeRow label="Warmth" desc="warm -100 cool +100" busy={busy === "warmth"} onApply={() => runOp({ op: "warmth", warmth: p.warmth }, "warmth")}>
             <Slider label="Warmth" value={p.warmth} min={-100} max={100} onChange={(v) => setP({ ...p, warmth: v })} />
           </NativeRow>
           <NativeRow label="Color Balance" desc="Cyan-Red, Magenta-Green, Yellow-Blue" busy={busy === "balance"} onApply={() => runOp({ op: "colorBalance", cr: p.cr, mg: p.mg, yb: p.yb }, "balance")}>
@@ -244,13 +244,13 @@ export default function AdjustPanel() {
             <Slider label="Magenta - Green" value={p.mg} min={-100} max={100} onChange={(v) => setP({ ...p, mg: v })} />
             <Slider label="Yellow - Blue" value={p.yb} min={-100} max={100} onChange={(v) => setP({ ...p, yb: v })} />
           </NativeRow>
-          <NativeRow label="Hue Shift" desc="putar hue 0..360" busy={busy === "hue"} onApply={() => runOp({ op: "hueShift", hueDeg: p.hue }, "hue")}>
+          <NativeRow label="Hue Shift" desc="rotate hue 0..360" busy={busy === "hue"} onApply={() => runOp({ op: "hueShift", hueDeg: p.hue }, "hue")}>
             <Slider label="Hue" value={p.hue} min={0} max={360} onChange={(v) => setP({ ...p, hue: v })} />
           </NativeRow>
-          <NativeRow label="Sepia" desc="campur 0..100" busy={busy === "sepia"} onApply={() => runOp({ op: "sepia", amount: p.sepia }, "sepia")}>
+          <NativeRow label="Sepia" desc="blend 0..100" busy={busy === "sepia"} onApply={() => runOp({ op: "sepia", amount: p.sepia }, "sepia")}>
             <Slider label="Amount" value={p.sepia} min={0} max={100} onChange={(v) => setP({ ...p, sepia: v })} />
           </NativeRow>
-          <NativeRow label="Posterize / Threshold" desc="reduksi level" busy={busy === "poster"} onApply={() => runOp({ op: "posterize", levels: p.levels }, "poster")}>
+          <NativeRow label="Posterize / Threshold" desc="reduce levels" busy={busy === "poster"} onApply={() => runOp({ op: "posterize", levels: p.levels }, "poster")}>
             <Slider label="Levels" value={p.levels} min={2} max={32} onChange={(v) => setP({ ...p, levels: v })} />
             <Slider label="Threshold" value={p.threshold} min={0} max={255} onChange={(v) => setP({ ...p, threshold: v })} />
             <div className="flex gap-1.5">
@@ -261,16 +261,16 @@ export default function AdjustPanel() {
         </div>
       </div>
 
-      {/* Advance ringan RAM */}
+      {/* RAM-light advanced */}
       <div className="space-y-2">
-        <div className="avero-micro flex items-center gap-1.5"><Leaf size={11} className="text-[#7ad69e]" /> Advance ringan RAM</div>
+        <div className="avero-micro flex items-center gap-1.5"><Leaf size={11} className="text-[#7ad69e]" /> RAM-light advanced</div>
         <div className="grid gap-2">
-          <NativeRow label="Equalize" desc="histogram equalize 256 bins, tanpa alloc gambar" busy={busy === "equalize"} onApply={() => runOp({ op: "equalize" }, "equalize")} />
+          <NativeRow label="Equalize" desc="histogram equalize 256 bins, no image alloc" busy={busy === "equalize"} onApply={() => runOp({ op: "equalize" }, "equalize")} />
           <NativeRow label="Dither Floyd" desc="error diffusion, 2 row buffer" busy={busy === "dither"} onApply={() => {
             const st = useEditorStore.getState();
             runOp({ op: "dither", width: st.doc.width, height: st.doc.height }, "dither");
           }} />
-          <NativeRow label="Noise Mono" desc="in-place, seed acak" busy={busy === "noise"} onApply={() => runOp({ op: "noiseMono", amount: p.noise }, "noise")}>
+          <NativeRow label="Noise Mono" desc="in-place, random seed" busy={busy === "noise"} onApply={() => runOp({ op: "noiseMono", amount: p.noise }, "noise")}>
             <Slider label="Amount" value={p.noise} min={0} max={64} onChange={(v) => setP({ ...p, noise: v })} />
           </NativeRow>
           <NativeRow label="Channel Swap" desc="permute RGB 0..5" busy={busy === "swap"} onApply={() => runOp({ op: "channelSwap", mode: p.channelMode }, "swap")}>
@@ -278,15 +278,15 @@ export default function AdjustPanel() {
           </NativeRow>
           <NativeRow label="Alpha Premultiply" desc="RGB * A, in-place" busy={busy === "premul"} onApply={() => runOp({ op: "alphaPremultiply" }, "premul")} />
         </div>
-        <div className="rounded-md bg-[#1a2b1f] px-2 py-1.5 text-[10px] text-[#7ad69e]">Hanya LUT 256 atau histogram 1KB, tanpa duplikat full image.</div>
+        <div className="rounded-md bg-[#1a2b1f] px-2 py-1.5 text-[10px] text-[#7ad69e]">Only a 256 LUT or 1KB histogram, no full-image duplicate.</div>
       </div>
 
       {/* Pipeline */}
       <div className="avero-card space-y-2 p-3">
         <div className="flex items-center gap-1.5 text-[11px] font-semibold text-white"><Zap size={12} className="text-[#8fb6f5]" /> Studio pipeline</div>
-        <div className="text-[10px] text-[#6e6e78]">Antrekan beberapa operasi lalu jalankan sekaligus dalam satu proses (hemat waktu). Centang mode ringan untuk memproses per ubin.</div>
+        <div className="text-[10px] text-[#6e6e78]">Queue several operations then run them together in one pass (saves time). Check light mode to process per tile.</div>
         <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-[#a7a7b0]">
-          <input type="checkbox" checked={light} onChange={(e) => setLight(e.target.checked)} className="accent-[#2f7cf6]" /> Mode ringan (hemat RAM)
+          <input type="checkbox" checked={light} onChange={(e) => setLight(e.target.checked)} className="accent-[#2f7cf6]" /> Light mode (saves RAM)
         </label>
         <div className="flex flex-wrap gap-1">
           {[
@@ -299,16 +299,16 @@ export default function AdjustPanel() {
             <button key={x.k} disabled={!!busy} onClick={() => setQueue([...queue, x.op as NativeOp])} className="rounded bg-[#232327] px-2 py-1 text-[10px] text-white hover:bg-[#2c2c31] disabled:opacity-40">+ {x.k}</button>
           ))}
         </div>
-        <div className="flex flex-wrap gap-1 font-mono text-[10px] text-[#a7a7b0]">{queue.length === 0 ? "Antrean kosong" : queue.map((o, i) => <span key={i} className="rounded bg-[#232327] px-1.5 py-0.5">{(o as any).op}</span>)}</div>
+        <div className="flex flex-wrap gap-1 font-mono text-[10px] text-[#a7a7b0]">{queue.length === 0 ? "Queue empty" : queue.map((o, i) => <span key={i} className="rounded bg-[#232327] px-1.5 py-0.5">{(o as any).op}</span>)}</div>
         <div className="flex gap-1.5">
-          <button disabled={queue.length === 0 || !!busy} onClick={runQueue} className="avero-btn-primary flex-1 rounded-md py-2 text-[11px] font-semibold text-white disabled:opacity-40">{busy === "pipeline" ? "Menjalankan..." : `Jalankan ${queue.length} operasi`}</button>
+          <button disabled={queue.length === 0 || !!busy} onClick={runQueue} className="avero-btn-primary flex-1 rounded-md py-2 text-[11px] font-semibold text-white disabled:opacity-40">{busy === "pipeline" ? "Running..." : `Run ${queue.length} operations`}</button>
           <button disabled={queue.length === 0 || !!busy} onClick={() => setQueue([])} className="rounded-md bg-[#232327] px-3 py-2 text-[11px] text-white hover:bg-[#2c2c31] disabled:opacity-40">Clear</button>
         </div>
       </div>
 
-      {/* Non-destruktif JS stack */}
+      {/* Non-destructive JS stack */}
       <div className="border-t border-[#2c2c31] pt-3">
-        <div className="avero-micro mb-2">Penumpuk penyesuaian non destruktif</div>
+        <div className="avero-micro mb-2">Non-destructive adjustment stack</div>
         <div className="flex flex-wrap gap-1">
           {addable.map((a) => (
             <button key={a.id} onClick={() => { addAdjustment(a.id); useAutomationStore.getState().pushStep(`Add ${a.label}`, { type: "adjustment/add", payload: { kind: a.id } }); }} className="avero-btn-primary flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-semibold text-white">
@@ -318,7 +318,7 @@ export default function AdjustPanel() {
         </div>
       </div>
       {adjustments.length === 0 && (
-        <div className="rounded-md border border-dashed border-[#2c2c31] p-3 text-center text-[11px] text-[#6e6e78]">Belum ada adjustment stack. Tambahkan Brightness atau Levels. Semua bisa disusun ulang dan opacity.</div>
+        <div className="rounded-md border border-dashed border-[#2c2c31] p-3 text-center text-[11px] text-[#6e6e78]">No adjustment stack yet. Add Brightness or Levels. All can be reordered with opacity.</div>
       )}
       {[...adjustments].reverse().map((a) => (
         <div key={a.id} className="rounded-md border border-[#2c2c31] bg-[#161618] p-2">
@@ -345,7 +345,7 @@ export default function AdjustPanel() {
             {a.type === "colorLookup" && (<><Slider label="Strength" value={a.params.strength ?? 50} min={0} max={100} onChange={(v) => updateAdjustmentParams(a.id, { strength: v })} /><Slider label="Tone" value={a.params.tone ?? 0} min={-50} max={50} onChange={(v) => updateAdjustmentParams(a.id, { tone: v })} /></>)}
             {a.type === "threshold" && (<Slider label="Level" value={a.params.level ?? 128} min={0} max={255} onChange={(v) => updateAdjustmentParams(a.id, { level: v })} />)}
             {a.type === "posterize" && (<Slider label="Levels" value={a.params.levels ?? 4} min={2} max={12} onChange={(v) => updateAdjustmentParams(a.id, { levels: v })} />)}
-            {(a.type === "invert" || a.type === "blackWhite" || a.type === "autoContrast") && (<div className="text-[10px] text-[#6e6e78]">Tanpa parameter. Aktifkan toggle untuk pratinjau.</div>)}
+            {(a.type === "invert" || a.type === "blackWhite" || a.type === "autoContrast") && (<div className="text-[10px] text-[#6e6e78]">No parameters. Enable the toggle to preview.</div>)}
             <Slider label="Opacity" value={a.opacity} min={0} max={100} onChange={(v) => updateAdjustment(a.id, { opacity: v })} />
           </div>
         </div>

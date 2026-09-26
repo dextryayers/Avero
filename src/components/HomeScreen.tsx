@@ -295,14 +295,14 @@ export default function HomeScreen() {
           </div>
           <div className="mt-auto space-y-2">
             <button
-              onClick={() => openAvxProject().catch((e) => alert(`Gagal membuka proyek: ${String(e)}`))}
+              onClick={() => openAvxProject().catch((e) => alert(`Failed to open project: ${String(e)}`))}
               className="w-full rounded-xl border border-[#2c2c31] bg-gradient-to-br from-[#1a2b45] to-[#161618] p-3 text-left transition-all hover:border-[#2f7cf6]/50 hover:from-[#1e3457]"
             >
               <div className="flex items-center gap-1.5 text-[11.5px] font-bold text-white">
-                <Layers size={13} className="text-[#8fb6f5]" /> Proyek .avx
+                <Layers size={13} className="text-[#8fb6f5]" /> .avx Project
               </div>
               <div className="mt-1 text-[11px] leading-relaxed text-[#a7a7b0]">
-                Simpan seluruh dokumen: layer, mask, adjust, filter. Buka lagi utuh tanpa hilang.
+                Save the entire document: layers, masks, adjustments, filters. Reopen it fully intact.
               </div>
               <div className="mt-2 flex gap-1">
                 <span className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-[9px] text-white">Ctrl+S</span>
@@ -310,8 +310,8 @@ export default function HomeScreen() {
               </div>
             </button>
             <div className="rounded-lg border border-[#2c2c31] bg-[#161618] p-2.5 text-[11px]">
-              <div className="flex items-center gap-1.5 font-semibold text-white"><Zap size={12} className="text-[#8fb6f5]" /> Ringan RAM</div>
-              <div className="mt-1 text-[10.5px] text-[#6e6e78]">Proses per ubin otomatis, ringan RAM</div>
+              <div className="flex items-center gap-1.5 font-semibold text-white"><Zap size={12} className="text-[#8fb6f5]" /> Light on RAM</div>
+              <div className="mt-1 text-[10.5px] text-[#6e6e78]">Automatic tiled processing, light on RAM</div>
             </div>
           </div>
         </div>
@@ -324,19 +324,19 @@ export default function HomeScreen() {
             <div className="absolute inset-0 bg-gradient-to-r from-[#1c1c1f] via-[#1c1c1f]/80 to-transparent" />
             <div className="relative flex items-center gap-4 px-6 py-5">
               <div className="flex-1">
-                <div className="text-[18px] font-bold leading-tight text-white">Mulai karya baru</div>
+                <div className="text-[18px] font-bold leading-tight text-white">Start a new project</div>
                 <div className="mt-1 max-w-[560px] text-[12.5px] leading-relaxed text-[#a7a7b0]">
-                  Buka foto, proyek .avx, atau preset. Semua tersimpan otomatis di Terbaru. Seret file dari Explorer langsung ke kanvas.
+                  Open a photo, an .avx project, or a preset. Everything is saved automatically to Recent. Drag files from Explorer straight onto the canvas.
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button onClick={() => setShowNew(true)} className="avero-btn-primary inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[12px] font-semibold text-white">
-                    <ImagePlus size={14} /> Buat dokumen <ArrowRight size={12} />
+                    <ImagePlus size={14} /> Create document <ArrowRight size={12} />
                   </button>
                   <button onClick={() => openImageViaDialog()} className="inline-flex items-center gap-1.5 rounded-full border border-[#2c2c31] bg-[#232327] px-4 py-2 text-[12px] font-medium text-white hover:bg-[#2c2c31]">
-                    <FolderOpen size={14} /> Buka gambar
+                    <FolderOpen size={14} /> Open image
                   </button>
                   <button onClick={() => openAvxProject().catch((e) => alert(String(e)))} className="inline-flex items-center gap-1.5 rounded-full border border-[#2c2c31] bg-[#161618] px-4 py-2 text-[12px] text-[#a7a7b0] hover:text-white">
-                    <FileBox size={14} /> Buka .avx
+                    <FileBox size={14} /> Open .avx
                   </button>
                 </div>
               </div>
@@ -352,24 +352,24 @@ export default function HomeScreen() {
             {view !== "learn" && (<>
             <div className="mb-3 flex items-center justify-between">
               <h3 className="flex items-center gap-2 text-[13px] font-bold text-white">
-                <Clock size={14} className="text-[#8fb6f5]" /> Terbaru
+                <Clock size={14} className="text-[#8fb6f5]" /> Recent
                 <span className="rounded-full bg-[#232327] px-2 py-0.5 font-mono text-[10px] text-[#a7a7b0]">{filteredRecents.length}</span>
                 {query && <span className="font-mono text-[10px] text-[#6e6e78]">filter "{query}"</span>}
               </h3>
               {recents.length > 0 && (
                 <button onClick={clearRecents} className="flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] text-[#6e6e78] hover:bg-[#232327] hover:text-white">
-                  <Trash2 size={12} /> Bersihkan
+                  <Trash2 size={12} /> Clear
                 </button>
               )}
             </div>
             {filteredRecents.length === 0 ? (
               <div className="grid place-items-center rounded-xl border border-dashed border-[#2c2c31] bg-[#1c1c1f] p-10 text-center">
                 <div className="grid h-16 w-16 place-items-center rounded-2xl bg-[#232327]"><ImageIcon size={24} className="text-[#6e6e78]" /></div>
-                <div className="mt-3 text-[13px] font-bold text-white">Mulai karya pertama</div>
-                <div className="mt-1 max-w-[420px] text-[11.5px] text-[#6e6e78]">Buka foto atau proyek .avx, atau buat dokumen baru. File muncul di sini otomatis. Seret gambar ke jendela juga bisa.</div>
+                <div className="mt-3 text-[13px] font-bold text-white">Start your first project</div>
+                <div className="mt-1 max-w-[420px] text-[11.5px] text-[#6e6e78]">Open a photo or .avx project, or create a new document. Files appear here automatically. You can also drag images into the window.</div>
                 <div className="mt-4 flex gap-2">
-                  <button onClick={() => setShowNew(true)} className="avero-btn-primary rounded-full px-4 py-2 text-[12px] font-semibold text-white">Buat Baru</button>
-                  <button onClick={() => openImageViaDialog()} className="rounded-full border border-[#2c2c31] bg-[#232327] px-4 py-2 text-[12px] text-white hover:bg-[#2c2c31]">Buka Gambar</button>
+                  <button onClick={() => setShowNew(true)} className="avero-btn-primary rounded-full px-4 py-2 text-[12px] font-semibold text-white">Create New</button>
+                  <button onClick={() => openImageViaDialog()} className="rounded-full border border-[#2c2c31] bg-[#232327] px-4 py-2 text-[12px] text-white hover:bg-[#2c2c31]">Open Image</button>
                 </div>
               </div>
             ) : (
@@ -392,12 +392,12 @@ export default function HomeScreen() {
                       <div className="p-3">
                         <div className="truncate text-[12px] font-semibold text-white">{r.name}</div>
                         <div className="mt-0.5 flex items-center gap-1 font-mono text-[10px] text-[#6e6e78]">
-                          <span>{new Date(r.time).toLocaleDateString("id-ID", { day: "numeric", month: "short" })}</span>
-                          {busy === r.id && <span className="rounded bg-[#2f7cf6] px-1 py-0.5 text-white">membuka</span>}
+                          <span>{new Date(r.time).toLocaleDateString("en-US", { day: "numeric", month: "short" })}</span>
+                          {busy === r.id && <span className="rounded bg-[#2f7cf6] px-1 py-0.5 text-white">opening</span>}
                         </div>
                       </div>
                     </button>
-                    <button onClick={() => removeRecent(r.id)} title="Hapus dari daftar" className="absolute right-1.5 top-1.5 hidden rounded-full bg-black/70 p-1.5 text-white hover:bg-[#e5534b] group-hover:block">
+                    <button onClick={() => removeRecent(r.id)} title="Remove from list" className="absolute right-1.5 top-1.5 hidden rounded-full bg-black/70 p-1.5 text-white hover:bg-[#e5534b] group-hover:block">
                       <X size={12} />
                     </button>
                   </div>
@@ -408,7 +408,7 @@ export default function HomeScreen() {
 
             {view === "home" && (<>
             <h3 className="mb-3 mt-8 flex items-center gap-2 text-[13px] font-bold text-white">
-              <ImagePlus size={14} className="text-[#8fb6f5]" /> Preset {cat}
+              <ImagePlus size={14} className="text-[#8fb6f5]" /> {cat} Presets
               <span className="rounded-full bg-[#232327] px-2 py-0.5 font-mono text-[10px] text-[#a7a7b0]">{filteredPresets.length}</span>
             </h3>
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
@@ -438,16 +438,16 @@ export default function HomeScreen() {
 
             {view !== "recent" && (<>
             <h3 className="mb-3 mt-8 flex items-center gap-2 text-[13px] font-bold text-white">
-              <BookOpen size={14} className="text-[#8fb6f5]" /> Pelajari dalam 1 menit
+              <BookOpen size={14} className="text-[#8fb6f5]" /> Learn in 1 minute
             </h3>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               {[
-                { t: "Masking presisi", d: "Select, feather, refine edge, paint mask. Tahan Shift untuk tambah seleksi.", tag: "Select", icon: Wand2 },
-                { t: "Retouch natural", d: "Spot Heal (J), Healing Brush, Clone Stamp (S), Patch. Alt+klik sumber.", tag: "Retouch", icon: Sparkles },
-                { t: "Grade sinematik", d: "Exposure, HSL, Vibrance, Warmth, Vignette, Grain. Proses per ubin hemat RAM.", tag: "Color", icon: Star },
-                { t: "Varian tanpa duplikat", d: "Tab Git: snapshot, branch, compare slider untuk eksplor varian.", tag: "Git", icon: Layers },
-                { t: "Simpan proyek .avx", d: "Ctrl+S menyimpan layer dan edit utuh. Buka lagi 100% sama.", tag: "Project", icon: FileBox },
-                { t: "Export banyak format", d: "PNG, JPG, WEBP, BMP, SVG, TIFF. Matte dan skala fleksibel.", tag: "Export", icon: Globe },
+                { t: "Precise masking", d: "Select, feather, refine edge, paint mask. Hold Shift to add to selection.", tag: "Select", icon: Wand2 },
+                { t: "Natural retouch", d: "Spot Heal (J), Healing Brush, Clone Stamp (S), Patch. Alt+click for source.", tag: "Retouch", icon: Sparkles },
+                { t: "Cinematic grading", d: "Exposure, HSL, Vibrance, Warmth, Vignette, Grain. Memory-efficient tiled processing.", tag: "Color", icon: Star },
+                { t: "Variants without duplicates", d: "Git tab: snapshots, branches, and a compare slider to explore variants.", tag: "Git", icon: Layers },
+                { t: "Save .avx projects", d: "Ctrl+S saves layers and edits intact. Reopen 100% identical.", tag: "Project", icon: FileBox },
+                { t: "Export to many formats", d: "PNG, JPG, WEBP, BMP, SVG, TIFF. Flexible matte and scaling.", tag: "Export", icon: Globe },
               ].map((c) => (
                 <div key={c.t} className="group rounded-xl border border-[#2c2c31] bg-[#1c1c1f] p-4 transition-colors hover:border-[#3a3a41] hover:bg-[#1e1e22]">
                   <div className="flex items-center gap-1.5">
@@ -465,9 +465,9 @@ export default function HomeScreen() {
               <span className="h-1 w-1 rounded-full bg-[#3a3a41]" />
               <span>Offline</span>
               <span className="h-1 w-1 rounded-full bg-[#3a3a41]" />
-              <span>Non-destruktif</span>
+              <span>Non-destructive</span>
               <span className="h-1 w-1 rounded-full bg-[#3a3a41]" />
-              <span>Ctrl+K semua aksi</span>
+              <span>Ctrl+K all actions</span>
             </div>
           </div>
         </div>
@@ -479,8 +479,8 @@ export default function HomeScreen() {
             <div className="flex items-center gap-3 border-b border-[#2c2c31] px-5 py-4">
               <div className="grid h-9 w-9 place-items-center rounded-lg bg-[#2f7cf6] text-white"><ImagePlus size={18} /></div>
               <div>
-                <div className="text-[13px] font-bold text-white">Dokumen Baru</div>
-                <div className="text-[10.5px] text-[#6e6e78]">Preset dan ukuran kustom • ringan RAM, proses per ubin</div>
+                <div className="text-[13px] font-bold text-white">New Document</div>
+                <div className="text-[10.5px] text-[#6e6e78]">Presets and custom sizes • light on RAM, tiled processing</div>
               </div>
               <button onClick={() => setShowNew(false)} className="ml-auto rounded-full p-1.5 text-[#a7a7b0] hover:bg-[#232327] hover:text-white">
                 <X size={16} />
@@ -488,31 +488,31 @@ export default function HomeScreen() {
             </div>
             <div className="grid grid-cols-3 gap-2 p-4">
               <label className="col-span-3">
-                <span className="avero-micro mb-1 block">Nama dokumen</span>
+                <span className="avero-micro mb-1 block">Document name</span>
                 <input value={dn} onChange={(e) => setDn(e.target.value)} className="w-full rounded-lg border border-[#2c2c31] bg-[#161618] px-3 py-2 text-[12.5px] text-white outline-none focus:border-[#2f7cf6]" />
               </label>
               <label>
-                <span className="avero-micro mb-1 block">Lebar</span>
+                <span className="avero-micro mb-1 block">Width</span>
                 <input value={dw} onChange={(e) => setDw(e.target.value)} className="w-full rounded-lg border border-[#2c2c31] bg-[#161618] px-3 py-2 font-mono text-[12.5px] text-white outline-none focus:border-[#2f7cf6]" />
               </label>
               <label>
-                <span className="avero-micro mb-1 block">Tinggi</span>
+                <span className="avero-micro mb-1 block">Height</span>
                 <input value={dh} onChange={(e) => setDh(e.target.value)} className="w-full rounded-lg border border-[#2c2c31] bg-[#161618] px-3 py-2 font-mono text-[12.5px] text-white outline-none focus:border-[#2f7cf6]" />
               </label>
               <label>
-                <span className="avero-micro mb-1 block">Latar</span>
+                <span className="avero-micro mb-1 block">Background</span>
                 <select value={bg} onChange={(e) => setBg(e.target.value as any)} className="w-full rounded-lg border border-[#2c2c31] bg-[#161618] px-2 py-2 text-[12.5px] text-white outline-none">
-                  <option value="white">Putih</option>
-                  <option value="black">Hitam</option>
-                  <option value="transparent">Transparan</option>
+                  <option value="white">White</option>
+                  <option value="black">Black</option>
+                  <option value="transparent">Transparent</option>
                 </select>
               </label>
             </div>
             <div className="flex items-center gap-2 border-t border-[#2c2c31] bg-[#161618] px-4 py-3">
               <span className="font-mono text-[10px] text-[#6e6e78]">{dw}x{dh} • {bg}</span>
               <div className="ml-auto flex gap-2">
-                <button onClick={() => setShowNew(false)} className="rounded-full bg-[#232327] px-4 py-2 text-[12px] text-white hover:bg-[#2c2c31]">Batal</button>
-                <button onClick={() => createNew(dn.trim() || "Untitled", Math.max(1, parseInt(dw) || 1920), Math.max(1, parseInt(dh) || 1080))} className="avero-btn-primary rounded-full px-5 py-2 text-[12px] font-semibold text-white">Buat</button>
+                <button onClick={() => setShowNew(false)} className="rounded-full bg-[#232327] px-4 py-2 text-[12px] text-white hover:bg-[#2c2c31]">Cancel</button>
+                <button onClick={() => createNew(dn.trim() || "Untitled", Math.max(1, parseInt(dw) || 1920), Math.max(1, parseInt(dh) || 1080))} className="avero-btn-primary rounded-full px-5 py-2 text-[12px] font-semibold text-white">Create</button>
               </div>
             </div>
           </div>

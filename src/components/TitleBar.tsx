@@ -70,7 +70,7 @@ export default function TitleBar({
       openPath(path)
         .catch((err) => {
           console.error(err);
-          alert(`Gagal membuka gambar: ${String(err)}`);
+          alert(`Failed to open image: ${String(err)}`);
         })
         .finally(() => setBusy(false));
     }
@@ -79,7 +79,7 @@ export default function TitleBar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busy]);
 
-  // Shortcut global memanggil aksi menu lewat event ini
+  // Global shortcuts trigger menu actions through this event
   const runActionRef = useRef(runAction);
   runActionRef.current = runAction;
   useEffect(() => {
@@ -100,7 +100,7 @@ export default function TitleBar({
       await openPath(path);
     } catch (e) {
       console.error(e);
-      alert(`Gagal membuka gambar: ${String(e)}`);
+      alert(`Failed to open image: ${String(e)}`);
     } finally {
       setBusy(false);
     }
@@ -126,13 +126,13 @@ export default function TitleBar({
         handleOpen();
         break;
       case "open-avx":
-        openAvxProject().catch((e) => alert(`Gagal membuka proyek: ${String(e)}`));
+        openAvxProject().catch((e) => alert(`Failed to open project: ${String(e)}`));
         break;
       case "save-avx":
-        saveAvxProject(false).catch((e) => alert(`Gagal menyimpan proyek: ${String(e)}`));
+        saveAvxProject(false).catch((e) => alert(`Failed to save project: ${String(e)}`));
         break;
       case "save-avx-as":
-        saveAvxProject(true).catch((e) => alert(`Gagal menyimpan proyek: ${String(e)}`));
+        saveAvxProject(true).catch((e) => alert(`Failed to save project: ${String(e)}`));
         break;
       case "export":
         onOpenExport();
@@ -450,7 +450,7 @@ export default function TitleBar({
             ed.markDirty();
             pro.bumpHistogram();
           } catch (e) {
-            alert(`Filter gagal: ${String(e)}`);
+            alert(`Filter failed: ${String(e)}`);
           }
         })();
         break;
@@ -473,7 +473,7 @@ export default function TitleBar({
             ed.markDirty();
             pro.bumpHistogram();
           } catch (e) {
-            alert(`Penyesuaian gagal: ${String(e)}`);
+            alert(`Adjustment failed: ${String(e)}`);
           }
         })();
         break;
@@ -546,7 +546,7 @@ export default function TitleBar({
         window.location.reload();
         break;
       case "about":
-        alert("AVERO STUDIO v2.0.0. Professional photo studio. Offline, non-destruktif, open source.");
+        alert("AVERO STUDIO v2.0.0. Professional photo studio. Offline, non-destructive, open source.");
         break;
     }
   }
@@ -603,7 +603,7 @@ export default function TitleBar({
         onClick={onOpenCommand}
         className="ml-2 hidden items-center gap-1.5 rounded-full border border-[#2c2c31] bg-[#161618] px-3 py-1.5 text-[11.5px] text-[#6e6e78] hover:border-[#3a3a41] hover:text-white md:flex transition-colors"
       >
-        <Search size={13} /> Ctrl+K semua aksi
+        <Search size={13} /> Ctrl+K all actions
       </button>
 
       <div className="ml-auto flex items-center gap-2 text-[11px]">
@@ -614,7 +614,7 @@ export default function TitleBar({
         </span>
         <span className={clsx("hidden items-center gap-1 rounded-full px-2 py-1 font-mono text-[10px] sm:flex", doc.dirty ? "bg-[#3a2f14] text-amber-200" : "bg-[#1a2b1f] text-[#7ad69e]")}>
           <span className={`h-1 w-1 rounded-full ${doc.dirty ? "bg-amber-300" : "bg-[#7ad69e]"}`} />
-          {doc.dirty ? "Belum disimpan" : "Tersimpan"}
+          {doc.dirty ? "Unsaved" : "Saved"}
         </span>
       </div>
       <span className="hidden" data-open-handler={busy ? "busy" : "idle"} onClick={handleOpen} />

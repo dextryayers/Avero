@@ -1,4 +1,4 @@
-// Shortcut global editor: huruf tool (Shift untuk ganti keluarga), aksi menu, dan navigasi cepat.
+// Global editor shortcuts: tool letters (Shift cycles family), menu actions, quick navigation.
 import { TOOLS } from "../components/ToolBar";
 import { MENUS } from "./menus";
 import { useEditorStore, type ToolId } from "../stores/useEditorStore";
@@ -82,7 +82,7 @@ export function dispatchAction(action: string) {
   window.dispatchEvent(new CustomEvent("avero:action", { detail: action }));
 }
 
-// Shift+huruf: cycling berurutan dalam keluarga tool yang sama (perilaku editor profesional)
+// Shift+letter: cycle in order within the same tool family (pro editor behavior)
 export function cycleFamily(letter: string): boolean {
   const fam = getFamilies().get(letter.toUpperCase());
   if (!fam || fam.length === 0) return false;
@@ -93,7 +93,7 @@ export function cycleFamily(letter: string): boolean {
   return true;
 }
 
-// Pilih tool pertama dari keluarga bila huruf belum tertangani handler lain
+// Pick first tool of family when letter is not handled elsewhere
 export function selectFamilyFirst(letter: string): boolean {
   const fam = getFamilies().get(letter.toUpperCase());
   if (!fam || fam.length === 0) return false;
@@ -108,7 +108,7 @@ export function adjustBrushSize(delta: number): boolean {
   return true;
 }
 
-// Spasi: tahan untuk memakai Hand sementara, lepas untuk kembali ke tool sebelumnya
+// Space: hold for temporary Hand, release to return to previous tool
 let spaceTool: string | null = null;
 
 export function spaceDown(): boolean {

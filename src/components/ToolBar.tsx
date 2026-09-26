@@ -314,7 +314,7 @@ export const TOOL_MAP: Record<string, ToolDef> = Object.fromEntries(
 );
 
 export const FAMILY_OF: Record<string, string> = Object.fromEntries(
-  TOOL_FAMILIES.flatMap((f) => f.tools.map((t) => [t.id, f.id]))),
+  TOOL_FAMILIES.flatMap((f) => f.tools.map((t) => [t.id, f.id])),
 );
 
 export default function ToolBar() {

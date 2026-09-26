@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useEditorStore } from "../stores/useEditorStore";
+import { useEditorStore, makeLayer, type ToolId } from "../stores/useEditorStore";
 import { useProStore } from "../stores/useProStore";
 import { useHomeStore } from "../stores/useHomeStore";
 import { layerManager } from "../engine/layerManager";
@@ -21,7 +21,6 @@ import { applySoftProof, convertWorkingSpace } from "../engine/color";
 import { renderShapeToLayer, renderTextToLayer } from "../engine/textShape";
 import ToolOptionsBar from "./ToolOptionsBar";
 import { TOOL_LABEL } from "./ToolBar";
-import { makeLayer } from "../stores/useEditorStore";
 
 export function getCompositeCanvas(): HTMLCanvasElement | null {
   return (window as any).__avero_comp ?? null;
@@ -453,7 +452,7 @@ export default function CanvasArea() {
       }
     }
 
-    // 3. Adjustments berurutan
+    // 3. Sequential adjustments
     // Path A: avoid 1 extra ImageData copy at 100% opacity (common case).
     // applyAdjustmentToImageData mutates in place, so apply directly to id with no copy.
     adjustments.forEach((adj) => {
@@ -1604,7 +1603,7 @@ export default function CanvasArea() {
             setGradDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
             return;
           }
-          if (tool === "gradient-radial") {
+          if ((tool as ToolId) === ("gradient-radial" as ToolId)) {
             gradientFillAt(p.x, p.y, true);
             return;
           }
@@ -1737,18 +1736,17 @@ export default function CanvasArea() {
             lastPos.current = null;
             if (tool === "smudge" || distort) pickSmudgeColor(p);
             if (isBrush || isEraser) paintTo(p.x, p.y, isEraser);
-            else if (tool === "blur-iris") retouchTo(p.x, p.y, "blur-iris");
-            else if (tool === "sharpen-edge") retouchTo(p.x, p.y, "sharpen-edge");
-            else if (tool === "vibrance-brush") retouchTo(p.x, p.y, "vibrance");
-            else if (tool === "noise-reduction") retouchTo(p.x, p.y, "noise");
-            else if (tool === "content-fill") retouchTo(p.x, p.y, "content-fill");
+            else if ((tool as string) === "blur-iris") retouchTo(p.x, p.y, "blur-iris");
+            else if ((tool as string) === "sharpen-edge") retouchTo(p.x, p.y, "sharpen-edge");
+            else if ((tool as string) === "vibrance-brush") retouchTo(p.x, p.y, "vibrance");
+            else if ((tool as string) === "noise-reduction") retouchTo(p.x, p.y, "noise");
             else
               retouchTo(
                 p.x,
                 p.y,
                 (distort ? "smudge" : tool) as "dodge" | "burn" | "sponge" | "vibrance" | "blur" | "blur-iris" | "sharpen" | "sharpen-edge" | "smudge" | "heal" | "noise" | "content-fill",
               );
-            if (isHeal && tool !== "content-fill") retouchTo(p.x, p.y, "heal");
+            if (isHeal) retouchTo(p.x, p.y, "heal");
             setCursor(`${Math.round(p.x)}, ${Math.round(p.y)}`);
           }
           if (tool === "zoom") {
@@ -1775,7 +1773,7 @@ export default function CanvasArea() {
               const thr = 10 / s + 3;
               let nx = moveDrag.current.ox + dx;
               let ny = moveDrag.current.oy + dy;
-              // snap ke guides (posisi layer center)
+              // snap to guides (layer center position)
               const cx = doc.width / 2 + nx;
               const cy = doc.height / 2 + ny;
               for (const gx of pro0.guidesV) {
@@ -1790,7 +1788,7 @@ export default function CanvasArea() {
                   break;
                 }
               }
-              // snap ke grid
+              // snap to grid
               if (pro0.showGrid) {
                 const gs = pro0.gridSize;
                 const sx = Math.round(cx / gs) * gs;
@@ -1798,7 +1796,7 @@ export default function CanvasArea() {
                 if (Math.abs(cx - sx) < thr) nx = sx - doc.width / 2;
                 if (Math.abs(cy - sy) < thr) ny = sy - doc.height / 2;
               }
-              // snap ke tengah dokumen
+              // snap to document center
               if (Math.abs(nx) < thr) nx = 0;
               if (Math.abs(ny) < thr) ny = 0;
               dx = nx - moveDrag.current.ox;
@@ -1830,7 +1828,7 @@ export default function CanvasArea() {
             let x1 = p.x;
             let y1 = p.y;
             if (e.shiftKey) {
-              // kunci sudut 45 derajat
+              // lock angle at 45 degrees
               const dx = x1 - gradDrag.x0;
               const dy = y1 - gradDrag.y0;
               const ang = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4);
@@ -1872,11 +1870,10 @@ export default function CanvasArea() {
             else if (isBrush || isEraser) paintTo(p.x, p.y, isEraser);
             else if (tool === "smudge" || tool === "liquify" || tool === "warp") {
               retouchTo(p.x, p.y, "smudge");
-            } else if (tool === "blur-iris") retouchTo(p.x, p.y, "blur-iris");
-            else if (tool === "sharpen-edge") retouchTo(p.x, p.y, "sharpen-edge");
-            else if (tool === "vibrance-brush") retouchTo(p.x, p.y, "vibrance");
-            else if (tool === "noise-reduction") retouchTo(p.x, p.y, "noise");
-            else if (tool === "content-fill") retouchTo(p.x, p.y, "content-fill");
+            } else if ((tool as string) === "blur-iris") retouchTo(p.x, p.y, "blur-iris");
+            else if ((tool as string) === "sharpen-edge") retouchTo(p.x, p.y, "sharpen-edge");
+            else if ((tool as string) === "vibrance-brush") retouchTo(p.x, p.y, "vibrance");
+            else if ((tool as string) === "noise-reduction") retouchTo(p.x, p.y, "noise");
             else if (
               tool === "dodge" ||
               tool === "burn" ||
@@ -2014,7 +2011,7 @@ export default function CanvasArea() {
           />
         )}
         <ToolOptionsBar onApplyCrop={applyCrop} onCancelCrop={() => setCropDrag(null)} />
-        {/* HUD kiri bawah: info posisi dan tool */}
+        {/* Bottom-left HUD: position and tool info */}
         <div className="pointer-events-none absolute bottom-3 left-3 flex items-center gap-2 rounded-lg border border-white/10 bg-black/65 px-2.5 py-1.5 font-mono text-[10px] text-white/75 shadow-lg backdrop-blur-md">
           <span className="rounded bg-[#2f7cf6] px-1.5 py-0.5 font-semibold text-white">{TOOL_LABEL[tool] ?? tool}</span>
           <span className="tabular-nums">{cursor}</span>
@@ -2025,13 +2022,13 @@ export default function CanvasArea() {
           {hasSelection() && (
             <>
               <span className="text-white/40">|</span>
-              <span className="rounded bg-[#d9a441]/20 px-1.5 py-0.5 text-[#f0c674]">Seleksi aktif</span>
+              <span className="rounded bg-[#d9a441]/20 px-1.5 py-0.5 text-[#f0c674]">Selection active</span>
             </>
           )}
           {countN > 0 && (
             <>
               <span className="text-white/40">|</span>
-              <span className="rounded bg-[#5a30ff]/25 px-1.5 py-0.5 text-[#b9a8ff]">Hitungan {countN}</span>
+              <span className="rounded bg-[#5a30ff]/25 px-1.5 py-0.5 text-[#b9a8ff]">Count {countN}</span>
             </>
           )}
           {paintMask && (
@@ -2042,7 +2039,7 @@ export default function CanvasArea() {
           )}
         </div>
 
-        {/* Kontrol zoom kanan bawah */}
+        {/* Bottom-right zoom controls */}
         <div className="absolute bottom-3 right-3 flex items-center gap-0.5 overflow-hidden rounded-lg border border-white/10 bg-black/70 p-1 shadow-lg backdrop-blur-md">
           <button
             onClick={() => setZoom(Math.max(1, zoom - 25))}
@@ -2069,7 +2066,7 @@ export default function CanvasArea() {
           <button
             onClick={() => window.dispatchEvent(new Event("avero:fit-zoom"))}
             className="rounded px-2 py-0.5 font-mono text-[10px] text-white/70 hover:bg-white/10 hover:text-white"
-            title="Fit ke layar"
+            title="Fit to screen"
           >
             Fit
           </button>
@@ -2077,16 +2074,16 @@ export default function CanvasArea() {
         {dragging && (
           <div className="pointer-events-none absolute inset-4 grid place-items-center rounded-lg border-2 border-dashed border-[#2f7cf6] bg-[#2f7cf6]/10">
             <div className="rounded bg-black/70 px-4 py-2 text-[13px] text-white">
-              Lepaskan untuk membuka gambar
+              Release to open image
             </div>
           </div>
         )}
         {isFresh && !dragging && (
           <div className="pointer-events-none absolute left-1/2 top-10 -translate-x-1/2 rounded-lg bg-black/65 px-4 py-2.5 text-center text-[12px] text-[#c9c9d1]">
-            <span className="font-semibold text-white">Seret gambar ke sini</span> untuk mulai, atau
-            tekan{" "}
+            <span className="font-semibold text-white">Drag image here</span> to start, or
+            press{" "}
             <span className="rounded bg-[#2c2c31] px-1.5 py-0.5 font-mono text-[11px]">Ctrl+K</span>{" "}
-            lalu Open image
+            then Open image
           </div>
         )}
       </div>

@@ -45,6 +45,8 @@ export default function CanvasArea() {
   const hRulerRef = useRef<HTMLCanvasElement>(null);
   const vRulerRef = useRef<HTMLCanvasElement>(null);
   const [rulerDrag, setRulerDrag] = useState<{ kind: "h" | "v"; pos: number } | null>(null);
+  const [countN, setCountN] = useState(0);
+  const [measureDrag, setMeasureDrag] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
   const [lassoPts, setLassoPts] = useState<{ x: number; y: number }[]>([]);
   const [ants, setAnts] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -67,7 +69,7 @@ export default function CanvasArea() {
   const isHeal = tool === "spot-heal" || tool === "healing-brush" || tool === "patch" || tool === "red-eye" || tool === "content-move";
   const isClone = tool === "clone" || tool === "healing-brush" || tool === "patch" || tool === "pattern-stamp";
   const isEyedropper = tool === "eyedropper" || tool === "color-sampler";
-  const isCrop = tool === "crop" || tool === "frame";
+  const isCrop = tool === "crop" || tool === "frame" || tool === "perspective-crop";
   const zoom = useEditorStore((s) => s.zoom);
   const panX = useEditorStore((s) => s.panX);
   const panY = useEditorStore((s) => s.panY);
@@ -697,6 +699,35 @@ export default function CanvasArea() {
       ctx.restore();
     }
 
+    if (measureDrag) {
+      const mx1 = ox + measureDrag.x0 * s;
+      const my1 = oy + measureDrag.y0 * s;
+      const mx2 = ox + measureDrag.x1 * s;
+      const my2 = oy + measureDrag.y1 * s;
+      ctx.save();
+      ctx.strokeStyle = "#5a30ff";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      ctx.moveTo(mx1, my1);
+      ctx.lineTo(mx2, my2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#5a30ff";
+      ctx.beginPath();
+      ctx.arc(mx1, my1, 3.5, 0, Math.PI * 2);
+      ctx.arc(mx2, my2, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      const dx = measureDrag.x1 - measureDrag.x0;
+      const dy = measureDrag.y1 - measureDrag.y0;
+      const dist = Math.hypot(dx, dy);
+      const ang = (Math.atan2(-dy, dx) * 180) / Math.PI;
+      ctx.font = "11px JetBrains Mono, monospace";
+      ctx.fillStyle = "#ffffff";
+      ctx.fillText(`${dist.toFixed(1)} px ${ang.toFixed(1)} deg`, (mx1 + mx2) / 2 + 8, (my1 + my2) / 2 - 8);
+      ctx.restore();
+    }
+
     if (zoom >= 400) {
       ctx.save();
       ctx.strokeStyle = "rgba(255,255,255,0.06)";
@@ -729,6 +760,7 @@ export default function CanvasArea() {
     cropDrag,
     gradDrag,
     penDrag,
+    measureDrag,
     guidesH,
     guidesV,
     showGuides,
@@ -1237,14 +1269,14 @@ export default function CanvasArea() {
     }
   }
 
-  function createTextLayer(p: { x: number; y: number }) {
+  function createTextLayer(p: { x: number; y: number }, presetText?: string, vertical = false) {
     const st = useEditorStore.getState();
     const pro = useProStore.getState();
     const l = makeLayer(`Text ${st.layers.length + 1}`);
     (l as any).kind = "text";
     layerManager.ensure(l.id, doc.width, doc.height);
     const spec = {
-      text: "Edit teks di panel",
+      text: presetText ?? "Edit teks di panel",
       fontFamily: "Inter",
       fontSize: Math.max(24, Math.round(doc.width / 24)),
       color: "#ffffff",
@@ -1253,6 +1285,7 @@ export default function CanvasArea() {
       tracking: 0,
       leading: 1.25,
     };
+    if (vertical && !presetText) spec.text = spec.text.split("").join("\n");
     pro.setTextSpec(l.id, spec);
     const c = layerManager.ensure(l.id, doc.width, doc.height);
     renderTextToLayer(c, spec, Math.round(p.x), Math.round(p.y));
@@ -1261,7 +1294,7 @@ export default function CanvasArea() {
     markDirty();
   }
 
-  function createShapeLayer(kind: "rect" | "ellipse" | "polygon") {
+  function createShapeLayer(kind: "rect" | "ellipse" | "polygon", sides = 6) {
     const st = useEditorStore.getState();
     const pro = useProStore.getState();
     const l = makeLayer(`Shape ${st.layers.length + 1}`);
@@ -1271,7 +1304,7 @@ export default function CanvasArea() {
       fill: "#2f7cf6",
       stroke: "#ffffff",
       strokeWidth: 3,
-      sides: 6,
+      sides,
       rotation: 0,
     };
     pro.setShapeSpec(l.id, spec);
@@ -1352,12 +1385,12 @@ export default function CanvasArea() {
           }
         }}
         onMouseDown={(e) => {
-          if (e.button === 1 || tool === "pan") {
+          if (e.button === 1 || tool === "pan" || tool === "hand" || tool === "rotate-view") {
             panning.current = { sx: e.clientX, sy: e.clientY, px: panX, py: panY };
             return;
           }
           const p = toDocCoords(e);
-          if (tool === "move") {
+          if (tool === "move" || tool === "path-select" || tool === "direct-select") {
             // dahulukan drag guide ala Photoshop bila kena garis
             if (showGuides) {
               const thr = 7 / (zoom / 100);
@@ -1437,8 +1470,18 @@ export default function CanvasArea() {
             handleWandClick(p);
             return;
           }
-          if (tool === "text") {
-            createTextLayer(p);
+          if (tool === "text" || tool === "text-vertical") {
+            createTextLayer(p, undefined, tool === "text-vertical");
+            return;
+          }
+          if (tool === "note") {
+            const t = prompt("Isi catatan:", "");
+            if (t) createTextLayer(p, t);
+            return;
+          }
+          if (tool === "count") {
+            setCountN((n) => n + 1);
+            setCursor(`Hitungan ${countN + 1} di ${Math.round(p.x)}, ${Math.round(p.y)}`);
             return;
           }
           if (tool === "shape-rect") {
@@ -1449,8 +1492,16 @@ export default function CanvasArea() {
             createShapeLayer("ellipse");
             return;
           }
+          if (tool === "triangle-shape") {
+            createShapeLayer("polygon", 3);
+            return;
+          }
           if (tool === "shape-polygon" || tool === "shape-line" || tool === "shape-custom") {
             createShapeLayer("polygon");
+            return;
+          }
+          if (tool === "ruler") {
+            setMeasureDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
             return;
           }
           if (tool === "fill") {
@@ -1461,6 +1512,7 @@ export default function CanvasArea() {
             setPenDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
             return;
           }
+          const distort = tool === "liquify" || tool === "warp";
           if (
             isBrush ||
             isEraser ||
@@ -1470,6 +1522,7 @@ export default function CanvasArea() {
             tool === "blur" ||
             tool === "sharpen" ||
             tool === "smudge" ||
+            distort ||
             isHeal
           ) {
             const snap = layerManager.snapshot(activeLayerId ?? "");
@@ -1495,13 +1548,13 @@ export default function CanvasArea() {
             }
             setIsPainting(true);
             lastPos.current = null;
-            if (tool === "smudge") pickSmudgeColor(p);
+            if (tool === "smudge" || distort) pickSmudgeColor(p);
             if (isBrush || isEraser) paintTo(p.x, p.y, isEraser);
             else
               retouchTo(
                 p.x,
                 p.y,
-                tool as "dodge" | "burn" | "sponge" | "blur" | "sharpen" | "smudge" | "heal",
+                (distort ? "smudge" : tool) as "dodge" | "burn" | "sponge" | "blur" | "sharpen" | "smudge" | "heal",
               );
             if (isHeal) retouchTo(p.x, p.y, "heal");
             setCursor(`${Math.round(p.x)}, ${Math.round(p.y)}`);
@@ -1604,6 +1657,10 @@ export default function CanvasArea() {
             setLassoPts((pts) => [...pts.slice(-800), { x: p.x, y: p.y }]);
             return;
           }
+          if (measureDrag) {
+            setMeasureDrag({ ...measureDrag, x1: p.x, y1: p.y });
+            return;
+          }
           if (penDrag) {
             let x1 = p.x;
             let y1 = p.y;
@@ -1621,7 +1678,7 @@ export default function CanvasArea() {
           if (isPainting) {
             if (isClone) cloneTo(p.x, p.y);
             else if (isBrush || isEraser) paintTo(p.x, p.y, isEraser);
-            else if (tool === "smudge") {
+            else if (tool === "smudge" || tool === "liquify" || tool === "warp") {
               retouchTo(p.x, p.y, "smudge");
             } else if (
               tool === "dodge" ||
@@ -1647,6 +1704,14 @@ export default function CanvasArea() {
             const dy = gradDrag.y1 - gradDrag.y0;
             if (Math.hypot(dx, dy) > 6) applyGradient(gradDrag.x0, gradDrag.y0, gradDrag.x1, gradDrag.y1);
             setGradDrag(null);
+          }
+          if (measureDrag) {
+            const dx = measureDrag.x1 - measureDrag.x0;
+            const dy = measureDrag.y1 - measureDrag.y0;
+            const dist = Math.hypot(dx, dy);
+            const ang = (Math.atan2(-dy, dx) * 180) / Math.PI;
+            if (dist > 1) setCursor(`Jarak ${dist.toFixed(1)} px | ${ang.toFixed(1)} deg`);
+            setMeasureDrag(null);
           }
           if (guideDrag.current) guideDrag.current = null;
           if (selDrag) {
@@ -1695,13 +1760,26 @@ export default function CanvasArea() {
           className="absolute inset-0 h-full w-full"
           style={{
             cursor:
-              tool === "pan"
+              tool === "pan" || tool === "hand" || tool === "rotate-view"
                 ? "grab"
                 : tool === "brush" ||
+                    tool === "pencil" ||
                     tool === "eraser" ||
                     tool === "clone" ||
                     tool === "eyedropper" ||
                     tool === "spot-heal" ||
+                    tool === "healing-brush" ||
+                    tool === "patch" ||
+                    tool === "content-move" ||
+                    tool === "pattern-stamp" ||
+                    tool === "history-brush" ||
+                    tool === "art-history-brush" ||
+                    tool === "color-replacement" ||
+                    tool === "mixer-brush" ||
+                    tool === "background-eraser" ||
+                    tool === "magic-eraser" ||
+                    tool === "liquify" ||
+                    tool === "warp" ||
                     tool === "blur" ||
                     tool === "sharpen" ||
                     tool === "smudge" ||
@@ -1710,14 +1788,22 @@ export default function CanvasArea() {
                     tool === "sponge" ||
                     tool === "fill" ||
                     tool === "pen" ||
-                    tool === "line"
+                    tool === "line" ||
+                    tool === "ruler" ||
+                    tool === "note" ||
+                    tool === "count"
                   ? "crosshair"
                   : tool === "select-rect" ||
                       tool === "select-ellipse" ||
                       tool === "select-lasso" ||
-                      tool === "wand"
+                      tool === "wand" ||
+                      tool === "select-polygon" ||
+                      tool === "quick-select" ||
+                      tool === "object-select"
                     ? "crosshair"
-                    : "default",
+                    : tool === "text" || tool === "text-vertical"
+                      ? "text"
+                      : "default",
           }}
         />
         {showRulers && (
@@ -1743,6 +1829,12 @@ export default function CanvasArea() {
             <>
               <span className="text-white/40">|</span>
               <span className="rounded bg-[#d9a441]/20 px-1.5 py-0.5 text-[#f0c674]">Seleksi aktif</span>
+            </>
+          )}
+          {countN > 0 && (
+            <>
+              <span className="text-white/40">|</span>
+              <span className="rounded bg-[#5a30ff]/25 px-1.5 py-0.5 text-[#b9a8ff]">Hitungan {countN}</span>
             </>
           )}
           {paintMask && (

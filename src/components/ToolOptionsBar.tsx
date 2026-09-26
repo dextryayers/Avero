@@ -93,7 +93,7 @@ export default function ToolOptionsBar({
     artboard: "Seret untuk membuat artboard.",
     "path-select": "Klik path untuk memilih keseluruhan.",
     "direct-select": "Klik titik anchor untuk mengedit.",
-    "rotate-view": "Seret untuk memutar tampilan kanvas.",
+    "rotate-view": "Seret untuk menggeser tampilan kanvas.",
     zoom: "Klik untuk zoom in, Alt klik untuk zoom out.",
     "perspective-crop": "Seret area lalu sudut untuk perspektif.",
   };

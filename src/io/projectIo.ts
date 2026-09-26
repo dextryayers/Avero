@@ -1,5 +1,5 @@
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { invoke } from "@tauri-apps/api/core";
 import { useEditorStore, type LayerMeta } from "../stores/useEditorStore";
 import { useProStore } from "../stores/useProStore";
 import { useHomeStore } from "../stores/useHomeStore";
@@ -16,6 +16,20 @@ function isTauri(): boolean {
   } catch {
     return false;
   }
+}
+
+// Baca/tulis file teks lewat proses inti aplikasi (tanpa batas scope plugin fs).
+export async function readTextFile(path: string): Promise<string> {
+  return await invoke<string>("cmd_read_text_file", { path });
+}
+
+export async function writeTextFile(path: string, contents: string): Promise<void> {
+  await invoke("cmd_write_text_file", { path, contents });
+}
+
+function clampNum(v: unknown, min: number, max: number, fallback: number): number {
+  const n = typeof v === "number" && Number.isFinite(v) ? v : fallback;
+  return Math.min(max, Math.max(min, n));
 }
 
 function utf8ToB64(s: string): string {
@@ -103,6 +117,17 @@ interface AvxFile {
   gridSize: number;
   color: unknown;
   raw: unknown;
+  ui?: {
+    selKind?: string;
+    selFeather?: number;
+    selTolerance?: number;
+    selExpand?: number;
+    savedSelections?: unknown[];
+    paintMask?: boolean;
+    gradTo?: string;
+    snapEnabled?: boolean;
+    brush?: { size?: number; opacity?: number; hardness?: number; color?: string };
+  };
 }
 
 export function getProjectPath(): string | null {
@@ -164,6 +189,22 @@ export async function saveAvxProject(saveAs = false): Promise<string | null> {
     gridSize: pro.gridSize,
     color: pro.color,
     raw: pro.raw,
+    ui: {
+      selKind: pro.selKind,
+      selFeather: pro.selFeather,
+      selTolerance: pro.selTolerance,
+      selExpand: pro.selExpand,
+      savedSelections: pro.savedSelections,
+      paintMask: pro.paintMask,
+      gradTo: pro.gradTo,
+      snapEnabled: pro.snapEnabled,
+      brush: {
+        size: ed.brushSize,
+        opacity: ed.brushOpacity,
+        hardness: ed.brushHardness,
+        color: ed.brushColor,
+      },
+    },
   };
   const json = JSON.stringify(file);
 
@@ -247,6 +288,10 @@ export async function openAvxProject(fromPath?: string): Promise<boolean> {
   }
   if (file.magic !== AVX_MAGIC) throw new Error("File bukan proyek .avx yang valid");
   if (file.version > AVX_VERSION) throw new Error("Proyek dibuat versi AVERO yang lebih baru");
+  if (!file.doc || typeof file.doc.width !== "number" || typeof file.doc.height !== "number") {
+    throw new Error("File bukan proyek .avx yang valid (data dokumen hilang)");
+  }
+  if (!Array.isArray(file.layers)) throw new Error("File bukan proyek .avx yang valid (data layer hilang)");
 
   const ed = useEditorStore.getState();
   const pro = useProStore.getState();
@@ -329,6 +374,29 @@ export async function openAvxProject(fromPath?: string): Promise<boolean> {
     color: { ...pro.color, ...((file.color ?? {}) as object) },
     raw: { ...pro.raw, ...((file.raw ?? {}) as object) },
   });
+
+  // State UI editor ikut dipulihkan bila tersimpan
+  const ui = file.ui ?? {};
+  const selKinds = ["none", "rect", "ellipse", "lasso", "wand"];
+  const gradTos = ["transparent", "white", "black"];
+  useProStore.setState({
+    selKind: ui.selKind && selKinds.includes(ui.selKind) ? (ui.selKind as typeof pro.selKind) : pro.selKind,
+    selFeather: clampNum(ui.selFeather, 0, 250, pro.selFeather),
+    selTolerance: clampNum(ui.selTolerance, 0, 255, pro.selTolerance),
+    selExpand: clampNum(ui.selExpand, -100, 100, pro.selExpand),
+    savedSelections: Array.isArray(ui.savedSelections) ? (ui.savedSelections as typeof pro.savedSelections) : pro.savedSelections,
+    paintMask: typeof ui.paintMask === "boolean" ? ui.paintMask : false,
+    gradTo: ui.gradTo && gradTos.includes(ui.gradTo) ? (ui.gradTo as typeof pro.gradTo) : pro.gradTo,
+    snapEnabled: typeof ui.snapEnabled === "boolean" ? ui.snapEnabled : pro.snapEnabled,
+  });
+  if (ui.brush) {
+    useEditorStore.setState({
+      brushSize: clampNum(ui.brush.size, 1, 300, ed.brushSize),
+      brushOpacity: clampNum(ui.brush.opacity, 1, 100, ed.brushOpacity),
+      brushHardness: clampNum(ui.brush.hardness, 0, 100, ed.brushHardness),
+      brushColor: typeof ui.brush.color === "string" ? ui.brush.color : ed.brushColor,
+    });
+  }
 
   // Thumbnail recent dari komposit manual
   try {
@@ -438,8 +506,9 @@ export function renderExportCanvas(opts: ExportOptions): { canvas: HTMLCanvasEle
       ctx.restore();
     });
   }
+  // TIFF dirender dulu sebagai PNG lossless, lalu dikodekan ulang ke TIFF oleh mesin inti.
   const mime =
-    opts.format === "png"
+    opts.format === "png" || opts.format === "tiff"
       ? "image/png"
       : opts.format === "bmp"
         ? "image/bmp"

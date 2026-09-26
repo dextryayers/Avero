@@ -23,6 +23,8 @@ pub fn run() {
             io::cmd_open_image_info,
             io::cmd_decode_image_to_dataurl,
             io::cmd_save_dataurl_to_file,
+            io::cmd_read_text_file,
+            io::cmd_write_text_file,
             pro::cmd_psd_layer_list,
             pro::cmd_raw_info,
             pro::cmd_image_histogram,

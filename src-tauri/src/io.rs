@@ -112,6 +112,37 @@ fn downscale_if_needed(img: image::DynamicImage, max_side: Option<u32>) -> image
     img.resize(nw, nh, image::imageops::FilterType::Triangle)
 }
 
+// Ekstensi yang boleh disentuh perintah teks (proyek .avx, ekspor SVG, catatan).
+fn text_path_ok(path: &str) -> Result<(), String> {
+    if path.trim().is_empty() {
+        return Err("Path file kosong".into());
+    }
+    let lower = path.to_lowercase();
+    let allowed = [".avx", ".json", ".svg", ".txt", ".md", ".csv"];
+    if !allowed.iter().any(|ext| lower.ends_with(ext)) {
+        return Err("Format file tidak didukung untuk simpan teks".into());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn cmd_write_text_file(path: String, contents: String) -> Result<(), String> {
+    text_path_ok(&path)?;
+    if let Some(parent) = std::path::Path::new(&path).parent() {
+        if !parent.as_os_str().is_empty() && !parent.exists() {
+            std::fs::create_dir_all(parent).map_err(|e| format!("Gagal membuat folder: {e}"))?;
+        }
+    }
+    std::fs::write(&path, contents).map_err(|e| format!("Gagal menulis file: {e}"))
+}
+
+#[tauri::command]
+pub fn cmd_read_text_file(path: String) -> Result<String, String> {
+    text_path_ok(&path)?;
+    let bytes = std::fs::read(&path).map_err(|e| format!("Gagal membaca file: {e}"))?;
+    String::from_utf8(bytes).map_err(|e| format!("File bukan teks UTF-8 yang valid: {e}"))
+}
+
 #[tauri::command]
 pub fn cmd_save_dataurl_to_file(data_url: String, path: String) -> Result<(), String> {
     let (_, b64) = data_url.split_once(",").ok_or("Invalid data URL")?;

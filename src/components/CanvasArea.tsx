@@ -63,10 +63,11 @@ export default function CanvasArea() {
   const layers = useEditorStore((s) => s.layers);
   const activeLayerId = useEditorStore((s) => s.activeLayerId ?? s.layers[s.layers.length - 1]?.id);
   const tool = useEditorStore((s) => s.tool);
-  // normalisasi tool lengkap ke perilaku dasar agar ringan dan proper, tanpa duplikasi logic
-  const isBrush = tool === "brush" || tool === "pencil" || tool === "mixer-brush" || tool === "history-brush" || tool === "art-history-brush" || tool === "color-replacement";
-  const isEraser = tool === "eraser" || tool === "background-eraser" || tool === "magic-eraser";
-  const isHeal = tool === "spot-heal" || tool === "healing-brush" || tool === "patch" || tool === "red-eye" || tool === "content-move";
+  // Each tool has a distinct engine behavior (no duplicates).
+  // Brush family: soft paint variants with different flow / hardness.
+  const isBrush = tool === "brush" || tool === "pencil" || tool === "mixer-brush" || tool === "history-brush" || tool === "art-history-brush" || tool === "color-replacement" || tool === "airbrush" || tool === "soft-brush";
+  const isEraser = tool === "eraser" || tool === "background-eraser" || tool === "magic-eraser" || tool === "eraser-hard";
+  const isHeal = tool === "spot-heal" || tool === "healing-brush" || tool === "patch" || tool === "red-eye" || tool === "content-move" || tool === "content-fill";
   const isClone = tool === "clone" || tool === "healing-brush" || tool === "patch" || tool === "pattern-stamp";
   const isEyedropper = tool === "eyedropper" || tool === "color-sampler";
   const isCrop = tool === "crop" || tool === "frame" || tool === "perspective-crop";
@@ -842,6 +843,8 @@ export default function CanvasArea() {
     const meta = layers.find((l) => l.id === activeLayerId);
     if (!meta || meta.locked || !meta.visible) return;
     const last = lastPos.current ?? { x, y };
+    const st = useEditorStore.getState();
+    const curTool = st.tool;
 
     // Mode paint mask
     const m = masks[activeLayerId];
@@ -862,13 +865,109 @@ export default function CanvasArea() {
     const c = layerManager.ensure(activeLayerId, doc.width, doc.height);
     const ctx = c.getContext("2d")!;
     ctx.save();
-    ctx.globalCompositeOperation = erase ? "destination-out" : "source-over";
-    ctx.globalAlpha = (erase ? 100 : brushOpacity) / 100;
-    const sp = brushSprite(brushSize, brushHardness, erase ? "#000000" : brushColor);
+    // Distinct per-tool paint behavior:
+    // - pencil: hard 100% alpha, full hardness
+    // - airbrush: 25% flow buildup per dab
+    // - soft-brush: force 0 hardness
+    // - eraser-hard: 100% hard erase
+    // - background-eraser: handled separately via eraseBackgroundTo()
+    // - magic-eraser: handled separately via magicEraseAt()
+    if (curTool === "background-eraser") {
+      ctx.restore();
+      eraseBackgroundTo(x, y);
+      return;
+    }
+    if (curTool === "magic-eraser") {
+      ctx.restore();
+      magicEraseAt(x, y);
+      return;
+    }
+    const isPencil = curTool === "pencil";
+    const isAir = curTool === "airbrush";
+    const isSoft = curTool === "soft-brush";
+    const isHardErase = curTool === "eraser-hard";
+    const effHard = isPencil || isHardErase ? 100 : isSoft || isAir ? 0 : brushHardness;
+    const effAlpha = isPencil || isHardErase ? 1 : isAir ? (brushOpacity / 100) * 0.25 : (erase ? 1 : brushOpacity / 100);
+    ctx.globalCompositeOperation = erase || isHardErase ? "destination-out" : "source-over";
+    ctx.globalAlpha = effAlpha;
+    const sp = brushSprite(brushSize, effHard, erase || isHardErase ? "#000000" : brushColor);
     stampLine(ctx, sp, brushSize, last.x, last.y, x, y, true);
     ctx.restore();
     lastPos.current = { x, y };
     markDirty();
+  }
+
+  // Background Eraser: erase only pixels similar to edge sample.
+  function eraseBackgroundTo(x: number, y: number) {
+    if (!activeLayerId) return;
+    const c = layerManager.ensure(activeLayerId, doc.width, doc.height);
+    const ctx = c.getContext("2d", { willReadFrequently: true })!;
+    const r = Math.max(1, brushSize / 2);
+    const s = Math.round(r * 2);
+    const sx = Math.round(x - r);
+    const sy = Math.round(y - r);
+    try {
+      const edge = ctx.getImageData(Math.max(0, Math.min(c.width - 1, Math.floor(x))), Math.max(0, Math.min(c.height - 1, Math.floor(y))), 1, 1).data;
+      const id = ctx.getImageData(Math.max(0, sx), Math.max(0, sy), Math.min(s, c.width), Math.min(s, c.height));
+      const d = id.data;
+      const tol = 48;
+      for (let i = 0; i < d.length; i += 4) {
+        const dr = Math.abs(d[i] - edge[0]);
+        const dg = Math.abs(d[i + 1] - edge[1]);
+        const db = Math.abs(d[i + 2] - edge[2]);
+        if ((dr + dg + db) / 3 < tol) d[i + 3] = 0;
+      }
+      ctx.putImageData(id, Math.max(0, sx), Math.max(0, sy));
+      markDirty();
+    } catch { /* ignore edges */ }
+    lastPos.current = { x, y };
+  }
+
+  // Magic Eraser: one-click flood erase with tolerance.
+  function magicEraseAt(x: number, y: number) {
+    if (!activeLayerId) return;
+    const st = useEditorStore.getState();
+    const snap = layerManager.snapshot(activeLayerId);
+    if (snap) st.pushHistory({ label: "Magic erase", layerId: activeLayerId, snapshot: snap });
+    const c = layerManager.ensure(activeLayerId, doc.width, doc.height);
+    const ctx = c.getContext("2d", { willReadFrequently: true })!;
+    try {
+      const W = c.width;
+      const H = c.height;
+      const ix = Math.max(0, Math.min(W - 1, Math.floor(x)));
+      const iy = Math.max(0, Math.min(H - 1, Math.floor(y)));
+      const img = ctx.getImageData(0, 0, W, H);
+      const d = img.data;
+      const start = (iy * W + ix) * 4;
+      const sr = d[start];
+      const sg = d[start + 1];
+      const sb = d[start + 2];
+      const tol = 32;
+      const visited = new Uint8Array(Math.min(W * H, 2000000));
+      const stack = [iy * W + ix];
+      let n = 0;
+      while (stack.length && n < 500000) {
+        const p = stack.pop()!;
+        if (p < 0 || p >= W * H || visited[p]) continue;
+        visited[p] = 1;
+        const idx = p * 4;
+        const dist = (Math.abs(d[idx] - sr) + Math.abs(d[idx + 1] - sg) + Math.abs(d[idx + 2] - sb)) / 3;
+        if (dist <= tol) {
+          d[idx + 3] = 0;
+          n++;
+          const px = p % W;
+          const py = Math.floor(p / W);
+          if (px > 0) stack.push(p - 1);
+          if (px < W - 1) stack.push(p + 1);
+          if (py > 0) stack.push(p - W);
+          if (py < H - 1) stack.push(p + W);
+        }
+      }
+      ctx.putImageData(img, 0, 0);
+      st.markDirty();
+      bumpHistogram();
+    } catch { /* ignore */ }
+    lastPos.current = { x, y };
   }
 
   // Clone stamp: Alt+klik tentukan sumber, lukis untuk salin.
@@ -878,7 +977,7 @@ export default function CanvasArea() {
     if (!meta || meta.locked || !meta.visible) return;
     const src = cloneRef.current;
     if (!src) {
-      setCursor("Alt+klik tentukan sumber");
+      setCursor("Alt-click to set source");
       return;
     }
     if (!cloneOrigin.current) cloneOrigin.current = { x, y };
@@ -916,7 +1015,7 @@ export default function CanvasArea() {
     return pts;
   }
 
-  function retouchTo(x: number, y: number, mode: "dodge" | "burn" | "sponge" | "blur" | "sharpen" | "heal" | "smudge") {
+  function retouchTo(x: number, y: number, mode: "dodge" | "burn" | "sponge" | "vibrance" | "blur" | "blur-iris" | "sharpen" | "sharpen-edge" | "heal" | "smudge" | "noise" | "content-fill") {
     if (!activeLayerId) return;
     const meta = layers.find((l) => l.id === activeLayerId);
     if (!meta || meta.locked || !meta.visible) return;
@@ -940,40 +1039,74 @@ export default function CanvasArea() {
           ctx.arc(px, py, r * (brushHardness / 130 + 0.35), 0, Math.PI * 2);
           ctx.fill();
           ctx.restore();
-        } else if (mode === "blur" || mode === "heal") {
+        } else if (mode === "blur" || mode === "blur-iris" || mode === "heal") {
           const tmp = document.createElement("canvas");
           tmp.width = s;
           tmp.height = s;
           const tctx = tmp.getContext("2d")!;
-          tctx.filter = `blur(${Math.max(1, r / 3)}px)`;
+          const blurR = mode === "blur-iris" ? Math.max(2, r / 1.5) : Math.max(1, r / 3);
+          tctx.filter = `blur(${blurR}px)`;
           tctx.drawImage(c, sx, sy, s, s, 0, 0, s, s);
           tctx.filter = "none";
           ctx.save();
-          ctx.globalAlpha = mode === "heal" ? 0.85 * strength + 0.15 : 0.55 * strength + 0.1;
+          ctx.globalAlpha = mode === "heal" ? 0.85 * strength + 0.15 : mode === "blur-iris" ? 0.8 * strength + 0.15 : 0.55 * strength + 0.1;
           ctx.drawImage(tmp, sx, sy);
           ctx.restore();
-        } else if (mode === "sharpen") {
+        } else if (mode === "sharpen" || mode === "sharpen-edge") {
           const id = ctx.getImageData(sx, sy, s, s);
           const d = id.data;
-          const amt = 0.35 * strength + 0.1;
+          const amt = (mode === "sharpen-edge" ? 0.5 : 0.35) * strength + 0.1;
           for (let i = 0; i < d.length; i += 4) {
             const avg = (d[i] + d[i + 1] + d[i + 2]) / 3;
+            // edge variant skips flat areas to avoid noise boost
+            if (mode === "sharpen-edge") {
+              const edge = Math.max(Math.abs(d[i] - avg), Math.abs(d[i + 1] - avg), Math.abs(d[i + 2] - avg));
+              if (edge < 12) continue;
+            }
             d[i] = Math.max(0, Math.min(255, d[i] + (d[i] - avg) * amt));
             d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + (d[i + 1] - avg) * amt));
             d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + (d[i + 2] - avg) * amt));
           }
           ctx.putImageData(id, sx, sy);
-        } else if (mode === "sponge") {
+        } else if (mode === "sponge" || mode === "vibrance") {
           const id = ctx.getImageData(sx, sy, s, s);
           const d = id.data;
-          const amt = 0.25 * strength + 0.05;
+          const amt = (mode === "vibrance" ? 0.35 : 0.25) * strength + 0.05;
           for (let i = 0; i < d.length; i += 4) {
             const avg = (d[i] + d[i + 1] + d[i + 2]) / 3;
-            d[i] = Math.max(0, Math.min(255, avg + (d[i] - avg) * (1 + amt)));
-            d[i + 1] = Math.max(0, Math.min(255, avg + (d[i + 1] - avg) * (1 + amt)));
-            d[i + 2] = Math.max(0, Math.min(255, avg + (d[i + 2] - avg) * (1 + amt)));
+            const mx = Math.max(d[i], d[i + 1], d[i + 2]);
+            const mn = Math.min(d[i], d[i + 1], d[i + 2]);
+            const sat = mx - mn;
+            // vibrance protects already-saturated + skin tones
+            const w = mode === "vibrance" ? Math.max(0, 1 - sat / 90) : 1;
+            d[i] = Math.max(0, Math.min(255, avg + (d[i] - avg) * (1 + amt * w)));
+            d[i + 1] = Math.max(0, Math.min(255, avg + (d[i + 1] - avg) * (1 + amt * w)));
+            d[i + 2] = Math.max(0, Math.min(255, avg + (d[i + 2] - avg) * (1 + amt * w)));
           }
           ctx.putImageData(id, sx, sy);
+        } else if (mode === "noise") {
+          const id = ctx.getImageData(sx, sy, s, s);
+          const d = id.data;
+          const amt = 0.5 * strength + 0.2;
+          for (let i = 0; i < d.length; i += 4) {
+            const avg = (d[i] + d[i + 1] + d[i + 2]) / 3;
+            d[i] = Math.max(0, Math.min(255, d[i] + (avg - d[i]) * amt * 0.6));
+            d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + (avg - d[i + 1]) * amt * 0.6));
+            d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + (avg - d[i + 2]) * amt * 0.6));
+          }
+          ctx.putImageData(id, sx, sy);
+        } else if (mode === "content-fill") {
+          const tmp = document.createElement("canvas");
+          tmp.width = s;
+          tmp.height = s;
+          const tctx = tmp.getContext("2d")!;
+          tctx.filter = `blur(${Math.max(2, r / 2)}px)`;
+          tctx.drawImage(c, sx, sy, s, s, 0, 0, s, s);
+          tctx.filter = "none";
+          ctx.save();
+          ctx.globalAlpha = 0.9 * strength + 0.1;
+          ctx.drawImage(tmp, sx, sy);
+          ctx.restore();
         } else if (mode === "smudge") {
           const col = smudgeColor.current ?? brushColor;
           ctx.save();
@@ -1178,6 +1311,49 @@ export default function CanvasArea() {
     setCropDrag(null);
     useProStore.getState().bumpHistogram();
     fitToView();
+  }
+
+  function gradientFillAt(x: number, y: number, radial: boolean) {
+    const st = useEditorStore.getState();
+    if (!radial) {
+      setGradDrag({ x0: x, y0: y, x1: x, y1: y });
+      return;
+    }
+    const id = st.activeLayerId;
+    if (!id) return;
+    const meta = st.layers.find((l) => l.id === id);
+    if (!meta || meta.locked || !meta.visible) return;
+    const snap = layerManager.snapshot(id);
+    if (snap) st.pushHistory({ label: "Radial gradient", layerId: id, snapshot: snap });
+    const c = layerManager.ensure(id, st.doc.width, st.doc.height);
+    const ctx = c.getContext("2d")!;
+    const to = gradTo === "white" ? "#ffffff" : gradTo === "black" ? "#000000" : "rgba(0,0,0,0)";
+    const from = st.brushColor;
+    const rad = Math.max(c.width, c.height) * 0.5;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, rad);
+    if (gradTo === "transparent") {
+      g.addColorStop(0, from);
+      const r = parseInt(from.slice(1, 3), 16);
+      const gg = parseInt(from.slice(3, 5), 16);
+      const b = parseInt(from.slice(5, 7), 16);
+      g.addColorStop(1, `rgba(${r},${gg},${b},0)`);
+    } else {
+      g.addColorStop(0, from);
+      g.addColorStop(1, to);
+    }
+    ctx.save();
+    ctx.globalAlpha = st.brushOpacity / 100;
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, c.width, c.height);
+    const sel = selectionMaskCanvas();
+    if (sel && hasSelection()) {
+      ctx.globalCompositeOperation = "destination-in";
+      ctx.globalAlpha = 1;
+      ctx.drawImage(sel, 0, 0);
+    }
+    ctx.restore();
+    st.markDirty();
+    useProStore.getState().bumpHistogram();
   }
 
   function applyGradient(x0: number, y0: number, x1: number, y1: number) {
@@ -1428,6 +1604,10 @@ export default function CanvasArea() {
             setGradDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
             return;
           }
+          if (tool === "gradient-radial") {
+            gradientFillAt(p.x, p.y, true);
+            return;
+          }
           if (tool === "select-rect" || tool === "select-ellipse" || tool === "select-polygon" || tool === "quick-select" || tool === "single-row" || tool === "single-column" || tool === "object-select") {
             // single row/column: 1px strip
             if (tool === "single-row") setSelDrag({ x0: 0, y0: p.y, x1: doc.width, y1: p.y + 1 });
@@ -1473,13 +1653,13 @@ export default function CanvasArea() {
             return;
           }
           if (tool === "note") {
-            const t = prompt("Isi catatan:", "");
+            const t = prompt("Note text:", "");
             if (t) createTextLayer(p, t);
             return;
           }
           if (tool === "count") {
             setCountN((n) => n + 1);
-            setCursor(`Hitungan ${countN + 1} di ${Math.round(p.x)}, ${Math.round(p.y)}`);
+            setCursor(`Count ${countN + 1} at ${Math.round(p.x)}, ${Math.round(p.y)}`);
             return;
           }
           if (tool === "shape-rect") {
@@ -1494,7 +1674,7 @@ export default function CanvasArea() {
             createShapeLayer("polygon", 3);
             return;
           }
-          if (tool === "shape-polygon" || tool === "shape-line" || tool === "shape-custom") {
+          if (tool === "shape-polygon" || tool === "shape-line" || tool === "shape-custom" || tool === "shape-star" || tool === "shape-arrow") {
             createShapeLayer("polygon");
             return;
           }
@@ -1502,8 +1682,19 @@ export default function CanvasArea() {
             setMeasureDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
             return;
           }
-          if (tool === "fill") {
-            floodFillAt(p.x, p.y);
+          if (tool === "fill" || tool === "content-fill") {
+            if (tool === "content-fill") {
+              const st0 = useEditorStore.getState();
+              const snap0 = layerManager.snapshot(activeLayerId ?? "");
+              if (snap0 && activeLayerId) pushHistory({ label: "Content fill", layerId: activeLayerId, snapshot: snap0 });
+              retouchTo(p.x, p.y, "content-fill");
+              st0.markDirty();
+              bumpHistogram();
+            } else floodFillAt(p.x, p.y);
+            return;
+          }
+          if (tool === "gradient-radial") {
+            gradientFillAt(p.x, p.y, true);
             return;
           }
           if (tool === "pen" || tool === "line" || tool === "curvature-pen") {
@@ -1511,15 +1702,13 @@ export default function CanvasArea() {
             return;
           }
           const distort = tool === "liquify" || tool === "warp";
+          const isTone = tool === "dodge" || tool === "burn" || tool === "sponge" || tool === "vibrance-brush";
+          const isDetail = tool === "blur" || tool === "blur-iris" || tool === "sharpen" || tool === "sharpen-edge" || tool === "smudge" || tool === "noise-reduction";
           if (
             isBrush ||
             isEraser ||
-            tool === "dodge" ||
-            tool === "burn" ||
-            tool === "sponge" ||
-            tool === "blur" ||
-            tool === "sharpen" ||
-            tool === "smudge" ||
+            isTone ||
+            isDetail ||
             distort ||
             isHeal
           ) {
@@ -1548,13 +1737,18 @@ export default function CanvasArea() {
             lastPos.current = null;
             if (tool === "smudge" || distort) pickSmudgeColor(p);
             if (isBrush || isEraser) paintTo(p.x, p.y, isEraser);
+            else if (tool === "blur-iris") retouchTo(p.x, p.y, "blur-iris");
+            else if (tool === "sharpen-edge") retouchTo(p.x, p.y, "sharpen-edge");
+            else if (tool === "vibrance-brush") retouchTo(p.x, p.y, "vibrance");
+            else if (tool === "noise-reduction") retouchTo(p.x, p.y, "noise");
+            else if (tool === "content-fill") retouchTo(p.x, p.y, "content-fill");
             else
               retouchTo(
                 p.x,
                 p.y,
-                (distort ? "smudge" : tool) as "dodge" | "burn" | "sponge" | "blur" | "sharpen" | "smudge" | "heal",
+                (distort ? "smudge" : tool) as "dodge" | "burn" | "sponge" | "vibrance" | "blur" | "blur-iris" | "sharpen" | "sharpen-edge" | "smudge" | "heal" | "noise" | "content-fill",
               );
-            if (isHeal) retouchTo(p.x, p.y, "heal");
+            if (isHeal && tool !== "content-fill") retouchTo(p.x, p.y, "heal");
             setCursor(`${Math.round(p.x)}, ${Math.round(p.y)}`);
           }
           if (tool === "zoom") {
@@ -1678,7 +1872,12 @@ export default function CanvasArea() {
             else if (isBrush || isEraser) paintTo(p.x, p.y, isEraser);
             else if (tool === "smudge" || tool === "liquify" || tool === "warp") {
               retouchTo(p.x, p.y, "smudge");
-            } else if (
+            } else if (tool === "blur-iris") retouchTo(p.x, p.y, "blur-iris");
+            else if (tool === "sharpen-edge") retouchTo(p.x, p.y, "sharpen-edge");
+            else if (tool === "vibrance-brush") retouchTo(p.x, p.y, "vibrance");
+            else if (tool === "noise-reduction") retouchTo(p.x, p.y, "noise");
+            else if (tool === "content-fill") retouchTo(p.x, p.y, "content-fill");
+            else if (
               tool === "dodge" ||
               tool === "burn" ||
               tool === "sponge" ||
@@ -1708,7 +1907,7 @@ export default function CanvasArea() {
             const dy = measureDrag.y1 - measureDrag.y0;
             const dist = Math.hypot(dx, dy);
             const ang = (Math.atan2(-dy, dx) * 180) / Math.PI;
-            if (dist > 1) setCursor(`Jarak ${dist.toFixed(1)} px | ${ang.toFixed(1)} deg`);
+            if (dist > 1) setCursor(`Distance ${dist.toFixed(1)} px | ${ang.toFixed(1)} deg`);
             setMeasureDrag(null);
           }
           if (guideDrag.current) guideDrag.current = null;

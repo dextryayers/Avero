@@ -22,7 +22,7 @@ function Slider({ label, value, min, max, onChange, suffix = "" }: { label: stri
   );
 }
 
-// Options bar kontekstual ala editor profesional: selalu tampil di atas kanvas sesuai tool aktif.
+// Contextual options bar: always visible above canvas for the active tool.
 export default function ToolOptionsBar({
   onApplyCrop,
   onCancelCrop,
@@ -40,76 +40,93 @@ export default function ToolOptionsBar({
   const name = TOOL_LABEL[tool] ?? tool;
 
   const retouchHint: Partial<Record<string, string>> = {
-    "spot-heal": "Klik atau lukis pada noda. J untuk Healing Brush, Patch, Red Eye.",
-    "healing-brush": "Alt klik sumber, lalu lukis untuk penyembuhan presisi.",
-    patch: "Seret area sumber ke target untuk patch.",
-    "content-move": "Seret objek, latar mengisi otomatis.",
-    "red-eye": "Klik mata merah untuk koreksi.",
-    clone: "Alt klik menentukan sumber, lalu lukis untuk mengklon.",
-    "pattern-stamp": "Lukis dengan pola aktif.",
-    "history-brush": "Lukis untuk mengembalikan ke keadaan sebelumnya.",
-    "art-history-brush": "Lukis dengan sapuan artistik dari riwayat.",
-    brush: "Lukis bebas. B berpindah Pencil dan Mixer Brush.",
-    pencil: "Garis keras tanpa anti-alias.",
-    "color-replacement": "Ganti warna target sambil mempertahankan terang gelap.",
-    "mixer-brush": "Campur warna seperti cat minyak.",
-    eraser: "Hapus piksel atau mask. E berpindah Background Eraser.",
-    "background-eraser": "Hapus latar dengan sampling warna tepi.",
-    "magic-eraser": "Klik area datar untuk menghapus sekaligus.",
-    blur: "Lukis untuk menghaluskan. R berpindah Sharpen dan Smudge.",
-    sharpen: "Lukis untuk mempertajam detail.",
-    smudge: "Klik dulu untuk mengambil warna, lalu seret.",
-    dodge: "Lukis untuk mencerahkan. O berpindah Burn dan Sponge.",
-    burn: "Lukis untuk menggelapkan.",
-    sponge: "Lukis untuk menjenuhkan warna lokal.",
-    liquify: "Seret untuk mendistorsi piksel secara lokal.",
-    warp: "Seret kisi untuk melenturkan area.",
-    fill: "Klik area untuk mengisi warna brush. Menghormati seleksi. G kembali Gradient.",
-    pen: "Seret untuk garis bebas. P berpindah Curvature Pen dan Line.",
-    "curvature-pen": "Klik untuk titik lengkung, seret untuk handle.",
-    line: "Seret untuk garis lurus. Shift mengunci 45 derajat.",
-    "select-polygon": "Klik titik polygon, double klik untuk menutup.",
-    "quick-select": "Seret untuk seleksi cepat.",
-    "object-select": "Seret area untuk memilih objek otomatis.",
-    frame: "Seret untuk membuat bingkai placeholder.",
-    ruler: "Seret untuk mengukur jarak dan sudut.",
-    note: "Klik untuk menempel catatan.",
-    count: "Klik untuk menambah hitungan.",
-    "color-sampler": "Klik untuk sampel warna.",
-    text: "Klik di kanvas untuk mulai mengetik.",
-    "text-vertical": "Klik di kanvas untuk teks vertikal.",
-    "shape-rect": "Seret untuk kotak. Shift untuk persegi.",
-    "shape-ellipse": "Seret untuk oval. Shift untuk lingkaran.",
-    "triangle-shape": "Seret untuk segitiga.",
-    "shape-polygon": "Seret untuk poligon.",
-    "shape-line": "Seret untuk garis bentuk.",
-    "shape-custom": "Seret untuk bentuk kustom.",
-    eyedropper: "Klik untuk mengambil warna dari kanvas.",
-    "select-lasso": "Seret bebas untuk seleksi. Tutup ke titik awal.",
-    "single-row": "Seret horizontal untuk memilih 1 baris piksel.",
-    "single-column": "Seret vertikal untuk memilih 1 kolom piksel.",
-    slice: "Seret untuk memotong irisan ekspor.",
-    "slice-select": "Klik irisan untuk memilih.",
-    artboard: "Seret untuk membuat artboard.",
-    "path-select": "Klik path untuk memilih keseluruhan.",
-    "direct-select": "Klik titik anchor untuk mengedit.",
-    "rotate-view": "Seret untuk menggeser tampilan kanvas.",
-    zoom: "Klik untuk zoom in, Alt klik untuk zoom out.",
-    "perspective-crop": "Seret area lalu sudut untuk perspektif.",
+    "spot-heal": "Click or paint over blemishes. Press J to cycle heal tools.",
+    "healing-brush": "Alt-click to set source, then paint for precise healing.",
+    patch: "Drag source area onto target to patch.",
+    "content-move": "Drag object, background fills automatically.",
+    "content-fill": "Select area, click to fill with surrounding texture.",
+    "red-eye": "Click red eyes to correct.",
+    clone: "Alt-click sets source, then paint to clone.",
+    "pattern-stamp": "Paint with the active pattern.",
+    "history-brush": "Paint to restore from history state.",
+    "art-history-brush": "Paint stylized artistic history strokes.",
+    brush: "Free painting. Press B to cycle pencil / airbrush.",
+    pencil: "Hard edge, no anti-alias. Pixel precise.",
+    airbrush: "Soft spray. Hold to build up tone gradually.",
+    "soft-brush": "Extra soft blending brush.",
+    "color-replacement": "Replace target hue while keeping luminance.",
+    "mixer-brush": "Wet oil-paint color mixing.",
+    eraser: "Erase pixels or mask. Press E to cycle erasers.",
+    "background-eraser": "Erases only background colors near edge sample.",
+    "magic-eraser": "Click a flat area to erase it at once.",
+    "eraser-hard": "100% hard block eraser for pixel work.",
+    blur: "Paint to soften. Press R to cycle sharpen / smudge.",
+    "blur-iris": "Strong falloff blur for depth of field.",
+    sharpen: "Paint to sharpen local detail.",
+    "sharpen-edge": "Sharpens edges only, protects flat areas.",
+    smudge: "Click to pick color first, then drag.",
+    dodge: "Paint to lighten. Press O to cycle burn / sponge.",
+    burn: "Paint to darken.",
+    sponge: "Paint to adjust local saturation.",
+    "vibrance-brush": "Smart saturation, protects skin tones.",
+    liquify: "Drag to distort pixels locally.",
+    warp: "Drag grid to bend the area.",
+    "noise-reduction": "Paint to smooth noise while keeping edges.",
+    fill: "Click area to fill with brush color. Respects selection. G toggles gradient.",
+    "gradient-radial": "Drag outward from center for radial fill.",
+    pen: "Drag for free path. Press P to cycle curvature / line.",
+    "curvature-pen": "Click curve points, drag handles.",
+    line: "Drag for straight line. Shift locks 45 degrees.",
+    "select-polygon": "Click polygon points, double-click to close.",
+    "quick-select": "Drag for quick auto selection.",
+    "object-select": "Drag around an object to auto select it.",
+    frame: "Drag to create a placeholder frame.",
+    ruler: "Drag to measure distance and angle.",
+    note: "Click to attach a note.",
+    count: "Click to add a count marker.",
+    "color-sampler": "Click to sample a persistent color.",
+    text: "Click canvas to start typing.",
+    "text-vertical": "Click canvas for vertical text.",
+    "shape-rect": "Drag for rectangle. Shift = square.",
+    "shape-ellipse": "Drag for ellipse. Shift = circle.",
+    "triangle-shape": "Drag for triangle.",
+    "shape-polygon": "Drag for polygon.",
+    "shape-line": "Drag for line shape.",
+    "shape-star": "Drag for 5-point star.",
+    "shape-arrow": "Drag for block arrow.",
+    "shape-custom": "Drag for custom shape.",
+    eyedropper: "Click canvas to pick a color.",
+    "select-lasso": "Free drag to select. Close to start point.",
+    "single-row": "Click to select 1px horizontal row.",
+    "single-column": "Click to select 1px vertical column.",
+    slice: "Drag to define an export slice.",
+    "slice-select": "Click a slice to select it.",
+    artboard: "Drag to create an artboard.",
+    "path-select": "Click a path to select the whole path.",
+    "direct-select": "Click an anchor point to edit it.",
+    "rotate-view": "Drag to rotate canvas view.",
+    zoom: "Click to zoom in, Alt-click to zoom out.",
+    "perspective-crop": "Drag area then corners for perspective.",
   };
 
   const usesBrushSliders =
     tool === "brush" ||
     tool === "pencil" ||
+    tool === "airbrush" ||
+    tool === "soft-brush" ||
     tool === "eraser" ||
+    tool === "eraser-hard" ||
     tool === "clone" ||
     tool === "spot-heal" ||
     tool === "blur" ||
+    tool === "blur-iris" ||
     tool === "sharpen" ||
+    tool === "sharpen-edge" ||
     tool === "smudge" ||
     tool === "dodge" ||
     tool === "burn" ||
     tool === "sponge" ||
+    tool === "vibrance-brush" ||
     tool === "healing-brush" ||
     tool === "mixer-brush" ||
     tool === "color-replacement" ||
@@ -119,39 +136,43 @@ export default function ToolOptionsBar({
     tool === "art-history-brush" ||
     tool === "pattern-stamp" ||
     tool === "content-move" ||
+    tool === "content-fill" ||
     tool === "patch" ||
-    tool === "red-eye";
+    tool === "red-eye" ||
+    tool === "liquify" ||
+    tool === "warp" ||
+    tool === "noise-reduction";
 
   if (tool === "crop" || tool === "perspective-crop") {
     return (
       <div className={BAR}>
         <span className="rounded-md bg-[#2f7cf6] px-2 py-0.5 font-semibold text-white">{name}</span>
-        <Hint>Seret area. Enter terapkan, Esc batal.</Hint>
+        <Hint>Drag area. Enter applies, Esc cancels.</Hint>
         <button onClick={onApplyCrop} className="avero-btn-primary rounded-md px-2.5 py-1 font-semibold text-white">
-          Terapkan
+          Apply
         </button>
         <button onClick={onCancelCrop} className="rounded-md bg-[#232327] px-2.5 py-1 text-white hover:bg-[#2c2c31]">
-          Batal
+          Cancel
         </button>
       </div>
     );
   }
 
-  if (tool === "gradient" || tool === "fill") {
+  if (tool === "gradient" || tool === "gradient-radial" || tool === "fill") {
     return (
       <div className={BAR}>
         <span className="rounded-md bg-[#2f7cf6] px-2 py-0.5 font-semibold text-white">{name}</span>
-        <span className="shrink-0 text-[#6e6e78]">Isi ke</span>
+        <span className="shrink-0 text-[#6e6e78]">Fill to</span>
         {(["transparent", "white", "black"] as const).map((g) => (
           <button
             key={g}
             onClick={() => setGradTo(g)}
             className={`rounded-md px-2 py-1 transition-colors ${gradTo === g ? "bg-[#2f7cf6] text-white" : "bg-[#232327] text-[#a7a7b0] hover:text-white"}`}
           >
-            {g === "transparent" ? "Transparan" : g === "white" ? "Putih" : "Hitam"}
+            {g === "transparent" ? "Transparent" : g === "white" ? "White" : "Black"}
           </button>
         ))}
-        <Hint>Seret di kanvas. G berpindah mode.</Hint>
+        <Hint>Drag on canvas. G cycles modes.</Hint>
       </div>
     );
   }
@@ -163,8 +184,8 @@ export default function ToolOptionsBar({
         <Hint>{retouchHint[tool]}</Hint>
         {usesBrushSliders && (
           <span className="hidden shrink-0 items-center gap-3 border-l border-white/10 pl-2.5 lg:flex">
-            <Slider label="Ukuran" value={brushSize} min={1} max={300} onChange={(v) => setBrush({ size: v })} />
-            <Slider label="Kekuatan" value={brushOpacity} min={1} max={100} onChange={(v) => setBrush({ opacity: v })} suffix="%" />
+            <Slider label="Size" value={brushSize} min={1} max={300} onChange={(v) => setBrush({ size: v })} />
+            <Slider label="Strength" value={brushOpacity} min={1} max={100} onChange={(v) => setBrush({ opacity: v })} suffix="%" />
           </span>
         )}
       </div>
@@ -174,12 +195,12 @@ export default function ToolOptionsBar({
   if (paintMask && (tool === "brush" || tool === "eraser")) {
     return (
       <div className="pointer-events-none absolute left-1/2 top-6 z-30 -translate-x-1/2 rounded-xl border border-[#5a3a10] bg-[#2c2313]/95 px-3 py-2 text-[11px] text-[#f0c674] shadow-lg backdrop-blur-md">
-        Mode paint MASK. Brush menampilkan, Eraser menyembunyikan.
+        MASK paint mode. Brush reveals, Eraser hides.
       </div>
     );
   }
 
-  // Default: tetap tampilkan nama tool + hint ringan agar opsi selalu terlihat profesional
+  // Default: always show tool name + light hint
   const generic = retouchHint[tool];
   if (generic) {
     return (
@@ -195,14 +216,14 @@ export default function ToolOptionsBar({
       <span className="rounded-md bg-[#2f7cf6] px-2 py-0.5 font-semibold text-white">{name}</span>
       <Hint>
         {tool === "select-rect" || tool === "select-ellipse"
-          ? "Seret untuk seleksi. Shift tambah, Alt kurang. Feather di panel Seleksi."
+          ? "Drag to select. Shift adds, Alt subtracts. Feather in Select panel."
           : tool === "wand"
-            ? "Klik area warna serupa. Toleransi di panel Seleksi."
+            ? "Click similar colors. Tolerance in Select panel."
             : tool === "move"
-              ? "Seret layer. Shift snapping, Ctrl+T transformasi bebas."
+              ? "Drag layer. Shift snaps, Ctrl+T free transform."
               : tool === "hand"
-                ? "Seret untuk menggeser kanvas. Scroll untuk zoom."
-                : "Pilih dan seret di kanvas untuk menggunakan tool ini."}
+                ? "Drag to pan canvas. Scroll to zoom."
+                : "Select and drag on canvas to use this tool."}
       </Hint>
     </div>
   );

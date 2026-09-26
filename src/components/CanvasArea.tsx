@@ -20,6 +20,7 @@ import { applyFilterToCanvas } from "../engine/filters";
 import { applySoftProof, convertWorkingSpace } from "../engine/color";
 import { renderShapeToLayer, renderTextToLayer } from "../engine/textShape";
 import ToolOptionsBar from "./ToolOptionsBar";
+import { TOOL_LABEL } from "./ToolBar";
 import { makeLayer } from "../stores/useEditorStore";
 
 export function getCompositeCanvas(): HTMLCanvasElement | null {
@@ -220,8 +221,30 @@ export default function CanvasArea() {
 
     const ctx = canvas.getContext("2d")!;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = "#161618";
+    // workspace: dasar gelap + kisi titik halus + vignette studio
+    ctx.fillStyle = "#101012";
     ctx.fillRect(0, 0, rect.width, rect.height);
+    ctx.save();
+    ctx.fillStyle = "rgba(255,255,255,0.035)";
+    const step = 24;
+    for (let x = 0; x <= rect.width; x += step) {
+      for (let y = 0; y <= rect.height; y += step) {
+        ctx.fillRect(x, y, 1, 1);
+      }
+    }
+    const vg = ctx.createRadialGradient(
+      rect.width / 2,
+      rect.height / 2,
+      Math.min(rect.width, rect.height) * 0.2,
+      rect.width / 2,
+      rect.height / 2,
+      Math.max(rect.width, rect.height) * 0.75,
+    );
+    vg.addColorStop(0, "rgba(0,0,0,0)");
+    vg.addColorStop(1, "rgba(0,0,0,0.55)");
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, rect.width, rect.height);
+    ctx.restore();
 
     const s = zoom / 100;
     const dw = doc.width * s;
@@ -229,11 +252,31 @@ export default function CanvasArea() {
     const ox = (rect.width - dw) / 2 + panX;
     const oy = (rect.height - dh) / 2 + panY;
 
+    // backing dokumen: papan catur transparansi ala editor profesional
     ctx.save();
-    ctx.shadowColor = "rgba(0,0,0,0.6)";
-    ctx.shadowBlur = 24;
+    ctx.shadowColor = "rgba(0,0,0,0.7)";
+    ctx.shadowBlur = 28;
+    ctx.shadowOffsetY = 8;
     ctx.fillStyle = "#232323";
     ctx.fillRect(ox, oy, dw, dh);
+    ctx.restore();
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(ox, oy, dw, dh);
+    ctx.clip();
+    const csize = 10;
+    const x0 = Math.floor(ox / csize) * csize;
+    const y0 = Math.floor(oy / csize) * csize;
+    ctx.fillStyle = "#2c2c31";
+    ctx.fillRect(ox, oy, dw, dh);
+    ctx.fillStyle = "#3a3a41";
+    for (let y = y0; y < oy + dh; y += csize) {
+      for (let x = x0; x < ox + dw; x += csize) {
+        const col = Math.floor(x / csize);
+        const row = Math.floor(y / csize);
+        if ((col + row) % 2 === 0) ctx.fillRect(x, y, csize, csize);
+      }
+    }
     ctx.restore();
 
     // 1. Komposit layer ke offscreen doc-size
@@ -1551,9 +1594,59 @@ export default function CanvasArea() {
           }}
         />
         <ToolOptionsBar onApplyCrop={applyCrop} onCancelCrop={() => setCropDrag(null)} />
-        <div className="pointer-events-none absolute bottom-2 left-2 rounded bg-black/60 px-2 py-1 font-mono text-[10px] text-white/80">
-          {cursor} • {tool} • {Math.ceil(doc.width / 256) * Math.ceil(doc.height / 256)} tiles
-          {hasSelection() ? " • SEL" : ""}
+        {/* HUD kiri bawah: info posisi dan tool */}
+        <div className="pointer-events-none absolute bottom-3 left-3 flex items-center gap-2 rounded-lg border border-white/10 bg-black/65 px-2.5 py-1.5 font-mono text-[10px] text-white/75 shadow-lg backdrop-blur-md">
+          <span className="rounded bg-[#2f7cf6] px-1.5 py-0.5 font-semibold text-white">{TOOL_LABEL[tool] ?? tool}</span>
+          <span className="tabular-nums">{cursor}</span>
+          <span className="text-white/40">|</span>
+          <span className="tabular-nums text-white/60">
+            {doc.width} x {doc.height}
+          </span>
+          {hasSelection() && (
+            <>
+              <span className="text-white/40">|</span>
+              <span className="rounded bg-[#d9a441]/20 px-1.5 py-0.5 text-[#f0c674]">Seleksi aktif</span>
+            </>
+          )}
+          {paintMask && (
+            <>
+              <span className="text-white/40">|</span>
+              <span className="rounded bg-[#2f7cf6]/20 px-1.5 py-0.5 text-[#8fb6f5]">Mask paint</span>
+            </>
+          )}
+        </div>
+
+        {/* Kontrol zoom kanan bawah */}
+        <div className="absolute bottom-3 right-3 flex items-center gap-0.5 overflow-hidden rounded-lg border border-white/10 bg-black/70 p-1 shadow-lg backdrop-blur-md">
+          <button
+            onClick={() => setZoom(Math.max(1, zoom - 25))}
+            className="grid h-6 w-6 place-items-center rounded text-white/70 hover:bg-white/10 hover:text-white"
+            title="Zoom out (Ctrl+-)"
+          >
+            -
+          </button>
+          <button
+            onClick={() => setZoom(100)}
+            className="min-w-[46px] rounded px-1 py-0.5 font-mono text-[10px] tabular-nums text-white/85 hover:bg-white/10 hover:text-white"
+            title="Zoom 100% (Ctrl+1)"
+          >
+            {zoom}%
+          </button>
+          <button
+            onClick={() => setZoom(Math.min(400, zoom + 25))}
+            className="grid h-6 w-6 place-items-center rounded text-white/70 hover:bg-white/10 hover:text-white"
+            title="Zoom in (Ctrl++)"
+          >
+            +
+          </button>
+          <span className="mx-0.5 h-4 w-px bg-white/15" />
+          <button
+            onClick={() => window.dispatchEvent(new Event("avero:fit-zoom"))}
+            className="rounded px-2 py-0.5 font-mono text-[10px] text-white/70 hover:bg-white/10 hover:text-white"
+            title="Fit ke layar"
+          >
+            Fit
+          </button>
         </div>
         {dragging && (
           <div className="pointer-events-none absolute inset-4 grid place-items-center rounded-lg border-2 border-dashed border-[#2f7cf6] bg-[#2f7cf6]/10">

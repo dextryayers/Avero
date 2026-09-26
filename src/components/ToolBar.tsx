@@ -133,6 +133,12 @@ const tools: ToolDef[] = [
 
 const GROUPS = ["Pilih", "Retouch", "Cat", "Vektor", "Navigasi"];
 
+export const TOOL_LABEL: Record<string, string> = Object.fromEntries(
+  tools.map((t) => [t.id, t.label.split(" (")[0]]),
+);
+
+export const TOOLS = tools;
+
 export default function ToolBar() {
   const tool = useEditorStore((s) => s.tool);
   const setTool = useEditorStore((s) => s.setTool);

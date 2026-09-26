@@ -1,6 +1,21 @@
 // LayerManager memegang pixel data per layer di offscreen canvas.
 // Zustand hanya simpan metadata, pixel disimpan di sini agar undo cepat.
 
+// Jalur A ringan: pool canvas temp untuk komposit agar tidak alloc 2 canvas
+// per layer per frame (penyebab GC spike + RAM bengkak).
+let poolOut: HTMLCanvasElement | null = null;
+let poolMask: HTMLCanvasElement | null = null;
+function pooledCanvas(w: number, h: number, slot: "out" | "mask"): HTMLCanvasElement {
+  const cur = slot === "out" ? poolOut : poolMask;
+  if (cur && cur.width === w && cur.height === h) return cur;
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  if (slot === "out") poolOut = c;
+  else poolMask = c;
+  return c;
+}
+
 class LayerManager {
   private canvases = new Map<string, HTMLCanvasElement>();
   private masks = new Map<string, HTMLCanvasElement>();
@@ -72,6 +87,8 @@ class LayerManager {
   }
 
   // Komposit layer + mask menjadi canvas temp dengan feather dan density.
+  // Jalur A: tanpa mask -> return src langsung (zero-alloc).
+  // Dengan mask -> pakai pooled canvas, salin ke out baru hanya bila perlu dibaca di luar frame.
   compositedWithMask(
     id: string,
     feather: number,
@@ -82,20 +99,18 @@ class LayerManager {
     if (!src) return undefined;
     const mask = this.masks.get(id);
     if (!mask || !enabled) return src;
-    const out = document.createElement("canvas");
-    out.width = src.width;
-    out.height = src.height;
+    const out = pooledCanvas(src.width, src.height, "out");
     const ctx = out.getContext("2d")!;
     // terapkan mask via destination-in dengan blur feather
-    const mtmp = document.createElement("canvas");
-    mtmp.width = mask.width;
-    mtmp.height = mask.height;
+    const mtmp = pooledCanvas(mask.width, mask.height, "mask");
     const mctx = mtmp.getContext("2d")!;
     mctx.filter = feather > 0 ? `blur(${feather}px)` : "none";
     mctx.globalAlpha = Math.max(0, Math.min(1, density / 100));
+    mctx.clearRect(0, 0, mtmp.width, mtmp.height);
     mctx.drawImage(mask, 0, 0);
     mctx.filter = "none";
     mctx.globalAlpha = 1;
+    ctx.clearRect(0, 0, out.width, out.height);
     ctx.drawImage(src, 0, 0);
     ctx.globalCompositeOperation = "destination-in";
     ctx.drawImage(mtmp, 0, 0);

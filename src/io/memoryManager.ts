@@ -29,8 +29,10 @@ export function snapshotMemory(w: number, h: number, layers: number): MemorySnap
   const totalMB = canvasMB + (heapMB ?? 0);
   let rec: MemorySnapshot["recommendation"] = "full";
   let msg = "RAM aman untuk pipeline penuh.";
-  if (totalMB > 900 || perLayer > 64) { rec = "critical"; msg = "Dokumen sangat besar. Pakai mode ringan per ubin."; }
-  else if (totalMB > 500 || perLayer > 32) { rec = "light"; msg = "Disarankan Light filter untuk hemat RAM."; }
+  // Jalur A: threshold lebih agresif agar tidak sampai 4GB.
+  // Critical >600MB total atau >32MB/layer, light >250MB atau >16MB/layer.
+  if (totalMB > 600 || perLayer > 32) { rec = "critical"; msg = "Dokumen sangat besar. Pakai mode ringan per ubin."; }
+  else if (totalMB > 250 || perLayer > 16) { rec = "light"; msg = "Disarankan Light filter untuk hemat RAM."; }
   const s: MemorySnapshot = { heapMB, canvasMB, layersMB: canvasMB, totalMB, lightSavingMB, recommendation: rec, message: msg };
   last = s;
   return s;
@@ -40,7 +42,9 @@ export function getLastSnapshot(): MemorySnapshot | null { return last; }
 
 export function shouldUseLight(w: number, h: number): boolean {
   const per = (w * h * 4) / 1024 / 1024;
-  return per > 32 || w * h > 4096 * 4096;
+  // Jalur A: turunkan dari 32MB -> 16MB, dan dari 4096² -> 2048² (16MP).
+  // 1920x1080 ~8MB tetap full (cepat), 4K ~33MB otomatis light (hemat).
+  return per > 16 || w * h > 2048 * 2048;
 }
 
 export function formatMB(mb: number): string {

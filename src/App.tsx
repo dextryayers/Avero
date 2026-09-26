@@ -78,11 +78,27 @@ export default function App() {
       inv[key.toLowerCase()] = tool;
     });
     // clipboard ringan in-memory untuk Ctrl+X/C/V
+    // Jalur A: batasi clipboard max 2048px sisi panjang agar base64 PNG tidak 20-30MB untuk 4K.
     const clipKey = "__avero_clipboard" as const;
     function getClip(): string | null {
       try { return (window as any)[clipKey] as string | null; } catch { return null; }
     }
     function setClip(v: string | null) { try { (window as any)[clipKey] = v; } catch {} }
+    function layerToClipboardURL(c: HTMLCanvasElement): string {
+      try {
+        const maxSide = 2048;
+        const m = Math.max(c.width, c.height);
+        if (m <= maxSide) return c.toDataURL("image/png");
+        const sc = maxSide / m;
+        const t = document.createElement("canvas");
+        t.width = Math.max(1, Math.round(c.width * sc));
+        t.height = Math.max(1, Math.round(c.height * sc));
+        t.getContext("2d")!.drawImage(c, 0, 0, t.width, t.height);
+        return t.toDataURL("image/png");
+      } catch {
+        return c.toDataURL("image/png");
+      }
+    }
     function onKey(e: KeyboardEvent) {
       const mod = e.ctrlKey || e.metaKey;
       const ae = document.activeElement?.tagName;

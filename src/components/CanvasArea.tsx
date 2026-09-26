@@ -453,16 +453,19 @@ export default function CanvasArea() {
     }
 
     // 3. Adjustments berurutan
+    // Jalur A: hindari 1x copy ImageData ekstra saat opacity 100% (kasus umum).
+    // applyAdjustmentToImageData mutasi in-place, jadi langsung ke id tanpa copy.
     adjustments.forEach((adj) => {
       if (!adj.enabled || adj.opacity <= 0) return;
       try {
         const id = cctx.getImageData(0, 0, comp.width, comp.height);
-        const copy = new ImageData(new Uint8ClampedArray(id.data), id.width, id.height);
-        applyAdjustmentToImageData(copy, adj);
         const alpha = adj.opacity / 100;
         if (alpha >= 1) {
-          cctx.putImageData(copy, 0, 0);
+          applyAdjustmentToImageData(id, adj);
+          cctx.putImageData(id, 0, 0);
         } else {
+          const copy = new ImageData(new Uint8ClampedArray(id.data), id.width, id.height);
+          applyAdjustmentToImageData(copy, adj);
           const tmp = document.createElement("canvas");
           tmp.width = comp.width;
           tmp.height = comp.height;
@@ -541,12 +544,7 @@ export default function CanvasArea() {
       ctx.lineDashOffset = -ants;
       ctx.strokeStyle = "#ffffff";
       ctx.lineWidth = 1.2;
-      // gambar outline mask yang di-scale
-      const tmp = document.createElement("canvas");
-      tmp.width = sel.width;
-      tmp.height = sel.height;
-      const tctx = tmp.getContext("2d")!;
-      tctx.drawImage(sel, 0, 0);
+      // Jalur A: gambar mask langsung, tanpa canvas temp duplikat (hemat 1x memori doc-size per frame).
       // trace tepi kasar: gunakan rect seleksi drag jika ada, jika tidak full mask outline via shadow
       ctx.drawImage(sel, ox, oy, dw, dh);
       ctx.globalCompositeOperation = "overlay";

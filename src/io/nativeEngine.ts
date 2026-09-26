@@ -1,4 +1,20 @@
 import { invoke } from "@tauri-apps/api/core";
+import { shouldUseLight } from "./memoryManager";
+
+// Jalur A ringan:
+// - invoke Tauri pakai Array.from(rgba) = duplikat 4-8x di JS heap + JSON.
+//   Untuk 1920x1080 ~8MB -> jadi ~32-64MB transient per panggil.
+//   Solusi: jangan panggil full-res untuk gambar besar, pakai tiledPipelineCanvas (tile 512).
+// - Batas full pipeline 16MP (2048x2048). Di atas itu wajib tiled agar tidak OOM.
+export const MAX_FULL_PIXELS = 2048 * 2048;
+
+function assertFullSize(width: number, height: number) {
+  if (width * height > MAX_FULL_PIXELS) {
+    throw new Error(
+      `Gambar ${width}x${height} terlalu besar untuk pipeline penuh. Pakai tiledPipelineCanvas (tile 512 + light).`,
+    );
+  }
+}
 
 // --- 23 operasi penyesuaian ---
 export type NativeOp =
@@ -89,9 +105,15 @@ export function isTauri(): boolean {
 
 export async function nativeInfo(): Promise<NativeInfo> { return invoke<NativeInfo>("cmd_native_info"); }
 export async function nativeHistogram(rgba: Uint8ClampedArray | Uint8Array, width: number, height: number): Promise<NativeHistogram> {
+  // Histogram full-res via IPC mahal (Array.from). Panggil hanya untuk thumb/256px bila memungkinkan.
+  // Caller Histogram.tsx sudah downscale ke 256px — pertahankan pola itu.
   return invoke<NativeHistogram>("cmd_native_histogram", { rgba: Array.from(rgba), width, height });
 }
 export async function nativeStats(rgba: Uint8ClampedArray | Uint8Array): Promise<NativeStats> {
+  // Stats full-layer mahal. StatusBar hanya panggil on-demand (tombol), jangan tiap frame.
+  if (rgba.length > MAX_FULL_PIXELS * 4) {
+    throw new Error("Stats full-res terlalu besar. Downscale dulu atau pakai sampling.");
+  }
   return invoke<NativeStats>("cmd_native_stats", { rgba: Array.from(rgba) });
 }
 export async function nativeBenchmark(width: number, height: number, iterations?: number): Promise<BenchmarkResult> {
@@ -101,11 +123,16 @@ export async function nativeMemoryBudget(width: number, height: number, layers: 
   return invoke<MemoryBudget>("cmd_native_memory_budget", { width, height, layers });
 }
 export async function nativePipeline(rgba: Uint8ClampedArray | Uint8Array, width: number, height: number, ops: NativeOp[], filters: NativeFilterOp[]): Promise<Uint8ClampedArray> {
+  assertFullSize(width, height);
   const out = await invoke<number[] | Uint8Array>("cmd_native_pipeline", { req: { rgba: Array.from(rgba), width, height, ops, filters } });
   const arr = out instanceof Uint8Array ? out : Uint8Array.from(out as number[]);
   return new Uint8ClampedArray(arr.buffer, arr.byteOffset, arr.length);
 }
 export async function nativePipelineLight(rgba: Uint8ClampedArray | Uint8Array, width: number, height: number, ops: NativeOp[], filters: NativeFilterOp[]): Promise<Uint8ClampedArray> {
+  // Light boleh tile 512, tapi tetap batasi 1 tile call max 1024² agar transient Array.from kecil.
+  if (width * height > 1024 * 1024) {
+    throw new Error(`Tile ${width}x${height} terlalu besar untuk light single-call. Kecilkan tile ke <=512.`);
+  }
   const out = await invoke<number[] | Uint8Array>("cmd_native_pipeline_light", { req: { rgba: Array.from(rgba), width, height, ops, filters } });
   const arr = out instanceof Uint8Array ? out : Uint8Array.from(out as number[]);
   return new Uint8ClampedArray(arr.buffer, arr.byteOffset, arr.length);
@@ -139,10 +166,18 @@ export async function nativeProcessCanvas(canvas: HTMLCanvasElement, kind: "op" 
   ctx.putImageData(new ImageData(out, canvas.width, canvas.height), 0, 0);
 }
 export async function nativePipelineCanvas(canvas: HTMLCanvasElement, ops: NativeOp[], filters: NativeFilterOp[], light = false): Promise<void> {
+  // Jalur A: otomatis pilih light untuk dokumen besar agar hemat RAM.
+  const autoLight = light || shouldUseLight(canvas.width, canvas.height);
+  // Untuk >16MP jangan full-invoke, lempar ke tiled agar tidak OOM.
+  if (canvas.width * canvas.height > MAX_FULL_PIXELS) {
+    const { tiledPipelineCanvas } = await import("../engine/tiledRenderer");
+    await tiledPipelineCanvas(canvas, ops, filters, { light: true, tile: 512 });
+    return;
+  }
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   if (!ctx) throw new Error("Canvas 2d gagal");
   const id = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const out = light
+  const out = autoLight
     ? await nativePipelineLight(id.data, canvas.width, canvas.height, ops, filters)
     : await nativePipeline(id.data, canvas.width, canvas.height, ops, filters);
   ctx.putImageData(new ImageData(out, canvas.width, canvas.height), 0, 0);

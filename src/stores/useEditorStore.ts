@@ -154,6 +154,11 @@ function uid(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}-${seq}`;
 }
 
+// Jalur A ringan: batasi history agar RAM tidak bengkak.
+// 1920x1080 1 snapshot ~8MB, 50 snapshot = 400MB+ per layer.
+// 15 snapshot = ~120MB max, cukup untuk undo wajar + tetap ringan.
+export const MAX_HISTORY = 15;
+
 const defaultLayer = (): LayerMeta => ({
   id: uid("layer"),
   name: "Layer 1",
@@ -274,8 +279,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   pushHistory: (e) =>
     set((s) => ({
-      history: [...s.history.slice(-49), { ...e, id: uid("h"), time: Date.now() }],
-      future: [],
+      // simpan max MAX_HISTORY, buang paling lama + bebaskan referensi ImageData lama via GC
+      history: [...s.history.slice(-(MAX_HISTORY - 1)), { ...e, id: uid("h"), time: Date.now() }],
+      future: s.future.slice(-(MAX_HISTORY - 1)),
     })),
   undoMeta: () => {
     const s = get();

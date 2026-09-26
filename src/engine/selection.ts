@@ -16,6 +16,14 @@ let selCanvas: HTMLCanvasElement | null = null;
 let selW = 0;
 let selH = 0;
 
+// Jalur A: cache hasil hasSelection agar tidak getImageData full tiap frame.
+// getImageData 1920x1080 = 8MB copy tiap panggil, dipanggil berkali-kali saat render.
+let selDirty = true;
+let selCachedHas = false;
+export function markSelectionDirty() {
+  selDirty = true;
+}
+
 function ensureSel(w: number, h: number): HTMLCanvasElement {
   if (!selCanvas || selW !== w || selH !== h) {
     selCanvas = document.createElement("canvas");
@@ -28,9 +36,15 @@ function ensureSel(w: number, h: number): HTMLCanvasElement {
 }
 
 export function clearSelectionMask() {
-  if (!selCanvas) return;
+  if (!selCanvas) {
+    selCachedHas = false;
+    selDirty = false;
+    return;
+  }
   const ctx = selCanvas.getContext("2d")!;
   ctx.clearRect(0, 0, selCanvas.width, selCanvas.height);
+  selCachedHas = false;
+  selDirty = false;
 }
 
 export function selectionMaskCanvas(): HTMLCanvasElement | null {
@@ -43,21 +57,29 @@ export function restoreSelectionMask(w: number, h: number, img: CanvasImageSourc
   const ctx = c.getContext("2d")!;
   ctx.clearRect(0, 0, w, h);
   ctx.drawImage(img, 0, 0, w, h);
+  markSelectionDirty();
 }
 
 export function hasSelection(): boolean {
   if (!selCanvas) return false;
+  if (!selDirty) return selCachedHas;
   // cek cepat via alpha sampling tiap 8px agar murah
   const ctx = selCanvas.getContext("2d", { willReadFrequently: true })!;
   try {
     const d = ctx.getImageData(0, 0, selCanvas.width, selCanvas.height);
     const data = d.data;
     for (let i = 3; i < data.length; i += 32) {
-      if (data[i] > 4) return true;
+      if (data[i] > 4) {
+        selCachedHas = true;
+        selDirty = false;
+        return true;
+      }
     }
+    selCachedHas = false;
+    selDirty = false;
     return false;
   } catch {
-    return false;
+    return selCachedHas;
   }
 }
 
@@ -69,6 +91,7 @@ export function drawRectSelection(w: number, h: number, r: RectSel) {
   const x = Math.min(r.x, r.x + r.w);
   const y = Math.min(r.y, r.y + r.h);
   ctx.fillRect(x, y, Math.abs(r.w), Math.abs(r.h));
+  markSelectionDirty();
 }
 
 export function drawEllipseSelection(w: number, h: number, r: RectSel) {
@@ -87,19 +110,24 @@ export function drawEllipseSelection(w: number, h: number, r: RectSel) {
     Math.PI * 2,
   );
   ctx.fill();
+  markSelectionDirty();
 }
 
 export function drawLassoSelection(w: number, h: number, points: { x: number; y: number }[]) {
   const c = ensureSel(w, h);
   const ctx = c.getContext("2d")!;
   ctx.clearRect(0, 0, w, h);
-  if (points.length < 3) return;
+  if (points.length < 3) {
+    markSelectionDirty();
+    return;
+  }
   ctx.fillStyle = "rgba(255,255,255,1)";
   ctx.beginPath();
   ctx.moveTo(points[0].x, points[0].y);
   for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
   ctx.closePath();
   ctx.fill();
+  markSelectionDirty();
 }
 
 // Magic wand: flood fill pada composite ImageData dengan tolerance.
@@ -163,6 +191,7 @@ export function wandFromImage(
     }
   }
   ctx.putImageData(out, 0, 0);
+  markSelectionDirty();
 }
 
 export function featherSelection(feather: number) {
@@ -178,6 +207,7 @@ export function featherSelection(feather: number) {
   const ctx = selCanvas.getContext("2d")!;
   ctx.clearRect(0, 0, selCanvas.width, selCanvas.height);
   ctx.drawImage(tmp, 0, 0);
+  markSelectionDirty();
 }
 
 export function expandContractSelection(delta: number) {
@@ -199,6 +229,7 @@ export function expandContractSelection(delta: number) {
   const ctx = selCanvas.getContext("2d")!;
   ctx.clearRect(0, 0, selCanvas.width, selCanvas.height);
   ctx.drawImage(tmp, 0, 0);
+  markSelectionDirty();
 }
 
 export function inverseSelection() {
@@ -209,6 +240,7 @@ export function inverseSelection() {
     id.data[i] = 255 - id.data[i];
   }
   ctx.putImageData(id, 0, 0);
+  markSelectionDirty();
 }
 
 // Terapkan mask seleksi ke stroke brush: clip ctx dengan selection mask.

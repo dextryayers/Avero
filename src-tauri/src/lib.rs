@@ -2,6 +2,7 @@
 // Shell, IO, PSD, color, RAW, native C/C++, stabilisasi.
 
 mod commands;
+mod convert;
 mod document;
 mod io;
 mod native;
@@ -31,6 +32,10 @@ pub fn run() {
             io::cmd_register_avx_association,
             io::cmd_path_exists,
             io::cmd_ensure_dir,
+            convert::cmd_probe_image,
+            convert::cmd_convert_image,
+            convert::cmd_convert_batch,
+            convert::cmd_convert_cancel,
             io::cmd_history_budget,
             io::cmd_data_hash,
             io::cmd_snapshot_hash,

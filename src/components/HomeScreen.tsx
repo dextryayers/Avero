@@ -31,6 +31,8 @@ import { useEditorStore } from "../stores/useEditorStore";
 import { useProStore } from "../stores/useProStore";
 import { layerManager } from "../engine/layerManager";
 import { openAvxProject, pickProjectFolder, createNewProjectWithFolder, joinPath, sanitizeProjectName } from "../io/projectIo";
+import { useConvertStore } from "../stores/useConvertStore";
+import ConverterPage from "./ConverterPage";
 import { pickImageToOpen, rustDecodeToDataUrl, rustImageInfo } from "../io/tauriIo";
 import { showError, showMessage } from "../ui/notify";
 import clsx from "clsx";
@@ -162,7 +164,8 @@ export default function HomeScreen() {
   const [query, setQuery] = useState("");
   const [showNew, setShowNew] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
-  const [view, setView] = useState<"home" | "recent" | "learn">("home");
+  const [view, setView] = useState<"home" | "recent" | "learn" | "convert">("home");
+  const convertCount = useConvertStore((s) => s.jobs.length);
 
   const [dn, setDn] = useState("Untitled-1");
   const [dw, setDw] = useState("1920");
@@ -372,6 +375,7 @@ export default function HomeScreen() {
           {[
             { id: "home", label: "Home", icon: LayoutGrid },
             { id: "recent", label: "Recent", icon: Clock, count: recents.length },
+            { id: "convert", label: "Convert", icon: ArrowLeftRight, count: convertCount },
             { id: "learn", label: "Learn", icon: BookOpen },
           ].map((n) => (
             <button
@@ -511,6 +515,10 @@ export default function HomeScreen() {
               </div>
             )}
 
+            {view === "convert" ? (
+              <ConverterPage />
+            ) : (
+              <>
             {searching && (
               <div className="avero-fade-in mb-2 text-[12px] text-[#a7a7b0]">
                 Results for <span className="font-semibold text-white">“{query.trim()}”</span>
@@ -708,6 +716,8 @@ export default function HomeScreen() {
                 Settings
               </button>
             </div>
+              </>
+            )}
           </div>
         </div>
       </div>

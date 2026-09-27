@@ -26,6 +26,7 @@ pub fn run() {
             io::cmd_save_dataurl_to_file,
             io::cmd_read_text_file,
             io::cmd_write_text_file,
+            io::cmd_write_text_atomic,
             io::cmd_history_budget,
             io::cmd_data_hash,
             io::cmd_snapshot_hash,

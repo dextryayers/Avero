@@ -102,6 +102,7 @@ export interface AvxFile {
   version: number;
   app: string;
   savedAt: number;
+  checksum?: string;
   doc: { name: string; width: number; height: number };
   layers: AvxLayer[];
   activeLayerName: string | null;
@@ -149,7 +150,63 @@ export function parseAvxJson(json: string): AvxFile {
     throw new Error("Not a valid .avx project file (missing document data)");
   }
   if (!Array.isArray(file.layers)) throw new Error("Not a valid .avx project file (missing layer data)");
+  if (typeof file.checksum === "string" && file.checksum.length > 0) {
+    if (!verifyAvxChecksum(file)) throw new Error("Project checksum mismatch, file may be corrupt");
+  }
   return file;
+}
+
+function fnv1aHex(s: string): string {
+  let h = 0xcbf29ce484222325n;
+  const bytes = new TextEncoder().encode(s);
+  for (const b of bytes) {
+    h ^= BigInt(b);
+    h = (h * 0x100000001b3n) & 0xffffffffffffffffn;
+  }
+  return h.toString(16).padStart(16, "0");
+}
+
+async function avxChecksum(payload: string): Promise<string> {
+  try {
+    if (isTauri()) {
+      return await invoke<string>("cmd_data_hash", { contents: payload });
+    }
+  } catch {
+    /* fall through to local hash */
+  }
+  return fnv1aHex(payload);
+}
+
+function canonicalPayload(file: AvxFile): string {
+  const ordered = {
+    magic: file.magic,
+    version: file.version,
+    app: file.app,
+    savedAt: file.savedAt,
+    doc: file.doc,
+    layers: file.layers,
+    activeLayerName: file.activeLayerName,
+    adjustments: file.adjustments,
+    filters: file.filters,
+    masks: file.masks,
+    transforms: file.transforms,
+    textSpecs: file.textSpecs,
+    shapeSpecs: file.shapeSpecs,
+    guidesH: file.guidesH,
+    guidesV: file.guidesV,
+    showGrid: file.showGrid,
+    gridSize: file.gridSize,
+    color: file.color,
+    raw: file.raw,
+    selPixels: file.selPixels ?? null,
+    ui: file.ui ?? null,
+  };
+  return JSON.stringify(ordered);
+}
+
+export function verifyAvxChecksum(file: AvxFile): boolean {
+  if (!file.checksum) return true;
+  return fnv1aHex(canonicalPayload(file)) === file.checksum;
 }
 
 // Simpan seluruh proyek ke .avx. Jika saveAs false dan sudah ada path, tulis langsung.
@@ -233,10 +290,16 @@ export async function saveAvxProject(saveAs = false): Promise<string | null> {
       },
     },
   };
-  const json = JSON.stringify(file);
+  const checksum = await avxChecksum(canonicalPayload(file));
+  const stamped: AvxFile = { ...file, checksum };
+  const json = JSON.stringify(stamped);
 
   if (isTauri() && path && !path.startsWith("<")) {
-    await writeTextFile(path, json);
+    try {
+      await invoke("cmd_write_text_atomic", { path, contents: json });
+    } catch {
+      await writeTextFile(path, json);
+    }
   } else {
     const blob = new Blob([json], { type: "application/x-avero" });
     const url = URL.createObjectURL(blob);

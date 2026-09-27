@@ -4,7 +4,7 @@ vi.mock("../components/CanvasArea", () => ({
   getCompositeCanvas: () => null,
 }));
 
-import { AVX_MAGIC, AVX_VERSION, parseAvxJson, encodeBmpDataUrl, type AvxFile } from "./projectIo";
+import { AVX_MAGIC, AVX_VERSION, parseAvxJson, encodeBmpDataUrl, verifyAvxChecksum, type AvxFile } from "./projectIo";
 
 function sampleProject(): AvxFile {
   return {
@@ -116,6 +116,21 @@ describe("parseAvxJson", () => {
     const src = sampleProject();
     (src as { layers: unknown }).layers = "not-an-array";
     expect(() => parseAvxJson(JSON.stringify(src))).toThrow("missing layer data");
+  });
+});
+
+describe("avx checksum", () => {
+  it("accepts legacy files without checksum", () => {
+    const src = sampleProject();
+    expect(verifyAvxChecksum(src)).toBe(true);
+    expect(parseAvxJson(JSON.stringify(src)).magic).toBe(AVX_MAGIC);
+  });
+
+  it("rejects tampered checksum", () => {
+    const src = sampleProject();
+    const stamped = { ...src, checksum: "deadbeefdeadbeef" };
+    expect(verifyAvxChecksum(stamped)).toBe(false);
+    expect(() => parseAvxJson(JSON.stringify(stamped))).toThrow("checksum mismatch");
   });
 });
 

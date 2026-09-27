@@ -186,6 +186,29 @@ pub fn cmd_read_text_file(path: String) -> Result<String, String> {
     String::from_utf8(bytes).map_err(|e| format!("File is not valid UTF-8 text: {e}"))
 }
 
+#[tauri::command]
+pub fn cmd_write_text_atomic(path: String, contents: String) -> Result<(), String> {
+    text_path_ok(&path)?;
+    if contents.len() > MAX_TEXT_BYTES {
+        return Err("Text payload exceeds 200MB limit".into());
+    }
+    let tmp = format!("{path}.tmp");
+    if let Some(parent) = std::path::Path::new(&path).parent() {
+        if !parent.as_os_str().is_empty() && !parent.exists() {
+            std::fs::create_dir_all(parent).map_err(|e| format!("Failed to create folder: {e}"))?;
+        }
+    }
+    std::fs::write(&tmp, &contents).map_err(|e| format!("Failed to write temp file: {e}"))?;
+    // Validate temp size before replacing the original.
+    let meta = std::fs::metadata(&tmp).map_err(|e| format!("Failed to verify temp file: {e}"))?;
+    if meta.len() != contents.len() as u64 {
+        let _ = std::fs::remove_file(&tmp);
+        return Err("Temp file size mismatch, write aborted".into());
+    }
+    std::fs::rename(&tmp, &path).map_err(|e| format!("Failed to replace file: {e}"))?;
+    Ok(())
+}
+
 #[derive(serde::Serialize)]
 pub struct HistoryBudget {
     pub width: u32,

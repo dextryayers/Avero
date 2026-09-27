@@ -189,7 +189,82 @@ export type ToolId =
   | "ai-upscale"
   | "ai-denoise"
   | "ai-colorize"
-  | "ai-sky";
+  | "ai-sky"
+  // ---- Move Pro 2026 ----
+  | "move-auto"
+  | "transform-free"
+  | "align-center"
+  // ---- Select Pro 2026 ----
+  | "select-square"
+  | "select-feather"
+  | "select-border"
+  // ---- Lasso Manual 2026 ----
+  | "sky-select"
+  | "background-select"
+  | "focus-select"
+  // ---- Crop Pro 2026 ----
+  | "crop-219"
+  | "crop-45"
+  | "crop-916"
+  | "crop-golden"
+  // ---- Measure Pro 2026 ----
+  | "protractor"
+  | "guide-clear"
+  | "grid-toggle"
+  // ---- Brush Atelier 2026 ----
+  | "brush-dry"
+  | "brush-wet"
+  | "brush-glitter"
+  | "brush-smoke"
+  | "brush-fur"
+  | "brush-inkwash"
+  // ---- Eraser Pro 2026 ----
+  | "eraser-soft"
+  | "eraser-block"
+  // ---- Heal Pro 2026 ----
+  | "heal-freckle"
+  | "heal-eye"
+  | "heal-teeth"
+  // ---- Stamp Pro 2026 ----
+  | "clone-soft"
+  | "pattern-dots"
+  // ---- Tone Pro 2026 ----
+  | "dodge-high"
+  | "burn-shadow"
+  | "sponge-sat"
+  | "sponge-desat"
+  // ---- Detail Pro 2026 ----
+  | "blur-surface"
+  | "blur-field"
+  | "sharpen-clarity"
+  | "denoise-strong"
+  // ---- Paint Pro 2026 ----
+  | "fill-solid"
+  | "fill-clear"
+  | "gradient-diamond"
+  // ---- Vector Pro 2026 ----
+  | "pen-free"
+  | "line-arrow"
+  // ---- Type FX 2026 ----
+  | "text-3d"
+  | "text-neon"
+  | "text-gradient"
+  // ---- Shape Pro 2026 ----
+  | "shape-chevron"
+  | "shape-moon"
+  | "shape-cross"
+  | "shape-plus"
+  | "shape-trapezoid"
+  // ---- Navigate Pro 2026 ----
+  | "zoom-50"
+  | "zoom-800"
+  | "rotate-reset"
+  // ---- LocalFX Atelier 2026 (manual) ----
+  | "sepia-brush"
+  | "bw-brush"
+  | "film-fade"
+  | "split-tone"
+  | "hdr-brush";
 
 export type BlendMode =
   | "normal"

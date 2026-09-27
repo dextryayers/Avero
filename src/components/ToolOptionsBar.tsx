@@ -161,6 +161,58 @@ export default function ToolOptionsBar({
     "crop-32": "Crop locked 3:2. Enter applies.",
     "crop-free": "Free crop. Enter applies.",
     "crop-straighten": "Crop + auto-level (resets view rotate).",
+    "crop-219": "Crop locked 21:9 ultrawide. Enter applies.",
+    "crop-45": "Crop locked 4:5 portrait. Enter applies.",
+    "crop-916": "Crop locked 9:16 story. Enter applies.",
+    "crop-golden": "Crop golden 1.618. Enter applies.",
+    "select-square": "Drag square selection. Equal sides locked.",
+    "select-feather": "Click to feather selection 6px. Needs selection.",
+    "select-border": "Click to smooth and tighten border.",
+    "sky-select": "Click to select sky band top 62 percent.",
+    "background-select": "Click to select background tone from corners.",
+    "focus-select": "Click to select center focus ellipse.",
+    "move-auto": "Click object to auto-pick its layer, then drag to move.",
+    "transform-free": "Drag to move. Scale and rotate in Transform panel.",
+    "align-center": "Click canvas to center active layer.",
+    "brush-dry": "Dry bristle scatter. Manual texture strokes.",
+    "brush-wet": "Wet blend mix. Paint to blend canvas color.",
+    "brush-glitter": "Sparkle scatter additive glitter.",
+    "brush-smoke": "Extra soft smoke wash, large soft.",
+    "brush-fur": "Fibrous multiply fur texture.",
+    "brush-inkwash": "East-ink wash multiply glaze.",
+    "eraser-soft": "Extra soft zero-hardness manual erase.",
+    "eraser-block": "Pixel-block hard manual erase.",
+    "heal-freckle": "Tiny freckle dust clean.",
+    "heal-eye": "Gentle under-eye soften.",
+    "heal-teeth": "Edge-safe whiten smooth.",
+    "clone-soft": "Alt-click source, paint soft 60 percent clone.",
+    "pattern-dots": "Paint manual dots pattern.",
+    "dodge-high": "Lighten bright tones only.",
+    "burn-shadow": "Darken deep tones only.",
+    "sponge-sat": "Boost local saturation manually.",
+    "sponge-desat": "Mute local saturation manually.",
+    "blur-surface": "Smooth flat areas keep edges.",
+    "blur-field": "Creamy field falloff for backgrounds.",
+    "sharpen-clarity": "Midtone clarity sharpen.",
+    "denoise-strong": "Strong grain remove preserve edges.",
+    "fill-solid": "Click to fill whole layer solid color.",
+    "fill-clear": "Click to clear layer to transparent.",
+    "gradient-diamond": "Click for diagonal diamond blend.",
+    "pen-free": "Drag freehand thin ink line.",
+    "line-arrow": "Drag for line with arrow head.",
+    "text-3d": "Click for extruded 3D stack text.",
+    "text-neon": "Click for neon tube glow text.",
+    "text-gradient": "Click for diagonal gradient text.",
+    "shape-chevron": "Drag chevron arrow.",
+    "shape-moon": "Drag crescent moon.",
+    "shape-cross": "Drag cross badge.",
+    "shape-plus": "Drag plus sign.",
+    "shape-trapezoid": "Drag trapezoid.",
+    "sepia-brush": "Paint warm sepia tone manually.",
+    "bw-brush": "Paint clean black-white manually.",
+    "film-fade": "Paint lifted film matte manually.",
+    "split-tone": "Paint cool shadows warm highlights.",
+    "hdr-brush": "Paint punchy HDR micro-contrast.",
     "shape-rounded": "Drag rounded rectangle.",
     "shape-diamond": "Drag diamond.",
     "shape-heart": "Drag heart.",
@@ -181,8 +233,14 @@ export default function ToolOptionsBar({
     "zoom-100": "Click for 100% actual pixels.",
     "zoom-200": "Click for 200%.",
     "zoom-400": "Click for 400% pixels.",
+    "zoom-50": "Click for 50% overview.",
+    "zoom-800": "Click for 800% pixel inspect.",
+    "rotate-reset": "Click canvas to reset view rotation to 0deg.",
     "measure-angle": "Drag to measure angle.",
     "measure-area": "Drag rect for W x H + area.",
+    "protractor": "Drag to measure angle with protractor label.",
+    "guide-clear": "Click canvas to clear all guides.",
+    "grid-toggle": "Click canvas to toggle grid on/off.",
     "sampler-avg": "Click for 5x5 average pin.",
     "snap-toggle": "Click to toggle snapping.",
     frame: "Drag to create a placeholder frame.",
@@ -220,9 +278,12 @@ export default function ToolOptionsBar({
     distortOf(tool) !== null ||
     tool === "eraser" ||
     tool === "eraser-hard" ||
+    tool === "eraser-soft" ||
+    tool === "eraser-block" ||
     tool === "clone" ||
     tool === "clone-mirror" ||
     tool === "clone-rotate" ||
+    tool === "clone-soft" ||
     tool === "spot-heal" ||
     tool === "blur" ||
     tool === "sharpen" ||
@@ -236,6 +297,7 @@ export default function ToolOptionsBar({
     tool === "history-brush" ||
     tool === "art-history-brush" ||
     tool === "pattern-stamp" ||
+    tool === "pattern-dots" ||
     tool === "texture-stamp" ||
     tool === "content-move" ||
     tool === "content-fill" ||
@@ -243,7 +305,23 @@ export default function ToolOptionsBar({
     tool === "red-eye" ||
     tool === "liquify" ||
     tool === "warp" ||
-    tool === "noise-reduction";
+    tool === "noise-reduction" ||
+    tool === "heal-freckle" ||
+    tool === "heal-eye" ||
+    tool === "heal-teeth" ||
+    tool === "dodge-high" ||
+    tool === "burn-shadow" ||
+    tool === "sponge-sat" ||
+    tool === "sponge-desat" ||
+    tool === "blur-surface" ||
+    tool === "blur-field" ||
+    tool === "sharpen-clarity" ||
+    tool === "denoise-strong" ||
+    tool === "sepia-brush" ||
+    tool === "bw-brush" ||
+    tool === "film-fade" ||
+    tool === "split-tone" ||
+    tool === "hdr-brush";
 
   if ((IS_CROP_TOOL as Set<string>).has(tool)) {
     return (
@@ -260,7 +338,7 @@ export default function ToolOptionsBar({
     );
   }
 
-  if (tool === "gradient" || tool === "gradient-radial" || tool === "fill") {
+  if (tool === "gradient" || tool === "gradient-radial" || tool === "gradient-diamond" || tool === "fill" || tool === "fill-solid" || tool === "fill-clear") {
     return (
       <div className={BAR}>
         <span className="rounded-md bg-[#2f7cf6] px-2 py-0.5 font-semibold text-white">{name}</span>
@@ -279,7 +357,7 @@ export default function ToolOptionsBar({
     );
   }
 
-  if (tool === "wand" || tool === "wand-plus" || tool === "wand-minus" || tool === "quick-select" || tool === "object-select" || tool === "color-range" || tool === "select-subject") {
+  if (tool === "wand" || tool === "wand-plus" || tool === "wand-minus" || tool === "quick-select" || tool === "object-select" || tool === "color-range" || tool === "select-subject" || tool === "sky-select" || tool === "background-select" || tool === "focus-select") {
     return (
       <div className={BAR}>
         <span className="shrink-0 rounded-md bg-[#2f7cf6] px-2 py-0.5 font-semibold text-white">{name}</span>
@@ -298,6 +376,7 @@ export default function ToolOptionsBar({
     tool === "select-polygon" ||
     tool === "select-lasso" ||
     tool === "select-rounded" ||
+    tool === "select-square" ||
     tool === "magnetic-lasso"
   ) {
     return (
@@ -321,12 +400,20 @@ export default function ToolOptionsBar({
     t === "text-glow" ||
     t === "text-shadow" ||
     t === "text-arc" ||
+    t === "text-3d" ||
+    t === "text-neon" ||
+    t === "text-gradient" ||
     t === "fill" ||
+    t === "fill-solid" ||
     t === "gradient" ||
     t === "gradient-radial" ||
+    t === "gradient-diamond" ||
     t === "pattern-stamp" ||
+    t === "pattern-dots" ||
     t === "pattern-fill" ||
     t === "texture-stamp" ||
+    t === "pen-free" ||
+    t === "line-arrow" ||
     t === "eyedropper";
 
   if (retouchHint[tool]) {
@@ -386,17 +473,36 @@ export default function ToolOptionsBar({
     "direct-select": "Drag left/right to rotate the active shape.",
     pan: "Drag to pan the canvas view. Scroll zooms.",
     "rotate-view": "Drag left/right to rotate view. Double-click resets.",
+    "rotate-reset": "Click canvas to reset view rotation to 0deg.",
     "curvature-pen": "Drag on canvas to draw a smooth S-curve path.",
+    "pen-free": "Drag freehand to draw a thin ink line.",
+    "line-arrow": "Drag to draw a line with arrow head. Shift locks 45deg.",
     artboard: "Drag to create a new artboard frame.",
     frame: "Drag to create an image placeholder frame.",
     slice: "Drag a rectangle to define an export slice.",
     ruler: "Drag to measure distance and angle.",
     "measure-angle": "Drag to measure angle from horizontal.",
     "measure-area": "Drag rectangle for W x H + area.",
+    protractor: "Drag to measure angle with protractor label.",
+    "guide-clear": "Click canvas to clear all guides.",
+    "grid-toggle": "Click canvas to toggle grid.",
+    "move-auto": "Click an object to auto-pick its layer, then drag.",
+    "transform-free": "Drag to move. Scale and rotate in Transform panel.",
+    "align-center": "Click canvas to center the active layer.",
+    "fill-solid": "Click layer to fill it solid with brush color.",
+    "fill-clear": "Click layer to clear it to transparent.",
+    "gradient-diamond": "Click for diagonal diamond gradient blend.",
+    "text-3d": "Click canvas for extruded 3D text.",
+    "text-neon": "Click canvas for neon tube text.",
+    "text-gradient": "Click canvas for gradient fill text.",
+    "select-feather": "Click to feather current selection 6px.",
+    "select-border": "Click to smooth selection border.",
     note: "Click to pin a note.",
     count: "Click to add a numbered marker.",
     "snap-toggle": "Click canvas to toggle snapping.",
     "zoom-fit": "Click canvas to fit screen.",
+    "zoom-50": "Click for 50% overview.",
+    "zoom-800": "Click for 800% inspect.",
     "zoom-100": "Click for 100%.",
     "zoom-200": "Click for 200%.",
     "zoom-400": "Click for 400%.",

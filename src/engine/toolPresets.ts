@@ -39,6 +39,12 @@ export const PAINT_TOOLS = new Set<ToolId>([
   "art-impasto",
   "art-canvas",
   "art-poster",
+  "brush-dry",
+  "brush-wet",
+  "brush-glitter",
+  "brush-smoke",
+  "brush-fur",
+  "brush-inkwash",
 ]);
 
 export function paintPreset(tool: ToolId, userHard: number): PaintPreset {
@@ -50,6 +56,18 @@ export function paintPreset(tool: ToolId, userHard: number): PaintPreset {
       return { hardness: 85, alphaMul: 0.95, composite: "source-over", sizeMul: 1 };
     case "sketch-felt":
       return { hardness: 55, alphaMul: 0.85, composite: "source-over", sizeMul: 1 };
+    case "brush-dry":
+      return { hardness: 70, alphaMul: 0.8, composite: "source-over", sizeMul: 1, scatter: true };
+    case "brush-fur":
+      return { hardness: 45, alphaMul: 0.75, composite: "multiply", sizeMul: 1.1, scatter: true };
+    case "brush-glitter":
+      return { hardness: 60, alphaMul: 0.9, composite: "lighter", sizeMul: 1, scatter: true };
+    case "brush-smoke":
+      return { hardness: 0, alphaMul: 0.18, composite: "source-over", sizeMul: 1.6 };
+    case "brush-inkwash":
+      return { hardness: 10, alphaMul: 0.45, composite: "multiply", sizeMul: 1.2 };
+    case "brush-wet":
+      return { hardness: Math.max(0, userHard - 30), alphaMul: 0.5, composite: "source-over", sizeMul: 1 };
     case "airbrush":
     case "art-watercolor":
     case "art-glaze":
@@ -132,7 +150,12 @@ export type RetouchMode =
   | "blemish"
   | "sky"
   | "skin"
-  | "object";
+  | "object"
+  | "sepia"
+  | "bw"
+  | "filmfade"
+  | "splittone"
+  | "hdr";
 
 export const RETOUCH_MAP: Partial<Record<ToolId, RetouchMode>> = {
   dodge: "dodge",
@@ -185,6 +208,22 @@ export const RETOUCH_MAP: Partial<Record<ToolId, RetouchMode>> = {
   "heal-sky": "sky",
   "heal-skin": "skin",
   "heal-object": "object",
+  "heal-freckle": "dust",
+  "heal-eye": "wrinkle",
+  "heal-teeth": "skin",
+  "dodge-high": "highlights",
+  "burn-shadow": "shadows",
+  "sponge-sat": "saturate",
+  "sponge-desat": "desat",
+  "blur-surface": "blur",
+  "blur-field": "lens",
+  "sharpen-clarity": "sharpen-more",
+  "denoise-strong": "grain-remove",
+  "sepia-brush": "sepia",
+  "bw-brush": "bw",
+  "film-fade": "filmfade",
+  "split-tone": "splittone",
+  "hdr-brush": "hdr",
 };
 
 export type DistortKind =
@@ -217,6 +256,10 @@ export const CROP_RATIOS: Partial<Record<ToolId, number | null>> = {
   "crop-32": 3 / 2,
   "crop-free": null,
   "crop-straighten": null,
+  "crop-219": 21 / 9,
+  "crop-45": 4 / 5,
+  "crop-916": 9 / 16,
+  "crop-golden": 1.618,
 };
 
 export const IS_CROP_TOOL = new Set<ToolId>([
@@ -228,6 +271,10 @@ export const IS_CROP_TOOL = new Set<ToolId>([
   "crop-32",
   "crop-free",
   "crop-straighten",
+  "crop-219",
+  "crop-45",
+  "crop-916",
+  "crop-golden",
 ]);
 
 export const IS_SELECTION_TOOL = new Set<ToolId>([
@@ -248,6 +295,12 @@ export const IS_SELECTION_TOOL = new Set<ToolId>([
   "wand-minus",
   "select-grow",
   "select-shrink",
+  "select-square",
+  "select-feather",
+  "select-border",
+  "sky-select",
+  "background-select",
+  "focus-select",
 ]);
 
 export const IS_SHAPE_TOOL = new Set<ToolId>([
@@ -265,6 +318,11 @@ export const IS_SHAPE_TOOL = new Set<ToolId>([
   "shape-hexagon",
   "shape-burst",
   "shape-donut",
+  "shape-chevron",
+  "shape-moon",
+  "shape-cross",
+  "shape-plus",
+  "shape-trapezoid",
 ]);
 
 export const SHAPE_KIND_OF: Partial<Record<ToolId, string>> = {
@@ -282,6 +340,11 @@ export const SHAPE_KIND_OF: Partial<Record<ToolId, string>> = {
   "shape-hexagon": "hexagon",
   "shape-burst": "burst",
   "shape-donut": "donut",
+  "shape-chevron": "chevron",
+  "shape-moon": "moon",
+  "shape-cross": "cross",
+  "shape-plus": "plus",
+  "shape-trapezoid": "trapezoid",
 };
 
 export function isPaintTool(t: ToolId): boolean {

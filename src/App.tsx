@@ -269,40 +269,48 @@ export default function App() {
         const ed = useEditorStore.getState();
         const pro = useProStore.getState();
         // M toggles rect/ellipse, U cycles shapes, R/J/O/G/P Photoshop-style cycling
+        // Manual 2026: expanded orders so every new manual sub-tool reachable via keyboard.
         if (t === "m") {
-          const next = ed.tool === "select-rect" ? "select-ellipse" : "select-rect";
-          ed.setTool(next);
-          pro.setSelKind(next === "select-rect" ? "rect" : "ellipse");
+          const order = ["select-rect", "select-ellipse", "select-square", "select-rounded"] as const;
+          const i = order.indexOf(ed.tool as (typeof order)[number]);
+          ed.setTool(order[(i + 1) % order.length]);
+          pro.setSelKind(ed.tool === "select-ellipse" ? "ellipse" : "rect");
           return;
         }
         if (t === "u") {
-          const order = ["shape-rect", "shape-ellipse", "shape-polygon"] as const;
+          const order = ["shape-rect", "shape-ellipse", "shape-polygon", "shape-chevron", "shape-moon", "shape-cross", "shape-plus", "shape-trapezoid"] as const;
           const i = order.indexOf(ed.tool as (typeof order)[number]);
           ed.setTool(order[(i + 1) % order.length]);
           return;
         }
         if (t === "r") {
-          const order = ["blur", "sharpen", "smudge"] as const;
+          const order = ["blur", "blur-surface", "blur-field", "sharpen", "sharpen-clarity", "smudge"] as const;
           const i = order.indexOf(ed.tool as (typeof order)[number]);
           ed.setTool(order[(i + 1) % order.length]);
           return;
         }
         if (t === "o") {
-          const order = ["dodge", "burn", "sponge"] as const;
+          const order = ["dodge", "dodge-high", "burn", "burn-shadow", "sponge", "sponge-sat", "sponge-desat"] as const;
           const i = order.indexOf(ed.tool as (typeof order)[number]);
           ed.setTool(order[(i + 1) % order.length]);
           return;
         }
         if (t === "g") {
-          ed.setTool(ed.tool === "gradient" ? "fill" : "gradient");
+          const order = ["gradient", "gradient-radial", "gradient-diamond", "fill", "fill-solid", "fill-clear"] as const;
+          const i = order.indexOf(ed.tool as (typeof order)[number]);
+          ed.setTool(order[(i + 1) % order.length]);
           return;
         }
         if (t === "p") {
-          ed.setTool(ed.tool === "pen" ? "line" : "pen");
+          const order = ["pen", "pen-free", "line", "line-arrow", "curvature-pen"] as const;
+          const i = order.indexOf(ed.tool as (typeof order)[number]);
+          ed.setTool(order[(i + 1) % order.length]);
           return;
         }
         if (t === "j") {
-          ed.setTool(ed.tool === "spot-heal" ? "clone" : "spot-heal");
+          const order = ["spot-heal", "heal-freckle", "heal-eye", "heal-teeth", "clone", "clone-soft"] as const;
+          const i = order.indexOf(ed.tool as (typeof order)[number]);
+          ed.setTool(order[(i + 1) % order.length]);
           return;
         }
         const tool = inv[t];

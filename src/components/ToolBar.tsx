@@ -55,6 +55,7 @@ import {
   ChevronRight,
   ChevronDown,
   Search,
+  Plus,
 } from "lucide-react";
 import { useEditorStore, type ToolId } from "../stores/useEditorStore";
 import clsx from "clsx";
@@ -91,6 +92,9 @@ export const TOOL_FAMILIES: ToolFamily[] = [
       { id: "artboard", icon: LayoutDashboard, label: "Artboard Tool", shortcut: "V", description: "Create and arrange artboards for multi-canvas work.", usage: "Drag to create an artboard." },
       { id: "path-select", icon: MousePointer, label: "Path Selection", shortcut: "A", description: "Select a whole vector path.", usage: "Click a path to select it." },
       { id: "direct-select", icon: MousePointer2, label: "Direct Selection", shortcut: "A", description: "Edit individual anchor points.", usage: "Click an anchor to edit." },
+      { id: "move-auto", icon: Scan, label: "Auto Select Layer", shortcut: "V", description: "Click photo to auto-pick top layer with pixels.", usage: "Click a visible object to select its layer, then drag." },
+      { id: "transform-free", icon: StretchHorizontal, label: "Free Transform", shortcut: "V", description: "Move with transform handles ready.", usage: "Drag to move. Fine scale/rotate in Transform panel." },
+      { id: "align-center", icon: Focus, label: "Align Center", shortcut: "V", description: "One click centers active layer to canvas.", usage: "Click canvas to center layer." },
     ],
   },
   {
@@ -107,6 +111,9 @@ export const TOOL_FAMILIES: ToolFamily[] = [
       { id: "select-rounded", icon: Square, label: "Rounded Marquee", shortcut: "Y", description: "Rectangle with soft rounded corners.", usage: "Drag to select." },
       { id: "select-grow", icon: Scan, label: "Grow Selection", shortcut: "Y", description: "Expand current selection 4px.", usage: "Click to grow." },
       { id: "select-shrink", icon: Scan, label: "Shrink Selection", shortcut: "Y", description: "Contract current selection 4px.", usage: "Click to shrink." },
+      { id: "select-square", icon: Square, label: "Square Marquee", shortcut: "M", description: "Square-locked marquee for icons and avatars.", usage: "Drag to select a square." },
+      { id: "select-feather", icon: Sparkles, label: "Feather Select", shortcut: "M", description: "Soften current selection edge 6px.", usage: "Click to feather. Needs a selection first." },
+      { id: "select-border", icon: CircleDashed, label: "Border Smooth", shortcut: "M", description: "Smooth and tighten selection border.", usage: "Click to smooth border." },
     ],
   },
   {
@@ -128,6 +135,9 @@ export const TOOL_FAMILIES: ToolFamily[] = [
       { id: "select-subject", icon: Focus, label: "Select Subject", shortcut: "W", description: "One-click auto subject selection.", usage: "Click anywhere on the subject." },
       { id: "ai-subject", icon: Focus, label: "AI Subject", shortcut: "0", description: "Center-weighted subject select.", usage: "Click to select subject." },
       { id: "ai-bg-remove", icon: EyeOff, label: "BG Remove", shortcut: "0", description: "Select subject + mask background.", usage: "Click subject." },
+      { id: "sky-select", icon: Droplets, label: "Sky Select", shortcut: "W", description: "Manual sky band select top 62 percent.", usage: "Click to select sky area." },
+      { id: "background-select", icon: Scan, label: "Background Select", shortcut: "W", description: "Manual background pick from corners.", usage: "Click to select background tone." },
+      { id: "focus-select", icon: Focus, label: "Focus Select", shortcut: "W", description: "Center ellipse focus area with feather.", usage: "Click to select center focus." },
     ],
   },
   {
@@ -149,6 +159,10 @@ export const TOOL_FAMILIES: ToolFamily[] = [
       { id: "slice-select", icon: Copy, label: "Slice Select", shortcut: "C", description: "Select and move slices.", usage: "Click a slice." },
       { id: "frame", icon: Frame, label: "Frame", shortcut: "K", description: "Placeholder frame for images.", usage: "Drag to create a frame." },
       { id: "ai-upscale", icon: ArrowRight, label: "Upscale 2x", shortcut: "0", description: "Double document with smooth upscale.", usage: "Click to upscale." },
+      { id: "crop-219", icon: Crop, label: "Crop 21:9", shortcut: "A", description: "Ultrawide cinematic 21:9.", usage: "Drag, ratio locked." },
+      { id: "crop-45", icon: Crop, label: "Crop 4:5", shortcut: "A", description: "Portrait social 4:5.", usage: "Drag, ratio locked." },
+      { id: "crop-916", icon: Crop, label: "Crop 9:16", shortcut: "A", description: "Vertical story 9:16.", usage: "Drag, ratio locked." },
+      { id: "crop-golden", icon: Crop, label: "Crop Golden", shortcut: "A", description: "Golden ratio 1.618 premium crop.", usage: "Drag, ratio locked." },
     ],
   },
   {
@@ -167,6 +181,9 @@ export const TOOL_FAMILIES: ToolFamily[] = [
       { id: "snap-toggle", icon: Zap, label: "Snap Toggle", shortcut: "5", description: "Toggle snapping on/off.", usage: "Click to toggle." },
       { id: "note", icon: StickyNote, label: "Note", shortcut: "I", description: "Attach a note to canvas.", usage: "Click to add a note." },
       { id: "count", icon: Hash, label: "Count", shortcut: "I", description: "Count objects with numbered markers.", usage: "Click to add a count." },
+      { id: "protractor", icon: Ruler, label: "Protractor", shortcut: "I", description: "Manual angle measure with label.", usage: "Drag to measure angle." },
+      { id: "guide-clear", icon: EyeOff, label: "Clear Guides", shortcut: "I", description: "One click removes all guides.", usage: "Click canvas to clear guides." },
+      { id: "grid-toggle", icon: LayoutDashboard, label: "Grid Toggle", shortcut: "I", description: "One click toggles Photoshop grid.", usage: "Click canvas to toggle grid." },
     ],
   },
   {
@@ -199,6 +216,12 @@ export const TOOL_FAMILIES: ToolFamily[] = [
       { id: "art-impasto", icon: Layers, label: "Impasto", shortcut: "F", description: "Heavy impasto with contrast punch.", usage: "Heavy strokes." },
       { id: "art-canvas", icon: LayoutDashboard, label: "Canvas Texture", shortcut: "F", description: "Weave texture tinted with brush color.", usage: "Stamp texture." },
       { id: "art-poster", icon: Star, label: "Poster Brush", shortcut: "F", description: "Graphic posterize blend stroke.", usage: "Graphic strokes." },
+      { id: "brush-dry", icon: Brush, label: "Dry Brush", shortcut: "B", description: "Manual dry bristle with scatter.", usage: "Paint textured dry strokes." },
+      { id: "brush-wet", icon: Droplets, label: "Wet Blend", shortcut: "B", description: "Manual wet mix canvas plus brush color.", usage: "Paint to blend wet." },
+      { id: "brush-glitter", icon: Sparkles, label: "Glitter", shortcut: "B", description: "Manual sparkle scatter additive.", usage: "Paint sparkles." },
+      { id: "brush-smoke", icon: Waves, label: "Smoke", shortcut: "B", description: "Manual soft smoke wash extra large.", usage: "Wash soft smoke." },
+      { id: "brush-fur", icon: Paintbrush, label: "Fur", shortcut: "N", description: "Manual fibrous multiply scatter.", usage: "Paint fur texture." },
+      { id: "brush-inkwash", icon: Droplet, label: "Ink Wash", shortcut: "N", description: "Manual east-ink wash multiply glaze.", usage: "Wash ink tones." },
     ],
   },
   {
@@ -212,6 +235,8 @@ export const TOOL_FAMILIES: ToolFamily[] = [
       { id: "background-eraser", icon: Eraser, label: "Background Eraser", shortcut: "E", description: "Erases only colors similar to sampled edge.", usage: "Drag along background edge." },
       { id: "magic-eraser", icon: Sparkles, label: "Magic Eraser", shortcut: "E", description: "One-click flood erase of flat areas.", usage: "Click a flat area." },
       { id: "eraser-hard", icon: Eraser, label: "Hard Eraser", shortcut: "E", description: "100% hard block eraser for pixel work.", usage: "Drag for hard erase." },
+      { id: "eraser-soft", icon: Eraser, label: "Soft Eraser", shortcut: "E", description: "Manual extra-soft zero-hardness erase.", usage: "Drag for soft erase." },
+      { id: "eraser-block", icon: Square, label: "Block Eraser", shortcut: "E", description: "Manual pixel-block hard erase.", usage: "Drag for block erase." },
     ],
   },
   {
@@ -233,6 +258,9 @@ export const TOOL_FAMILIES: ToolFamily[] = [
       { id: "heal-sky", icon: Droplets, label: "Sky Clean", shortcut: "8", description: "Wide soft clean for sky.", usage: "Paint sky spots." },
       { id: "heal-skin", icon: Droplet, label: "Skin Smooth", shortcut: "8", description: "Edge-safe skin smooth.", usage: "Paint skin." },
       { id: "heal-object", icon: EyeOff, label: "Object Erase", shortcut: "8", description: "Content fill erase for objects.", usage: "Paint object." },
+      { id: "heal-freckle", icon: Sparkles, label: "Freckle Clean", shortcut: "J", description: "Manual tiny freckle and dust clean.", usage: "Click freckles." },
+      { id: "heal-eye", icon: EyeOff, label: "Eye Bag Soften", shortcut: "J", description: "Manual gentle under-eye soften.", usage: "Paint eye bags." },
+      { id: "heal-teeth", icon: Sparkles, label: "Teeth Whiten", shortcut: "J", description: "Manual edge-safe whiten smooth.", usage: "Paint teeth." },
     ],
   },
   {
@@ -250,6 +278,8 @@ export const TOOL_FAMILIES: ToolFamily[] = [
       { id: "texture-stamp", icon: SprayCan, label: "Texture Stamp", shortcut: "7", description: "Grain weave stamp.", usage: "Paint texture." },
       { id: "history-brush", icon: RotateCcw, label: "History Brush", shortcut: "Y", description: "Restore from history snapshot.", usage: "Paint to restore." },
       { id: "art-history-brush", icon: Paintbrush, label: "Art History Brush", shortcut: "Y", description: "Artistic stylized history strokes.", usage: "Paint for artistic effect." },
+      { id: "clone-soft", icon: Stamp, label: "Soft Clone", shortcut: "S", description: "Manual soft 60 percent clone.", usage: "Alt-click source, paint soft." },
+      { id: "pattern-dots", icon: SprayCan, label: "Dots Pattern", shortcut: "S", description: "Manual dots pattern stamp.", usage: "Paint dots pattern." },
     ],
   },
   {
@@ -273,6 +303,10 @@ export const TOOL_FAMILIES: ToolFamily[] = [
       { id: "light-levels", icon: Layers, label: "Levels Brush", shortcut: "K", description: "Stretch local levels.", usage: "Paint to expand tone." },
       { id: "ai-colorize", icon: Palette, label: "AI Color", shortcut: "0", description: "Add Vibrance + Color Lookup.", usage: "Click to colorize." },
       { id: "ai-sky", icon: Droplets, label: "Sky Enhance", shortcut: "0", description: "Cool + contrast sky preset.", usage: "Click to enhance." },
+      { id: "dodge-high", icon: Sun, label: "Dodge Highlights", shortcut: "O", description: "Manual lighten bright tones only.", usage: "Paint highlights." },
+      { id: "burn-shadow", icon: Moon, label: "Burn Shadows", shortcut: "O", description: "Manual darken deep tones only.", usage: "Paint shadows." },
+      { id: "sponge-sat", icon: Palette, label: "Sponge Saturate", shortcut: "O", description: "Manual local saturate boost.", usage: "Paint to saturate." },
+      { id: "sponge-desat", icon: Droplet, label: "Sponge Desaturate", shortcut: "O", description: "Manual local muted wash.", usage: "Paint to desaturate." },
     ],
   },
   {
@@ -305,6 +339,10 @@ export const TOOL_FAMILIES: ToolFamily[] = [
       { id: "detail-lens", icon: Circle, label: "Lens Blur", shortcut: "X", description: "Creamy circular lens blur.", usage: "Paint for bokeh." },
       { id: "detail-motion", icon: ArrowRight, label: "Motion Brush", shortcut: "X", description: "Directional motion streak.", usage: "Paint for motion." },
       { id: "ai-denoise", icon: Waves, label: "AI Denoise", shortcut: "0", description: "Add Reduce-Noise filter.", usage: "Click to denoise." },
+      { id: "blur-surface", icon: Droplets, label: "Surface Blur", shortcut: "R", description: "Manual flat-area smooth keep edges.", usage: "Paint flat areas." },
+      { id: "blur-field", icon: Focus, label: "Field Blur", shortcut: "R", description: "Manual creamy field falloff blur.", usage: "Paint background." },
+      { id: "sharpen-clarity", icon: Zap, label: "Clarity Sharp", shortcut: "R", description: "Manual midtone clarity sharpen.", usage: "Paint midtones." },
+      { id: "denoise-strong", icon: Waves, label: "Denoise Strong", shortcut: "X", description: "Manual strong grain remove.", usage: "Paint noisy areas." },
     ],
   },
   {
@@ -317,6 +355,9 @@ export const TOOL_FAMILIES: ToolFamily[] = [
       { id: "gradient", icon: Droplet, label: "Linear Gradient", shortcut: "G", description: "Linear blend between foreground and target.", usage: "Drag to define direction." },
       { id: "gradient-radial", icon: Circle, label: "Radial Gradient", shortcut: "G", description: "Circular falloff gradient.", usage: "Drag from center outward." },
       { id: "fill", icon: PaintBucket, label: "Paint Bucket", shortcut: "G", description: "Tolerance flood fill respecting selection.", usage: "Click area to fill." },
+      { id: "fill-solid", icon: PaintBucket, label: "Solid Fill", shortcut: "G", description: "Manual fill whole layer solid.", usage: "Click to fill solid." },
+      { id: "fill-clear", icon: Eraser, label: "Clear Fill", shortcut: "G", description: "Manual clear layer to transparent.", usage: "Click to clear." },
+      { id: "gradient-diamond", icon: Droplet, label: "Diamond Gradient", shortcut: "G", description: "Manual diagonal diamond gradient.", usage: "Click for diagonal blend." },
     ],
   },
   {
@@ -329,6 +370,8 @@ export const TOOL_FAMILIES: ToolFamily[] = [
       { id: "pen", icon: PenTool, label: "Pen", shortcut: "P", description: "Free bezier path.", usage: "Drag for free path." },
       { id: "curvature-pen", icon: PenLine, label: "Curvature Pen", shortcut: "P", description: "Click curve points with handles.", usage: "Click points, drag handles." },
       { id: "line", icon: Minus, label: "Line", shortcut: "P", description: "Straight line. Shift locks 45 degrees.", usage: "Drag for straight line." },
+      { id: "pen-free", icon: Pencil, label: "Freeform Pen", shortcut: "P", description: "Manual freehand thin ink line.", usage: "Drag freehand line." },
+      { id: "line-arrow", icon: ArrowRight, label: "Arrow Line", shortcut: "P", description: "Manual line with arrow head.", usage: "Drag for arrow line." },
     ],
   },
   {
@@ -344,6 +387,9 @@ export const TOOL_FAMILIES: ToolFamily[] = [
       { id: "text-glow", icon: Sparkles, label: "Glow Type", shortcut: "9", description: "Soft glow text layer.", usage: "Click, then type." },
       { id: "text-shadow", icon: Copy, label: "Shadow Type", shortcut: "9", description: "Hard drop-shadow text.", usage: "Click, then type." },
       { id: "text-arc", icon: RotateCcw, label: "Arc Type", shortcut: "9", description: "Arched banner text.", usage: "Click, then type." },
+      { id: "text-3d", icon: Layers, label: "3D Type", shortcut: "T", description: "Manual extruded 3D stack text.", usage: "Click, then type." },
+      { id: "text-neon", icon: Zap, label: "Neon Type", shortcut: "T", description: "Manual neon tube glow text.", usage: "Click, then type." },
+      { id: "text-gradient", icon: Droplet, label: "Gradient Type", shortcut: "T", description: "Manual diagonal gradient fill text.", usage: "Click, then type." },
     ],
   },
   {
@@ -367,6 +413,11 @@ export const TOOL_FAMILIES: ToolFamily[] = [
       { id: "shape-hexagon", icon: Hexagon, label: "Hexagon", shortcut: "W", description: "Six-side hexagon.", usage: "Drag to draw." },
       { id: "shape-burst", icon: Star, label: "Burst", shortcut: "W", description: "12-spike starburst seal.", usage: "Drag to draw." },
       { id: "shape-donut", icon: Circle, label: "Donut", shortcut: "W", description: "Ring with transparent hole.", usage: "Drag to draw." },
+      { id: "shape-chevron", icon: ArrowRight, label: "Chevron", shortcut: "U", description: "Manual bold chevron arrow.", usage: "Drag to draw." },
+      { id: "shape-moon", icon: Moon, label: "Moon", shortcut: "U", description: "Manual crescent moon.", usage: "Drag to draw." },
+      { id: "shape-cross", icon: Plus, label: "Cross", shortcut: "U", description: "Manual rounded cross badge.", usage: "Drag to draw." },
+      { id: "shape-plus", icon: Plus, label: "Plus", shortcut: "U", description: "Manual medical plus sign.", usage: "Drag to draw." },
+      { id: "shape-trapezoid", icon: Hexagon, label: "Trapezoid", shortcut: "U", description: "Manual perspective trapezoid.", usage: "Drag to draw." },
     ],
   },
   {
@@ -384,6 +435,9 @@ export const TOOL_FAMILIES: ToolFamily[] = [
       { id: "zoom-100", icon: ZoomIn, label: "100%", shortcut: "6", description: "Actual pixels.", usage: "Click for 100%." },
       { id: "zoom-200", icon: ZoomIn, label: "200%", shortcut: "6", description: "Double detail.", usage: "Click for 200%." },
       { id: "zoom-400", icon: ZoomIn, label: "400%", shortcut: "6", description: "Pixel inspection.", usage: "Click for 400%." },
+      { id: "zoom-50", icon: ZoomIn, label: "50%", shortcut: "6", description: "Manual half-size overview.", usage: "Click for 50%." },
+      { id: "zoom-800", icon: ZoomIn, label: "800%", shortcut: "6", description: "Manual pixel-perfect 8x inspect.", usage: "Click for 800%." },
+      { id: "rotate-reset", icon: RotateCcw, label: "Reset Rotate", shortcut: "H", description: "Manual one-click reset view rotation.", usage: "Click to reset 0deg." },
     ],
   },
   {
@@ -405,6 +459,11 @@ export const TOOL_FAMILIES: ToolFamily[] = [
       { id: "grain-brush", icon: SprayCan, label: "Grain Brush", shortcut: "Q", description: "Add fine deterministic film grain.", usage: "Paint for texture." },
       { id: "pixelate-brush", icon: LayoutDashboard, label: "Pixelate Brush", shortcut: "Q", description: "Local mosaic for privacy or style.", usage: "Paint to pixelate." },
       { id: "vignette-brush", icon: Focus, label: "Vignette Brush", shortcut: "Q", description: "Darken dab edges like a lens.", usage: "Paint to vignette." },
+      { id: "sepia-brush", icon: Palette, label: "Sepia Brush", shortcut: "Q", description: "Manual warm sepia tone wash.", usage: "Paint for sepia." },
+      { id: "bw-brush", icon: Circle, label: "B&W Brush", shortcut: "Q", description: "Manual clean black-white convert.", usage: "Paint for mono." },
+      { id: "film-fade", icon: Droplets, label: "Film Fade", shortcut: "Q", description: "Manual lifted film matte fade.", usage: "Paint for film look." },
+      { id: "split-tone", icon: Droplets, label: "Split Tone", shortcut: "Q", description: "Manual cool shadows warm highlights.", usage: "Paint for split tone." },
+      { id: "hdr-brush", icon: Zap, label: "HDR Brush", shortcut: "Q", description: "Manual punchy HDR micro-contrast.", usage: "Paint for HDR pop." },
     ],
   },
 ];
@@ -575,7 +634,7 @@ export default function ToolBar() {
             )}
           </div>
           <div className="border-t border-[#2c2c31] p-2 text-[10px] leading-snug text-[#6e6e78]">
-            17 families, 174 sub-tools. Click a family icon to select. Click again to cycle variants. Right-click opens this panel.
+            17 families, 232 sub-tools manual. Click a family icon to select. Click again to cycle variants. Right-click opens this panel.
           </div>
         </div>
       )}

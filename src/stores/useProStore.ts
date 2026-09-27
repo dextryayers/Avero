@@ -188,7 +188,12 @@ interface ProState {
         | "heart"
         | "hexagon"
         | "burst"
-        | "donut";
+        | "donut"
+        | "chevron"
+        | "moon"
+        | "cross"
+        | "plus"
+        | "trapezoid";
       fill: string;
       stroke: string;
       strokeWidth: number;

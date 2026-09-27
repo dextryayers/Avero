@@ -48,7 +48,12 @@ export type ShapeKind =
   | "heart"
   | "hexagon"
   | "burst"
-  | "donut";
+  | "donut"
+  | "chevron"
+  | "moon"
+  | "cross"
+  | "plus"
+  | "trapezoid";
 
 export interface ShapeSpec {
   kind: ShapeKind;
@@ -181,6 +186,59 @@ export function renderShapeToLayer(canvas: HTMLCanvasElement, spec: ShapeSpec) {
     if (spec.strokeWidth > 0) ctx.stroke();
     ctx.restore();
     return;
+  } else if (spec.kind === "chevron") {
+    // bold chevron pointing right
+    ctx.moveTo(-rw, -rh);
+    ctx.lineTo(rw * 0.15, 0);
+    ctx.lineTo(-rw, rh);
+    ctx.lineTo(-rw * 0.25, rh);
+    ctx.lineTo(rw * 0.9, 0);
+    ctx.lineTo(-rw * 0.25, -rh);
+    ctx.closePath();
+  } else if (spec.kind === "moon") {
+    ctx.ellipse(0, 0, rw, rh, 0, 0, Math.PI * 2);
+    ctx.moveTo(rw * 0.35, -rh * 0.8);
+    ctx.ellipse(rw * 0.35, 0, rw * 0.75, rh * 0.8, 0, 0, Math.PI * 2, true);
+    ctx.fill("evenodd");
+    if (spec.strokeWidth > 0) ctx.stroke();
+    ctx.restore();
+    return;
+  } else if (spec.kind === "cross") {
+    const t = Math.min(rw, rh) * 0.32;
+    ctx.moveTo(-t, -rh);
+    ctx.lineTo(t, -rh);
+    ctx.lineTo(t, -t);
+    ctx.lineTo(rw, -t);
+    ctx.lineTo(rw, t);
+    ctx.lineTo(t, t);
+    ctx.lineTo(t, rh);
+    ctx.lineTo(-t, rh);
+    ctx.lineTo(-t, t);
+    ctx.lineTo(-rw, t);
+    ctx.lineTo(-rw, -t);
+    ctx.lineTo(-t, -t);
+    ctx.closePath();
+  } else if (spec.kind === "plus") {
+    const t = Math.min(rw, rh) * 0.28;
+    ctx.moveTo(-t, -rh);
+    ctx.lineTo(t, -rh);
+    ctx.lineTo(t, -t);
+    ctx.lineTo(rw, -t);
+    ctx.lineTo(rw, t);
+    ctx.lineTo(t, t);
+    ctx.lineTo(t, rh);
+    ctx.lineTo(-t, rh);
+    ctx.lineTo(-t, t);
+    ctx.lineTo(-rw, t);
+    ctx.lineTo(-rw, -t);
+    ctx.lineTo(-t, -t);
+    ctx.closePath();
+  } else if (spec.kind === "trapezoid") {
+    ctx.moveTo(-rw * 0.7, -rh);
+    ctx.lineTo(rw * 0.7, -rh);
+    ctx.lineTo(rw, rh);
+    ctx.lineTo(-rw, rh);
+    ctx.closePath();
   } else if (spec.kind === "custom") {
     // decorative wave ribbon
     ctx.moveTo(-rw, rh * 0.3);

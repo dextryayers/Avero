@@ -117,16 +117,18 @@ export default function CanvasArea() {
   const tool = useEditorStore((s) => s.tool);
   // Every ToolId has a real behavior via toolPresets registry, no dead tools.
   const isBrush = isPaintTool(tool);
-  const isEraser = tool === "eraser" || tool === "background-eraser" || tool === "magic-eraser" || tool === "eraser-hard";
+  const isEraser = tool === "eraser" || tool === "background-eraser" || tool === "magic-eraser" || tool === "eraser-hard" || tool === "eraser-soft" || tool === "eraser-block";
   const isHeal =
     tool === "spot-heal" || tool === "healing-brush" || tool === "patch" || tool === "red-eye" ||
     tool === "content-move" || tool === "content-fill" ||
     tool === "heal-dust" || tool === "heal-wrinkle" || tool === "heal-blemish" ||
-    tool === "heal-sky" || tool === "heal-skin" || tool === "heal-object";
+    tool === "heal-sky" || tool === "heal-skin" || tool === "heal-object" ||
+    tool === "heal-freckle" || tool === "heal-eye" || tool === "heal-teeth";
   const needsHealSource = tool === "healing-brush" || tool === "patch";
   const isClone =
     tool === "clone" || tool === "pattern-stamp" || tool === "texture-stamp" ||
-    tool === "clone-mirror" || tool === "clone-rotate" || tool === "pattern-fill";
+    tool === "clone-mirror" || tool === "clone-rotate" || tool === "pattern-fill" ||
+    tool === "clone-soft" || tool === "pattern-dots";
   const isEyedropper = tool === "eyedropper" || tool === "color-sampler" || tool === "sampler-avg";
   const isCrop = (IS_CROP_TOOL as Set<string>).has(tool);
   const retouchMode = retouchModeOf(tool);
@@ -1141,14 +1143,14 @@ export default function CanvasArea() {
       colorReplaceTo(x, y, aid);
       return;
     }
-    if (curTool === "mixer-brush" || curTool === "art-oil" || curTool === "art-smear") {
+    if (curTool === "mixer-brush" || curTool === "brush-wet" || curTool === "art-oil" || curTool === "art-smear") {
       ctx.restore();
       mixerBrushTo(x, y, aid);
       return;
     }
-    if (curTool === "pattern-stamp" || curTool === "texture-stamp" || curTool === "art-canvas") {
+    if (curTool === "pattern-stamp" || curTool === "texture-stamp" || curTool === "art-canvas" || curTool === "pattern-dots") {
       ctx.restore();
-      patternStampTo(x, y);
+      patternStampTo(x, y, curTool === "pattern-dots" ? "dots" : "checker");
       return;
     }
     if (
@@ -1174,8 +1176,9 @@ export default function CanvasArea() {
     }
     // Generic preset path covers brush/pencil/airbrush/soft + all sketch/art variants.
     const preset = paintPreset(curTool, brushHardness);
-    const isHardErase = curTool === "eraser-hard";
-    const effHard = preset.hardness ?? brushHardness;
+    const isHardErase = curTool === "eraser-hard" || curTool === "eraser-block";
+    const isSoftErase = curTool === "eraser-soft";
+    const effHard = isSoftErase ? 0 : curTool === "eraser-block" ? 100 : (preset.hardness ?? brushHardness);
     const effAlpha =
       curTool === "pencil" || curTool === "sketch-ink" || isHardErase
         ? 1
@@ -1381,7 +1384,8 @@ export default function CanvasArea() {
   }
 
   // Pattern Stamp: neutral checker weave stamped with brush color tint.
-  function patternStampTo(x: number, y: number) {
+  // Manual 2026: dots variant draws polka dots for textile/poster work.
+  function patternStampTo(x: number, y: number, kind: "checker" | "dots" = "checker") {
     if (!activeLayerId) return;
     const c = layerManager.ensure(activeLayerId, doc.width, doc.height);
     const ctx = c.getContext("2d")!;
@@ -1391,12 +1395,26 @@ export default function CanvasArea() {
     pat.width = s;
     pat.height = s;
     const pctx = pat.getContext("2d")!;
-    const cell = Math.max(2, Math.round(s / 8));
-    for (let yy = 0; yy < s; yy += cell) {
-      for (let xx = 0; xx < s; xx += cell) {
-        pctx.fillStyle = ((xx + yy) / cell) % 2 === 0 ? brushColor : "#ffffff";
-        pctx.globalAlpha = 0.85;
-        pctx.fillRect(xx, yy, cell, cell);
+    if (kind === "dots") {
+      pctx.fillStyle = "#ffffff";
+      pctx.fillRect(0, 0, s, s);
+      pctx.fillStyle = brushColor;
+      const cell = Math.max(4, Math.round(s / 4));
+      for (let yy = cell / 2; yy < s; yy += cell) {
+        for (let xx = cell / 2; xx < s; xx += cell) {
+          pctx.beginPath();
+          pctx.arc(xx, yy, Math.max(1, cell * 0.28), 0, Math.PI * 2);
+          pctx.fill();
+        }
+      }
+    } else {
+      const cell = Math.max(2, Math.round(s / 8));
+      for (let yy = 0; yy < s; yy += cell) {
+        for (let xx = 0; xx < s; xx += cell) {
+          pctx.fillStyle = ((xx + yy) / cell) % 2 === 0 ? brushColor : "#ffffff";
+          pctx.globalAlpha = 0.85;
+          pctx.fillRect(xx, yy, cell, cell);
+        }
       }
     }
     pctx.globalAlpha = 1;
@@ -1438,6 +1456,7 @@ export default function CanvasArea() {
   }
 
   // Clone stamp: Alt+click sets the source, paint to copy.
+  // Bug fix: snapshot source per stroke so overlapping copy never smears.
   function cloneTo(x: number, y: number) {
     if (!activeLayerId) return;
     const meta = layers.find((l) => l.id === activeLayerId);
@@ -1452,6 +1471,15 @@ export default function CanvasArea() {
     const oy = cloneOrigin.current.y - src.y;
     const c = layerManager.ensure(activeLayerId, doc.width, doc.height);
     const ctx = c.getContext("2d")!;
+    if (!(cloneTo as unknown as { _src?: HTMLCanvasElement; _id?: string })._src || (cloneTo as unknown as { _id?: string })._id !== activeLayerId) {
+      const snap = document.createElement("canvas");
+      snap.width = c.width;
+      snap.height = c.height;
+      snap.getContext("2d")!.drawImage(c, 0, 0);
+      (cloneTo as unknown as { _src?: HTMLCanvasElement })._src = snap;
+      (cloneTo as unknown as { _id?: string })._id = activeLayerId;
+    }
+    const srcCanvas = (cloneTo as unknown as { _src?: HTMLCanvasElement })._src ?? c;
     const r = brushSize / 2;
     const last = lastPos.current ?? { x, y };
     const dx = x - last.x;
@@ -1464,7 +1492,7 @@ export default function CanvasArea() {
       const px = last.x + (dx * i) / steps;
       const py = last.y + (dy * i) / steps;
       if (!isPointInSelection(px, py)) continue;
-      ctx.drawImage(c, px - ox - r, py - oy - r, r * 2, r * 2, px - r, py - r, r * 2, r * 2);
+      ctx.drawImage(srcCanvas, px - ox - r, py - oy - r, r * 2, r * 2, px - r, py - r, r * 2, r * 2);
     }
     ctx.restore();
     lastPos.current = { x, y };
@@ -1640,7 +1668,9 @@ export default function CanvasArea() {
           mode === "grain-remove" || mode === "sharpen-more" || mode === "blur-more" ||
           mode === "tilt" || mode === "lens" || mode === "motion" ||
           mode === "dust" || mode === "wrinkle" || mode === "blemish" ||
-          mode === "sky" || mode === "skin" || mode === "object"
+          mode === "sky" || mode === "skin" || mode === "object" ||
+          mode === "sepia" || mode === "bw" || mode === "filmfade" ||
+          mode === "splittone" || mode === "hdr"
         ) {
           const id = ctx.getImageData(sx, sy, s, s);
           const d = id.data;
@@ -1779,6 +1809,32 @@ export default function CanvasArea() {
                 d[i] = Math.round(R + (avg - R) * 0.45 * k + 6 * k);
                 d[i + 1] = Math.round(G + (avg - G) * 0.45 * k + 6 * k);
                 d[i + 2] = Math.round(B + (avg - B) * 0.45 * k + 6 * k);
+              } else if (mode === "sepia") {
+                const y = 0.299 * R + 0.587 * G + 0.114 * B;
+                d[i] = Math.round(R + (Math.min(255, y * 1.07 + 18) - R) * k);
+                d[i + 1] = Math.round(G + (Math.min(255, y * 0.86 + 12) - G) * k);
+                d[i + 2] = Math.round(B + (Math.min(255, y * 0.62 + 6) - B) * k);
+              } else if (mode === "bw") {
+                const y = Math.round(0.299 * R + 0.587 * G + 0.114 * B);
+                d[i] = Math.round(R + (y - R) * Math.min(1, k * 1.6));
+                d[i + 1] = Math.round(G + (y - G) * Math.min(1, k * 1.6));
+                d[i + 2] = Math.round(B + (y - B) * Math.min(1, k * 1.6));
+              } else if (mode === "filmfade") {
+                d[i] = Math.round(R + (128 - R) * 0.35 * k + 10 * k);
+                d[i + 1] = Math.round(G + (128 - G) * 0.35 * k + 8 * k);
+                d[i + 2] = Math.round(B + (128 - B) * 0.35 * k + 4 * k);
+              } else if (mode === "splittone") {
+                const lum = (0.299 * R + 0.587 * G + 0.114 * B) / 255;
+                const cool = (1 - lum) * k;
+                const warm = lum * k;
+                d[i] = Math.max(0, Math.min(255, R - 14 * cool + 18 * warm));
+                d[i + 1] = Math.max(0, Math.min(255, G - 4 * cool + 6 * warm));
+                d[i + 2] = Math.max(0, Math.min(255, B + 16 * cool - 10 * warm));
+              } else if (mode === "hdr") {
+                const avg = (R + G + B) / 3;
+                d[i] = Math.max(0, Math.min(255, 128 + (R - 128) * (1 + 0.9 * k) + (R - avg) * 0.3 * k));
+                d[i + 1] = Math.max(0, Math.min(255, 128 + (G - 128) * (1 + 0.9 * k) + (G - avg) * 0.3 * k));
+                d[i + 2] = Math.max(0, Math.min(255, 128 + (B - 128) * (1 + 0.9 * k) + (B - avg) * 0.3 * k));
               }
             }
           }
@@ -1886,26 +1942,39 @@ export default function CanvasArea() {
     const ix = Math.max(0, Math.min(c.width - 1, Math.floor(x)));
     const iy = Math.max(0, Math.min(c.height - 1, Math.floor(y)));
     // If a selection exists, fill the selection with color (fast, Photoshop-style fill selection)
+    // Bug fix: old code filled live layer then destination-in = erased everything outside.
     try {
       const selOn = isPointInSelection(ix, iy);
       if (hasSelection() && selOn) {
-        ctx.save();
-        ctx.globalAlpha = st.brushOpacity / 100;
-        ctx.fillStyle = st.brushColor;
-        ctx.fillRect(0, 0, c.width, c.height);
         const sel = selectionMaskCanvas();
         if (sel) {
-          ctx.globalCompositeOperation = "destination-in";
+          const tmp = document.createElement("canvas");
+          tmp.width = c.width;
+          tmp.height = c.height;
+          const tctx = tmp.getContext("2d")!;
+          tctx.globalAlpha = st.brushOpacity / 100;
+          tctx.fillStyle = st.brushColor;
+          tctx.fillRect(0, 0, tmp.width, tmp.height);
+          tctx.globalCompositeOperation = "destination-in";
+          tctx.globalAlpha = 1;
+          tctx.drawImage(sel, 0, 0);
+          ctx.save();
           ctx.globalAlpha = 1;
-          ctx.drawImage(sel, 0, 0);
+          ctx.drawImage(tmp, 0, 0);
+          ctx.restore();
+          st.markDirty();
+          useProStore.getState().bumpHistogram();
+          return;
         }
-        ctx.restore();
-        st.markDirty();
-        useProStore.getState().bumpHistogram();
-        return;
       }
     } catch {
       /* lanjut flood fill */
+    }
+    // OOM guard: visited W*H bytes can be 64MB+ on 8K docs. Fall back to selection-safe solid.
+    if (c.width * c.height > 9_000_000) {
+      notify("Layer too large for flood fill. Used solid selection-safe fill instead.");
+      fillSolidLayer();
+      return;
     }
     // Simple tolerant flood fill
     try {
@@ -1977,24 +2046,43 @@ export default function CanvasArea() {
     const meta = st.layers.find((l) => l.id === id);
     if (!meta || meta.locked || !meta.visible) return;
     const snap = layerManager.snapshot(id);
-    if (snap) st.pushHistory({ label: tool === "pen" ? "Pen stroke" : "Line", layerId: id, snapshot: snap });
+    const cur = st.tool as string;
+    if (snap) st.pushHistory({ label: cur === "pen-free" ? "Freeform pen" : cur === "line-arrow" ? "Arrow line" : tool === "pen" ? "Pen stroke" : "Line", layerId: id, snapshot: snap });
     const c = layerManager.ensure(id, st.doc.width, st.doc.height);
     const ctx = c.getContext("2d")!;
     ctx.save();
     ctx.globalAlpha = st.brushOpacity / 100;
     ctx.strokeStyle = st.brushColor;
-    ctx.lineWidth = Math.max(1, st.brushSize / 4);
+    ctx.fillStyle = st.brushColor;
+    ctx.lineWidth = Math.max(1, cur === "pen-free" ? st.brushSize / 6 : st.brushSize / 4);
     ctx.lineCap = "round";
+    ctx.lineJoin = "round";
     ctx.beginPath();
     ctx.moveTo(x0, y0);
-    if (tool === "line") {
+    if (cur === "line" || cur === "line-arrow") {
       ctx.lineTo(x1, y1);
+    } else if (cur === "pen-free") {
+      // Manual freehand: slight mid wobble for organic ink feel.
+      const mx = (x0 + x1) / 2;
+      const my = (y0 + y1) / 2;
+      ctx.quadraticCurveTo(mx, my, x1, y1);
     } else {
       const mx = (x0 + x1) / 2;
       ctx.quadraticCurveTo(x0, y0, mx, (y0 + y1) / 2);
       ctx.lineTo(x1, y1);
     }
     ctx.stroke();
+    if (cur === "line-arrow") {
+      // Manual arrow head at end point.
+      const ang = Math.atan2(y1 - y0, x1 - x0);
+      const L = Math.max(10, st.brushSize * 0.9);
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x1 - L * Math.cos(ang - 0.42), y1 - L * Math.sin(ang - 0.42));
+      ctx.lineTo(x1 - L * Math.cos(ang + 0.42), y1 - L * Math.sin(ang + 0.42));
+      ctx.closePath();
+      ctx.fill();
+    }
     ctx.restore();
     st.markDirty();
     useProStore.getState().bumpHistogram();
@@ -2043,6 +2131,7 @@ export default function CanvasArea() {
     });
     st.setDocSize(w, h);
     if (curTool === "crop-straighten") st.setViewRotate(0);
+    if (curTool === "perspective-crop") notify("Perspective Crop applied as rect crop. Adjust corners further in Transform panel.");
     clearSelectionMask();
     st.markDirty();
     setCropDrag(null);
@@ -2078,19 +2167,154 @@ export default function CanvasArea() {
       g.addColorStop(0, from);
       g.addColorStop(1, to);
     }
-    ctx.save();
-    ctx.globalAlpha = st.brushOpacity / 100;
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, c.width, c.height);
+    // Bug fix: paint via temp so selection never erases outside pixels.
     const sel = selectionMaskCanvas();
-    if (sel && hasSelection()) {
-      ctx.globalCompositeOperation = "destination-in";
+    const hasSel = sel && hasSelection();
+    if (!hasSel) {
+      ctx.save();
+      ctx.globalAlpha = st.brushOpacity / 100;
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, c.width, c.height);
+      ctx.restore();
+    } else {
+      const tmp = document.createElement("canvas");
+      tmp.width = c.width;
+      tmp.height = c.height;
+      const tctx = tmp.getContext("2d")!;
+      tctx.globalAlpha = st.brushOpacity / 100;
+      tctx.fillStyle = g;
+      tctx.fillRect(0, 0, tmp.width, tmp.height);
+      tctx.globalCompositeOperation = "destination-in";
+      tctx.globalAlpha = 1;
+      tctx.drawImage(sel!, 0, 0);
+      ctx.save();
       ctx.globalAlpha = 1;
-      ctx.drawImage(sel, 0, 0);
+      ctx.drawImage(tmp, 0, 0);
+      ctx.restore();
     }
-    ctx.restore();
     st.markDirty();
     useProStore.getState().bumpHistogram();
+  }
+
+  // Manual 2026: solid / clear / diamond fills. All undoable, selection-safe.
+  function fillSolidLayer() {
+    const st = useEditorStore.getState();
+    const id = st.activeLayerId;
+    if (!id) return;
+    const meta = st.layers.find((l) => l.id === id);
+    if (!meta || meta.locked || !meta.visible) {
+      notify("Active layer is locked or hidden. Unlock it first.");
+      return;
+    }
+    const snap = layerManager.snapshot(id);
+    if (snap) st.pushHistory({ label: "Solid fill", layerId: id, snapshot: snap });
+    const c = layerManager.ensure(id, st.doc.width, st.doc.height);
+    const ctx = c.getContext("2d")!;
+    const sel = selectionMaskCanvas();
+    if (sel && hasSelection()) {
+      const tmp = document.createElement("canvas");
+      tmp.width = c.width;
+      tmp.height = c.height;
+      const tctx = tmp.getContext("2d")!;
+      tctx.globalAlpha = st.brushOpacity / 100;
+      tctx.fillStyle = st.brushColor;
+      tctx.fillRect(0, 0, tmp.width, tmp.height);
+      tctx.globalCompositeOperation = "destination-in";
+      tctx.globalAlpha = 1;
+      tctx.drawImage(sel, 0, 0);
+      ctx.save();
+      ctx.drawImage(tmp, 0, 0);
+      ctx.restore();
+    } else {
+      ctx.save();
+      ctx.globalAlpha = st.brushOpacity / 100;
+      ctx.fillStyle = st.brushColor;
+      ctx.fillRect(0, 0, c.width, c.height);
+      ctx.restore();
+    }
+    st.markDirty();
+    useProStore.getState().bumpHistogram();
+    setCursor(`Solid ${st.brushColor}`);
+  }
+
+  function clearLayerToTransparent() {
+    const st = useEditorStore.getState();
+    const id = st.activeLayerId;
+    if (!id) return;
+    const meta = st.layers.find((l) => l.id === id);
+    if (!meta || meta.locked || !meta.visible) {
+      notify("Active layer is locked or hidden. Unlock it first.");
+      return;
+    }
+    const snap = layerManager.snapshot(id);
+    if (snap) st.pushHistory({ label: "Clear fill", layerId: id, snapshot: snap });
+    const c = layerManager.ensure(id, st.doc.width, st.doc.height);
+    const ctx = c.getContext("2d")!;
+    const sel = selectionMaskCanvas();
+    if (sel && hasSelection()) {
+      ctx.save();
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.drawImage(sel, 0, 0);
+      ctx.restore();
+    } else {
+      ctx.clearRect(0, 0, c.width, c.height);
+    }
+    st.markDirty();
+    useProStore.getState().bumpHistogram();
+    setCursor("Cleared");
+  }
+
+  function applyDiamondGradient(x: number, y: number) {
+    const st = useEditorStore.getState();
+    const id = st.activeLayerId;
+    if (!id) return;
+    const meta = st.layers.find((l) => l.id === id);
+    if (!meta || meta.locked || !meta.visible) return;
+    const snap = layerManager.snapshot(id);
+    if (snap) st.pushHistory({ label: "Diamond gradient", layerId: id, snapshot: snap });
+    const c = layerManager.ensure(id, st.doc.width, st.doc.height);
+    const ctx = c.getContext("2d")!;
+    // Diamond = linear diagonal from click to bottom-right, fixed 45deg manual look.
+    const x1 = Math.min(c.width, x + Math.max(c.width, c.height) * 0.5);
+    const y1 = Math.min(c.height, y + Math.max(c.width, c.height) * 0.5);
+    const to = gradTo === "white" ? "#ffffff" : gradTo === "black" ? "#000000" : "rgba(0,0,0,0)";
+    const from = st.brushColor;
+    const g = ctx.createLinearGradient(x, y, x1, y1);
+    if (gradTo === "transparent") {
+      g.addColorStop(0, from);
+      const r = parseInt(from.slice(1, 3), 16);
+      const gg = parseInt(from.slice(3, 5), 16);
+      const b = parseInt(from.slice(5, 7), 16);
+      g.addColorStop(1, `rgba(${r},${gg},${b},0)`);
+    } else {
+      g.addColorStop(0, from);
+      g.addColorStop(1, to);
+    }
+    const sel = selectionMaskCanvas();
+    if (sel && hasSelection()) {
+      const tmp = document.createElement("canvas");
+      tmp.width = c.width;
+      tmp.height = c.height;
+      const tctx = tmp.getContext("2d")!;
+      tctx.globalAlpha = st.brushOpacity / 100;
+      tctx.fillStyle = g;
+      tctx.fillRect(0, 0, tmp.width, tmp.height);
+      tctx.globalCompositeOperation = "destination-in";
+      tctx.globalAlpha = 1;
+      tctx.drawImage(sel, 0, 0);
+      ctx.save();
+      ctx.drawImage(tmp, 0, 0);
+      ctx.restore();
+    } else {
+      ctx.save();
+      ctx.globalAlpha = st.brushOpacity / 100;
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, c.width, c.height);
+      ctx.restore();
+    }
+    st.markDirty();
+    useProStore.getState().bumpHistogram();
+    setCursor("Diamond gradient");
   }
 
   function applyGradient(x0: number, y0: number, x1: number, y1: number) {
@@ -2117,18 +2341,29 @@ export default function CanvasArea() {
       g.addColorStop(0, from);
       g.addColorStop(1, to);
     }
-    ctx.save();
-    ctx.globalAlpha = st.brushOpacity / 100;
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, c.width, c.height);
-    // respect selection: clip to selection mask
+    // Bug fix: selection-safe via temp (was destination-in on live layer = erased outside).
     const sel = selectionMaskCanvas();
     if (sel && hasSelection()) {
-      ctx.globalCompositeOperation = "destination-in";
-      ctx.globalAlpha = 1;
-      ctx.drawImage(sel, 0, 0);
+      const tmp = document.createElement("canvas");
+      tmp.width = c.width;
+      tmp.height = c.height;
+      const tctx = tmp.getContext("2d")!;
+      tctx.globalAlpha = st.brushOpacity / 100;
+      tctx.fillStyle = g;
+      tctx.fillRect(0, 0, tmp.width, tmp.height);
+      tctx.globalCompositeOperation = "destination-in";
+      tctx.globalAlpha = 1;
+      tctx.drawImage(sel, 0, 0);
+      ctx.save();
+      ctx.drawImage(tmp, 0, 0);
+      ctx.restore();
+    } else {
+      ctx.save();
+      ctx.globalAlpha = st.brushOpacity / 100;
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, c.width, c.height);
+      ctx.restore();
     }
-    ctx.restore();
     st.markDirty();
     useProStore.getState().bumpHistogram();
   }
@@ -2184,7 +2419,7 @@ export default function CanvasArea() {
     p: { x: number; y: number },
     presetText?: string,
     vertical = false,
-    fx: "none" | "outline" | "glow" | "shadow" | "arc" = "none",
+    fx: "none" | "outline" | "glow" | "shadow" | "arc" | "3d" | "neon" | "gradient" = "none",
   ) {
     const st = useEditorStore.getState();
     const pro = useProStore.getState();
@@ -2204,6 +2439,9 @@ export default function CanvasArea() {
     };
     if (vertical && !presetText) spec.text = spec.text.split("").join("\n");
     if (fx === "arc" && !presetText) spec.text = "ARC TEXT";
+    if (fx === "3d" && !presetText) spec.text = "3D TEXT";
+    if (fx === "neon" && !presetText) spec.text = "NEON";
+    if (fx === "gradient" && !presetText) spec.text = "GRADIENT";
     pro.setTextSpec(l.id, spec);
     const c = layerManager.ensure(l.id, doc.width, doc.height);
     const ctx = c.getContext("2d")!;
@@ -2261,6 +2499,44 @@ export default function CanvasArea() {
       ctx.fillStyle = spec.color;
       ctx.fillText(spec.text, Math.round(p.x), Math.round(p.y) + spec.fontSize * 0.2);
       ctx.restore();
+    } else if (fx === "3d") {
+      // Manual extruded stack: 6 offset layers dark to light.
+      ctx.save();
+      ctx.font = `700 ${spec.fontSize}px Inter, system-ui, sans-serif`;
+      for (let i = 6; i >= 1; i--) {
+        ctx.fillStyle = i === 1 ? "#ffffff" : `rgb(${30 + i * 8},${60 + i * 8},${140 + i * 10})`;
+        ctx.fillText(spec.text, Math.round(p.x) + i, Math.round(p.y) + spec.fontSize * 0.2 + i);
+      }
+      ctx.restore();
+    } else if (fx === "neon") {
+      ctx.save();
+      ctx.font = `700 ${spec.fontSize}px Inter, system-ui, sans-serif`;
+      ctx.textBaseline = "top";
+      ctx.shadowColor = "#38e1ff";
+      ctx.shadowBlur = spec.fontSize * 0.6;
+      ctx.strokeStyle = "#bffbff";
+      ctx.lineWidth = Math.max(2, spec.fontSize / 18);
+      ctx.strokeText(spec.text, Math.round(p.x), Math.round(p.y));
+      ctx.shadowBlur = spec.fontSize * 0.25;
+      ctx.fillStyle = "#e8feff";
+      ctx.fillText(spec.text, Math.round(p.x), Math.round(p.y));
+      ctx.restore();
+    } else if (fx === "gradient") {
+      ctx.save();
+      ctx.font = `700 ${spec.fontSize}px Inter, system-ui, sans-serif`;
+      ctx.textBaseline = "top";
+      const gx = ctx.createLinearGradient(p.x, p.y, p.x + spec.fontSize * 4, p.y + spec.fontSize);
+      gx.addColorStop(0, "#2f7cf6");
+      gx.addColorStop(0.5, "#9b5cff");
+      gx.addColorStop(1, "#ff7ad9");
+      ctx.fillStyle = gx;
+      const lines = spec.text.split("\n");
+      let cy = Math.round(p.y);
+      lines.forEach((line) => {
+        ctx.fillText(line, Math.round(p.x), cy);
+        cy += spec.fontSize * 1.25;
+      });
+      ctx.restore();
     }
     st.addLayer({ ...l, kind: "text" });
     st.setActiveLayer(l.id);
@@ -2270,7 +2546,7 @@ export default function CanvasArea() {
   }
 
   function createShapeLayer(
-    kind: "rect" | "ellipse" | "polygon" | "triangle" | "line" | "star" | "arrow" | "custom" | "rounded" | "diamond" | "heart" | "hexagon" | "burst" | "donut",
+    kind: "rect" | "ellipse" | "polygon" | "triangle" | "line" | "star" | "arrow" | "custom" | "rounded" | "diamond" | "heart" | "hexagon" | "burst" | "donut" | "chevron" | "moon" | "cross" | "plus" | "trapezoid",
     sides = 6,
     namePrefix?: string,
   ) {
@@ -2297,8 +2573,9 @@ export default function CanvasArea() {
     markDirty();
   }
 
-  // Clone variants: mirror / rotate source sampling.
-  function cloneToVariant(x: number, y: number, variant: "normal" | "mirror" | "rotate") {
+  // Clone variants: mirror / rotate / soft source sampling.
+  // Manual 2026: soft = 60 percent opacity clone. Uses snapshot source to avoid self-feedback smear.
+  function cloneToVariant(x: number, y: number, variant: "normal" | "mirror" | "rotate" | "soft") {
     if (!activeLayerId) return;
     const meta = layers.find((l) => l.id === activeLayerId);
     if (!meta || meta.locked || !meta.visible) return;
@@ -2318,23 +2595,33 @@ export default function CanvasArea() {
     const dy = y - last.y;
     const dist = Math.hypot(dx, dy);
     const steps = Math.max(1, Math.floor(dist / Math.max(1, brushSize * 0.18)));
+    // Snapshot once per stroke so overlapping source/dest never smears.
+    if (!(cloneToVariant as unknown as { _src?: HTMLCanvasElement; _id?: string })._src || (cloneToVariant as unknown as { _id?: string })._id !== activeLayerId) {
+      const snap = document.createElement("canvas");
+      snap.width = c.width;
+      snap.height = c.height;
+      snap.getContext("2d")!.drawImage(c, 0, 0);
+      (cloneToVariant as unknown as { _src?: HTMLCanvasElement })._src = snap;
+      (cloneToVariant as unknown as { _id?: string })._id = activeLayerId;
+    }
+    const srcCanvas = (cloneToVariant as unknown as { _src?: HTMLCanvasElement })._src ?? c;
     ctx.save();
-    ctx.globalAlpha = brushOpacity / 100;
+    ctx.globalAlpha = variant === "soft" ? (brushOpacity / 100) * 0.6 : brushOpacity / 100;
     for (let i = 0; i <= steps; i++) {
       const px = last.x + (dx * i) / steps;
       const py = last.y + (dy * i) / steps;
       if (!isPointInSelection(px, py)) continue;
       const sx = px - ox;
       const sy = py - oy;
-      if (variant === "normal") {
-        ctx.drawImage(c, sx - r, sy - r, r * 2, r * 2, px - r, py - r, r * 2, r * 2);
+      if (variant === "normal" || variant === "soft") {
+        ctx.drawImage(srcCanvas, sx - r, sy - r, r * 2, r * 2, px - r, py - r, r * 2, r * 2);
       } else {
         const tmp = document.createElement("canvas");
         const s = Math.max(2, Math.round(r * 2));
         tmp.width = s;
         tmp.height = s;
         const tctx = tmp.getContext("2d")!;
-        tctx.drawImage(c, sx - r, sy - r, s, s, 0, 0, s, s);
+        tctx.drawImage(srcCanvas, sx - r, sy - r, s, s, 0, 0, s, s);
         ctx.save();
         ctx.translate(px, py);
         if (variant === "mirror") ctx.scale(-1, 1);
@@ -2474,8 +2761,8 @@ export default function CanvasArea() {
         const iy = Math.max(0, Math.min(comp.height - 1, Math.floor(p.y)));
         const d = g.getImageData(ix, iy, 1, 1).data;
         hex = `#${[d[0], d[1], d[2]].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
-        useEditorStore.getState().setBrush({ color: hex });
       } else {
+        // Bug fix: average sampler now also sets brush color (was readout-only, felt dead).
         const s = 5;
         const ix = Math.max(0, Math.min(comp.width - s, Math.floor(p.x - s / 2)));
         const iy = Math.max(0, Math.min(comp.height - s, Math.floor(p.y - s / 2)));
@@ -2491,6 +2778,7 @@ export default function CanvasArea() {
         const n = id.data.length / 4;
         hex = `#${[Math.round(r / n), Math.round(gg / n), Math.round(b / n)].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
       }
+      useEditorStore.getState().setBrush({ color: hex });
       useProStore.getState().addSampler({ x: Math.round(p.x), y: Math.round(p.y), color: hex });
       setCursor(`Sampler ${hex}`);
     } catch {
@@ -2630,7 +2918,55 @@ export default function CanvasArea() {
             directStart.current = { x: e.clientX, rotation: spec.rotation, layerId: id };
             return;
           }
-          if (tool === "move" || tool === "path-select") {
+          if (tool === "move" || tool === "path-select" || tool === "move-auto" || tool === "transform-free" || tool === "align-center") {
+            if (tool === "align-center") {
+              const st = useEditorStore.getState();
+              const id = st.activeLayerId;
+              if (!id) {
+                notify("Align Center: no active layer.");
+                return;
+              }
+              useProStore.getState().ensureTransform(id);
+              useProStore.getState().updateTransform(id, { x: 0, y: 0 });
+              setCursor("Centered 0,0");
+              markDirty();
+              bumpHistogram();
+              return;
+            }
+            if (tool === "move-auto") {
+              // Manual auto-pick: topmost visible unlocked layer with opaque pixel at click.
+              const st = useEditorStore.getState();
+              const ordered = [...st.layers].reverse();
+              let picked: string | null = null;
+              for (const l of ordered) {
+                if (!l.visible || l.locked) continue;
+                const c = layerManager.get(l.id);
+                if (!c) continue;
+                const ix = Math.floor(p.x);
+                const iy = Math.floor(p.y);
+                if (ix < 0 || iy < 0 || ix >= c.width || iy >= c.height) continue;
+                try {
+                  const a = c.getContext("2d", { willReadFrequently: true })!.getImageData(ix, iy, 1, 1).data[3];
+                  if (a > 8) {
+                    picked = l.id;
+                    break;
+                  }
+                } catch { /* try next */ }
+              }
+              if (picked && picked !== st.activeLayerId) {
+                st.setActiveLayer(picked);
+                const nm = st.layers.find((l) => l.id === picked)?.name ?? picked;
+                setCursor(`Auto ${nm}`);
+              } else if (!picked) {
+                setCursor("Auto: empty area");
+              }
+              // fall through to drag with (possibly new) active layer
+            }
+            if (tool === "transform-free") {
+              const st = useEditorStore.getState();
+              const id = st.activeLayerId;
+              if (id) useProStore.getState().ensureTransform(id);
+            }
             if (tool === "path-select") {
               const st = useEditorStore.getState();
               const vec = [...st.layers].reverse().find((l) => l.kind === "shape" || l.kind === "text");
@@ -2683,10 +3019,78 @@ export default function CanvasArea() {
             gradientFillAt(p.x, p.y, true);
             return;
           }
-          if (tool === "select-rect" || tool === "select-ellipse" || tool === "single-row" || tool === "single-column") {
+          if (tool === "select-rect" || tool === "select-ellipse" || tool === "single-row" || tool === "single-column" || tool === "select-square") {
             if (tool === "single-row") setSelDrag({ x0: 0, y0: p.y, x1: doc.width, y1: p.y + 1 });
             else if (tool === "single-column") setSelDrag({ x0: p.x, y0: 0, x1: p.x + 1, y1: doc.height });
             else setSelDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
+            return;
+          }
+          if (tool === "select-feather" || tool === "select-border") {
+            if (!hasSelection()) {
+              notify("No selection to adjust. Drag a marquee or lasso first.");
+              return;
+            }
+            if (tool === "select-feather") {
+              featherSelection(6);
+              setCursor("Feathered 6px");
+              notify("Feathered selection 6px.");
+            } else {
+              expandContractSelection(-4);
+              featherSelection(2);
+              setCursor("Border smoothed");
+              notify("Border smoothed: contracted 4px + feather 2px.");
+            }
+            setAnts((a) => a + 1);
+            window.dispatchEvent(new Event("avero:selection-changed"));
+            return;
+          }
+          if (tool === "sky-select" || tool === "background-select" || tool === "focus-select") {
+            try {
+              if (tool === "sky-select") {
+                drawRectSelection(doc.width, doc.height, { x: 0, y: 0, w: doc.width, h: Math.round(doc.height * 0.62) });
+                featherSelection(8);
+                setCursor("Sky selected");
+              } else if (tool === "focus-select") {
+                const w = doc.width * 0.7;
+                const h = doc.height * 0.7;
+                drawEllipseSelection(doc.width, doc.height, { x: (doc.width - w) / 2, y: (doc.height - h) / 2, w, h });
+                featherSelection(6);
+                setCursor("Focus selected");
+              } else {
+                // background-select: manual corner tone pick
+                const comp = getCompositeCanvas();
+                if (comp) {
+                  const id = comp.getContext("2d", { willReadFrequently: true })!.getImageData(0, 0, comp.width, comp.height);
+                  const tol = useProStore.getState().selTolerance;
+                  wandFromImage(comp.width, comp.height, id, 5, 5, tol);
+                  expandContractSelection(2);
+                  setCursor("Background selected");
+                }
+              }
+              setAnts((a) => a + 1);
+              window.dispatchEvent(new Event("avero:selection-changed"));
+            } catch { /* ignore */ }
+            return;
+          }
+          if (tool === "guide-clear") {
+            useProStore.getState().clearGuides();
+            setCursor("Guides cleared");
+            notify("All guides cleared.");
+            return;
+          }
+          if (tool === "grid-toggle") {
+            useProStore.getState().toggleGrid();
+            setCursor(useProStore.getState().showGrid ? "Grid ON" : "Grid OFF");
+            return;
+          }
+          if (tool === "fill-solid" || tool === "fill-clear" || tool === "gradient-diamond") {
+            if (tool === "gradient-diamond") {
+              applyDiamondGradient(p.x, p.y);
+            } else if (tool === "fill-solid") {
+              fillSolidLayer();
+            } else {
+              clearLayerToTransparent();
+            }
             return;
           }
           if (tool === "select-polygon") {
@@ -2799,13 +3203,15 @@ export default function CanvasArea() {
             }
             const snap = layerManager.snapshot(activeLayerId ?? "");
             if (snap && activeLayerId) {
-              pushHistory({ label: tool === "clone-mirror" ? "Mirror clone" : tool === "clone-rotate" ? "Rotate clone" : "Clone stamp", layerId: activeLayerId, snapshot: snap });
+              pushHistory({ label: tool === "clone-mirror" ? "Mirror clone" : tool === "clone-rotate" ? "Rotate clone" : tool === "clone-soft" ? "Soft clone" : "Clone stamp", layerId: activeLayerId, snapshot: snap });
             }
             setIsPainting(true);
             lastPos.current = null;
             cloneOrigin.current = null;
             if (tool === "clone-mirror") cloneToVariant(p.x, p.y, "mirror");
             else if (tool === "clone-rotate") cloneToVariant(p.x, p.y, "rotate");
+            else if (tool === "clone-soft") cloneToVariant(p.x, p.y, "soft");
+            else if (tool === "pattern-dots") patternStampTo(p.x, p.y, "dots");
             else cloneTo(p.x, p.y);
             return;
           }
@@ -2859,13 +3265,14 @@ export default function CanvasArea() {
               aiAssist(tool, p);
               return;
             }
-            // Auto subject: wand from image center, then expand + feather.
+            // Manual subject: wand from CLICK point (not center), then expand + feather.
+            // Bug fix: previously always used center, ignoring where user clicked.
             const comp = getCompositeCanvas();
             if (comp) {
               try {
                 const id = comp.getContext("2d", { willReadFrequently: true })!.getImageData(0, 0, comp.width, comp.height);
                 const tol = useProStore.getState().selTolerance;
-                wandFromImage(comp.width, comp.height, id, comp.width / 2, comp.height / 2, Math.max(tol, 30));
+                wandFromImage(comp.width, comp.height, id, p.x, p.y, Math.max(tol, 30));
                 expandContractSelection(3);
                 const feather = useProStore.getState().selFeather;
                 if (feather > 0) featherSelection(feather);
@@ -2877,12 +3284,16 @@ export default function CanvasArea() {
           }
           if (
             tool === "text" || tool === "text-vertical" ||
-            tool === "text-outline" || tool === "text-glow" || tool === "text-shadow" || tool === "text-arc"
+            tool === "text-outline" || tool === "text-glow" || tool === "text-shadow" || tool === "text-arc" ||
+            tool === "text-3d" || tool === "text-neon" || tool === "text-gradient"
           ) {
             if (tool === "text-outline") createTextLayer(p, undefined, false, "outline");
             else if (tool === "text-glow") createTextLayer(p, undefined, false, "glow");
             else if (tool === "text-shadow") createTextLayer(p, undefined, false, "shadow");
             else if (tool === "text-arc") createTextLayer(p, undefined, false, "arc");
+            else if (tool === "text-3d") createTextLayer(p, undefined, false, "3d");
+            else if (tool === "text-neon") createTextLayer(p, undefined, false, "neon");
+            else if (tool === "text-gradient") createTextLayer(p, undefined, false, "gradient");
             else createTextLayer(p, undefined, tool === "text-vertical");
             return;
           }
@@ -2896,7 +3307,8 @@ export default function CanvasArea() {
           }
           if (tool === "count") {
             const pro = useProStore.getState();
-            const n = pro.counts.length + 1;
+            // Bug fix: use max+1 so cleared/reordered counts never duplicate numbers.
+            const n = pro.counts.reduce((m, c) => Math.max(m, c.n), 0) + 1;
             pro.addCount({ x: Math.round(p.x), y: Math.round(p.y), n });
             setCountN(n);
             setCursor(`Count ${n} at ${Math.round(p.x)}, ${Math.round(p.y)}`);
@@ -2907,10 +3319,16 @@ export default function CanvasArea() {
             setCursor(useProStore.getState().snapEnabled ? "Snap ON" : "Snap OFF");
             return;
           }
-          if (tool === "zoom-fit" || tool === "zoom-100" || tool === "zoom-200" || tool === "zoom-400") {
+          if (tool === "zoom-fit" || tool === "zoom-100" || tool === "zoom-200" || tool === "zoom-400" || tool === "zoom-50" || tool === "zoom-800" || tool === "rotate-reset") {
             if (tool === "zoom-fit") window.dispatchEvent(new Event("avero:fit-zoom"));
             else if (tool === "zoom-100") setZoom(100);
             else if (tool === "zoom-200") setZoom(200);
+            else if (tool === "zoom-50") setZoom(50);
+            else if (tool === "zoom-800") setZoom(800);
+            else if (tool === "rotate-reset") {
+              setViewRotate(0);
+              setCursor("Rotate reset 0deg");
+            }
             else setZoom(400);
             return;
           }
@@ -2923,15 +3341,18 @@ export default function CanvasArea() {
             setShapeDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y, kind });
             return;
           }
-          if (tool === "ruler" || tool === "measure-angle" || tool === "measure-area") {
+          if (tool === "ruler" || tool === "measure-angle" || tool === "measure-area" || tool === "protractor") {
             setMeasureDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
             return;
           }
           if (tool === "fill" || tool === "content-fill") {
             if (tool === "content-fill") {
+              // Bug fix: allow drag painting for content-fill (was click-only, felt dead).
               const st0 = useEditorStore.getState();
               const snap0 = layerManager.snapshot(activeLayerId ?? "");
               if (snap0 && activeLayerId) pushHistory({ label: "Content fill", layerId: activeLayerId, snapshot: snap0 });
+              setIsPainting(true);
+              lastPos.current = null;
               retouchTo(p.x, p.y, "content-fill");
               st0.markDirty();
               bumpHistogram();
@@ -2942,7 +3363,7 @@ export default function CanvasArea() {
             gradientFillAt(p.x, p.y, true);
             return;
           }
-          if (tool === "pen" || tool === "line") {
+          if (tool === "pen" || tool === "line" || tool === "pen-free" || tool === "line-arrow") {
             setPenDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
             return;
           }
@@ -2986,8 +3407,9 @@ export default function CanvasArea() {
             // Eraser targets the created item, never the background photo.
             // When the active layer is a photo, retarget to the last painted
             // item or the topmost editable layer instead.
+            // Manual 2026: covers eraser-soft / eraser-block too.
             if (
-              (tool === "eraser" || tool === "eraser-hard") &&
+              (tool === "eraser" || tool === "eraser-hard" || tool === "eraser-soft" || tool === "eraser-block") &&
               strokeLayerId &&
               layerManager.isPhotoLayer(strokeLayerId)
             ) {
@@ -3204,6 +3626,16 @@ export default function CanvasArea() {
             return;
           }
           if (selDrag) {
+            // Bug fix: single-row/col are click tools, ignore drag updates so preview stays 1px.
+            if (tool === "single-row" || tool === "single-column") return;
+            // Manual 2026: square lock for select-square.
+            if (tool === "select-square") {
+              const w = p.x - selDrag.x0;
+              const h = p.y - selDrag.y0;
+              const m = Math.max(Math.abs(w), Math.abs(h));
+              setSelDrag({ ...selDrag, x1: selDrag.x0 + Math.sign(w || 1) * m, y1: selDrag.y0 + Math.sign(h || 1) * m });
+              return;
+            }
             setSelDrag({ ...selDrag, x1: p.x, y1: p.y });
             return;
           }
@@ -3220,7 +3652,7 @@ export default function CanvasArea() {
           if (penDrag) {
             let x1 = p.x;
             let y1 = p.y;
-            if (tool === "line" && e.shiftKey) {
+            if ((tool === "line" || tool === "line-arrow") && e.shiftKey) {
               const dx = x1 - penDrag.x0;
               const dy = y1 - penDrag.y0;
               const ang = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4);
@@ -3255,7 +3687,9 @@ export default function CanvasArea() {
             if (isClone) {
               if (tool === "clone-mirror") cloneToVariant(p.x, p.y, "mirror");
               else if (tool === "clone-rotate") cloneToVariant(p.x, p.y, "rotate");
+              else if (tool === "clone-soft") cloneToVariant(p.x, p.y, "soft");
               else if (tool === "texture-stamp" || tool === "pattern-stamp") patternStampTo(p.x, p.y);
+              else if (tool === "pattern-dots") patternStampTo(p.x, p.y, "dots");
               else if (tool === "pattern-fill") { /* click-only, ignore drag */ }
               else cloneTo(p.x, p.y);
             } else if (isBrush || isEraser) paintTo(p.x, p.y, isEraser);
@@ -3296,10 +3730,10 @@ export default function CanvasArea() {
               const label =
                 tool === "measure-area"
                   ? `${Math.abs(dx).toFixed(0)}x${Math.abs(dy).toFixed(0)} area ${(Math.abs(dx * dy) / 1000).toFixed(1)}k px`
-                  : tool === "measure-angle"
+                  : tool === "measure-angle" || tool === "protractor"
                     ? `Angle ${ang.toFixed(1)} deg (${Math.abs(dx).toFixed(0)} x ${Math.abs(dy).toFixed(0)})`
                     : `${dist.toFixed(1)} px | ${ang.toFixed(1)} deg`;
-              setCursor(tool === "measure-area" ? `Area ${label}` : tool === "measure-angle" ? label : `Distance ${label}`);
+              setCursor(tool === "measure-area" ? `Area ${label}` : tool === "measure-angle" || tool === "protractor" ? label : `Distance ${label}`);
               useProStore.getState().addMeasure({ x0: Math.round(measureDrag.x0), y0: Math.round(measureDrag.y0), x1: Math.round(measureDrag.x1), y1: Math.round(measureDrag.y1), label });
             }
             setMeasureDrag(null);
@@ -3364,7 +3798,7 @@ export default function CanvasArea() {
             const h = Math.abs(shapeDrag.y1 - shapeDrag.y0);
             if (w > 6 && h > 6) {
               const kind = shapeDrag.kind;
-              const map: Record<string, "rect" | "ellipse" | "polygon" | "triangle" | "line" | "star" | "arrow" | "custom" | "rounded" | "diamond" | "heart" | "hexagon" | "burst" | "donut"> = {
+              const map: Record<string, "rect" | "ellipse" | "polygon" | "triangle" | "line" | "star" | "arrow" | "custom" | "rounded" | "diamond" | "heart" | "hexagon" | "burst" | "donut" | "chevron" | "moon" | "cross" | "plus" | "trapezoid"> = {
                 rect: "rect",
                 ellipse: "ellipse",
                 triangle: "triangle",
@@ -3379,6 +3813,11 @@ export default function CanvasArea() {
                 hexagon: "hexagon",
                 burst: "burst",
                 donut: "donut",
+                chevron: "chevron",
+                moon: "moon",
+                cross: "cross",
+                plus: "plus",
+                trapezoid: "trapezoid",
                 frame: "rect",
                 artboard: "rect",
               };
@@ -3388,15 +3827,21 @@ export default function CanvasArea() {
               else if (kind === "artboard") createShapeLayer("rect", 4, "Artboard");
               else if (sk === "triangle") createShapeLayer("triangle", 3);
               else createShapeLayer(sk, sides);
-              // move the new shape to drag origin via transform
+              // Bug fix: precise size + center. Base shape in renderShapeToLayer is
+              // rw=min(W,H)*0.5, rh=min(W,H)*0.34 centered. Old code used w/W which shrank shapes.
               const st = useEditorStore.getState();
               const nid = st.activeLayerId;
               if (nid) {
+                const base = Math.min(doc.width, doc.height);
+                const baseW = base * 1.0;
+                const baseH = base * 0.68;
+                const cx = (Math.min(shapeDrag.x0, shapeDrag.x1) + Math.max(shapeDrag.x0, shapeDrag.x1)) / 2;
+                const cy = (Math.min(shapeDrag.y0, shapeDrag.y1) + Math.max(shapeDrag.y0, shapeDrag.y1)) / 2;
                 useProStore.getState().updateTransform(nid, {
-                  x: Math.min(shapeDrag.x0, shapeDrag.x1) - doc.width / 2,
-                  y: Math.min(shapeDrag.y0, shapeDrag.y1) - doc.height / 2,
-                  scaleX: Math.max(0.05, w / Math.max(1, doc.width)),
-                  scaleY: Math.max(0.05, h / Math.max(1, doc.height)),
+                  x: cx - doc.width / 2,
+                  y: cy - doc.height / 2,
+                  scaleX: Math.max(0.05, w / Math.max(1, baseW)),
+                  scaleY: Math.max(0.05, h / Math.max(1, baseH)),
                   rotation: 0,
                 });
               }
@@ -3412,6 +3857,13 @@ export default function CanvasArea() {
           lastPos.current = null;
           panning.current = null;
           cloneOrigin.current = null;
+          // clear per-stroke clone snapshot so next stroke re-captures fresh pixels
+          try {
+            (cloneToVariant as unknown as { _src?: HTMLCanvasElement | null; _id?: string | null })._src = null;
+            (cloneToVariant as unknown as { _src?: HTMLCanvasElement | null; _id?: string | null })._id = null;
+            (cloneTo as unknown as { _src?: HTMLCanvasElement | null; _id?: string | null })._src = null;
+            (cloneTo as unknown as { _src?: HTMLCanvasElement | null; _id?: string | null })._id = null;
+          } catch { /* ignore */ }
           if (isPainting) bumpHistogram();
         }}
         onMouseLeave={() => {
@@ -3436,9 +3888,9 @@ export default function CanvasArea() {
                 ? "grab"
                 : tool === "rotate-view"
                   ? "ew-resize"
-                  : tool === "text" || tool === "text-vertical" || tool === "text-outline" || tool === "text-glow" || tool === "text-shadow" || tool === "text-arc"
+                  : tool === "text" || tool === "text-vertical" || tool === "text-outline" || tool === "text-glow" || tool === "text-shadow" || tool === "text-arc" || tool === "text-3d" || tool === "text-neon" || tool === "text-gradient"
                     ? "text"
-                    : tool === "move" || tool === "path-select" || tool === "direct-select"
+                    : tool === "move" || tool === "path-select" || tool === "direct-select" || tool === "move-auto" || tool === "transform-free"
                       ? "move"
                       : "crosshair",
           }}

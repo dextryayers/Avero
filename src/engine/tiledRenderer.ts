@@ -1,7 +1,8 @@
-/** Tiled renderer: pecah kanvas besar jadi tile 512 untuk hemat RAM. Fallback ke pipeline penuh jika kecil. */
+/** Tiled renderer: split large canvases into tiles to keep RAM flat. Falls back to full pipeline when small. */
 import { nativePipelineLight, nativePipeline } from "../io/nativeEngine";
 import type { NativeOp, NativeFilterOp } from "../io/nativeEngine";
 import { shouldUseLight } from "../io/memoryManager";
+import { effectiveTile } from "../stores/useSettingsStore";
 
 export interface TiledOptions {
   tile: number; // 256..1024
@@ -14,7 +15,7 @@ export async function tiledPipelineCanvas(
   filters: NativeFilterOp[],
   opts: Partial<TiledOptions> = {},
 ): Promise<{ light: boolean; tiles: number; ms: number }> {
-  const tile = Math.max(256, Math.min(1024, opts.tile ?? 512));
+  const tile = Math.max(256, Math.min(1024, opts.tile ?? (() => { try { return effectiveTile(); } catch { return 512; } })()));
   const light = opts.light ?? shouldUseLight(canvas.width, canvas.height);
   const t0 = performance.now();
   if (!light && canvas.width * canvas.height < 2048 * 2048) {

@@ -1,4 +1,5 @@
 /** Memory manager: track JS heap plus Rust estimates, recommend light mode. */
+import { lightThresholdScale } from "../stores/useSettingsStore";
 
 export interface MemorySnapshot {
   heapMB: number | null;
@@ -39,9 +40,15 @@ export function snapshotMemory(w: number, h: number, layers: number): MemorySnap
 export function getLastSnapshot(): MemorySnapshot | null { return last; }
 
 export function shouldUseLight(w: number, h: number): boolean {
+  let scale = 1;
+  try {
+    scale = lightThresholdScale();
+  } catch {
+    scale = 1;
+  }
   const per = (w * h * 4) / 1024 / 1024;
   // 1920x1080 ~8MB stays full (fast), 4K ~33MB auto light (lean).
-  return per > 16 || w * h > 2048 * 2048;
+  return per > 16 * scale || w * h > 2048 * 2048 * scale;
 }
 
 export interface SmartBudget {

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { effectiveHistoryCap } from "./useSettingsStore";
 
 export type ToolId =
   | "move"
@@ -310,8 +311,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((s) => {
       // Adaptive cap: large snapshots (>8MP ~32MB) keep max 8, small keep MAX_HISTORY (15).
       // Prevents multi-GB history on 4K docs while keeping generous undo on HD.
+      // The Settings control center can tighten this further for potato PCs.
       const px = e.snapshot ? e.snapshot.width * e.snapshot.height : 0;
-      const cap = px > 8_000_000 ? 8 : MAX_HISTORY;
+      let cap = px > 8_000_000 ? 8 : MAX_HISTORY;
+      try {
+        cap = Math.min(cap, effectiveHistoryCap(px));
+      } catch {
+        /* keep adaptive cap */
+      }
       return {
         history: [...s.history.slice(-(cap - 1)), { ...e, id: uid("h"), time: Date.now() }],
         future: s.future.slice(-(cap - 1)),

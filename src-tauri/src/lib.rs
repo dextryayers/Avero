@@ -7,6 +7,7 @@ mod io;
 mod native;
 mod pro;
 mod ram;
+mod system;
 
 use commands::{app_ping, document_info, list_fonts_system};
 
@@ -50,7 +51,9 @@ pub fn run() {
             native::cmd_lut_map,
             ram::cmd_ram_budget,
             ram::cmd_tile_plan,
-            ram::cmd_export_plan
+            ram::cmd_export_plan,
+            system::cmd_system_profile,
+            system::cmd_engine_recommend
         ])
         .run(tauri::generate_context!())
         .expect("error while running AVERO STUDIO");

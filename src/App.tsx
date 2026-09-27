@@ -31,6 +31,8 @@ import {
   spaceUp,
 } from "./app/shortcuts";
 import { useHomeStore } from "./stores/useHomeStore";
+import { useSettingsStore } from "./stores/useSettingsStore";
+import SettingsPanel from "./components/SettingsPanel";
 import { layerManager } from "./engine/layerManager";
 import { clearSelectionMask } from "./engine/selection";
 import { loadRecovery, saveRecovery, clearRecovery } from "./engine/recovery";
@@ -39,6 +41,7 @@ import { doUndo, doRedo } from "./engine/historyOps";
 export default function App() {
   const [palette, setPalette] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [booted, setBooted] = useState(false);
   const [recovery, setRecovery] = useState<ReturnType<typeof loadRecovery>>(null);
   const newDocument = useEditorStore((s) => s.newDocument);
@@ -55,8 +58,11 @@ export default function App() {
     setRecovery(loadRecovery());
   }, []);
 
-  // Autosave recovery every 2 minutes
+  // Autosave recovery on the interval chosen in Settings (0 disables it).
+  const autosaveMin = useSettingsStore((s) => s.autosaveMin);
+  const animations = useSettingsStore((s) => s.animations);
   useEffect(() => {
+    if (autosaveMin <= 0) return;
     const t = setInterval(() => {
       try {
         const st = useEditorStore.getState();
@@ -71,9 +77,9 @@ export default function App() {
       } catch {
         /* ignore */
       }
-    }, 120000);
+    }, autosaveMin * 60000);
     return () => clearInterval(t);
-  }, []);
+  }, [autosaveMin]);
 
   useEffect(() => {
     const shortcuts = loadShortcuts();
@@ -110,6 +116,11 @@ export default function App() {
       if (mod && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setPalette((v) => !v);
+        return;
+      }
+      if (mod && e.key === ",") {
+        e.preventDefault();
+        setSettingsOpen((v) => !v);
         return;
       }
       if (mod && e.key.toLowerCase() === "s") {
@@ -406,8 +417,12 @@ export default function App() {
         img.src = dataUrl;
       }
     }
+    function onSettingsEvent() {
+      setSettingsOpen(true);
+    }
     window.addEventListener("keydown", onKey);
     window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("avero:open-settings", onSettingsEvent);
     window.addEventListener("avero:open-export", onExportEvent);
     window.addEventListener("avero:save-avx", onSaveEvent);
     window.addEventListener("avero:open-avx", onOpenAvxEvent);
@@ -416,6 +431,7 @@ export default function App() {
     return () => {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("avero:open-settings", onSettingsEvent);
       window.removeEventListener("avero:open-export", onExportEvent);
       window.removeEventListener("avero:save-avx", onSaveEvent);
       window.removeEventListener("avero:open-avx", onOpenAvxEvent);
@@ -425,7 +441,7 @@ export default function App() {
   }, []);
 
   return (
-    <div className="flex h-full flex-col bg-[#161618] text-[#ececee]">
+    <div className={`flex h-full flex-col bg-[#161618] text-[#ececee]${animations ? "" : " avero-no-anim"}`}>
       {!booted && <BootSplash onDone={() => setBooted(true)} />}
       <TitleBar
         onOpenCommand={() => setPalette(true)}
@@ -472,13 +488,14 @@ export default function App() {
       <StatusBar />
       <CommandPalette open={palette} onClose={() => setPalette(false)} />
       {!homeOpen && exportOpen && <ExportDialog onClose={() => setExportOpen(false)} />}
+      {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
       {booted && <Onboarding />}
       <AppDialog />
       <Notifier />
 
       <div className="flex items-center gap-2 border-t border-[#2c2c31] bg-[#1c1c1f] px-3 py-1 font-mono text-[10px] text-[#6e6e78]">
         <span>
-          AVERO STUDIO v2.0.0. Ctrl+S saves .avx. Ctrl+E exports. Ctrl+K all actions. Del deletes selection.
+          AVERO STUDIO v2.0.0. Ctrl+S saves .avx. Ctrl+E exports. Ctrl+K all actions. Ctrl+, settings.
         </span>
         <button
           onClick={() => {

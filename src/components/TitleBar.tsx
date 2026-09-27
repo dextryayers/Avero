@@ -5,7 +5,7 @@ import { layerManager } from "../engine/layerManager";
 import { useEditorStore } from "../stores/useEditorStore";
 import { useHomeStore } from "../stores/useHomeStore";
 import { useProStore } from "../stores/useProStore";
-import { House, Search } from "lucide-react";
+import { House, Search, Settings2 } from "lucide-react";
 import clsx from "clsx";
 import { MENUS } from "../app/menus";
 import { showError, showMessage } from "../ui/notify";
@@ -607,7 +607,14 @@ export default function TitleBar({
         <Search size={13} /> Ctrl+K all actions
       </button>
 
-      <div className="ml-auto flex items-center gap-2 text-[11px]">
+      <div className="ml-auto flex items-center gap-1.5 text-[11px]">
+        <button
+          onClick={() => window.dispatchEvent(new Event("avero:open-settings"))}
+          title="Control Center settings (Ctrl+,)"
+          className="avero-press grid h-8 w-8 place-items-center rounded-md border border-[#2c2c31] bg-[#101012] text-[#a7a7b0] hover:border-[#3a3a41] hover:text-white"
+        >
+          <Settings2 size={14} />
+        </button>
         <span className="hidden max-w-[280px] truncate rounded border border-[#2c2c31] bg-[#101012] px-2 py-1 font-mono text-[10px] text-[#a7a7b0] xl:flex items-center gap-1.5">
           <span className={`h-1.5 w-1.5 rounded-full ${doc.dirty ? "bg-[#d9a441]" : "bg-[#7ad69e]"}`} />
           {doc.name}

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useEditorStore } from "../stores/useEditorStore";
 import { useProStore } from "../stores/useProStore";
-import { isTauri, nativeBenchmark, nativeInfo, nativeStats, type NativeInfo } from "../io/nativeEngine";
+import { isTauri, nativeBenchmark, nativeInfo, nativeStats, gpuReport, type NativeInfo } from "../io/nativeEngine";
+import { gpuBackend } from "../io/gpuBackend";
 import { layerManager } from "../engine/layerManager";
 import { showMessage, showError, askText } from "../ui/notify";
 
@@ -23,10 +24,34 @@ export default function StatusBar() {
   const [nat, setNat] = useState<NativeInfo | null>(null);
   const [bench, setBench] = useState<string>("");
   const [ramMode, setRamMode] = useState<string>("");
+  const [gpu, setGpu] = useState<string>("GPU…");
 
   useEffect(() => {
     if (!isTauri()) return;
     nativeInfo().then(setNat).catch(() => setNat(null));
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const b = await gpuBackend();
+        if (alive) setGpu(`${b.label} · ${b.osApi.split(" via ")[0]}`);
+      } catch {
+        if (alive) setGpu("CPU");
+      }
+      try {
+        if (isTauri()) {
+          const r = await gpuReport();
+          if (alive && r) setGpu((g) => `${g} · ${r.rayon_threads}thr`);
+        }
+      } catch {
+        /* keep web backend label */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
   }, []);
 
   async function runStats() {
@@ -221,9 +246,15 @@ export default function StatusBar() {
         className={`hidden max-w-[220px] truncate rounded border px-1.5 py-0.5 font-mono md:block ${
           nat?.ready ? "border-[#2c2c31] bg-[#232327] text-[#8fb6f5]" : "border-[#2c2c31] text-[#6e6e78]"
         }`}
-        title={nat ? "Image processing engine ready" : "Web preview"}
+        title={nat ? `C + C++ + Rust image engine ready (${nat.c_engine} ${nat.c_version} / ${nat.cpp_engine} ${nat.cpp_version})` : "Web preview"}
       >
-        {nat?.ready ? `Processing engine v2 · ready` : "Web preview"}
+        {nat?.ready ? `Engine v2 · ready` : "Web preview"}
+      </span>
+      <span
+        className="hidden max-w-[260px] truncate rounded border border-[#2c2c31] bg-[#232327] px-1.5 py-0.5 font-mono text-[#8fb6f5] md:block"
+        title="Active GPU backend: WebGPU maps to Vulkan (Linux) / DirectX 12 (Windows) / Metal (macOS); WebGL2 maps to OpenGL/ANGLE"
+      >
+        {gpu}
       </span>
       <span
         className="ml-auto hidden max-w-[300px] truncate md:block font-mono"

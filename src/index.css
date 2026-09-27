@@ -114,6 +114,7 @@ input[type="range"] {
    ride the compositor thread and never add RAM pressure. */
 .avero-press {
   transition: transform 0.12s ease, background-color 0.12s ease, border-color 0.12s ease;
+  will-change: auto;
 }
 .avero-press:hover {
   transform: translateY(-1px);
@@ -134,10 +135,68 @@ input[type="range"] {
 .avero-bar {
   transition: width 0.5s ease;
 }
+/* Lightweight interactive set: fade/slide/shimmer/pulse — transform+opacity only.
+   No blur/shadow animation (those force GPU repaint + VRAM spikes). */
+.avero-fade-in {
+  animation: avero-fade-in 0.18s ease-out both;
+}
+@keyframes avero-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.avero-slide-in {
+  animation: avero-slide-in 0.2s cubic-bezier(0.32, 0.9, 0.35, 1) both;
+}
+@keyframes avero-slide-in {
+  from { opacity: 0; transform: translateX(10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.avero-lift {
+  transition: transform 0.14s ease, background-color 0.14s ease, border-color 0.14s ease;
+}
+.avero-lift:hover {
+  transform: translateY(-1px);
+}
+.avero-lift:active {
+  transform: translateY(0) scale(0.98);
+}
+.avero-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.avero-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,0.08) 50%, transparent 70%);
+  animation: avero-shimmer 2.2s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes avero-shimmer {
+  to { transform: translateX(100%); }
+}
+.avero-ring-pulse {
+  animation: avero-ring-pulse 1.6s ease-in-out infinite;
+}
+@keyframes avero-ring-pulse {
+  0%, 100% { opacity: 0.9; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(1.04); }
+}
+/* Heavy panels opt into layout containment so tab switches don't relayout canvas. */
+.avero-contain {
+  content-visibility: auto;
+  contain: layout style paint;
+}
 .avero-no-anim .avero-press,
 .avero-no-anim .avero-pop,
 .avero-no-anim .avero-knob,
-.avero-no-anim .avero-bar {
+.avero-no-anim .avero-bar,
+.avero-no-anim .avero-fade-in,
+.avero-no-anim .avero-slide-in,
+.avero-no-anim .avero-lift,
+.avero-no-anim .avero-ring-pulse,
+.avero-no-anim .avero-shimmer::after {
   animation: none !important;
   transition: none !important;
   transform: none !important;

@@ -1,7 +1,10 @@
-// GPU aware canvas path. WebGPU is queried when available, otherwise the
-// editor stays on the fast tiled CPU path (C++ separable filters + Rust
-// rayon). This keeps large documents light while leaving room for a real
-// GPU upload path later.
+// GPU aware canvas path. WebGPU (Vulkan / Metal / DirectX 12 via wgpu-style
+// adapter) is preferred, WebGL2 (OpenGL / ANGLE) is the fallback, otherwise the
+// editor stays on the fast tiled CPU path (C separable filters + Rust rayon).
+// All compositing stays on drawImage (GPU-composited by the WebView) so the
+// Rust/C++ side only handles pixel math in tiles — RAM stays flat.
+
+import { gpuBackend, resetGpuBackend } from "./gpuBackend";
 
 export interface GpuCaps {
   webgpu: boolean;
@@ -16,29 +19,19 @@ let cachedPower = "";
 export function resetGpuCache() {
   cached = null;
   cachedPower = "";
+  resetGpuBackend();
 }
 
 export async function gpuCaps(power: "high-performance" | "low-power" = "high-performance"): Promise<GpuCaps> {
   if (cached && cachedPower === power) return cached;
-  let webgpu = false;
-  let adapter = "CPU tiled fallback";
-  try {
-    const nav: unknown =
-      typeof navigator !== "undefined" ? (navigator as unknown as Record<string, unknown>).gpu : undefined;
-    if (nav) {
-      const gpu = nav as { requestAdapter?: (o?: Record<string, unknown>) => Promise<unknown> };
-      if (typeof gpu.requestAdapter === "function") {
-        const a = await gpu.requestAdapter({ powerPreference: power });
-        if (a) {
-          webgpu = true;
-          adapter = power === "high-performance" ? "WebGPU high performance adapter" : "WebGPU low power adapter";
-        }
-      }
-    }
-  } catch {
-    webgpu = false;
-  }
-  cached = { webgpu, adapter, tiled: true, tileSize: 512 };
+  const b = await gpuBackend();
+  const webgpu = b.label === "WebGPU";
+  cached = {
+    webgpu,
+    adapter: `${b.label} — ${b.osApi}`,
+    tiled: true,
+    tileSize: b.tile,
+  };
   cachedPower = power;
   return cached;
 }

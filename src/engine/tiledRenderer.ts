@@ -1,5 +1,5 @@
 /** Tiled renderer: split large canvases into tiles to keep RAM flat. Falls back to full pipeline when small. */
-import { nativePipelineLight, nativePipeline } from "../io/nativeEngine";
+import { nativePipelineLight, nativePipeline, nativePipelineTiled, isTauri } from "../io/nativeEngine";
 import type { NativeOp, NativeFilterOp } from "../io/nativeEngine";
 import { shouldUseLight } from "../io/memoryManager";
 import { effectiveTile } from "../stores/useSettingsStore";
@@ -18,6 +18,21 @@ export async function tiledPipelineCanvas(
   const tile = Math.max(256, Math.min(1024, opts.tile ?? (() => { try { return effectiveTile(); } catch { return 512; } })()));
   const light = opts.light ?? shouldUseLight(canvas.width, canvas.height);
   const t0 = performance.now();
+  // Ultra path: single IPC to Rust tiled pipeline (rayon parallel, no per-tile
+  // JS loop, no transient 4-8x heap duplication). Best for complex/extreme docs.
+  if (isTauri() && canvas.width * canvas.height > 2048 * 2048) {
+    try {
+      const ctx0 = canvas.getContext("2d", { willReadFrequently: true })!;
+      const id0 = ctx0.getImageData(0, 0, canvas.width, canvas.height);
+      const out = await nativePipelineTiled(id0.data, canvas.width, canvas.height, ops, filters, tile);
+      ctx0.putImageData(new ImageData(out, canvas.width, canvas.height), 0, 0);
+      const cols = Math.ceil(canvas.width / tile);
+      const rows = Math.ceil(canvas.height / tile);
+      return { light: true, tiles: cols * rows, ms: Math.round(performance.now() - t0) };
+    } catch {
+      /* fall through to JS tiled loop */
+    }
+  }
   if (!light && canvas.width * canvas.height < 2048 * 2048) {
     const fn = light ? nativePipelineLight : nativePipeline;
     const ctx = canvas.getContext("2d", { willReadFrequently: true })!;

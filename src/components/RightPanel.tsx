@@ -47,8 +47,39 @@ import PluginPanel from "./PluginPanel";
 import MockupPanel from "./MockupPanel";
 import NativeLabPanel from "./NativeLabPanel";
 import { useWorkspaceStore } from "../stores/useWorkspaceStore";
-import { showError, askConfirm } from "../ui/notify";
+import { showError, askConfirm, askText } from "../ui/notify";
 import { doUndo, doRedo, jumpToHistory } from "../engine/historyOps";
+import { blendToComposite } from "../engine/canvasRender";
+
+export const BLEND_MODES: { id: string; label: string; group: string }[] = [
+  { id: "normal", label: "Normal", group: "Normal" },
+  { id: "dissolve", label: "Dissolve", group: "Normal" },
+  { id: "darken", label: "Darken", group: "Darken" },
+  { id: "multiply", label: "Multiply", group: "Darken" },
+  { id: "color-burn", label: "Color Burn", group: "Darken" },
+  { id: "linear-burn", label: "Linear Burn", group: "Darken" },
+  { id: "darker-color", label: "Darker Color", group: "Darken" },
+  { id: "lighten", label: "Lighten", group: "Lighten" },
+  { id: "screen", label: "Screen", group: "Lighten" },
+  { id: "color-dodge", label: "Color Dodge", group: "Lighten" },
+  { id: "linear-dodge", label: "Linear Dodge", group: "Lighten" },
+  { id: "lighter-color", label: "Lighter Color", group: "Lighten" },
+  { id: "overlay", label: "Overlay", group: "Contrast" },
+  { id: "soft-light", label: "Soft Light", group: "Contrast" },
+  { id: "hard-light", label: "Hard Light", group: "Contrast" },
+  { id: "vivid", label: "Vivid Light", group: "Contrast" },
+  { id: "linear", label: "Linear Light", group: "Contrast" },
+  { id: "pin", label: "Pin Light", group: "Contrast" },
+  { id: "hard-mix", label: "Hard Mix", group: "Contrast" },
+  { id: "difference", label: "Difference", group: "Inversion" },
+  { id: "exclusion", label: "Exclusion", group: "Inversion" },
+  { id: "subtract", label: "Subtract", group: "Inversion" },
+  { id: "divide", label: "Divide", group: "Inversion" },
+  { id: "hue", label: "Hue", group: "Component" },
+  { id: "saturation", label: "Saturation", group: "Component" },
+  { id: "color", label: "Color", group: "Component" },
+  { id: "luminosity", label: "Luminosity", group: "Component" },
+];
 
 // 40px live layer thumbnail (checkerboard behind transparency).
 function LayerThumb({ id, w, h }: { id: string; w: number; h: number }) {
@@ -111,7 +142,12 @@ const tabs: { id: Tab; label: string; icon: any }[] = [
   { id: "history", label: "Hist", icon: History },
 ];
 
-export default function RightPanel() {  const [tab, setTab] = useState<Tab>("layers");
+export default function RightPanel() {
+  const [tab, setTab] = useState<Tab>("layers");
+  const [query, setQuery] = useState("");
+  const [kindFilter, setKindFilter] = useState<"all" | "raster" | "text" | "shape" | "background">("all");
+  const [showBrush, setShowBrush] = useState(true);
+  const [showProps, setShowProps] = useState(true);
   const workspaceTab = useWorkspaceStore((s) => s.rightTab);
   useEffect(() => {
     if (workspaceTab && (tabs as { id: string }[]).some((t) => t.id === workspaceTab)) {
@@ -249,7 +285,13 @@ export default function RightPanel() {  const [tab, setTab] = useState<Tab>("lay
   }
 
   return (
-    <div className="flex w-[300px] shrink-0 flex-col border-l border-[#2c2c31] bg-[#1c1c1f]">
+    <div className="avero-contain flex w-[308px] shrink-0 flex-col border-l border-[#2c2c31] bg-[#1c1c1f]">
+      <div className="flex items-center gap-2 border-b border-[#2c2c31] bg-[#161618] px-2.5 py-2">
+        <span className="avero-micro">Properties</span>
+        <span className="ml-auto font-mono text-[10px] tabular-nums text-[#6e6e78]">
+          {doc.width}×{doc.height} · {layers.length} lyr
+        </span>
+      </div>
       <div className="flex overflow-x-auto border-b border-[#2c2c31] bg-[#161618] text-[10px] scrollbar-thin">
         {tabs.map((t) => {
           const Icon = t.icon;
@@ -257,9 +299,9 @@ export default function RightPanel() {  const [tab, setTab] = useState<Tab>("lay
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              title={t.label}
+              title={`${t.label} — panel profesional`}
               className={clsx(
-                "flex shrink-0 flex-col items-center gap-0.5 border-b-2 px-2.5 pb-1.5 pt-2",
+                "avero-lift flex shrink-0 flex-col items-center gap-0.5 border-b-2 px-2.5 pb-1.5 pt-2",
                 tab === t.id
                   ? "border-[#2f7cf6] bg-[#232327] font-semibold text-white"
                   : "border-transparent text-[#6e6e78] hover:bg-[#232327] hover:text-white",
@@ -277,7 +319,7 @@ export default function RightPanel() {  const [tab, setTab] = useState<Tab>("lay
         })}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="avero-fade-in min-h-0 flex-1 overflow-y-auto" key={tab}>
         {tab === "layers" && (
           <div className="flex min-h-0 flex-col">
             <div className="flex items-center gap-1 border-b border-[#2c2c31] p-2">
@@ -288,7 +330,7 @@ export default function RightPanel() {  const [tab, setTab] = useState<Tab>("lay
                   useProStore.getState().ensureTransform(l.id);
                   addLayer(l);
                 }}
-                className="avero-btn-primary flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold text-white"
+                className="avero-btn-primary avero-lift flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold text-white"
               >
                 <Plus size={13} /> Layer
               </button>
@@ -344,15 +386,52 @@ export default function RightPanel() {  const [tab, setTab] = useState<Tab>("lay
               </div>
             </div>
 
+            <div className="border-b border-[#2c2c31] p-2">
+              <div className="mb-1.5 flex gap-1">
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search layers..."
+                  className="h-7 min-w-0 flex-1 rounded-md border border-[#2c2c31] bg-[#101012] px-2 text-[11px] text-white outline-none placeholder:text-[#6e6e78] focus:border-[#2f7cf6]"
+                />
+                <select
+                  value={kindFilter}
+                  onChange={(e) => setKindFilter(e.target.value as typeof kindFilter)}
+                  title="Filter by kind"
+                  className="h-7 rounded-md border border-[#2c2c31] bg-[#101012] px-1 text-[11px] text-white"
+                >
+                  <option value="all">All</option>
+                  <option value="raster">Raster</option>
+                  <option value="text">Text</option>
+                  <option value="shape">Shape</option>
+                  <option value="background">Bg</option>
+                </select>
+              </div>
+              <ActiveLayerProps />
+            </div>
+
             <div className="p-2">
-              {[...layers].reverse().map((l) => {
+              {[...layers]
+                .reverse()
+                .filter(
+                  (l) =>
+                    (kindFilter === "all" || l.kind === kindFilter) &&
+                    (query.trim() === "" || l.name.toLowerCase().includes(query.trim().toLowerCase())),
+                )
+                .map((l) => {
                 const active = l.id === activeLayerId;
+                const accelerated = blendToComposite(l.blendMode) !== "source-over" || l.blendMode === "normal";
                 return (
                   <div
                     key={l.id}
                     onClick={() => setActiveLayer(l.id)}
+                    onDoubleClick={async () => {
+                      const v = await askText("Rename layer", "Layer name:", l.name);
+                      if (v && v.trim()) updateLayer(l.id, { name: v.trim().slice(0, 60) });
+                    }}
+                    title="Click select · double-click rename"
                     className={clsx(
-                      "mb-1.5 rounded-md border p-2",
+                      "avero-lift mb-1.5 rounded-md border p-2",
                       active ? "border-[#2f7cf6] bg-[#232327]" : "border-[#2c2c31] bg-[#161618]",
                     )}
                   >
@@ -365,18 +444,22 @@ export default function RightPanel() {  const [tab, setTab] = useState<Tab>("lay
                               e.stopPropagation();
                               updateLayer(l.id, { visible: !l.visible });
                             }}
-                            className="text-[#a7a7b0] hover:text-white"
+                            title={l.visible ? "Hide" : "Show"}
+                            className="avero-lift text-[#a7a7b0] hover:text-white"
                           >
                             {l.visible ? <Eye size={14} /> : <EyeOff size={14} />}
                           </button>
                           <span className="flex-1 truncate text-[12px] font-medium text-white">
-                            {l.name} <span className="text-[9px] text-[#6e6e78]">{l.kind}</span>
+                            {l.name}{" "}
+                            <span className="rounded border border-[#2c2c31] bg-[#101012] px-1 text-[9px] text-[#6e6e78]">{l.kind}</span>
+                            {!accelerated && <span className="ml-1 text-[9px] text-[#d9a441]">cpu</span>}
                           </span>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               updateLayer(l.id, { locked: !l.locked });
                             }}
+                            title={l.locked ? "Unlock" : "Lock"}
                             className={clsx(
                               l.locked ? "text-[#d9a441]" : "text-[#a7a7b0] hover:text-white",
                             )}
@@ -398,16 +481,15 @@ export default function RightPanel() {  const [tab, setTab] = useState<Tab>("lay
                       />
                       <select
                         value={l.blendMode}
-                        onChange={(e) => updateLayer(l.id, { blendMode: e.target.value as any })}
-                        className="rounded border border-[#2c2c31] bg-[#161618] px-1 py-0.5 text-[10px] text-white"
+                        onChange={(e) => updateLayer(l.id, { blendMode: e.target.value as never })}
+                        title={accelerated ? "GPU-accelerated blend" : "CPU fallback blend"}
+                        className="max-w-[104px] rounded border border-[#2c2c31] bg-[#161618] px-1 py-0.5 text-[10px] text-white"
                       >
-                        <option value="normal">Normal</option>
-                        <option value="multiply">Multiply</option>
-                        <option value="screen">Screen</option>
-                        <option value="overlay">Overlay</option>
-                        <option value="darken">Darken</option>
-                        <option value="lighten">Lighten</option>
-                        <option value="difference">Diff</option>
+                        {BLEND_MODES.map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.label}
+                          </option>
+                        ))}
                       </select>
                     </div>
                     <div className="mt-1 flex items-center justify-between">
@@ -452,7 +534,12 @@ export default function RightPanel() {  const [tab, setTab] = useState<Tab>("lay
             </div>
 
             <div className="border-t border-[#2c2c31] p-3">
-              <h4 className="avero-micro mb-1.5">Brush</h4>
+              <button onClick={() => setShowBrush((v) => !v)} className="mb-1.5 flex w-full items-center justify-between">
+                <h4 className="avero-micro">Brush</h4>
+                <span className="font-mono text-[10px] text-[#6e6e78]">{showBrush ? "—" : "+"}</span>
+              </button>
+              {showBrush && (
+                <div className="avero-fade-in">
               <label className="mb-1 flex justify-between text-[11px] text-[#a7a7b0]">
                 Size <span className="font-mono text-white">{brush.size}px</span>
               </label>
@@ -495,8 +582,16 @@ export default function RightPanel() {  const [tab, setTab] = useState<Tab>("lay
                 />
                 <span className="font-mono text-[11px] text-[#a7a7b0]">{brush.color}</span>
               </div>
+                </div>
+              )}
             </div>
-            <TransformPanel />
+            <div className="border-t border-[#2c2c31] p-3">
+              <button onClick={() => setShowProps((v) => !v)} className="mb-1.5 flex w-full items-center justify-between">
+                <h4 className="avero-micro">Layer properties</h4>
+                <span className="font-mono text-[10px] text-[#6e6e78]">{showProps ? "—" : "+"}</span>
+              </button>
+              {showProps && <TransformPanel />}
+            </div>
           </div>
         )}
 
@@ -515,7 +610,7 @@ export default function RightPanel() {  const [tab, setTab] = useState<Tab>("lay
         {tab === "mockup" && <MockupPanel />}
 
         {tab === "history" && (
-          <div className="p-2 text-[12px]">
+          <div className="avero-slide-in p-2 text-[12px]">
             <div className="mb-2 flex items-center justify-between">
               <span className="font-mono text-[10px] text-[#6e6e78]">
                 {history.length} steps · click to jump
@@ -523,14 +618,14 @@ export default function RightPanel() {  const [tab, setTab] = useState<Tab>("lay
               {history.length > 0 && (
                 <button
                   onClick={() => useEditorStore.getState().clearHistory()}
-                  className="rounded bg-[#232327] px-2 py-0.5 text-[10px] text-[#a7a7b0] hover:text-white"
+                  className="avero-lift rounded bg-[#232327] px-2 py-0.5 text-[10px] text-[#a7a7b0] hover:text-white"
                 >
                   Clear
                 </button>
               )}
             </div>
             {history.length === 0 && (
-              <div className="p-3 text-center text-[#6e6e78]">No history yet.</div>
+              <div className="p-3 text-center text-[#6e6e78]">No history yet. Paint or transform to record steps.</div>
             )}
             {history.map((h, i) => (
               <button
@@ -538,7 +633,7 @@ export default function RightPanel() {  const [tab, setTab] = useState<Tab>("lay
                 onClick={() => jumpToHistory(i)}
                 title="Jump to this state"
                 className={clsx(
-                  "mb-1 block w-full rounded px-2 py-1.5 text-left hover:bg-[#2c2c31]",
+                  "avero-lift mb-1 block w-full rounded px-2 py-1.5 text-left hover:bg-[#2c2c31]",
                   i === history.length - 1 ? "bg-[#232327]" : "bg-transparent",
                 )}
               >
@@ -555,6 +650,36 @@ export default function RightPanel() {  const [tab, setTab] = useState<Tab>("lay
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function ActiveLayerProps() {
+  const activeId = useEditorStore((s) => s.activeLayerId);
+  const layers = useEditorStore((s) => s.layers);
+  const transforms = useProStore((s) => s.transforms);
+  const l = layers.find((x) => x.id === activeId);
+  if (!l) return <div className="font-mono text-[10px] text-[#6e6e78]">No active layer.</div>;
+  const t = transforms[l.id];
+  return (
+    <div className="rounded-md border border-[#2c2c31] bg-[#101012] p-2">
+      <div className="mb-1 flex items-center justify-between">
+        <span className="truncate text-[11px] font-semibold text-white">{l.name}</span>
+        <span className="font-mono text-[10px] text-[#6e6e78]">
+          {l.opacity}% · {l.blendMode}
+        </span>
+      </div>
+      {t ? (
+        <div className="grid grid-cols-2 gap-x-2 font-mono text-[10px] tabular-nums text-[#a7a7b0]">
+          <span>X {Math.round(t.x)}</span>
+          <span>Y {Math.round(t.y)}</span>
+          <span>SX {t.scaleX.toFixed(2)}</span>
+          <span>SY {t.scaleY.toFixed(2)}</span>
+          <span className="col-span-2">R {Math.round(t.rotation)}°</span>
+        </div>
+      ) : (
+        <div className="font-mono text-[10px] text-[#6e6e78]">No transform. Move tool to transform.</div>
+      )}
     </div>
   );
 }

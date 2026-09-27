@@ -153,6 +153,40 @@ export async function nativeApplyFilter(rgba: Uint8ClampedArray | Uint8Array, wi
   return new Uint8ClampedArray(arr.buffer, arr.byteOffset, arr.length);
 }
 
+export interface GpuReport {
+  os_backend: string;
+  webgpu: string;
+  webgl: string;
+  rayon_threads: number;
+  tile: number;
+}
+
+export async function gpuReport(): Promise<GpuReport | null> {
+  try {
+    if (!isTauri()) return null;
+    return await invoke<GpuReport>("cmd_gpu_info");
+  } catch {
+    return null;
+  }
+}
+
+export async function nativePipelineTiled(
+  rgba: Uint8ClampedArray | Uint8Array,
+  width: number,
+  height: number,
+  ops: NativeOp[],
+  filters: NativeFilterOp[],
+  tile = 512,
+): Promise<Uint8ClampedArray> {
+  // Single IPC for extreme docs: Rust splits into tiles + rayon internally.
+  // Falls back to classic pipeline when Tauri is absent (web preview path).
+  if (!isTauri()) throw new Error("Tiled native pipeline needs Tauri");
+  const out = await invoke<number[] | Uint8Array>("cmd_native_pipeline_tiled", {
+    req: { rgba: Array.from(rgba), width, height, ops, filters, tile },
+  });
+  const arr = out instanceof Uint8Array ? out : Uint8Array.from(out as number[]);
+  return new Uint8ClampedArray(arr.buffer, arr.byteOffset, arr.length);
+}
 export interface RenderCaps {
   tile: number;
   fast_path: boolean;

@@ -192,7 +192,33 @@ export type ToolId =
   | "ai-sky";
 
 export type BlendMode =
-  "normal" | "multiply" | "screen" | "overlay" | "darken" | "lighten" | "difference";
+  | "normal"
+  | "dissolve"
+  | "darken"
+  | "multiply"
+  | "color-burn"
+  | "linear-burn"
+  | "darker-color"
+  | "lighten"
+  | "screen"
+  | "color-dodge"
+  | "linear-dodge"
+  | "lighter-color"
+  | "overlay"
+  | "soft-light"
+  | "hard-light"
+  | "vivid"
+  | "linear"
+  | "pin"
+  | "hard-mix"
+  | "difference"
+  | "exclusion"
+  | "subtract"
+  | "divide"
+  | "hue"
+  | "saturation"
+  | "color"
+  | "luminosity";
 
 export interface LayerMeta {
   id: string;

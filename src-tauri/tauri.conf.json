@@ -18,15 +18,19 @@
         "height": 900,
         "minWidth": 1024,
         "minHeight": 640,
+        "center": true,
         "decorations": true,
         "transparent": false,
         "resizable": true,
-        "maximized": false
+        "maximized": false,
+        "backgroundThrottling": "suspend",
+        "devtools": false
       }
     ],
     "security": {
       "csp": null
-    }
+    },
+    "macOSPrivateApi": false
   },
   "bundle": {
     "active": true,

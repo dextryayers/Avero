@@ -41,6 +41,8 @@ pub fn run() {
             native::cmd_native_stats,
             native::cmd_native_pipeline,
             native::cmd_native_pipeline_light,
+            native::cmd_native_pipeline_tiled,
+            native::cmd_gpu_info,
             native::cmd_native_memory_budget,
             native::cmd_native_benchmark,
             native::cmd_avx_codec_info,

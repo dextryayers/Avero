@@ -34,6 +34,14 @@ import {
   type DistortKind,
   type RetouchMode,
 } from "../engine/toolPresets";
+import {
+  blendToComposite,
+  clearRenderCaches,
+  drawCheckerboard,
+  drawDocBacking,
+  drawWorkspaceBackground,
+} from "../engine/canvasRender";
+import { gpuBackend, gpuBackendSyncFallback } from "../io/gpuBackend";
 import ToolOptionsBar from "./ToolOptionsBar";
 import { TOOL_LABEL } from "./ToolBar";
 import { askText, notify } from "../ui/notify";
@@ -193,7 +201,23 @@ export default function CanvasArea() {
 
   useEffect(() => {
     clearSelectionMask();
+    clearRenderCaches();
   }, [doc.width, doc.height]);
+
+  // Warm GPU backend cache once (WebGPU Vulkan/D3D12/Metal or WebGL2/OpenGL).
+  // Non-blocking: render uses sync fallback until probe resolves, then DPR/tile
+  // caps tighten automatically on next frame with zero extra RAM.
+  useEffect(() => {
+    let alive = true;
+    void gpuBackend().then(() => {
+      if (!alive) return;
+      // trigger one lightweight re-render with correct DPR cap
+      useEditorStore.getState().markDirty();
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   function fitToView() {
     const el = wrapRef.current;
@@ -395,42 +419,31 @@ export default function CanvasArea() {
     return () => window.removeEventListener("resize", onResize);
   }, [showRulers, zoom, panX, panY, doc.width, doc.height, cursor, rulerDrag]);
 
-  // Non-destructive composite render
+  // Non-destructive composite render (ultra-light):
+  // - DPR capped by GPU backend (CPU=1.5, WebGL=1.75, WebGPU=2)
+  // - canvas backing only resized when size changes (no per-frame realloc)
+  // - workspace backdrop cached offscreen; checkerboard via pattern
+  // - no per-frame shadowBlur (cached strokes instead)
+  // - rAF-coalesced via React effect (one composite per commit)
   useEffect(() => {
     const canvas = canvasRef.current;
     const wrap = wrapRef.current;
     if (!canvas || !wrap) return;
     const rect = wrap.getBoundingClientRect();
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
-    canvas.width = Math.max(1, Math.floor(rect.width * dpr));
-    canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+    if (rect.width < 2 || rect.height < 2) return;
+    const dprCap = gpuBackendSyncFallback().dprCap || 1.5;
+    const sysDpr = window.devicePixelRatio || 1;
+    const dpr = Math.min(dprCap, sysDpr, doc.width * doc.height > 8000 * 8000 ? 1 : dprCap);
+    const wantW = Math.max(1, Math.floor(rect.width * dpr));
+    const wantH = Math.max(1, Math.floor(rect.height * dpr));
+    if (canvas.width !== wantW || canvas.height !== wantH) {
+      canvas.width = wantW;
+      canvas.height = wantH;
+    }
 
     const ctx = canvas.getContext("2d")!;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    // workspace: dark base + fine dot grid + studio vignette
-    ctx.fillStyle = "#101012";
-    ctx.fillRect(0, 0, rect.width, rect.height);
-    ctx.save();
-    ctx.fillStyle = "rgba(255,255,255,0.035)";
-    const step = 24;
-    for (let x = 0; x <= rect.width; x += step) {
-      for (let y = 0; y <= rect.height; y += step) {
-        ctx.fillRect(x, y, 1, 1);
-      }
-    }
-    const vg = ctx.createRadialGradient(
-      rect.width / 2,
-      rect.height / 2,
-      Math.min(rect.width, rect.height) * 0.2,
-      rect.width / 2,
-      rect.height / 2,
-      Math.max(rect.width, rect.height) * 0.75,
-    );
-    vg.addColorStop(0, "rgba(0,0,0,0)");
-    vg.addColorStop(1, "rgba(0,0,0,0.55)");
-    ctx.fillStyle = vg;
-    ctx.fillRect(0, 0, rect.width, rect.height);
-    ctx.restore();
+    drawWorkspaceBackground(ctx, rect.width, rect.height, dpr);
 
     const s = zoom / 100;
     const dw = doc.width * s;
@@ -439,37 +452,27 @@ export default function CanvasArea() {
     const oy = (rect.height - dh) / 2 + panY;
 
 
-    // document backing: pro-editor style transparency checkerboard
-    ctx.save();
-    ctx.shadowColor = "rgba(0,0,0,0.7)";
-    ctx.shadowBlur = 28;
-    ctx.shadowOffsetY = 8;
-    ctx.fillStyle = "#232323";
-    ctx.fillRect(ox, oy, dw, dh);
-    ctx.restore();
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(ox, oy, dw, dh);
-    ctx.clip();
-    const csize = 10;
-    const x0 = Math.floor(ox / csize) * csize;
-    const y0 = Math.floor(oy / csize) * csize;
-    ctx.fillStyle = "#2c2c31";
-    ctx.fillRect(ox, oy, dw, dh);
-    ctx.fillStyle = "#3a3a41";
-    for (let y = y0; y < oy + dh; y += csize) {
-      for (let x = x0; x < ox + dw; x += csize) {
-        const col = Math.floor(x / csize);
-        const row = Math.floor(y / csize);
-        if ((col + row) % 2 === 0) ctx.fillRect(x, y, csize, csize);
-      }
-    }
-    ctx.restore();
+    // document backing: cheap cached edge (no shadowBlur) + pattern checker
+    drawDocBacking(ctx, ox, oy, dw, dh);
+    drawCheckerboard(ctx, ox, oy, dw, dh);
 
     // 1. Composite layers to doc-size offscreen (pooled: no alloc per frame)
     const comp = getPooledComp(Math.max(1, doc.width), Math.max(1, doc.height));
     const cctx = comp.getContext("2d", { willReadFrequently: true })!;
     cctx.clearRect(0, 0, comp.width, comp.height);
+    // Real clipping-mask: clipped layer is cut by the composited alpha below it.
+    let belowAlpha: HTMLCanvasElement | null = null;
+    const clipScratch = getPooledComp(Math.max(1, doc.width), Math.max(1, doc.height));
+    // NOTE: getPooledComp returns a shared canvas; use a second pool slot via
+    // width+1 trick? Instead reuse layerManager pool by drawing through temp.
+    // Simplest correct: track below via offscreen copy only when clipping used.
+    const needsClip = layers.some((l) => l.visible && l.clipped);
+    if (needsClip) {
+      belowAlpha = document.createElement("canvas");
+      belowAlpha.width = comp.width;
+      belowAlpha.height = comp.height;
+    }
+    void clipScratch;
     layers.forEach((l) => {
       if (!l.visible) return;
       const m = masks[l.id];
@@ -479,24 +482,44 @@ export default function CanvasArea() {
         m?.density ?? 100,
         !!m?.hasMask && !!m?.enabled,
       );
-      if (!src) return;
+      if (!src) {
+        if (needsClip && belowAlpha) {
+          const bctx = belowAlpha.getContext("2d")!;
+          bctx.drawImage(comp, 0, 0);
+        }
+        return;
+      }
       const t = transforms[l.id];
       cctx.save();
-      cctx.globalAlpha = l.opacity / 100;
-      try {
-        cctx.globalCompositeOperation =
-          l.blendMode === "normal" ? "source-over" : (l.blendMode as GlobalCompositeOperation);
-      } catch {
-        cctx.globalCompositeOperation = "source-over";
-      }
+      cctx.globalAlpha = Math.max(0, Math.min(1, l.opacity / 100));
+      cctx.globalCompositeOperation = blendToComposite(l.blendMode);
       if (t && (t.x !== 0 || t.y !== 0 || t.scaleX !== 1 || t.scaleY !== 1 || t.rotation !== 0)) {
         cctx.translate(comp.width / 2 + t.x, comp.height / 2 + t.y);
         cctx.rotate((t.rotation * Math.PI) / 180);
         cctx.scale(t.scaleX, t.scaleY);
         cctx.translate(-comp.width / 2, -comp.height / 2);
       }
-      // simple clipping mask: when clipped, cut with the layer-below alpha
-      cctx.drawImage(src, 0, 0);
+      if (l.clipped && belowAlpha) {
+        // draw src to temp, cut by below alpha, then draw to comp
+        const bctx = belowAlpha.getContext("2d")!;
+        const tmp = document.createElement("canvas");
+        tmp.width = comp.width;
+        tmp.height = comp.height;
+        const tctx = tmp.getContext("2d")!;
+        tctx.drawImage(src, 0, 0);
+        tctx.globalCompositeOperation = "destination-in";
+        tctx.drawImage(belowAlpha, 0, 0);
+        cctx.drawImage(tmp, 0, 0);
+        bctx.clearRect(0, 0, belowAlpha.width, belowAlpha.height);
+        bctx.drawImage(comp, 0, 0);
+      } else {
+        cctx.drawImage(src, 0, 0);
+        if (needsClip && belowAlpha) {
+          const bctx = belowAlpha.getContext("2d")!;
+          bctx.clearRect(0, 0, belowAlpha.width, belowAlpha.height);
+          bctx.drawImage(comp, 0, 0);
+        }
+      }
       cctx.restore();
     });
 

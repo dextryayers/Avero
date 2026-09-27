@@ -3,16 +3,22 @@
 
 // Jalur A ringan: pool canvas temp untuk komposit agar tidak alloc 2 canvas
 // per layer per frame (penyebab GC spike + RAM bengkak).
-let poolOut: HTMLCanvasElement | null = null;
-let poolMask: HTMLCanvasElement | null = null;
+// Pool dipisah per slot + ukuran agar comp doc-size tidak pernah alias dengan
+// mask temp (bug lama: mask menimpa composite saat layer bermask dirender).
+const pools = new Map<string, HTMLCanvasElement>();
 function pooledCanvas(w: number, h: number, slot: "out" | "mask"): HTMLCanvasElement {
-  const cur = slot === "out" ? poolOut : poolMask;
-  if (cur && cur.width === w && cur.height === h) return cur;
+  const key = `${slot}:${w}x${h}`;
+  const cur = pools.get(key);
+  if (cur) return cur;
+  // Bound pool size: max 2 entries (out+mask per size). Evict stale sizes.
+  if (pools.size >= 6) {
+    const first = pools.keys().next().value as string | undefined;
+    if (first) pools.delete(first);
+  }
   const c = document.createElement("canvas");
   c.width = w;
   c.height = h;
-  if (slot === "out") poolOut = c;
-  else poolMask = c;
+  pools.set(key, c);
   return c;
 }
 
@@ -192,6 +198,5 @@ class LayerManager {
 export const layerManager = new LayerManager();
 
 export function clearRenderPools() {
-  poolOut = null;
-  poolMask = null;
+  pools.clear();
 }

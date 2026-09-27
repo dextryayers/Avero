@@ -135,7 +135,7 @@ input[type="range"] {
 .avero-bar {
   transition: width 0.5s ease;
 }
-/* Lightweight interactive set: fade/slide/shimmer/pulse — transform+opacity only.
+/* Lightweight interactive set: fade/slide/shimmer/pulse, transform+opacity only.
    No blur/shadow animation (those force GPU repaint + VRAM spikes). */
 .avero-fade-in {
   animation: avero-fade-in 0.18s ease-out both;

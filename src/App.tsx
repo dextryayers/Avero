@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import TitleBar from "./components/TitleBar";
 import ToolBar from "./components/ToolBar";
 import CanvasArea, { getCompositeCanvas } from "./components/CanvasArea";
@@ -42,11 +42,30 @@ export default function App() {
   const [palette, setPalette] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsReturn, setSettingsReturn] = useState<"home" | "editor">("home");
   const [booted, setBooted] = useState(false);
   const [recovery, setRecovery] = useState<ReturnType<typeof loadRecovery>>(null);
   const newDocument = useEditorStore((s) => s.newDocument);
   const homeOpen = useHomeStore((s) => s.homeOpen);
   const setHome = useHomeStore((s) => s.setHome);
+
+  function openSettings() {
+    setSettingsReturn(useHomeStore.getState().homeOpen ? "home" : "editor");
+    setExportOpen(false);
+    setPalette(false);
+    setSettingsOpen(true);
+  }
+  function closeSettings() {
+    setSettingsOpen(false);
+    setHome(settingsReturn === "home");
+  }
+
+  const openSettingsRef = useRef(openSettings);
+  const closeSettingsRef = useRef(closeSettings);
+  const settingsOpenRef = useRef(settingsOpen);
+  openSettingsRef.current = openSettings;
+  closeSettingsRef.current = closeSettings;
+  settingsOpenRef.current = settingsOpen;
 
   useEffect(() => {
     const s = useEditorStore.getState();
@@ -120,7 +139,7 @@ export default function App() {
       }
       if (mod && e.key === ",") {
         e.preventDefault();
-        setSettingsOpen((v) => !v);
+        window.dispatchEvent(new Event("avero:toggle-settings"));
         return;
       }
       if (mod && e.key.toLowerCase() === "s") {
@@ -418,11 +437,20 @@ export default function App() {
       }
     }
     function onSettingsEvent() {
-      setSettingsOpen(true);
+      openSettingsRef.current();
+    }
+    function onCloseSettingsEvent() {
+      closeSettingsRef.current();
+    }
+    function onToggleSettingsEvent() {
+      if (settingsOpenRef.current) closeSettingsRef.current();
+      else openSettingsRef.current();
     }
     window.addEventListener("keydown", onKey);
     window.addEventListener("keyup", onKeyUp);
     window.addEventListener("avero:open-settings", onSettingsEvent);
+    window.addEventListener("avero:close-settings", onCloseSettingsEvent);
+    window.addEventListener("avero:toggle-settings", onToggleSettingsEvent);
     window.addEventListener("avero:open-export", onExportEvent);
     window.addEventListener("avero:save-avx", onSaveEvent);
     window.addEventListener("avero:open-avx", onOpenAvxEvent);
@@ -432,6 +460,8 @@ export default function App() {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("avero:open-settings", onSettingsEvent);
+      window.removeEventListener("avero:close-settings", onCloseSettingsEvent);
+      window.removeEventListener("avero:toggle-settings", onToggleSettingsEvent);
       window.removeEventListener("avero:open-export", onExportEvent);
       window.removeEventListener("avero:save-avx", onSaveEvent);
       window.removeEventListener("avero:open-avx", onOpenAvxEvent);
@@ -448,15 +478,15 @@ export default function App() {
         onOpenExport={() => setExportOpen(true)}
         onHome={() => setHome(true)}
       />
-      {!homeOpen && (
+      {!homeOpen && !settingsOpen && (
         <div className="flex shrink-0 items-center border-b border-[#2c2c31] bg-[#161618]">
           <WorkspaceBar />
           <QuickExportBar onOpenExport={() => setExportOpen(true)} />
         </div>
       )}
-      {!homeOpen && <PsdInfo />}
-      {!homeOpen && <NodeGraph />}
-      {recovery && !homeOpen && (
+      {!homeOpen && !settingsOpen && <PsdInfo />}
+      {!homeOpen && !settingsOpen && <NodeGraph />}
+      {recovery && !homeOpen && !settingsOpen && (
         <div className="flex items-center gap-2 border-b border-amber-600 bg-[#3a2f14] px-3 py-1.5 text-[11px] text-amber-100">
           <span>
             Recovery found {recovery.docName} {recovery.width}x{recovery.height}. Continue or
@@ -476,7 +506,9 @@ export default function App() {
           </button>
         </div>
       )}
-      {homeOpen ? (
+      {settingsOpen ? (
+        <SettingsPanel onBack={closeSettings} />
+      ) : homeOpen ? (
         <HomeScreen />
       ) : (
         <div className="flex min-h-0 flex-1">
@@ -487,8 +519,7 @@ export default function App() {
       )}
       <StatusBar />
       <CommandPalette open={palette} onClose={() => setPalette(false)} />
-      {!homeOpen && exportOpen && <ExportDialog onClose={() => setExportOpen(false)} />}
-      {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
+      {!homeOpen && !settingsOpen && exportOpen && <ExportDialog onClose={() => setExportOpen(false)} />}
       {booted && <Onboarding />}
       <AppDialog />
       <Notifier />

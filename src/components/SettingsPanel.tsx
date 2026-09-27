@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  ArrowLeft,
   Brush,
   Cpu,
   Gauge,
@@ -10,7 +11,6 @@ import {
   Palette,
   RefreshCw,
   Settings2,
-  X,
   Zap,
 } from "lucide-react";
 import { scanHardware, gpuLabel, type HardwareReport } from "../io/hardware";
@@ -93,17 +93,49 @@ function Row({ k, v, mono = false }: { k: string; v: string; mono?: boolean }) {
   );
 }
 
+function SectionHead({ title, info }: { title: string; info: string }) {
+  return (
+    <div className="mb-3">
+      <div className="text-[14px] font-bold text-white">{title}</div>
+      <div className="mt-0.5 max-w-[720px] text-[12px] leading-relaxed text-[#a7a7b0]">{info}</div>
+    </div>
+  );
+}
+
 type TabId = "hardware" | "engine" | "canvas" | "tools" | "workspace";
 
-const TABS: { id: TabId; label: string; icon: typeof Cpu }[] = [
-  { id: "hardware", label: "Hardware", icon: Cpu },
-  { id: "engine", label: "Engine", icon: Gauge },
-  { id: "canvas", label: "Canvas", icon: Layout },
-  { id: "tools", label: "Tools", icon: Brush },
-  { id: "workspace", label: "Studio", icon: Palette },
+const TABS: { id: TabId; label: string; desc: string; icon: typeof Cpu }[] = [
+  { id: "hardware", label: "Hardware", desc: "Device scan and score", icon: Cpu },
+  { id: "engine", label: "Engine", desc: "Speed, device, tiles", icon: Gauge },
+  { id: "canvas", label: "Canvas", desc: "Rulers, grid, zoom", icon: Layout },
+  { id: "tools", label: "Tools", desc: "Brush defaults", icon: Brush },
+  { id: "workspace", label: "Studio", desc: "Save, motion, storage", icon: Palette },
 ];
 
-export default function SettingsPanel({ onClose }: { onClose: () => void }) {
+const TAB_INFO: Record<TabId, { title: string; info: string }> = {
+  hardware: {
+    title: "Hardware detection",
+    info: "Live scan of CPU, memory and graphics. The score picks a safe starting preset, and Apply copies that preset into the Engine tab. Rescan after plugging in a GPU or closing heavy apps.",
+  },
+  engine: {
+    title: "Render engine",
+    info: "Controls how pixels are processed. Small tiles use less RAM per call but need more calls. Eco goes light early, Max keeps full quality longer. Changes apply instantly to the next stroke or filter.",
+  },
+  canvas: {
+    title: "Canvas and view",
+    info: "Defaults for new documents plus live view controls. Toggles marked live apply to the open document right away and are remembered for the next one.",
+  },
+  tools: {
+    title: "Brush and tools",
+    info: "Starting values for all 174 tools. Size, Hardness and Strength in the top options bar still override these per stroke. Use Apply to push the defaults into the current brush.",
+  },
+  workspace: {
+    title: "Studio and storage",
+    info: "Autosave, interface motion and local storage. Recovery snapshots protect against crashes. Nuke canvas is the emergency free for stuck GPU memory.",
+  },
+};
+
+export default function SettingsPanel({ onBack }: { onBack: () => void }) {
   const s = useSettingsStore();
   const [report, setReport] = useState<HardwareReport | null>(null);
   const [busy, setBusy] = useState(false);
@@ -129,6 +161,15 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const ae = document.activeElement?.tagName;
+      if (e.key === "Escape" && ae !== "INPUT" && ae !== "TEXTAREA" && ae !== "SELECT") onBack();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onBack]);
+
   const p = report?.profile ?? null;
   const rec = report?.recommend ?? null;
   const gpu = report?.gpu ?? null;
@@ -152,81 +193,99 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
     setTimeout(() => setApplied(false), 2500);
   }
 
+  const info = TAB_INFO[tab];
+
   return (
-    <div className="fixed inset-0 z-[75] grid place-items-center overflow-y-auto bg-black/70 p-4" onClick={onClose}>
-      <div
-        className="avero-pop flex max-h-[86vh] w-[860px] max-w-full overflow-hidden rounded-lg border border-[#2c2c31] bg-[#1c1c1f]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* left rail */}
-        <div className="flex w-[172px] shrink-0 flex-col border-r border-[#2c2c31] bg-[#161618] p-2">
-          <div className="flex items-center gap-2 px-2 pb-2 pt-1">
-            <span className="grid h-8 w-8 place-items-center rounded-md bg-[#2f7cf6] text-white">
-              <Settings2 size={16} />
-            </span>
-            <div>
-              <div className="text-[13px] font-bold text-white">Control Center</div>
-              <div className="text-[10px] text-[#6e6e78]">174 tools · live control</div>
-            </div>
+    <div className="flex min-h-0 flex-1 flex-col bg-[#101012]">
+      <div className="flex h-[52px] shrink-0 items-center gap-3 border-b border-[#2c2c31] bg-[#1c1c1f] px-4">
+        <button
+          onClick={onBack}
+          title="Back (Esc)"
+          className="avero-press flex h-8 items-center gap-1.5 rounded-md border border-[#2c2c31] bg-[#161618] px-2.5 text-[12px] font-medium text-[#c9c9d1] hover:border-[#3a3a41] hover:text-white"
+        >
+          <ArrowLeft size={14} /> Back
+        </button>
+        <div className="flex items-center gap-2.5">
+          <span className="grid h-8 w-8 place-items-center rounded-md bg-[#2f7cf6] text-white">
+            <Settings2 size={16} />
+          </span>
+          <div className="leading-none">
+            <div className="text-[13px] font-bold tracking-wide text-white">SETTINGS</div>
+            <div className="mt-1 text-[10px] text-[#6e6e78]">Control Center, hardware scan plus full engine control</div>
           </div>
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <span className="hidden items-center gap-1.5 rounded border border-[#2c2c31] bg-[#101012] px-2 py-1 font-mono text-[10px] text-[#a7a7b0] sm:flex">
+            {report?.webOnly ? "WEB" : "NATIVE"} · tile {report ? report.renderTile : "--"}
+            {report?.fastPath ? " · fast" : " · lean"}
+          </span>
+          <button
+            onClick={() => void rescan()}
+            disabled={busy}
+            className="avero-press flex h-8 items-center gap-1.5 rounded-md border border-[#2c2c31] bg-[#161618] px-3 text-[12px] font-medium text-[#c9c9d1] hover:border-[#3a3a41] hover:text-white disabled:opacity-50"
+          >
+            <RefreshCw size={13} className={busy ? "animate-spin" : ""} /> {busy ? "Scanning" : "Rescan"}
+          </button>
+          <button
+            onClick={async () => {
+              if (await askConfirm("Reset all settings to defaults?")) s.resetAll();
+            }}
+            className="hidden h-8 items-center rounded-md bg-[#232327] px-3 text-[12px] text-[#a7a7b0] hover:text-white sm:flex"
+          >
+            Reset defaults
+          </button>
+        </div>
+      </div>
+
+      <div className="flex min-h-0 flex-1">
+        <div className="flex w-[208px] shrink-0 flex-col gap-1 border-r border-[#2c2c31] bg-[#1c1c1f] p-3">
+          <div className="avero-micro px-2 pb-1 pt-1">Sections</div>
           {TABS.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
+              title={t.desc}
               className={clsx(
-                "mb-1 flex items-center gap-2 rounded-md px-2.5 py-2 text-left text-[12px] font-medium",
+                "avero-lift rounded-md px-3 py-2 text-left",
                 tab === t.id ? "bg-[#2f7cf6] text-white" : "text-[#a7a7b0] hover:bg-[#232327] hover:text-white",
               )}
             >
-              <t.icon size={14} />
-              {t.label}
+              <span className="flex items-center gap-2 text-[12px] font-semibold">
+                <t.icon size={14} /> {t.label}
+              </span>
+              <span className={clsx("mt-0.5 block text-[10.5px]", tab === t.id ? "text-white/70" : "text-[#6e6e78]")}>
+                {t.desc}
+              </span>
             </button>
           ))}
-          <div className="mt-auto space-y-1 p-1">
-            <button
-              onClick={() => void rescan()}
-              disabled={busy}
-              className="avero-press flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-[#2c2c31] bg-[#101012] text-[11px] text-[#a7a7b0] hover:text-white disabled:opacity-50"
-            >
-              <RefreshCw size={12} className={busy ? "animate-spin" : ""} /> {busy ? "Scanning" : "Rescan"}
-            </button>
-            <button
-              onClick={async () => {
-                if (await askConfirm("Reset all settings to defaults?")) s.resetAll();
-              }}
-              className="flex h-8 w-full items-center justify-center rounded-md bg-[#232327] text-[11px] text-[#a7a7b0] hover:text-white"
-            >
-              Reset defaults
-            </button>
+          <div className="mt-auto rounded-lg border border-[#2c2c31] bg-[#161618] p-3">
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-white">
+              <Zap size={12} className="text-[#8fb6f5]" /> Tip
+            </div>
+            <div className="mt-1 text-[11px] leading-relaxed text-[#a7a7b0]">
+              {rec ? rec.reason : "Run Rescan to get a preset recommendation for this device."}
+            </div>
+            {rec && (
+              <button
+                onClick={applyRec}
+                className="avero-btn-primary mt-2 flex h-7 w-full items-center justify-center gap-1.5 rounded-md text-[11px] font-semibold text-white"
+              >
+                <Zap size={12} /> {applied ? "Applied" : `Apply ${rec.mode} preset`}
+              </button>
+            )}
           </div>
         </div>
 
-        {/* right content */}
-        <div className="flex min-w-0 flex-1 flex-col">
-          <div className="flex items-center gap-2 border-b border-[#2c2c31] px-5 py-3">
-            <div className="text-[13px] font-bold text-white">
-              {tab === "hardware" && "Hardware detection — real device scan"}
-              {tab === "engine" && "Render engine — performance + device"}
-              {tab === "canvas" && "Canvas & view — rulers, grid, zoom"}
-              {tab === "tools" && "Brush & tools — defaults for 174 tools"}
-              {tab === "workspace" && "Studio — autosave, motion, storage"}
-            </div>
-            <div className="ml-auto flex items-center gap-2 font-mono text-[10px] text-[#6e6e78]">
-              {report?.webOnly ? <span className="rounded border border-[#2c2c31] bg-[#101012] px-1.5 py-0.5">WEB</span> : <span className="rounded border border-[#2c2c31] bg-[#101012] px-1.5 py-0.5">NATIVE</span>}
-              <span>tile {report ? report.renderTile : "--"}</span>
-            </div>
-            <button onClick={onClose} className="rounded-md p-1.5 text-[#a7a7b0] hover:bg-[#232327] hover:text-white">
-              <X size={15} />
-            </button>
-          </div>
-
-          <div className="min-h-0 flex-1 overflow-y-auto p-5">
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="avero-fade-in mx-auto w-full max-w-[1020px] p-5" key={tab}>
+            <SectionHead title={info.title} info={info.info} />
             {tab === "hardware" && (
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <div className="rounded-lg border border-[#2c2c31] bg-[#161618] p-4">
+                <div className="rounded-lg border border-[#2c2c31] bg-[#1c1c1f] p-4">
                   <div className="flex items-center gap-2 text-[12px] font-bold text-white">
                     <Gauge size={14} className="text-[#8fb6f5]" /> Hardware score
                   </div>
+                  <div className="mt-1 text-[11px] text-[#6e6e78]">0 to 100 from CPU cores plus RAM plus GPU presence.</div>
                   <div className="mt-3 flex items-center gap-4">
                     <svg width="72" height="72" viewBox="0 0 72 72" className="-rotate-90">
                       <circle cx="36" cy="36" r="26" fill="none" stroke="#232327" strokeWidth="7" />
@@ -260,14 +319,15 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
                     </button>
                   )}
                   <div className="mt-2 font-mono text-[10px] leading-relaxed text-[#6e6e78]">
-                    auto: eco ≤41 · balanced 42-71 · max ≥72
+                    auto bands: eco up to 41, balanced 42 to 71, max from 72
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-[#2c2c31] bg-[#161618] p-4">
+                <div className="rounded-lg border border-[#2c2c31] bg-[#1c1c1f] p-4">
                   <div className="flex items-center gap-2 text-[12px] font-bold text-white">
                     <Cpu size={14} className="text-[#8fb6f5]" /> Processor and memory
                   </div>
+                  <div className="mt-1 text-[11px] text-[#6e6e78]">Native values come from Rust sysinfo, web values from the browser.</div>
                   <div className="mt-2.5 space-y-2">
                     <Row k="CPU" v={p ? p.cpu_brand : busy ? "Scanning..." : "Unknown"} />
                     <Row k="Cores / threads" v={p ? `${p.cpu_cores} / ${p.cpu_threads}` : "--"} mono />
@@ -291,10 +351,11 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-[#2c2c31] bg-[#161618] p-4">
+                <div className="rounded-lg border border-[#2c2c31] bg-[#1c1c1f] p-4">
                   <div className="flex items-center gap-2 text-[12px] font-bold text-white">
-                    <Monitor size={14} className="text-[#8fb6f5]" /> Graphics — WebGPU + WebGL
+                    <Monitor size={14} className="text-[#8fb6f5]" /> Graphics, WebGPU and WebGL
                   </div>
+                  <div className="mt-1 text-[11px] text-[#6e6e78]">WebGPU maps to Vulkan, Metal or DirectX 12. WebGL maps to OpenGL or ANGLE.</div>
                   <div className="mt-2.5 space-y-2">
                     <Row k="Detected" v={gpu ? gpuLabel(gpu) : "Scanning..."} />
                     <div className="truncate font-mono text-[10px] text-[#6e6e78]">{gpu?.description ?? ""}</div>
@@ -305,23 +366,24 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
                     <Row k="Screen" v={web ? `${web.screenW}x${web.screenH} @${web.dpr}x${web.touch ? " touch" : ""}` : "--"} mono />
                     {!gpu?.available && (
                       <div className="rounded-md border border-[#2c2c31] bg-[#101012] px-2 py-1.5 text-[10.5px] leading-snug text-[#6e6e78]">
-                        No WebGPU here — WebGL fallback active, editor uses the CPU tiled path. RTX/RX/iGPU appear automatically when WebGPU is present.
+                        No WebGPU here, so WebGL fallback is active and the editor uses the CPU tiled path. RTX, RX and iGPUs appear automatically when WebGPU is present.
                       </div>
                     )}
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-[#2c2c31] bg-[#161618] p-4">
+                <div className="rounded-lg border border-[#2c2c31] bg-[#1c1c1f] p-4">
                   <div className="flex items-center gap-2 text-[12px] font-bold text-white">
                     <MemoryStick size={14} className="text-[#8fb6f5]" /> Platform
                   </div>
+                  <div className="mt-1 text-[11px] text-[#6e6e78]">Where the app runs and how many threads the engine may use.</div>
                   <div className="mt-2.5 space-y-2">
                     <Row k="Mode" v={report?.webOnly ? "Web (browser)" : "Tauri native"} />
                     <Row k="Threads" v={report ? String(report.rayonThreads) : "--"} mono />
                     <Row k="UA" v={web ? web.ua.slice(0, 64) : "--"} />
                     <Row k="Heap live" v={web?.heapMb ? `${web.heapMb} MB` : "--"} mono />
                     <div className="rounded-md border border-[#2c2c31] bg-[#101012] px-2 py-1.5 text-[10.5px] leading-snug text-[#6e6e78]">
-                      Web scan uses cores, device memory, WebGL renderer, heap and screen. Native scan adds Rust sysinfo + render caps when running in Tauri.
+                      Web scan uses cores, device memory, WebGL renderer, heap and screen. Native scan adds Rust sysinfo plus render caps when running in Tauri.
                     </div>
                   </div>
                 </div>
@@ -330,16 +392,17 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
 
             {tab === "engine" && (
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <div className="space-y-3 rounded-lg border border-[#2c2c31] bg-[#161618] p-4">
+                <div className="space-y-3 rounded-lg border border-[#2c2c31] bg-[#1c1c1f] p-4">
                   <div className="flex items-center gap-2 text-[12px] font-bold text-white">
                     <MemoryStick size={14} className="text-[#8fb6f5]" /> Engine
                   </div>
+                  <div className="text-[11px] text-[#6e6e78]">Pick speed vs quality. Effective values show what the canvas really uses.</div>
                   <Seg<PerfMode>
                     label="Performance mode"
                     value={s.perfMode}
                     onPick={(v) => s.set({ perfMode: v })}
                     options={[
-                      { id: "auto", label: "Auto", hint: "Follows recommendation + doc size" },
+                      { id: "auto", label: "Auto", hint: "Follows recommendation plus doc size" },
                       { id: "eco", label: "Eco", hint: "256px tiles, light path early, history max 4" },
                       { id: "balanced", label: "Balanced", hint: "Standard thresholds, history max 8" },
                       { id: "max", label: "Max", hint: "1024px tiles, full pipeline longer" },
@@ -383,10 +446,11 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
                     <div className="mt-1 font-mono text-[10px] text-[#6e6e78]">Large files clamp this down automatically.</div>
                   </div>
                 </div>
-                <div className="space-y-3 rounded-lg border border-[#2c2c31] bg-[#161618] p-4">
+                <div className="space-y-3 rounded-lg border border-[#2c2c31] bg-[#1c1c1f] p-4">
                   <div className="flex items-center gap-2 text-[12px] font-bold text-white">
                     <Monitor size={14} className="text-[#8fb6f5]" /> Render quality
                   </div>
+                  <div className="text-[11px] text-[#6e6e78]">Draft previews fast while painting, Best renders full quality every frame.</div>
                   <Seg<"draft" | "balanced" | "best">
                     label="Canvas quality"
                     value={s.canvasQuality}
@@ -394,7 +458,7 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
                     options={[
                       { id: "draft", label: "Draft", hint: "Fast preview while painting" },
                       { id: "balanced", label: "Balanced", hint: "Default full quality on release" },
-                      { id: "best", label: "Best", hint: "Always full pipeline, slower on potato PCs" },
+                      { id: "best", label: "Best", hint: "Always full pipeline, slower on low end PCs" },
                     ]}
                   />
                   <Seg<number>
@@ -409,7 +473,7 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
                     ]}
                   />
                   <div className="rounded-md border border-[#2c2c31] bg-[#101012] px-2 py-1.5 text-[10.5px] leading-snug text-[#6e6e78]">
-                    Draft skips adjust/filter passes while a stroke is wet (same fast path the canvas already uses). Best forces full quality every frame.
+                    Draft skips adjust and filter passes while a stroke is wet (same fast path the canvas already uses). Best forces full quality every frame.
                   </div>
                   <button
                     onClick={() => {
@@ -418,7 +482,7 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
                     }}
                     className="flex h-8 w-full items-center justify-center gap-1.5 rounded-md bg-[#232327] text-[11px] text-white hover:bg-[#2c2c31]"
                   >
-                    <RefreshCw size={12} /> Flush GPU cache + rescan
+                    <RefreshCw size={12} /> Flush GPU cache plus rescan
                   </button>
                 </div>
               </div>
@@ -426,16 +490,18 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
 
             {tab === "canvas" && (
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <div className="space-y-3 rounded-lg border border-[#2c2c31] bg-[#161618] p-4">
+                <div className="space-y-3 rounded-lg border border-[#2c2c31] bg-[#1c1c1f] p-4">
                   <div className="text-[12px] font-bold text-white">View defaults (live)</div>
-                  <Toggle on={s.showRulersOnStart} onFlip={() => s.set({ showRulersOnStart: !s.showRulersOnStart })} label="Rulers on start" desc="Pixel rulers + guide drag" />
-                  <Toggle on={s.showGridOnStart} onFlip={() => s.set({ showGridOnStart: !s.showGridOnStart })} label="Grid on start" desc="Photoshop-style pro grid" />
-                  <Toggle on={s.snapOnStart} onFlip={() => s.set({ snapOnStart: !s.snapOnStart })} label="Snap on start" desc="Guides + grid + center snap" />
-                  <Toggle on={s.autoFitOnOpen} onFlip={() => s.set({ autoFitOnOpen: !s.autoFitOnOpen })} label="Auto-fit on open" desc="Fit document after open/drop" />
+                  <div className="text-[11px] text-[#6e6e78]">These apply to the open document now and are remembered for new ones.</div>
+                  <Toggle on={s.showRulersOnStart} onFlip={() => s.set({ showRulersOnStart: !s.showRulersOnStart })} label="Rulers on start" desc="Pixel rulers plus guide drag" />
+                  <Toggle on={s.showGridOnStart} onFlip={() => s.set({ showGridOnStart: !s.showGridOnStart })} label="Grid on start" desc="Pro grid overlay for alignment" />
+                  <Toggle on={s.snapOnStart} onFlip={() => s.set({ snapOnStart: !s.snapOnStart })} label="Snap on start" desc="Guides plus grid plus center snap" />
+                  <Toggle on={s.autoFitOnOpen} onFlip={() => s.set({ autoFitOnOpen: !s.autoFitOnOpen })} label="Auto-fit on open" desc="Fit document after open and drop" />
                   <CanvasLiveControls />
                 </div>
-                <div className="space-y-3 rounded-lg border border-[#2c2c31] bg-[#161618] p-4">
-                  <div className="text-[12px] font-bold text-white">Theme + guides</div>
+                <div className="space-y-3 rounded-lg border border-[#2c2c31] bg-[#1c1c1f] p-4">
+                  <div className="text-[12px] font-bold text-white">Theme plus guides</div>
+                  <div className="text-[11px] text-[#6e6e78]">Look of the studio plus helpers drawn over the canvas.</div>
                   <Seg<"dark" | "light">
                     label="Interface theme"
                     value={s.themeMode}
@@ -455,8 +521,9 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
 
             {tab === "tools" && (
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <div className="space-y-3 rounded-lg border border-[#2c2c31] bg-[#161618] p-4">
+                <div className="space-y-3 rounded-lg border border-[#2c2c31] bg-[#1c1c1f] p-4">
                   <div className="text-[12px] font-bold text-white">Brush defaults (apply to all 174 tools)</div>
+                  <div className="text-[11px] text-[#6e6e78]">Starting point for every brush family. Per-stroke sliders still win.</div>
                   <div>
                     <div className="mb-1 flex justify-between text-[11px] text-[#a7a7b0]">
                       Default size <span className="font-mono text-white">{s.defaultBrushSize}px</span>
@@ -474,7 +541,7 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
                       Stroke smoothing <span className="font-mono text-white">{s.brushSmoothing}%</span>
                     </div>
                     <input type="range" min={0} max={100} value={s.brushSmoothing} onChange={(e) => s.set({ brushSmoothing: Number(e.target.value) })} className="w-full" />
-                    <div className="mt-1 font-mono text-[10px] text-[#6e6e78]">Higher = steadier long strokes, slightly more lag.</div>
+                    <div className="mt-1 font-mono text-[10px] text-[#6e6e78]">Higher means steadier long strokes with slightly more lag.</div>
                   </div>
                   <button
                     onClick={() => {
@@ -485,11 +552,12 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
                     <Brush size={12} /> Apply defaults to current brush
                   </button>
                 </div>
-                <div className="space-y-3 rounded-lg border border-[#2c2c31] bg-[#161618] p-4">
+                <div className="space-y-3 rounded-lg border border-[#2c2c31] bg-[#1c1c1f] p-4">
                   <div className="text-[12px] font-bold text-white">Safety</div>
-                  <Toggle on={s.confirmDestructive} onFlip={() => s.set({ confirmDestructive: !s.confirmDestructive })} label="Confirm destructive ops" desc="Merge, flatten, pattern fill ask first" />
+                  <div className="text-[11px] text-[#6e6e78]">Confirmations before pixels are merged or filled for good.</div>
+                  <Toggle on={s.confirmDestructive} onFlip={() => s.set({ confirmDestructive: !s.confirmDestructive })} label="Confirm destructive ops" desc="Merge, flatten and pattern fill ask first" />
                   <div className="rounded-md border border-[#2c2c31] bg-[#101012] px-2 py-1.5 text-[10.5px] leading-snug text-[#6e6e78]">
-                    All 174 tools share Size / Hardness / Strength from the top options bar. These defaults reset the bar for every family at once.
+                    All 174 tools share Size, Hardness and Strength from the top options bar. These defaults reset the bar for every family at once.
                   </div>
                 </div>
               </div>
@@ -497,8 +565,9 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
 
             {tab === "workspace" && (
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <div className="space-y-3 rounded-lg border border-[#2c2c31] bg-[#161618] p-4">
+                <div className="space-y-3 rounded-lg border border-[#2c2c31] bg-[#1c1c1f] p-4">
                   <div className="text-[12px] font-bold text-white">Studio</div>
+                  <div className="text-[11px] text-[#6e6e78]">Autosave protects work, motion keeps the interface alive.</div>
                   <Seg<number>
                     label="Crash recovery autosave"
                     value={s.autosaveMin}
@@ -512,10 +581,11 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
                   />
                   <Toggle on={s.animations} onFlip={() => s.set({ animations: !s.animations })} label="Playful interface motion" desc="Bouncy popups, sliding toggles, animated meters" />
                 </div>
-                <div className="space-y-3 rounded-lg border border-[#2c2c31] bg-[#161618] p-4">
+                <div className="space-y-3 rounded-lg border border-[#2c2c31] bg-[#1c1c1f] p-4">
                   <div className="flex items-center gap-2 text-[12px] font-bold text-white">
-                    <HardDrive size={14} className="text-[#8fb6f5]" /> Storage & recovery
+                    <HardDrive size={14} className="text-[#8fb6f5]" /> Storage and recovery
                   </div>
+                  <div className="text-[11px] text-[#6e6e78]">Local keys only, nothing leaves this device.</div>
                   <button
                     onClick={async () => {
                       if (await askConfirm("Discard the autosaved recovery snapshot?")) clearRecovery();
@@ -526,7 +596,7 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
                   </button>
                   <button
                     onClick={async () => {
-                      if (!(await askConfirm("Clear all layer pixels + history? Document resets to blank."))) return;
+                      if (!(await askConfirm("Clear all layer pixels plus history? Document resets to blank."))) return;
                       layerManager.clear();
                       useEditorStore.getState().newDocument("Untitled", 1920, 1080);
                     }}
@@ -542,6 +612,15 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
             )}
           </div>
         </div>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-2 border-t border-[#2c2c31] bg-[#1c1c1f] px-4 py-2 font-mono text-[10px] text-[#6e6e78]">
+        <span>Esc goes back</span>
+        <span className="h-1 w-1 rounded-full bg-[#2c2c31]" />
+        <span>Ctrl+, toggles Settings</span>
+        <span className="h-1 w-1 rounded-full bg-[#2c2c31]" />
+        <span className="hidden sm:block">Changes save instantly to this device</span>
+        <span className="ml-auto hidden md:block">avero-settings-v2</span>
       </div>
     </div>
   );

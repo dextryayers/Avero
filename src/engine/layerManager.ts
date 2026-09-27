@@ -27,7 +27,7 @@ class LayerManager {
   private masks = new Map<string, HTMLCanvasElement>();
   // Layers that hold an opened photo (drawImageToLayer). Brush strokes on a
   // photo layer would merge with pixels so the eraser could never remove only
-  // the scribble — CanvasArea auto-creates a transparent paint layer instead.
+  // the scribble, so CanvasArea auto-creates a transparent paint layer instead.
   private photoLayers = new Set<string>();
 
   ensure(id: string, w: number, h: number): HTMLCanvasElement {

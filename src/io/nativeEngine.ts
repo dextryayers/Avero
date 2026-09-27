@@ -105,8 +105,8 @@ export function isTauri(): boolean {
 
 export async function nativeInfo(): Promise<NativeInfo> { return invoke<NativeInfo>("cmd_native_info"); }
 export async function nativeHistogram(rgba: Uint8ClampedArray | Uint8Array, width: number, height: number): Promise<NativeHistogram> {
-  // Histogram full-res via IPC mahal (Array.from). Panggil hanya untuk thumb/256px bila memungkinkan.
-  // Caller Histogram.tsx sudah downscale ke 256px — pertahankan pola itu.
+  // Histogram full-res via IPC is costly (Array.from). Call it only for thumb/256px when possible.
+  // Caller Histogram.tsx already downscales to 256px, keep that pattern.
   return invoke<NativeHistogram>("cmd_native_histogram", { rgba: Array.from(rgba), width, height });
 }
 export async function nativeStats(rgba: Uint8ClampedArray | Uint8Array): Promise<NativeStats> {

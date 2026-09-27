@@ -218,7 +218,7 @@ export async function scanHardware(power: "high-performance" | "low-power" = "hi
   }
   const gpu = await gpuInfo(power);
   const web = webVitals();
-  // Web fallback: never leave Control Center empty — synthesize a real profile
+  // Web fallback: never leave Control Center empty, synthesize a real profile
   // from navigator + WebGL + heap so sliders and recommendations always work.
   if (webOnly || !profile) {
     const wp = webProfile(web, gpu);

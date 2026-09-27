@@ -299,7 +299,7 @@ export default function RightPanel() {
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              title={`${t.label} — panel profesional`}
+              title={`${t.label} - professional panel`}
               className={clsx(
                 "avero-lift flex shrink-0 flex-col items-center gap-0.5 border-b-2 px-2.5 pb-1.5 pt-2",
                 tab === t.id
@@ -536,7 +536,7 @@ export default function RightPanel() {
             <div className="border-t border-[#2c2c31] p-3">
               <button onClick={() => setShowBrush((v) => !v)} className="mb-1.5 flex w-full items-center justify-between">
                 <h4 className="avero-micro">Brush</h4>
-                <span className="font-mono text-[10px] text-[#6e6e78]">{showBrush ? "—" : "+"}</span>
+                <span className="font-mono text-[10px] text-[#6e6e78]">{showBrush ? "-" : "+"}</span>
               </button>
               {showBrush && (
                 <div className="avero-fade-in">
@@ -588,7 +588,7 @@ export default function RightPanel() {
             <div className="border-t border-[#2c2c31] p-3">
               <button onClick={() => setShowProps((v) => !v)} className="mb-1.5 flex w-full items-center justify-between">
                 <h4 className="avero-micro">Layer properties</h4>
-                <span className="font-mono text-[10px] text-[#6e6e78]">{showProps ? "—" : "+"}</span>
+                <span className="font-mono text-[10px] text-[#6e6e78]">{showProps ? "-" : "+"}</span>
               </button>
               {showProps && <TransformPanel />}
             </div>

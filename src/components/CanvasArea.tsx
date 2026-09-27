@@ -115,7 +115,7 @@ export default function CanvasArea() {
   const layers = useEditorStore((s) => s.layers);
   const activeLayerId = useEditorStore((s) => s.activeLayerId ?? s.layers[s.layers.length - 1]?.id);
   const tool = useEditorStore((s) => s.tool);
-  // Every ToolId has a real behavior via toolPresets registry — no dead tools.
+  // Every ToolId has a real behavior via toolPresets registry, no dead tools.
   const isBrush = isPaintTool(tool);
   const isEraser = tool === "eraser" || tool === "background-eraser" || tool === "magic-eraser" || tool === "eraser-hard";
   const isHeal =
@@ -1793,7 +1793,7 @@ export default function CanvasArea() {
   }
 
   // Real pixel distort: twirl/pinch/ripple/wave/zigzag/spherize/crystal.
-  // Operates on a dab-size block via offscreen rotate/scale/offset — visible & distinct.
+  // Operates on a dab-size block via offscreen rotate/scale/offset, visible and distinct.
   function distortTo(x: number, y: number, kind: DistortKind) {
     if (!activeLayerId) return;
     const meta = layers.find((l) => l.id === activeLayerId);
@@ -2407,6 +2407,15 @@ export default function CanvasArea() {
     if (kind === "ai-upscale") {
       const w = Math.min(16384, st.doc.width * 2);
       const h = Math.min(16384, st.doc.height * 2);
+      if (w === st.doc.width && h === st.doc.height) {
+        notify("Document is already at maximum size (16384px).");
+        return;
+      }
+      // snapshot every layer so upscale stays undoable
+      st.layers.forEach((l) => {
+        const snap = layerManager.snapshot(l.id);
+        if (snap) st.pushHistory({ label: "Upscale 2x", layerId: l.id, snapshot: snap });
+      });
       st.layers.forEach((l) => {
         const c = layerManager.get(l.id);
         if (!c) return;
@@ -2420,9 +2429,20 @@ export default function CanvasArea() {
         g.imageSmoothingEnabled = true;
         g.imageSmoothingQuality = "high";
         g.drawImage(tmp, 0, 0, w, h);
+        // keep layer mask aligned with the new size
+        const mc = layerManager.getMask(l.id);
+        if (mc) {
+          const mtmp = document.createElement("canvas");
+          mtmp.width = mc.width;
+          mtmp.height = mc.height;
+          mtmp.getContext("2d")!.drawImage(mc, 0, 0);
+          mc.width = w;
+          mc.height = h;
+          mc.getContext("2d")!.drawImage(mtmp, 0, 0, w, h);
+        }
       });
       st.setDocSize(w, h);
-      notify(`Upscaled 2x to ${w}x${h}.`);
+      notify(`Upscaled 2x to ${w}x${h}. Undo restores every layer.`);
       return;
     }
     if (kind === "ai-denoise") {
@@ -2734,6 +2754,11 @@ export default function CanvasArea() {
               const st = useEditorStore.getState();
               const id = st.activeLayerId;
               if (!id) return;
+              const meta = st.layers.find((l) => l.id === id);
+              if (!meta || meta.locked || !meta.visible) {
+                notify("Active layer is locked or hidden. Unlock it first.");
+                return;
+              }
               const snap = layerManager.snapshot(id);
               if (snap) st.pushHistory({ label: "Pattern fill", layerId: id, snapshot: snap });
               const c = layerManager.ensure(id, st.doc.width, st.doc.height);
@@ -2758,6 +2783,15 @@ export default function CanvasArea() {
                 g.fillStyle = pattern;
                 g.fillRect(0, 0, c.width, c.height);
               }
+              // respect active selection: keep fill inside it
+              try {
+                const sel = selectionMaskCanvas();
+                if (sel && hasSelection()) {
+                  g.globalCompositeOperation = "destination-in";
+                  g.globalAlpha = 1;
+                  g.drawImage(sel, 0, 0);
+                }
+              } catch { /* ignore */ }
               g.restore();
               st.markDirty();
               bumpHistogram();
@@ -2793,6 +2827,10 @@ export default function CanvasArea() {
             return;
           }
           if (tool === "select-grow" || tool === "select-shrink") {
+            if (!hasSelection()) {
+              notify("No selection to adjust. Drag a marquee or lasso first.");
+              return;
+            }
             expandContractSelection(tool === "select-grow" ? 4 : -4);
             setAnts((a) => a + 1);
             window.dispatchEvent(new Event("avero:selection-changed"));
@@ -3258,8 +3296,10 @@ export default function CanvasArea() {
               const label =
                 tool === "measure-area"
                   ? `${Math.abs(dx).toFixed(0)}x${Math.abs(dy).toFixed(0)} area ${(Math.abs(dx * dy) / 1000).toFixed(1)}k px`
-                  : `${dist.toFixed(1)} px | ${ang.toFixed(1)} deg`;
-              setCursor(tool === "measure-area" ? `Area ${label}` : `Distance ${label}`);
+                  : tool === "measure-angle"
+                    ? `Angle ${ang.toFixed(1)} deg (${Math.abs(dx).toFixed(0)} x ${Math.abs(dy).toFixed(0)})`
+                    : `${dist.toFixed(1)} px | ${ang.toFixed(1)} deg`;
+              setCursor(tool === "measure-area" ? `Area ${label}` : tool === "measure-angle" ? label : `Distance ${label}`);
               useProStore.getState().addMeasure({ x0: Math.round(measureDrag.x0), y0: Math.round(measureDrag.y0), x1: Math.round(measureDrag.x1), y1: Math.round(measureDrag.y1), label });
             }
             setMeasureDrag(null);
@@ -3414,14 +3454,26 @@ export default function CanvasArea() {
           />
         )}
         <ToolOptionsBar onApplyCrop={applyCrop} onCancelCrop={() => setCropDrag(null)} />
-        {/* Bottom-left HUD: position and tool info */}
-        <div className="pointer-events-none absolute bottom-3 left-3 flex items-center gap-2 rounded-md border border-[#2c2c31] bg-[#1c1c1f] px-2.5 py-1.5 font-mono text-[10px] text-[#a7a7b0]">
-          <span className="rounded bg-[#2f7cf6] px-1.5 py-0.5 font-semibold text-white">{TOOL_LABEL[tool] ?? tool}</span>
-          <span className="tabular-nums">{cursor}</span>
-          <span className="text-[#3a3a41]">|</span>
-          <span className="tabular-nums">
+        {/* Bottom-left HUD: position, tool, layer and status info */}
+        <div className="pointer-events-none absolute bottom-3 left-3 flex max-w-[70%] items-center gap-2 overflow-hidden rounded-md border border-[#2c2c31] bg-[#1c1c1f] px-2.5 py-1.5 font-mono text-[10px] text-[#a7a7b0]">
+          <span className="shrink-0 rounded bg-[#2f7cf6] px-1.5 py-0.5 font-semibold text-white">{TOOL_LABEL[tool] ?? tool}</span>
+          <span className="shrink-0 tabular-nums">{cursor}</span>
+          <span className="shrink-0 text-[#3a3a41]">|</span>
+          <span className="shrink-0 tabular-nums">
             {doc.width} x {doc.height}
           </span>
+          {(() => {
+            const al = layers.find((l) => l.id === activeLayerId);
+            return al ? (
+              <>
+                <span className="shrink-0 text-[#3a3a41]">|</span>
+                <span className="truncate text-white" title={`Active layer: ${al.name} (${al.kind}, ${al.opacity}%, ${al.blendMode})`}>
+                  {al.name}
+                </span>
+                <span className="shrink-0 tabular-nums text-[#6e6e78]">{al.opacity}%</span>
+              </>
+            ) : null;
+          })()}
           {hasSelection() && (
             <>
               <span className="text-[#3a3a41]">|</span>

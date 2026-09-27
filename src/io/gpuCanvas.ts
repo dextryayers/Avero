@@ -2,7 +2,7 @@
 // adapter) is preferred, WebGL2 (OpenGL / ANGLE) is the fallback, otherwise the
 // editor stays on the fast tiled CPU path (C separable filters + Rust rayon).
 // All compositing stays on drawImage (GPU-composited by the WebView) so the
-// Rust/C++ side only handles pixel math in tiles — RAM stays flat.
+// Rust/C++ side only handles pixel math in tiles, keeping RAM flat.
 
 import { gpuBackend, resetGpuBackend } from "./gpuBackend";
 
@@ -28,7 +28,7 @@ export async function gpuCaps(power: "high-performance" | "low-power" = "high-pe
   const webgpu = b.label === "WebGPU";
   cached = {
     webgpu,
-    adapter: `${b.label} — ${b.osApi}`,
+    adapter: `${b.label} - ${b.osApi}`,
     tiled: true,
     tileSize: b.tile,
   };

@@ -1,7 +1,7 @@
 import { useEditorStore } from "../stores/useEditorStore";
 import { useProStore } from "../stores/useProStore";
 import { TOOL_LABEL } from "./ToolBar";
-import { IS_CROP_TOOL, distortOf, isPaintTool, retouchModeOf } from "../engine/toolPresets";
+import { IS_CROP_TOOL, IS_SHAPE_TOOL, distortOf, isPaintTool, retouchModeOf } from "../engine/toolPresets";
 
 const BAR =
   "pointer-events-auto absolute left-1/2 top-3 z-30 flex max-w-[94%] -translate-x-1/2 items-center gap-2.5 rounded-md border border-[#2c2c31] bg-[#1c1c1f] px-3 py-2 text-[11px] text-[#a7a7b0]";
@@ -35,6 +35,7 @@ export default function ToolOptionsBar({
   const brushSize = useEditorStore((s) => s.brushSize);
   const brushOpacity = useEditorStore((s) => s.brushOpacity);
   const brushHardness = useEditorStore((s) => s.brushHardness);
+  const brushColor = useEditorStore((s) => s.brushColor);
   const setBrush = useEditorStore((s) => s.setBrush);
   const paintMask = useProStore((s) => s.paintMask);
   const gradTo = useProStore((s) => s.gradTo);
@@ -278,7 +279,7 @@ export default function ToolOptionsBar({
     );
   }
 
-  if (tool === "wand" || tool === "quick-select" || tool === "object-select" || tool === "color-range" || tool === "select-subject") {
+  if (tool === "wand" || tool === "wand-plus" || tool === "wand-minus" || tool === "quick-select" || tool === "object-select" || tool === "color-range" || tool === "select-subject") {
     return (
       <div className={BAR}>
         <span className="shrink-0 rounded-md bg-[#2f7cf6] px-2 py-0.5 font-semibold text-white">{name}</span>
@@ -310,11 +311,43 @@ export default function ToolOptionsBar({
     );
   }
 
+  const t = tool as string;
+  const needsColor =
+    isPaintTool(tool) ||
+    (IS_SHAPE_TOOL as Set<string>).has(tool) ||
+    t === "text" ||
+    t === "text-vertical" ||
+    t === "text-outline" ||
+    t === "text-glow" ||
+    t === "text-shadow" ||
+    t === "text-arc" ||
+    t === "fill" ||
+    t === "gradient" ||
+    t === "gradient-radial" ||
+    t === "pattern-stamp" ||
+    t === "pattern-fill" ||
+    t === "texture-stamp" ||
+    t === "eyedropper";
+
   if (retouchHint[tool]) {
     return (
       <div className={BAR}>
         <span className="shrink-0 rounded-md bg-[#2f7cf6] px-2 py-0.5 font-semibold text-white">{name}</span>
         <Hint>{retouchHint[tool]}</Hint>
+        {needsColor && (
+          <label
+            className="hidden shrink-0 cursor-pointer items-center gap-1.5 border-l border-[#2c2c31] pl-2.5 lg:flex"
+            title="Brush color, shared by paint, shape, text and fill tools"
+          >
+            <input
+              type="color"
+              value={brushColor}
+              onChange={(e) => setBrush({ color: e.target.value })}
+              className="h-5 w-8 cursor-pointer rounded border border-[#2c2c31] bg-transparent"
+            />
+            <span className="font-mono uppercase text-white tabular-nums">{brushColor}</span>
+          </label>
+        )}
         {usesBrushSliders && (
           <span className="hidden shrink-0 items-center gap-3 border-l border-[#2c2c31] pl-2.5 lg:flex">
             <Slider label="Size" value={brushSize} min={1} max={300} onChange={(v) => setBrush({ size: v })} />

@@ -1,27 +1,30 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  FolderOpen,
-  ImagePlus,
-  LayoutGrid,
-  Trash2,
-  X,
-  Search,
-  Clock,
-  Star,
-  BookOpen,
-  Plus,
-  Monitor,
-  Printer,
-  Smartphone,
-  Globe,
-  Film,
-  FileBox,
-  Layers,
-  Wand2,
-  Sparkles,
-  Zap,
-  Image as ImageIcon,
+  ArrowLeftRight,
   ArrowRight,
+  BookOpen,
+  Clock,
+  FileBox,
+  Film,
+  FolderOpen,
+  Globe,
+  Image as ImageIcon,
+  ImagePlus,
+  Keyboard,
+  Layers,
+  LayoutGrid,
+  Monitor,
+  Plus,
+  Printer,
+  Search,
+  Settings2,
+  Smartphone,
+  Sparkles,
+  Star,
+  Trash2,
+  Wand2,
+  X,
+  Zap,
 } from "lucide-react";
 import { useHomeStore, resolveRecent, type RecentFile } from "../stores/useHomeStore";
 import { useEditorStore } from "../stores/useEditorStore";
@@ -82,6 +85,24 @@ const CAT_ICON: Record<PresetCat, any> = {
   Film: Film,
 };
 
+const RATIO_PRESETS: { label: string; w: number; h: number }[] = [
+  { label: "16:9", w: 1920, h: 1080 },
+  { label: "4:3", w: 2400, h: 1800 },
+  { label: "1:1", w: 1080, h: 1080 },
+  { label: "3:2", w: 3000, h: 2000 },
+  { label: "9:16", w: 1080, h: 1920 },
+  { label: "A4", w: 2480, h: 3508 },
+];
+
+const SHORTCUTS: { keys: string; what: string }[] = [
+  { keys: "Ctrl+K", what: "All actions" },
+  { keys: "Ctrl+,", what: "Settings page" },
+  { keys: "Space+drag", what: "Pan canvas" },
+  { keys: "[ / ]", what: "Brush size" },
+  { keys: "Ctrl+S", what: "Save .avx" },
+  { keys: "Ctrl+E", what: "Export" },
+];
+
 function drawDataUrlToActive(dataUrl: string, w: number, h: number) {
   const img = new Image();
   img.onload = () => {
@@ -123,6 +144,13 @@ export async function openImageViaDialog(): Promise<boolean> {
   }
 }
 
+function formatBytes(size: number | null): string {
+  if (size === null) return "new";
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(0)} KB`;
+  return `${(size / 1024 / 1024).toFixed(1)} MB`;
+}
+
 export default function HomeScreen() {
   const recents = useHomeStore((s) => s.recents);
   const setHome = useHomeStore((s) => s.setHome);
@@ -153,19 +181,21 @@ export default function HomeScreen() {
   }, [showNew, dn, dw, dh]);
 
   function createNew(name: string, w: number, h: number) {
+    const cw = Math.max(1, Math.min(16384, Math.round(w)));
+    const ch = Math.max(1, Math.min(16384, Math.round(h)));
     layerManager.clear();
-    newDocument(name, w, h);
+    newDocument(name, cw, ch);
     const id = useEditorStore.getState().activeLayerId;
     if (id) {
-      const c = layerManager.ensure(id, w, h);
+      const c = layerManager.ensure(id, cw, ch);
       if (bg !== "transparent") {
         const ctx = c.getContext("2d")!;
         ctx.fillStyle = bg === "white" ? "#ffffff" : "#000000";
-        ctx.fillRect(0, 0, w, h);
+        ctx.fillRect(0, 0, cw, ch);
       }
       useProStore.getState().ensureTransform(id);
     }
-    pushRecent({ name, path: null, thumb: null, full: null, w, h, size: null });
+    pushRecent({ name, path: null, thumb: null, full: null, w: cw, h: ch, size: null });
     setShowNew(false);
     setHome(false);
   }
@@ -209,6 +239,12 @@ export default function HomeScreen() {
     return recents.filter((r) => r.name.toLowerCase().includes(query.toLowerCase()));
   }, [recents, query]);
 
+  const searching = query.trim() !== "";
+  const nw = Math.max(1, parseInt(dw) || 0);
+  const nh = Math.max(1, parseInt(dh) || 0);
+  const newMp = ((nw * nh) / 1_000_000).toFixed(1);
+  const newMb = ((nw * nh * 4) / 1024 / 1024).toFixed(1);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-[#101012]">
       <div className="flex h-[52px] shrink-0 items-center gap-3 border-b border-[#2c2c31] bg-[#1c1c1f] px-4">
@@ -219,6 +255,9 @@ export default function HomeScreen() {
             <div className="mt-1 flex items-center gap-1.5 font-mono text-[9px] text-[#6e6e78]">
               <span className="rounded border border-[#2c2c31] bg-[#101012] px-1 py-px text-[#8fb6f5]">v2.0.0</span>
               <span>PROFESSIONAL</span>
+              <span className="hidden items-center gap-1 sm:flex">
+                <span className="h-1 w-1 rounded-full bg-[#7ad69e]" /> Offline
+              </span>
             </div>
           </div>
         </div>
@@ -232,7 +271,13 @@ export default function HomeScreen() {
           />
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <span className="hidden font-mono text-[10px] text-[#6e6e78] lg:block">Ctrl+K actions</span>
+          <button
+            onClick={() => window.dispatchEvent(new Event("avero:open-settings"))}
+            title="Settings page (Ctrl+,)"
+            className="flex h-8 items-center gap-1.5 rounded-md border border-[#2c2c31] bg-[#161618] px-3 text-[12px] font-medium text-[#c9c9d1] hover:border-[#3a3a41] hover:text-white"
+          >
+            <Settings2 size={14} /> <span className="hidden lg:block">Settings</span>
+          </button>
           <button
             onClick={() => void openAvxProject().catch((e) => showError(`Failed to open project: ${String(e)}`))}
             className="flex h-8 items-center gap-1.5 rounded-md border border-[#2c2c31] bg-[#161618] px-3 text-[12px] font-medium text-[#c9c9d1] hover:border-[#3a3a41] hover:text-white"
@@ -241,13 +286,13 @@ export default function HomeScreen() {
           </button>
           <button
             onClick={() => setShowNew(true)}
-            className="avero-btn-primary flex h-8 items-center gap-1.5 rounded-md px-3 text-[12px] font-semibold text-white"
+            className="avero-btn-primary avero-lift flex h-8 items-center gap-1.5 rounded-md px-3 text-[12px] font-semibold text-white"
           >
             <Plus size={14} /> New
           </button>
           <button
             onClick={() => openImageViaDialog()}
-            className="flex h-8 items-center gap-1.5 rounded-md border border-[#2c2c31] bg-[#ececee] px-3 text-[12px] font-semibold text-[#161618] hover:bg-white"
+            className="avero-lift flex h-8 items-center gap-1.5 rounded-md border border-[#2c2c31] bg-[#ececee] px-3 text-[12px] font-semibold text-[#161618] hover:bg-white"
           >
             <FolderOpen size={14} /> Open
           </button>
@@ -255,7 +300,7 @@ export default function HomeScreen() {
       </div>
 
       <div className="flex min-h-0 flex-1">
-        <div className="flex w-[212px] shrink-0 flex-col gap-1 border-r border-[#2c2c31] bg-[#1c1c1f] p-3">
+        <div className="flex w-[212px] shrink-0 flex-col gap-1 overflow-y-auto border-r border-[#2c2c31] bg-[#1c1c1f] p-3">
           <div className="avero-micro px-2 pb-1 pt-1">Studio</div>
           {[
             { id: "home", label: "Home", icon: LayoutGrid },
@@ -266,7 +311,7 @@ export default function HomeScreen() {
               key={n.id}
               onClick={() => setView(n.id as any)}
               className={clsx(
-                "flex items-center gap-2.5 rounded-md px-3 py-2 text-[12px] font-medium",
+                "avero-lift flex items-center gap-2.5 rounded-md px-3 py-2 text-[12px] font-medium",
                 view === n.id ? "bg-[#2f7cf6] text-white" : "text-[#a7a7b0] hover:bg-[#232327] hover:text-white",
               )}
             >
@@ -290,8 +335,8 @@ export default function HomeScreen() {
                     setView("home");
                   }}
                   className={clsx(
-                    "flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-[12px]",
-                    cat === c ? "bg-[#232327] text-white" : "text-[#a7a7b0] hover:bg-[#232327] hover:text-white",
+                    "avero-lift flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-[12px]",
+                    cat === c && view === "home" ? "bg-[#232327] text-white" : "text-[#a7a7b0] hover:bg-[#232327] hover:text-white",
                   )}
                 >
                   <Icon size={13} /> {c}
@@ -300,65 +345,109 @@ export default function HomeScreen() {
               );
             })}
           </div>
+          <div className="mt-3 border-t border-[#2c2c31] pt-3">
+            <button
+              onClick={() => window.dispatchEvent(new Event("avero:open-settings"))}
+              className="avero-lift flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-[12px] text-[#a7a7b0] hover:bg-[#232327] hover:text-white"
+            >
+              <Settings2 size={13} /> Settings
+              <span className="ml-auto font-mono text-[10px] text-[#6e6e78]">Ctrl+,</span>
+            </button>
+          </div>
           <div className="mt-auto space-y-2 pt-3">
+            <div className="rounded-lg border border-[#2c2c31] bg-[#161618] p-3">
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-white">
+                <Keyboard size={13} className="text-[#8fb6f5]" /> Shortcuts
+              </div>
+              <div className="mt-2 space-y-1">
+                {SHORTCUTS.slice(0, 4).map((k) => (
+                  <div key={k.keys} className="flex items-center justify-between text-[10.5px]">
+                    <span className="text-[#6e6e78]">{k.what}</span>
+                    <span className="rounded border border-[#2c2c31] bg-[#101012] px-1.5 py-px font-mono text-[10px] text-[#a7a7b0]">{k.keys}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
             <div className="rounded-lg border border-[#2c2c31] bg-[#161618] p-3">
               <div className="flex items-center gap-1.5 text-[11px] font-semibold text-white">
                 <Layers size={13} className="text-[#8fb6f5]" /> .avx Project
               </div>
               <div className="mt-1 text-[11px] leading-relaxed text-[#a7a7b0]">
-                Layers, masks, adjustments and filters stored intact.
+                Layers, masks, adjustments and filters stored intact. Press Ctrl+S to save.
               </div>
-              <div className="mt-2 font-mono text-[10px] text-[#6e6e78]">Ctrl+S to save</div>
             </div>
             <div className="rounded-lg border border-[#2c2c31] bg-[#161618] p-3">
               <div className="flex items-center gap-1.5 text-[11px] font-semibold text-white">
                 <Zap size={12} className="text-[#8fb6f5]" /> Light on RAM
               </div>
-              <div className="mt-1 text-[11px] text-[#6e6e78]">Tiled processing for large files</div>
+              <div className="mt-1 text-[11px] text-[#6e6e78]">Tiled processing keeps large files smooth.</div>
             </div>
           </div>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-[1240px] p-5">
-            {view === "home" && (
-              <div className="rounded-lg border border-[#2c2c31] bg-[#1c1c1f] p-5">
-                <div className="flex flex-wrap items-start gap-4">
+            {view === "home" && !searching && (
+              <div className="avero-fade-in overflow-hidden rounded-lg border border-[#2c2c31] bg-[#1c1c1f]">
+                <div className="flex flex-wrap items-start gap-4 p-5">
                   <div className="min-w-[240px] flex-1">
-                    <div className="text-[15px] font-bold text-white">Start a new project</div>
-                    <div className="mt-1 max-w-[560px] text-[12px] leading-relaxed text-[#a7a7b0]">
-                      Open a photo, an .avx project, or a preset. Files are listed under Recent. You can also drop images into the window.
+                    <div className="flex items-center gap-2">
+                      <div className="text-[16px] font-bold text-white">Create something new</div>
+                      <span className="rounded border border-[#2c2c31] bg-[#101012] px-1.5 py-px font-mono text-[10px] text-[#8fb6f5]">174 tools ready</span>
+                    </div>
+                    <div className="mt-1 max-w-[600px] text-[12px] leading-relaxed text-[#a7a7b0]">
+                      Open a photo, an .avx project, or start from a preset. Everything runs offline and non-destructively, and large files render through the tiled path.
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2">
                       <button
                         onClick={() => setShowNew(true)}
-                        className="avero-btn-primary inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-[12px] font-semibold text-white"
+                        className="avero-btn-primary avero-lift inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-[12px] font-semibold text-white"
                       >
                         <ImagePlus size={14} /> Create document <ArrowRight size={12} />
                       </button>
                       <button
                         onClick={() => openImageViaDialog()}
-                        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#2c2c31] bg-[#232327] px-3 text-[12px] font-medium text-white hover:border-[#3a3a41]"
+                        className="avero-lift inline-flex h-8 items-center gap-1.5 rounded-md border border-[#2c2c31] bg-[#232327] px-3 text-[12px] font-medium text-white hover:border-[#3a3a41]"
                       >
                         <FolderOpen size={14} /> Open image
                       </button>
                       <button
                         onClick={() => void openAvxProject().catch((e) => showError(String(e)))}
-                        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#2c2c31] bg-transparent px-3 text-[12px] text-[#a7a7b0] hover:border-[#3a3a41] hover:text-white"
+                        className="avero-lift inline-flex h-8 items-center gap-1.5 rounded-md border border-[#2c2c31] bg-transparent px-3 text-[12px] text-[#a7a7b0] hover:border-[#3a3a41] hover:text-white"
                       >
                         <FileBox size={14} /> Open .avx
                       </button>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <div className="rounded-md border border-[#2c2c31] bg-[#101012] px-2.5 py-1.5 font-mono text-[10px] text-[#6e6e78]">
-                      Ctrl+K palette
-                    </div>
-                    <div className="rounded-md border border-[#2c2c31] bg-[#101012] px-2.5 py-1.5 font-mono text-[10px] text-[#6e6e78]">
-                      Space+drag pan
-                    </div>
+                  <div className="grid shrink-0 grid-cols-2 gap-2">
+                    {[
+                      { v: "174", l: "Tools" },
+                      { v: "100%", l: "Offline" },
+                      { v: "512px", l: "Tiled" },
+                      { v: "27", l: "Blends" },
+                    ].map((st) => (
+                      <div key={st.l} className="w-[104px] rounded-md border border-[#2c2c31] bg-[#101012] px-2.5 py-2 text-center">
+                        <div className="font-mono text-[15px] font-bold text-white">{st.v}</div>
+                        <div className="font-mono text-[9px] uppercase tracking-wider text-[#6e6e78]">{st.l}</div>
+                      </div>
+                    ))}
                   </div>
                 </div>
+                <div className="flex flex-wrap items-center gap-2 border-t border-[#2c2c31] bg-[#161618] px-5 py-2.5">
+                  {SHORTCUTS.map((k) => (
+                    <span key={k.keys} className="flex items-center gap-1.5 font-mono text-[10px] text-[#6e6e78]">
+                      <span className="rounded border border-[#2c2c31] bg-[#101012] px-1.5 py-px text-[#a7a7b0]">{k.keys}</span>
+                      {k.what}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {searching && (
+              <div className="avero-fade-in mb-2 text-[12px] text-[#a7a7b0]">
+                Results for <span className="font-semibold text-white">“{query.trim()}”</span>
+                <span className="font-mono text-[10px] text-[#6e6e78]"> · {filteredRecents.length} files, {filteredPresets.length} presets</span>
               </div>
             )}
 
@@ -366,7 +455,7 @@ export default function HomeScreen() {
               <>
                 <div className="mb-3 mt-6 flex items-center justify-between">
                   <h3 className="flex items-center gap-2 text-[13px] font-bold text-white">
-                    <Clock size={14} className="text-[#8fb6f5]" /> Recent
+                    <Clock size={14} className="text-[#8fb6f5]" /> {searching ? "Matching files" : view === "recent" ? "All recent files" : "Recent"}
                     <span className="rounded border border-[#2c2c31] bg-[#1c1c1f] px-1.5 py-px font-mono text-[10px] font-normal text-[#a7a7b0]">
                       {filteredRecents.length}
                     </span>
@@ -385,36 +474,42 @@ export default function HomeScreen() {
                     <div className="mx-auto grid h-12 w-12 place-items-center rounded-md border border-[#2c2c31] bg-[#101012]">
                       <ImageIcon size={20} className="text-[#6e6e78]" />
                     </div>
-                    <div className="mt-3 text-[13px] font-semibold text-white">Start your first project</div>
+                    <div className="mt-3 text-[13px] font-semibold text-white">
+                      {searching ? `No files match “${query.trim()}”` : "Start your first project"}
+                    </div>
                     <div className="mx-auto mt-1 max-w-[420px] text-[11px] leading-relaxed text-[#6e6e78]">
-                      Open a photo or .avx project, or create a new document. Files appear here automatically.
+                      {searching
+                        ? "Try a different name, or open the file from disk to add it here."
+                        : "Open a photo or .avx project, or create a new document. Files appear here automatically."}
                     </div>
-                    <div className="mt-4 flex justify-center gap-2">
-                      <button
-                        onClick={() => setShowNew(true)}
-                        className="avero-btn-primary h-8 rounded-md px-3 text-[12px] font-semibold text-white"
-                      >
-                        Create New
-                      </button>
-                      <button
-                        onClick={() => openImageViaDialog()}
-                        className="h-8 rounded-md border border-[#2c2c31] bg-[#232327] px-3 text-[12px] text-white hover:border-[#3a3a41]"
-                      >
-                        Open Image
-                      </button>
-                    </div>
+                    {!searching && (
+                      <div className="mt-4 flex justify-center gap-2">
+                        <button
+                          onClick={() => setShowNew(true)}
+                          className="avero-btn-primary avero-lift h-8 rounded-md px-3 text-[12px] font-semibold text-white"
+                        >
+                          Create New
+                        </button>
+                        <button
+                          onClick={() => openImageViaDialog()}
+                          className="avero-lift h-8 rounded-md border border-[#2c2c31] bg-[#232327] px-3 text-[12px] text-white hover:border-[#3a3a41]"
+                        >
+                          Open Image
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-4">
                     {filteredRecents.map((r) => (
                       <div
                         key={r.id}
-                        className="group relative overflow-hidden rounded-lg border border-[#2c2c31] bg-[#1c1c1f] hover:border-[#3a3a41]"
+                        className="avero-lift group relative overflow-hidden rounded-lg border border-[#2c2c31] bg-[#1c1c1f] hover:border-[#3a3a41]"
                       >
                         <button onClick={() => openRecent(r)} className="block w-full text-left" title={r.path ?? r.name}>
                           <div className="relative grid h-[132px] place-items-center overflow-hidden bg-[#0a0a0c]">
                             {r.thumb ? (
-                              <img src={r.thumb} alt={r.name} className="h-full w-full object-cover" />
+                              <img src={r.thumb} alt={r.name} className="h-full w-full object-cover" loading="lazy" />
                             ) : (
                               <div className="grid place-items-center">
                                 <LayoutGrid size={22} className="text-[#3a3a41]" />
@@ -422,6 +517,11 @@ export default function HomeScreen() {
                                   {r.w}x{r.h}
                                 </span>
                               </div>
+                            )}
+                            {r.path?.toLowerCase().endsWith(".avx") && (
+                              <span className="absolute left-2 top-2 rounded border border-[#2c2c31] bg-[#101012] px-1.5 py-px font-mono text-[9px] text-[#8fb6f5]">
+                                .avx
+                              </span>
                             )}
                           </div>
                           <div className="border-t border-[#2c2c31] p-3">
@@ -431,6 +531,7 @@ export default function HomeScreen() {
                               <span>
                                 {r.w}x{r.h}
                               </span>
+                              <span>{formatBytes(r.size)}</span>
                               {busy === r.id && <span className="text-[#8fb6f5]">opening</span>}
                             </div>
                           </div>
@@ -449,55 +550,71 @@ export default function HomeScreen() {
               </>
             )}
 
-            {view === "home" && (
+            {(view === "home" || searching) && (
               <>
                 <h3 className="mb-3 mt-8 flex items-center gap-2 text-[13px] font-bold text-white">
-                  <ImagePlus size={14} className="text-[#8fb6f5]" /> {cat} Presets
+                  <ImagePlus size={14} className="text-[#8fb6f5]" /> {searching ? "Matching presets" : `${cat} Presets`}
                   <span className="rounded border border-[#2c2c31] bg-[#1c1c1f] px-1.5 py-px font-mono text-[10px] font-normal text-[#a7a7b0]">
                     {filteredPresets.length}
                   </span>
-                </h3>
-                <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-4">
-                  {filteredPresets.map((p) => (
+                  {!searching && (
                     <button
-                      key={p.name}
-                      onClick={() => createNew(p.name, p.w, p.h)}
-                      className="rounded-lg border border-[#2c2c31] bg-[#1c1c1f] p-3 text-left hover:border-[#3a3a41] hover:bg-[#1e1e22]"
+                      onClick={() => setShowNew(true)}
+                      className="ml-auto flex h-7 items-center gap-1 rounded-md border border-[#2c2c31] bg-[#1c1c1f] px-2.5 text-[11px] font-normal text-[#a7a7b0] hover:border-[#3a3a41] hover:text-white"
                     >
-                      <div className="grid h-[72px] place-items-center rounded-md border border-[#2c2c31] bg-[#101012]">
-                        <div
-                          className="rounded-sm border border-[#3a3a41] bg-[#232327]"
-                          style={{
-                            width: Math.min(120, Math.max(28, (p.w / Math.max(p.w, p.h)) * 120)),
-                            height: Math.min(56, Math.max(18, (p.h / Math.max(p.w, p.h)) * 56)),
-                          }}
-                        />
-                      </div>
-                      <div className="mt-2.5 text-[12px] font-semibold text-white">{p.name}</div>
-                      <div className="mt-0.5 font-mono text-[10px] text-[#6e6e78]">
-                        {p.w}x{p.h} {p.desc}
-                      </div>
+                      <Plus size={12} /> Custom size
                     </button>
-                  ))}
-                </div>
+                  )}
+                </h3>
+                {filteredPresets.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-[#2c2c31] bg-[#1c1c1f] p-6 text-center text-[12px] text-[#6e6e78]">
+                    No presets match. <button onClick={() => setShowNew(true)} className="text-[#8fb6f5] hover:text-white">Create a custom size instead.</button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-4">
+                    {filteredPresets.map((p) => (
+                      <button
+                        key={p.name}
+                        onClick={() => createNew(p.name, p.w, p.h)}
+                        title={`Create ${p.w} by ${p.h}`}
+                        className="avero-lift rounded-lg border border-[#2c2c31] bg-[#1c1c1f] p-3 text-left hover:border-[#3a3a41] hover:bg-[#1e1e22]"
+                      >
+                        <div className="grid h-[72px] place-items-center rounded-md border border-[#2c2c31] bg-[#101012]">
+                          <div
+                            className="rounded-sm border border-[#3a3a41] bg-[#232327]"
+                            style={{
+                              width: Math.min(120, Math.max(28, (p.w / Math.max(p.w, p.h)) * 120)),
+                              height: Math.min(56, Math.max(18, (p.h / Math.max(p.w, p.h)) * 56)),
+                            }}
+                          />
+                        </div>
+                        <div className="mt-2.5 text-[12px] font-semibold text-white">{p.name}</div>
+                        <div className="mt-0.5 font-mono text-[10px] text-[#6e6e78]">
+                          {p.w}x{p.h} {p.desc}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </>
             )}
 
             {view !== "recent" && (
               <>
-                <h3 className="mb-3 mt-8 flex items-center gap-2 text-[13px] font-bold text-white">
+                <h3 className="mb-1 mt-8 flex items-center gap-2 text-[13px] font-bold text-white">
                   <BookOpen size={14} className="text-[#8fb6f5]" /> Learn in 1 minute
                 </h3>
+                <div className="mb-3 text-[11px] text-[#6e6e78]">Core workflows. Open the editor and try each one on a test photo.</div>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                   {[
                     { t: "Precise masking", d: "Select, feather, refine edge, paint mask. Hold Shift to add to selection.", tag: "Select", icon: Wand2 },
-                    { t: "Natural retouch", d: "Spot Heal (J), Healing Brush, Clone Stamp (S), Patch. Alt+click for source.", tag: "Retouch", icon: Sparkles },
-                    { t: "Cinematic grading", d: "Exposure, HSL, Vibrance, Warmth, Vignette, Grain. Tiled processing.", tag: "Color", icon: Star },
-                    { t: "Variants without duplicates", d: "Git tab: snapshots, branches, and a compare slider to explore variants.", tag: "Git", icon: Layers },
-                    { t: "Save .avx projects", d: "Ctrl+S saves layers and edits intact. Reopen 100% identical.", tag: "Project", icon: FileBox },
-                    { t: "Export to many formats", d: "PNG, JPG, WEBP, BMP, SVG, TIFF. Flexible matte and scaling.", tag: "Export", icon: Globe },
+                    { t: "Natural retouch", d: "Spot Heal (J), Healing Brush, Clone Stamp (S), Patch. Alt+click sets the source.", tag: "Retouch", icon: Sparkles },
+                    { t: "Cinematic grading", d: "Exposure, HSL, Vibrance, Warmth, Vignette, Grain. Tiled processing keeps it smooth.", tag: "Color", icon: Star },
+                    { t: "Variants without duplicates", d: "Git tab stores snapshots and branches plus a compare slider for variants.", tag: "Git", icon: Layers },
+                    { t: "Save .avx projects", d: "Ctrl+S saves layers and edits intact. Reopen identical every time.", tag: "Project", icon: FileBox },
+                    { t: "Export to many formats", d: "PNG, JPG, WEBP, BMP, SVG, TIFF with flexible matte and scaling.", tag: "Export", icon: Globe },
                   ].map((c) => (
-                    <div key={c.t} className="rounded-lg border border-[#2c2c31] bg-[#1c1c1f] p-4">
+                    <div key={c.t} className="avero-lift rounded-lg border border-[#2c2c31] bg-[#1c1c1f] p-4">
                       <div className="flex items-center gap-2">
                         <span className="grid h-7 w-7 place-items-center rounded-md border border-[#2c2c31] bg-[#101012] text-[#8fb6f5]">
                           <c.icon size={13} />
@@ -511,7 +628,7 @@ export default function HomeScreen() {
                 </div>
               </>
             )}
-            <div className="mt-8 flex items-center justify-center gap-2 pb-2 font-mono text-[10px] text-[#4a4a52]">
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-2 pb-2 font-mono text-[10px] text-[#4a4a52]">
               <span>AVERO STUDIO v2.0.0</span>
               <span className="h-1 w-1 rounded-full bg-[#2c2c31]" />
               <span>Offline</span>
@@ -519,15 +636,19 @@ export default function HomeScreen() {
               <span>Non destructive</span>
               <span className="h-1 w-1 rounded-full bg-[#2c2c31]" />
               <span>Ctrl+K all actions</span>
+              <span className="h-1 w-1 rounded-full bg-[#2c2c31]" />
+              <button onClick={() => window.dispatchEvent(new Event("avero:open-settings"))} className="hover:text-white">
+                Settings
+              </button>
             </div>
           </div>
         </div>
       </div>
 
       {showNew && (
-        <div className="fixed inset-0 z-[70] grid place-items-center bg-black/70 p-4" onClick={() => setShowNew(false)}>
+        <div className="avero-fade-in fixed inset-0 z-[70] grid place-items-center bg-black/70 p-4" onClick={() => setShowNew(false)}>
           <div
-            className="w-[520px] max-w-full overflow-hidden rounded-lg border border-[#2c2c31] bg-[#1c1c1f]"
+            className="avero-pop w-[560px] max-w-full overflow-hidden rounded-lg border border-[#2c2c31] bg-[#1c1c1f]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 border-b border-[#2c2c31] px-5 py-4">
@@ -536,7 +657,7 @@ export default function HomeScreen() {
               </div>
               <div>
                 <div className="text-[13px] font-bold text-white">New Document</div>
-                <div className="text-[11px] text-[#6e6e78]">Presets and custom sizes</div>
+                <div className="text-[11px] text-[#6e6e78]">Pick a ratio or type a custom size, max 16384px</div>
               </div>
               <button
                 onClick={() => setShowNew(false)}
@@ -545,48 +666,97 @@ export default function HomeScreen() {
                 <X size={15} />
               </button>
             </div>
-            <div className="grid grid-cols-3 gap-3 p-5">
+            <div className="p-5">
+              <div className="avero-micro mb-1.5">Aspect ratio shortcuts</div>
+              <div className="mb-4 flex flex-wrap gap-1.5">
+                {RATIO_PRESETS.map((r) => (
+                  <button
+                    key={r.label}
+                    onClick={() => {
+                      setDw(String(r.w));
+                      setDh(String(r.h));
+                    }}
+                    title={`${r.w} by ${r.h}`}
+                    className={clsx(
+                      "rounded-md border px-2.5 py-1.5 font-mono text-[11px]",
+                      dw === String(r.w) && dh === String(r.h)
+                        ? "border-[#2f7cf6] bg-[#2f7cf6] text-white"
+                        : "border-[#2c2c31] bg-[#101012] text-[#a7a7b0] hover:border-[#3a3a41] hover:text-white",
+                    )}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
               <label className="col-span-3">
                 <span className="avero-micro mb-1.5 block">Document name</span>
                 <input
                   value={dn}
                   onChange={(e) => setDn(e.target.value)}
-                  className="h-9 w-full rounded-md border border-[#2c2c31] bg-[#101012] px-3 text-[12px] text-white outline-none focus:border-[#2f7cf6]"
+                  placeholder="Untitled-1"
+                  className="h-9 w-full rounded-md border border-[#2c2c31] bg-[#101012] px-3 text-[12px] text-white outline-none placeholder:text-[#4a4a52] focus:border-[#2f7cf6]"
                 />
               </label>
-              <label>
-                <span className="avero-micro mb-1.5 block">Width</span>
-                <input
-                  value={dw}
-                  onChange={(e) => setDw(e.target.value)}
-                  className="h-9 w-full rounded-md border border-[#2c2c31] bg-[#101012] px-3 font-mono text-[12px] text-white outline-none focus:border-[#2f7cf6]"
-                />
-              </label>
-              <label>
-                <span className="avero-micro mb-1.5 block">Height</span>
-                <input
-                  value={dh}
-                  onChange={(e) => setDh(e.target.value)}
-                  className="h-9 w-full rounded-md border border-[#2c2c31] bg-[#101012] px-3 font-mono text-[12px] text-white outline-none focus:border-[#2f7cf6]"
-                />
-              </label>
-              <label>
-                <span className="avero-micro mb-1.5 block">Background</span>
-                <select
-                  value={bg}
-                  onChange={(e) => setBg(e.target.value as any)}
-                  className="h-9 w-full rounded-md border border-[#2c2c31] bg-[#101012] px-2 text-[12px] text-white outline-none"
+              <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-end gap-2">
+                <label>
+                  <span className="avero-micro mb-1.5 block">Width (px)</span>
+                  <input
+                    value={dw}
+                    onChange={(e) => setDw(e.target.value.replace(/[^0-9]/g, ""))}
+                    inputMode="numeric"
+                    className="h-9 w-full rounded-md border border-[#2c2c31] bg-[#101012] px-3 font-mono text-[12px] text-white outline-none focus:border-[#2f7cf6]"
+                  />
+                </label>
+                <button
+                  onClick={() => {
+                    setDw(dh);
+                    setDh(dw);
+                  }}
+                  title="Swap orientation"
+                  className="avero-lift mb-0.5 grid h-9 w-9 place-items-center rounded-md border border-[#2c2c31] bg-[#101012] text-[#a7a7b0] hover:border-[#3a3a41] hover:text-white"
                 >
-                  <option value="white">White</option>
-                  <option value="black">Black</option>
-                  <option value="transparent">Transparent</option>
-                </select>
+                  <ArrowLeftRight size={14} />
+                </button>
+                <label>
+                  <span className="avero-micro mb-1.5 block">Height (px)</span>
+                  <input
+                    value={dh}
+                    onChange={(e) => setDh(e.target.value.replace(/[^0-9]/g, ""))}
+                    inputMode="numeric"
+                    className="h-9 w-full rounded-md border border-[#2c2c31] bg-[#101012] px-3 font-mono text-[12px] text-white outline-none focus:border-[#2f7cf6]"
+                  />
+                </label>
+              </div>
+              <label className="mt-3 block">
+                <span className="avero-micro mb-1.5 block">Background</span>
+                <div className="grid grid-cols-3 gap-1 rounded-md border border-[#2c2c31] bg-[#101012] p-1">
+                  {(["white", "black", "transparent"] as const).map((b) => (
+                    <button
+                      key={b}
+                      onClick={() => setBg(b)}
+                      className={clsx(
+                        "rounded px-2 py-1.5 text-[11px] font-medium capitalize",
+                        bg === b ? "bg-[#2f7cf6] text-white" : "text-[#a7a7b0] hover:bg-[#232327] hover:text-white",
+                      )}
+                    >
+                      {b}
+                    </button>
+                  ))}
+                </div>
               </label>
+              <div className="mt-3 flex items-center gap-2 rounded-md border border-[#2c2c31] bg-[#101012] px-3 py-2 font-mono text-[10px] text-[#6e6e78]">
+                <span>{nw > 0 && nh > 0 ? `${nw}x${nh}` : "0x0"}</span>
+                <span className="h-1 w-1 rounded-full bg-[#2c2c31]" />
+                <span>{newMp} MP</span>
+                <span className="h-1 w-1 rounded-full bg-[#2c2c31]" />
+                <span>about {newMb} MB per layer</span>
+                <span className="h-1 w-1 rounded-full bg-[#2c2c31]" />
+                <span className="capitalize">{bg}</span>
+                {(nw * nh > 2048 * 2048) && <span className="ml-auto text-[#8fb6f5]">tiled path</span>}
+              </div>
             </div>
             <div className="flex items-center gap-2 border-t border-[#2c2c31] bg-[#161618] px-5 py-3">
-              <span className="font-mono text-[10px] text-[#6e6e78]">
-                {dw}x{dh} {bg}
-              </span>
+              <span className="font-mono text-[10px] text-[#6e6e78]">Enter creates, Esc closes</span>
               <div className="ml-auto flex gap-2">
                 <button
                   onClick={() => setShowNew(false)}
@@ -596,7 +766,7 @@ export default function HomeScreen() {
                 </button>
                 <button
                   onClick={() => createNew(dn.trim() || "Untitled", Math.max(1, parseInt(dw) || 1920), Math.max(1, parseInt(dh) || 1080))}
-                  className="avero-btn-primary h-8 rounded-md px-4 text-[12px] font-semibold text-white"
+                  className="avero-btn-primary avero-lift h-8 rounded-md px-4 text-[12px] font-semibold text-white"
                 >
                   Create
                 </button>

@@ -91,7 +91,105 @@ export type ToolId =
   | "desat-brush"
   | "grain-brush"
   | "pixelate-brush"
-  | "vignette-brush";
+  | "vignette-brush"
+  // ---- Sketch Pro (paint variants, real brush engine presets) ----
+  | "sketch-charcoal"
+  | "sketch-pastel"
+  | "sketch-marker"
+  | "sketch-highlighter"
+  | "sketch-ink"
+  | "sketch-felt"
+  | "sketch-neon"
+  | "sketch-chalk"
+  // ---- Artistic FX (paint variants) ----
+  | "art-oil"
+  | "art-watercolor"
+  | "art-knife"
+  | "art-smear"
+  | "art-glaze"
+  | "art-impasto"
+  | "art-canvas"
+  | "art-poster"
+  // ---- Distort Pro (real pixel distort) ----
+  | "distort-twirl"
+  | "distort-twirl-ccw"
+  | "distort-pinch"
+  | "distort-ripple"
+  | "distort-wave"
+  | "distort-zigzag"
+  | "distort-spherize"
+  | "distort-crystal"
+  // ---- Light & Color brushes (real local adjust) ----
+  | "light-highlights"
+  | "light-shadows"
+  | "light-temp"
+  | "light-tint"
+  | "light-clarity"
+  | "light-dehaze"
+  | "light-saturate"
+  | "light-levels"
+  // ---- Detail Pro ----
+  | "detail-grain-remove"
+  | "detail-sharpen-more"
+  | "detail-blur-more"
+  | "detail-tilt"
+  | "detail-lens"
+  | "detail-motion"
+  // ---- Selection Pro (real selection ops) ----
+  | "select-rounded"
+  | "magnetic-lasso"
+  | "wand-plus"
+  | "wand-minus"
+  | "select-grow"
+  | "select-shrink"
+  // ---- Crop Pro (real crop presets) ----
+  | "crop-169"
+  | "crop-43"
+  | "crop-11"
+  | "crop-32"
+  | "crop-free"
+  | "crop-straighten"
+  // ---- Vector Pro (real shape render) ----
+  | "shape-rounded"
+  | "shape-diamond"
+  | "shape-heart"
+  | "shape-hexagon"
+  | "shape-burst"
+  | "shape-donut"
+  // ---- Type FX (real text layers) ----
+  | "text-outline"
+  | "text-glow"
+  | "text-shadow"
+  | "text-arc"
+  // ---- Heal Pro (real heal variants) ----
+  | "heal-dust"
+  | "heal-wrinkle"
+  | "heal-blemish"
+  | "heal-sky"
+  | "heal-skin"
+  | "heal-object"
+  // ---- Stamp Pro ----
+  | "clone-mirror"
+  | "clone-rotate"
+  | "pattern-fill"
+  | "texture-stamp"
+  // ---- Navigate Pro (one-click zoom utilities) ----
+  | "zoom-fit"
+  | "zoom-100"
+  | "zoom-200"
+  | "zoom-400"
+  // ---- Measure Pro ----
+  | "measure-angle"
+  | "measure-area"
+  | "sampler-avg"
+  | "snap-toggle"
+  // ---- AI Assist (offline real approximations) ----
+  | "ai-bg-remove"
+  | "ai-subject"
+  | "ai-upscale"
+  | "ai-denoise"
+  | "ai-colorize"
+  | "ai-sky";
 
 export type BlendMode =
   "normal" | "multiply" | "screen" | "overlay" | "darken" | "lighten" | "difference";
@@ -138,6 +236,7 @@ interface EditorState {
   zoom: number; // percent
   panX: number;
   panY: number;
+  viewRotate: number; // degrees, non-destructive view only
   showRulers: boolean;
   theme: "dark" | "light";
   layers: LayerMeta[];
@@ -154,6 +253,7 @@ interface EditorState {
   ) => void;
   setZoom: (z: number) => void;
   setPan: (x: number, y: number) => void;
+  setViewRotate: (deg: number) => void;
   toggleRulers: () => void;
   setBackend: (s: EditorState["backendStatus"], info: string) => void;
   newDocument: (name: string, w: number, h: number) => void;
@@ -208,6 +308,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   zoom: 100,
   panX: 0,
   panY: 0,
+  viewRotate: 0,
   showRulers: true,
   theme: "dark",
   layers: [defaultLayer()],
@@ -236,6 +337,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     })),
   setZoom: (zoom) => set({ zoom: Math.min(3200, Math.max(10, Math.round(zoom))) }),
   setPan: (panX, panY) => set({ panX, panY }),
+  setViewRotate: (viewRotate) =>
+    set({ viewRotate: ((Math.round(viewRotate) % 360) + 360) % 360 }),
   toggleRulers: () => set((s) => ({ showRulers: !s.showRulers })),
   setBackend: (backendStatus, backendInfo) => set({ backendStatus, backendInfo }),
 

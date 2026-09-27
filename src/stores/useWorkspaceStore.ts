@@ -83,6 +83,20 @@ const DEFAULT_SHORTCUTS: ShortcutMap = {
   crop: "C",
   pan: "H",
   zoom: "Z",
+  "sketch-charcoal": "N",
+  "art-oil": "F",
+  "distort-twirl": "D",
+  "light-highlights": "K",
+  "detail-grain-remove": "X",
+  "select-rounded": "Y",
+  "crop-169": "A",
+  "shape-rounded": "Shift+W",
+  "text-outline": "Shift+T",
+  "heal-dust": "Shift+J",
+  "clone-mirror": "Shift+S",
+  "zoom-fit": "Shift+Z",
+  "measure-angle": "Shift+I",
+  "ai-bg-remove": "Shift+A",
 };
 
 export function loadShortcuts(): ShortcutMap {

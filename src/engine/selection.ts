@@ -113,6 +113,31 @@ export function drawEllipseSelection(w: number, h: number, r: RectSel) {
   markSelectionDirty();
 }
 
+export function drawRoundedRectSelection(w: number, h: number, r: RectSel, radius = 24) {
+  const c = ensureSel(w, h);
+  const ctx = c.getContext("2d")!;
+  ctx.clearRect(0, 0, w, h);
+  const x = Math.min(r.x, r.x + r.w);
+  const y = Math.min(r.y, r.y + r.h);
+  const rw = Math.abs(r.w);
+  const rh = Math.abs(r.h);
+  const rr = Math.max(0, Math.min(radius, rw / 2, rh / 2));
+  ctx.fillStyle = "rgba(255,255,255,1)";
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.lineTo(x + rw - rr, y);
+  ctx.quadraticCurveTo(x + rw, y, x + rw, y + rr);
+  ctx.lineTo(x + rw, y + rh - rr);
+  ctx.quadraticCurveTo(x + rw, y + rh, x + rw - rr, y + rh);
+  ctx.lineTo(x + rr, y + rh);
+  ctx.quadraticCurveTo(x, y + rh, x, y + rh - rr);
+  ctx.lineTo(x, y + rr);
+  ctx.quadraticCurveTo(x, y, x + rr, y);
+  ctx.closePath();
+  ctx.fill();
+  markSelectionDirty();
+}
+
 export function drawLassoSelection(w: number, h: number, points: { x: number; y: number }[]) {
   const c = ensureSel(w, h);
   const ctx = c.getContext("2d")!;

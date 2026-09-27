@@ -1,6 +1,7 @@
 import { useEditorStore } from "../stores/useEditorStore";
 import { useProStore } from "../stores/useProStore";
 import { TOOL_LABEL } from "./ToolBar";
+import { IS_CROP_TOOL, distortOf, isPaintTool, retouchModeOf } from "../engine/toolPresets";
 
 const BAR =
   "pointer-events-auto absolute left-1/2 top-3 z-30 flex max-w-[94%] -translate-x-1/2 items-center gap-2.5 rounded-md border border-[#2c2c31] bg-[#1c1c1f] px-3 py-2 text-[11px] text-[#a7a7b0]";
@@ -51,7 +52,11 @@ export default function ToolOptionsBar({
     "content-fill": "Select area, click to fill with surrounding texture.",
     "red-eye": "Click red eyes to correct.",
     clone: "Alt-click sets source, then paint to clone.",
+    "clone-mirror": "Alt-click source, paint mirrored copy.",
+    "clone-rotate": "Alt-click source, paint 90deg rotated copy.",
     "pattern-stamp": "Paint with the active pattern.",
+    "pattern-fill": "Click layer to fill with repeating pattern.",
+    "texture-stamp": "Paint grain weave texture.",
     "history-brush": "Paint to restore from history state.",
     "art-history-brush": "Paint stylized artistic history strokes.",
     brush: "Free painting. Press B to cycle pencil / airbrush.",
@@ -80,9 +85,15 @@ export default function ToolOptionsBar({
     fill: "Click area to fill with brush color. Respects selection. G toggles gradient.",
     "gradient-radial": "Drag outward from center for radial fill.",
     pen: "Drag for free path. Press P to cycle curvature / line.",
-    "curvature-pen": "Click curve points, drag handles.",
+    "curvature-pen": "Drag for smooth S-curve path.",
     line: "Drag for straight line. Shift locks 45 degrees.",
     "select-polygon": "Click polygon points, double-click to close.",
+    "magnetic-lasso": "Drag around edges, auto snap + expand.",
+    "select-rounded": "Drag rounded-rectangle selection.",
+    "wand-plus": "Wand + auto-grow 2px.",
+    "wand-minus": "Wand + auto-shrink 2px.",
+    "select-grow": "Click to grow selection +4px.",
+    "select-shrink": "Click to shrink selection -4px.",
     "quick-select": "Click subject to auto select + expand.",
     "object-select": "Click subject to auto select + expand.",
     "color-range": "Click a color to select it everywhere.",
@@ -99,11 +110,85 @@ export default function ToolOptionsBar({
     "grain-brush": "Paint for fine film grain.",
     "pixelate-brush": "Paint for a local mosaic.",
     "vignette-brush": "Paint to darken dab edges.",
+    "light-highlights": "Lift only bright tones.",
+    "light-shadows": "Open only dark tones.",
+    "light-temp": "Warm/cool local white balance.",
+    "light-tint": "Green-magenta local tint.",
+    "light-clarity": "Midtone local contrast.",
+    "light-dehaze": "Cut haze, deepen blacks.",
+    "light-saturate": "Boost local saturation.",
+    "light-levels": "Stretch local levels.",
+    "detail-grain-remove": "Smooth grain preserving edges.",
+    "detail-sharpen-more": "Stronger edge sharpen.",
+    "detail-blur-more": "Extra strong soften.",
+    "detail-tilt": "Miniature tilt blur falloff.",
+    "detail-lens": "Creamy circular lens blur.",
+    "detail-motion": "Directional motion streak.",
+    "heal-dust": "Tiny dust spot heal.",
+    "heal-wrinkle": "Gentle wrinkle soften.",
+    "heal-blemish": "Stronger blemish blend.",
+    "heal-sky": "Wide soft sky clean.",
+    "heal-skin": "Edge-safe skin smooth.",
+    "heal-object": "Content erase for objects.",
+    "sketch-charcoal": "Grainy charcoal, multiply blend.",
+    "sketch-pastel": "Soft pastel with scatter.",
+    "sketch-marker": "Flat saturated marker.",
+    "sketch-highlighter": "Translucent highlight glaze.",
+    "sketch-ink": "Crisp ink line.",
+    "sketch-felt": "Soft felt tip.",
+    "sketch-neon": "Additive glow stroke.",
+    "sketch-chalk": "Dusty chalk scatter.",
+    "art-oil": "Thick oil with wet mix.",
+    "art-watercolor": "Translucent wash.",
+    "art-knife": "Flat knife scrape.",
+    "art-smear": "Finger smear.",
+    "art-glaze": "Thin glaze.",
+    "art-impasto": "Heavy impasto punch.",
+    "art-canvas": "Weave texture stamp.",
+    "art-poster": "Graphic posterize stroke.",
+    "distort-twirl": "Twirl clockwise. Paint to spin.",
+    "distort-twirl-ccw": "Twirl counter-clockwise.",
+    "distort-pinch": "Pull toward center.",
+    "distort-ripple": "Sine ripple displacement.",
+    "distort-wave": "Horizontal wave shift.",
+    "distort-zigzag": "Sharp zigzag offset.",
+    "distort-spherize": "Spherical bulge.",
+    "distort-crystal": "Faceted crystal blocks.",
+    "crop-169": "Crop locked 16:9. Enter applies.",
+    "crop-43": "Crop locked 4:3. Enter applies.",
+    "crop-11": "Square crop 1:1. Enter applies.",
+    "crop-32": "Crop locked 3:2. Enter applies.",
+    "crop-free": "Free crop. Enter applies.",
+    "crop-straighten": "Crop + auto-level (resets view rotate).",
+    "shape-rounded": "Drag rounded rectangle.",
+    "shape-diamond": "Drag diamond.",
+    "shape-heart": "Drag heart.",
+    "shape-hexagon": "Drag hexagon.",
+    "shape-burst": "Drag 12-spike burst.",
+    "shape-donut": "Drag ring donut.",
+    "text-outline": "Click for hollow outline text.",
+    "text-glow": "Click for soft glow text.",
+    "text-shadow": "Click for drop-shadow text.",
+    "text-arc": "Click for arched banner text.",
+    "ai-bg-remove": "Click subject: select + mask background.",
+    "ai-subject": "Click to select subject.",
+    "ai-upscale": "Click to upscale document 2x.",
+    "ai-denoise": "Click to add Reduce-Noise filter.",
+    "ai-colorize": "Click to add Vibrance + LUT.",
+    "ai-sky": "Click to add sky enhance preset.",
+    "zoom-fit": "Click canvas to fit screen.",
+    "zoom-100": "Click for 100% actual pixels.",
+    "zoom-200": "Click for 200%.",
+    "zoom-400": "Click for 400% pixels.",
+    "measure-angle": "Drag to measure angle.",
+    "measure-area": "Drag rect for W x H + area.",
+    "sampler-avg": "Click for 5x5 average pin.",
+    "snap-toggle": "Click to toggle snapping.",
     frame: "Drag to create a placeholder frame.",
     ruler: "Drag to measure distance and angle.",
-    note: "Click to attach a note.",
-    count: "Click to add a count marker.",
-    "color-sampler": "Click to sample a persistent color.",
+    note: "Click to pin a note.",
+    count: "Click to add a numbered marker.",
+    "color-sampler": "Click to pin a color readout.",
     text: "Click canvas to start typing.",
     "text-vertical": "Click canvas for vertical text.",
     "shape-rect": "Drag for rectangle. Shift = square.",
@@ -119,63 +204,47 @@ export default function ToolOptionsBar({
     "single-row": "Click to select 1px horizontal row.",
     "single-column": "Click to select 1px vertical column.",
     slice: "Drag to define an export slice.",
-    "slice-select": "Click a slice to select it.",
+    "slice-select": "Click slice to select, drag to move.",
     artboard: "Drag to create an artboard.",
-    "path-select": "Click a path to select the whole path.",
-    "direct-select": "Click an anchor point to edit it.",
-    "rotate-view": "Drag to rotate canvas view.",
+    "path-select": "Auto-selects vector layer, drag to move whole path.",
+    "direct-select": "Drag left/right to rotate active shape.",
+    "rotate-view": "Drag left/right to rotate view. Double-click resets.",
     zoom: "Click to zoom in, Alt-click to zoom out.",
     "perspective-crop": "Drag area then corners for perspective.",
   };
 
   const usesBrushSliders =
-    tool === "brush" ||
-    tool === "pencil" ||
-    tool === "airbrush" ||
-    tool === "soft-brush" ||
-    tool === "overlay-brush" ||
+    isPaintTool(tool) ||
+    retouchModeOf(tool) !== null ||
+    distortOf(tool) !== null ||
     tool === "eraser" ||
     tool === "eraser-hard" ||
     tool === "clone" ||
+    tool === "clone-mirror" ||
+    tool === "clone-rotate" ||
     tool === "spot-heal" ||
     tool === "blur" ||
-    tool === "blur-iris" ||
     tool === "sharpen" ||
-    tool === "sharpen-edge" ||
     tool === "smudge" ||
     tool === "dodge" ||
     tool === "burn" ||
     tool === "sponge" ||
-    tool === "vibrance-brush" ||
     tool === "healing-brush" ||
-    tool === "mixer-brush" ||
-    tool === "color-replacement" ||
     tool === "background-eraser" ||
     tool === "magic-eraser" ||
     tool === "history-brush" ||
     tool === "art-history-brush" ||
     tool === "pattern-stamp" ||
+    tool === "texture-stamp" ||
     tool === "content-move" ||
     tool === "content-fill" ||
     tool === "patch" ||
     tool === "red-eye" ||
     tool === "liquify" ||
     tool === "warp" ||
-    tool === "noise-reduction" ||
-    tool === "exposure-brush" ||
-    tool === "warmth-brush" ||
-    tool === "fade-brush" ||
-    tool === "contrast-brush" ||
-    tool === "posterize-brush" ||
-    tool === "threshold-brush" ||
-    tool === "hue-brush" ||
-    tool === "invert-brush" ||
-    tool === "desat-brush" ||
-    tool === "grain-brush" ||
-    tool === "pixelate-brush" ||
-    tool === "vignette-brush";
+    tool === "noise-reduction";
 
-  if (tool === "crop" || tool === "perspective-crop") {
+  if ((IS_CROP_TOOL as Set<string>).has(tool)) {
     return (
       <div className={BAR}>
         <span className="rounded-md bg-[#2f7cf6] px-2 py-0.5 font-semibold text-white">{name}</span>
@@ -222,7 +291,14 @@ export default function ToolOptionsBar({
     );
   }
 
-  if (tool === "select-rect" || tool === "select-ellipse" || tool === "select-polygon" || tool === "select-lasso") {
+  if (
+    tool === "select-rect" ||
+    tool === "select-ellipse" ||
+    tool === "select-polygon" ||
+    tool === "select-lasso" ||
+    tool === "select-rounded" ||
+    tool === "magnetic-lasso"
+  ) {
     return (
       <div className={BAR}>
         <span className="shrink-0 rounded-md bg-[#2f7cf6] px-2 py-0.5 font-semibold text-white">{name}</span>
@@ -270,19 +346,27 @@ export default function ToolOptionsBar({
   }
 
   const fallbackMap: Record<string, string> = {
-    "slice-select": "Drag a slice area first with the Slice tool, then click to select it.",
-    "color-sampler": "Click the canvas to pin a persistent color readout.",
-    "path-select": "Click a shape or text layer, then drag to move the full path.",
-    "direct-select": "Click an anchor point on a shape layer to edit it.",
+    "slice-select": "Click a slice to select it, drag to move it.",
+    "color-sampler": "Click the canvas to pin a persistent color readout (max 8).",
+    "sampler-avg": "Click for 5x5 average color pin.",
+    "path-select": "Auto-selects vector layer, drag to move the whole path.",
+    "direct-select": "Drag left/right to rotate the active shape.",
     pan: "Drag to pan the canvas view. Scroll zooms.",
-    "rotate-view": "Drag to pan. View rotation ships in a later update.",
-    "curvature-pen": "Drag on canvas to draw a smooth curved path.",
-    artboard: "Click to place a new artboard frame.",
-    frame: "Click to place an image placeholder frame.",
+    "rotate-view": "Drag left/right to rotate view. Double-click resets.",
+    "curvature-pen": "Drag on canvas to draw a smooth S-curve path.",
+    artboard: "Drag to create a new artboard frame.",
+    frame: "Drag to create an image placeholder frame.",
     slice: "Drag a rectangle to define an export slice.",
     ruler: "Drag to measure distance and angle.",
-    note: "Click to attach a note.",
+    "measure-angle": "Drag to measure angle from horizontal.",
+    "measure-area": "Drag rectangle for W x H + area.",
+    note: "Click to pin a note.",
     count: "Click to add a numbered marker.",
+    "snap-toggle": "Click canvas to toggle snapping.",
+    "zoom-fit": "Click canvas to fit screen.",
+    "zoom-100": "Click for 100%.",
+    "zoom-200": "Click for 200%.",
+    "zoom-400": "Click for 400%.",
   };
 
   return (

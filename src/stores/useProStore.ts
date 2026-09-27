@@ -91,6 +91,45 @@ export interface SavedSelection {
   time: number;
 }
 
+export interface SliceRect {
+  id: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  name: string;
+}
+
+export interface NotePin {
+  id: string;
+  x: number;
+  y: number;
+  text: string;
+}
+
+export interface CountPin {
+  id: string;
+  x: number;
+  y: number;
+  n: number;
+}
+
+export interface SamplerPin {
+  id: string;
+  x: number;
+  y: number;
+  color: string;
+}
+
+export interface MeasureEntry {
+  id: string;
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  label: string;
+}
+
 interface ProState {
   // selection UI state
   selKind: "none" | "rect" | "ellipse" | "lasso" | "wand";
@@ -98,6 +137,14 @@ interface ProState {
   selTolerance: number;
   selExpand: number;
   savedSelections: SavedSelection[];
+  // slices for export (real, drawable, selectable)
+  slices: SliceRect[];
+  activeSliceId: string | null;
+  // annotations
+  notes: NotePin[];
+  counts: CountPin[];
+  samplers: SamplerPin[];
+  measures: MeasureEntry[];
 
   adjustments: AdjustmentEntry[];
   filters: FilterEntry[];
@@ -127,7 +174,21 @@ interface ProState {
   shapeSpecs: Record<
     string,
     {
-      kind: "rect" | "ellipse" | "polygon";
+      kind:
+        | "rect"
+        | "ellipse"
+        | "polygon"
+        | "triangle"
+        | "line"
+        | "star"
+        | "arrow"
+        | "custom"
+        | "rounded"
+        | "diamond"
+        | "heart"
+        | "hexagon"
+        | "burst"
+        | "donut";
       fill: string;
       stroke: string;
       strokeWidth: number;
@@ -157,6 +218,21 @@ interface ProState {
 
   setSelKind: (k: ProState["selKind"]) => void;
   setSelParams: (p: Partial<Pick<ProState, "selFeather" | "selTolerance" | "selExpand">>) => void;
+  addSlice: (s: Omit<SliceRect, "id">) => string;
+  updateSlice: (id: string, p: Partial<SliceRect>) => void;
+  removeSlice: (id: string) => void;
+  setActiveSlice: (id: string | null) => void;
+  clearSlices: () => void;
+  addNote: (n: Omit<NotePin, "id">) => string;
+  removeNote: (id: string) => void;
+  clearNotes: () => void;
+  addCount: (c: Omit<CountPin, "id">) => string;
+  clearCounts: () => void;
+  addSampler: (s: Omit<SamplerPin, "id">) => string;
+  removeSampler: (id: string) => void;
+  clearSamplers: () => void;
+  addMeasure: (m: Omit<MeasureEntry, "id">) => string;
+  clearMeasures: () => void;
   addAdjustment: (type: AdjustmentType) => void;
   updateAdjustment: (id: string, p: Partial<AdjustmentEntry>) => void;
   updateAdjustmentParams: (id: string, params: Record<string, number>) => void;
@@ -274,6 +350,12 @@ export const useProStore = create<ProState>((set) => ({
   selTolerance: 24,
   selExpand: 0,
   savedSelections: [],
+  slices: [],
+  activeSliceId: null,
+  notes: [],
+  counts: [],
+  samplers: [],
+  measures: [],
   adjustments: [],
   filters: [],
   masks: {},
@@ -312,6 +394,49 @@ export const useProStore = create<ProState>((set) => ({
   setSelKind: (selKind) => set({ selKind }),
   setSelParams: (p) => set(p),
   setGradTo: (gradTo) => set({ gradTo }),
+  addSlice: (s) => {
+    const id = uid("slice");
+    set((st) => ({
+      slices: [...st.slices, { ...s, id, name: s.name || `Slice ${st.slices.length + 1}` }],
+      activeSliceId: id,
+    }));
+    return id;
+  },
+  updateSlice: (id, p) =>
+    set((s) => ({ slices: s.slices.map((x) => (x.id === id ? { ...x, ...p } : x)) })),
+  removeSlice: (id) =>
+    set((s) => ({
+      slices: s.slices.filter((x) => x.id !== id),
+      activeSliceId: s.activeSliceId === id ? null : s.activeSliceId,
+    })),
+  setActiveSlice: (activeSliceId) => set({ activeSliceId }),
+  clearSlices: () => set({ slices: [], activeSliceId: null }),
+  addNote: (n) => {
+    const id = uid("note");
+    set((s) => ({ notes: [...s.notes.slice(-49), { ...n, id }] }));
+    return id;
+  },
+  removeNote: (id) => set((s) => ({ notes: s.notes.filter((x) => x.id !== id) })),
+  clearNotes: () => set({ notes: [] }),
+  addCount: (c) => {
+    const id = uid("count");
+    set((s) => ({ counts: [...s.counts, { ...c, id }] }));
+    return id;
+  },
+  clearCounts: () => set({ counts: [] }),
+  addSampler: (s) => {
+    const id = uid("samp");
+    set((st) => ({ samplers: [...st.samplers.slice(-7), { ...s, id }] }));
+    return id;
+  },
+  removeSampler: (id) => set((s) => ({ samplers: s.samplers.filter((x) => x.id !== id) })),
+  clearSamplers: () => set({ samplers: [] }),
+  addMeasure: (m) => {
+    const id = uid("meas");
+    set((s) => ({ measures: [...s.measures.slice(-19), { ...m, id }] }));
+    return id;
+  },
+  clearMeasures: () => set({ measures: [] }),
   addGuide: (kind, pos) =>
     set((s) => ({
       guidesH: kind === "h" ? [...s.guidesH, pos] : s.guidesH,

@@ -1,9 +1,26 @@
-import { useEffect, useState } from "react";
-import { Cpu, Gauge, MemoryStick, Monitor, RefreshCw, Settings2, X, Zap } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Brush,
+  Cpu,
+  Gauge,
+  HardDrive,
+  Layout,
+  MemoryStick,
+  Monitor,
+  Palette,
+  RefreshCw,
+  Settings2,
+  X,
+  Zap,
+} from "lucide-react";
 import { scanHardware, gpuLabel, type HardwareReport } from "../io/hardware";
 import { resetGpuCache } from "../io/gpuCanvas";
 import { useSettingsStore, effectiveTile, type EngineDevice, type PerfMode } from "../stores/useSettingsStore";
-import { showError } from "../ui/notify";
+import { useEditorStore } from "../stores/useEditorStore";
+import { useProStore } from "../stores/useProStore";
+import { clearRecovery } from "../engine/recovery";
+import { layerManager } from "../engine/layerManager";
+import { showError, askConfirm } from "../ui/notify";
 import clsx from "clsx";
 
 function Seg<T extends string | number>({
@@ -67,11 +84,31 @@ function Bar({ pct }: { pct: number }) {
   );
 }
 
+function Row({ k, v, mono = false }: { k: string; v: string; mono?: boolean }) {
+  return (
+    <div className="flex justify-between gap-2 text-[11px]">
+      <span className="shrink-0 text-[#6e6e78]">{k}</span>
+      <span className={clsx("truncate text-right font-medium text-white", mono && "font-mono tabular-nums")}>{v}</span>
+    </div>
+  );
+}
+
+type TabId = "hardware" | "engine" | "canvas" | "tools" | "workspace";
+
+const TABS: { id: TabId; label: string; icon: typeof Cpu }[] = [
+  { id: "hardware", label: "Hardware", icon: Cpu },
+  { id: "engine", label: "Engine", icon: Gauge },
+  { id: "canvas", label: "Canvas", icon: Layout },
+  { id: "tools", label: "Tools", icon: Brush },
+  { id: "workspace", label: "Studio", icon: Palette },
+];
+
 export default function SettingsPanel({ onClose }: { onClose: () => void }) {
   const s = useSettingsStore();
   const [report, setReport] = useState<HardwareReport | null>(null);
   const [busy, setBusy] = useState(false);
   const [applied, setApplied] = useState(false);
+  const [tab, setTab] = useState<TabId>("hardware");
 
   async function rescan() {
     setBusy(true);
@@ -95,223 +132,477 @@ export default function SettingsPanel({ onClose }: { onClose: () => void }) {
   const p = report?.profile ?? null;
   const rec = report?.recommend ?? null;
   const gpu = report?.gpu ?? null;
+  const web = report?.web ?? null;
   const score = rec?.score ?? 0;
   const ring = 2 * Math.PI * 26;
+
+  const memPct = useMemo(() => {
+    if (!p || p.total_ram_mb <= 0) return 0;
+    return (p.used_ram_mb / p.total_ram_mb) * 100;
+  }, [p]);
+
+  function applyRec() {
+    if (!rec) return;
+    s.applyRecommendation({ mode: rec.mode, device: rec.device, tile: rec.tile, history_cap: rec.history_cap });
+    s.set({
+      perfMode: (rec.mode === "eco" || rec.mode === "balanced" || rec.mode === "max" ? rec.mode : "balanced") as PerfMode,
+      device: (rec.device === "cpu" || rec.device === "gpu" ? rec.device : "auto") as EngineDevice,
+    });
+    setApplied(true);
+    setTimeout(() => setApplied(false), 2500);
+  }
 
   return (
     <div className="fixed inset-0 z-[75] grid place-items-center overflow-y-auto bg-black/70 p-4" onClick={onClose}>
       <div
-        className="avero-pop w-[680px] max-w-full overflow-hidden rounded-lg border border-[#2c2c31] bg-[#1c1c1f]"
+        className="avero-pop flex max-h-[86vh] w-[860px] max-w-full overflow-hidden rounded-lg border border-[#2c2c31] bg-[#1c1c1f]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center gap-2.5 border-b border-[#2c2c31] px-5 py-3.5">
-          <span className="grid h-8 w-8 place-items-center rounded-md bg-[#2f7cf6] text-white">
-            <Settings2 size={16} />
-          </span>
-          <div>
-            <div className="text-[13px] font-bold text-white">Control Center</div>
-            <div className="text-[11px] text-[#6e6e78]">Hardware scan plus full engine control</div>
+        {/* left rail */}
+        <div className="flex w-[172px] shrink-0 flex-col border-r border-[#2c2c31] bg-[#161618] p-2">
+          <div className="flex items-center gap-2 px-2 pb-2 pt-1">
+            <span className="grid h-8 w-8 place-items-center rounded-md bg-[#2f7cf6] text-white">
+              <Settings2 size={16} />
+            </span>
+            <div>
+              <div className="text-[13px] font-bold text-white">Control Center</div>
+              <div className="text-[10px] text-[#6e6e78]">174 tools · live control</div>
+            </div>
           </div>
-          <button
-            onClick={() => void rescan()}
-            disabled={busy}
-            className="avero-press ml-auto flex h-8 items-center gap-1.5 rounded-md border border-[#2c2c31] bg-[#101012] px-3 text-[11px] text-[#a7a7b0] hover:text-white disabled:opacity-50"
-          >
-            <RefreshCw size={12} className={busy ? "animate-spin" : ""} /> {busy ? "Scanning" : "Rescan"}
-          </button>
-          <button onClick={onClose} className="rounded-md p-1.5 text-[#a7a7b0] hover:bg-[#232327] hover:text-white">
-            <X size={15} />
-          </button>
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={clsx(
+                "mb-1 flex items-center gap-2 rounded-md px-2.5 py-2 text-left text-[12px] font-medium",
+                tab === t.id ? "bg-[#2f7cf6] text-white" : "text-[#a7a7b0] hover:bg-[#232327] hover:text-white",
+              )}
+            >
+              <t.icon size={14} />
+              {t.label}
+            </button>
+          ))}
+          <div className="mt-auto space-y-1 p-1">
+            <button
+              onClick={() => void rescan()}
+              disabled={busy}
+              className="avero-press flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-[#2c2c31] bg-[#101012] text-[11px] text-[#a7a7b0] hover:text-white disabled:opacity-50"
+            >
+              <RefreshCw size={12} className={busy ? "animate-spin" : ""} /> {busy ? "Scanning" : "Rescan"}
+            </button>
+            <button
+              onClick={async () => {
+                if (await askConfirm("Reset all settings to defaults?")) s.resetAll();
+              }}
+              className="flex h-8 w-full items-center justify-center rounded-md bg-[#232327] text-[11px] text-[#a7a7b0] hover:text-white"
+            >
+              Reset defaults
+            </button>
+          </div>
         </div>
 
-        <div className="grid max-h-[70vh] grid-cols-1 gap-3 overflow-y-auto p-5 md:grid-cols-2">
-          <div className="rounded-lg border border-[#2c2c31] bg-[#161618] p-4">
-            <div className="flex items-center gap-2 text-[12px] font-bold text-white">
-              <Gauge size={14} className="text-[#8fb6f5]" /> Hardware score
+        {/* right content */}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex items-center gap-2 border-b border-[#2c2c31] px-5 py-3">
+            <div className="text-[13px] font-bold text-white">
+              {tab === "hardware" && "Hardware detection — real device scan"}
+              {tab === "engine" && "Render engine — performance + device"}
+              {tab === "canvas" && "Canvas & view — rulers, grid, zoom"}
+              {tab === "tools" && "Brush & tools — defaults for 174 tools"}
+              {tab === "workspace" && "Studio — autosave, motion, storage"}
             </div>
-            <div className="mt-3 flex items-center gap-4">
-              <svg width="72" height="72" viewBox="0 0 72 72" className="-rotate-90">
-                <circle cx="36" cy="36" r="26" fill="none" stroke="#232327" strokeWidth="7" />
-                <circle
-                  cx="36"
-                  cy="36"
-                  r="26"
-                  fill="none"
-                  stroke="#2f7cf6"
-                  strokeWidth="7"
-                  strokeLinecap="round"
-                  strokeDasharray={ring}
-                  strokeDashoffset={ring - (ring * score) / 100}
-                  className="transition-all duration-700"
-                />
-              </svg>
-              <div>
-                <div className="font-mono text-[26px] font-bold tabular-nums text-white">{rec ? score : "--"}</div>
-                <div className="font-mono text-[10px] text-[#6e6e78]">0 to 100</div>
-              </div>
-              <div className="min-w-0 flex-1 text-[11px] leading-snug text-[#a7a7b0]">
-                {rec ? rec.reason : busy ? "Scanning hardware..." : "No recommendation yet."}
-              </div>
+            <div className="ml-auto flex items-center gap-2 font-mono text-[10px] text-[#6e6e78]">
+              {report?.webOnly ? <span className="rounded border border-[#2c2c31] bg-[#101012] px-1.5 py-0.5">WEB</span> : <span className="rounded border border-[#2c2c31] bg-[#101012] px-1.5 py-0.5">NATIVE</span>}
+              <span>tile {report ? report.renderTile : "--"}</span>
             </div>
-            {rec && (
-              <button
-                onClick={() => {
-                  s.applyRecommendation({ mode: rec.mode, device: rec.device, tile: rec.tile, history_cap: rec.history_cap });
-                  s.set({
-                    perfMode: (rec.mode === "eco" || rec.mode === "balanced" || rec.mode === "max" ? rec.mode : "balanced") as PerfMode,
-                    device: (rec.device === "cpu" || rec.device === "gpu" ? rec.device : "auto") as EngineDevice,
-                  });
-                  setApplied(true);
-                  setTimeout(() => setApplied(false), 2500);
-                }}
-                className="avero-press avero-btn-primary mt-3 flex h-8 w-full items-center justify-center gap-1.5 rounded-md text-[12px] font-semibold text-white"
-              >
-                <Zap size={13} /> {applied ? "Applied" : `Apply ${rec.mode} preset`}
-              </button>
+            <button onClick={onClose} className="rounded-md p-1.5 text-[#a7a7b0] hover:bg-[#232327] hover:text-white">
+              <X size={15} />
+            </button>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto p-5">
+            {tab === "hardware" && (
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="rounded-lg border border-[#2c2c31] bg-[#161618] p-4">
+                  <div className="flex items-center gap-2 text-[12px] font-bold text-white">
+                    <Gauge size={14} className="text-[#8fb6f5]" /> Hardware score
+                  </div>
+                  <div className="mt-3 flex items-center gap-4">
+                    <svg width="72" height="72" viewBox="0 0 72 72" className="-rotate-90">
+                      <circle cx="36" cy="36" r="26" fill="none" stroke="#232327" strokeWidth="7" />
+                      <circle
+                        cx="36"
+                        cy="36"
+                        r="26"
+                        fill="none"
+                        stroke="#2f7cf6"
+                        strokeWidth="7"
+                        strokeLinecap="round"
+                        strokeDasharray={ring}
+                        strokeDashoffset={ring - (ring * score) / 100}
+                        className="transition-all duration-700"
+                      />
+                    </svg>
+                    <div>
+                      <div className="font-mono text-[26px] font-bold tabular-nums text-white">{rec ? score : "--"}</div>
+                      <div className="font-mono text-[10px] text-[#6e6e78]">0 to 100</div>
+                    </div>
+                    <div className="min-w-0 flex-1 text-[11px] leading-snug text-[#a7a7b0]">
+                      {rec ? rec.reason : busy ? "Scanning hardware..." : "No recommendation yet."}
+                    </div>
+                  </div>
+                  {rec && (
+                    <button
+                      onClick={applyRec}
+                      className="avero-press avero-btn-primary mt-3 flex h-8 w-full items-center justify-center gap-1.5 rounded-md text-[12px] font-semibold text-white"
+                    >
+                      <Zap size={13} /> {applied ? "Applied" : `Apply ${rec.mode} preset`}
+                    </button>
+                  )}
+                  <div className="mt-2 font-mono text-[10px] leading-relaxed text-[#6e6e78]">
+                    auto: eco ≤41 · balanced 42-71 · max ≥72
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-[#2c2c31] bg-[#161618] p-4">
+                  <div className="flex items-center gap-2 text-[12px] font-bold text-white">
+                    <Cpu size={14} className="text-[#8fb6f5]" /> Processor and memory
+                  </div>
+                  <div className="mt-2.5 space-y-2">
+                    <Row k="CPU" v={p ? p.cpu_brand : busy ? "Scanning..." : "Unknown"} />
+                    <Row k="Cores / threads" v={p ? `${p.cpu_cores} / ${p.cpu_threads}` : "--"} mono />
+                    <Row k="System" v={p ? `${p.os} ${p.arch}` : "--"} mono />
+                    <Row k="Cores (web)" v={web ? String(web.cores) : "--"} mono />
+                    <Row k="Device RAM" v={web?.deviceMemoryGb ? `${web.deviceMemoryGb} GB` : p ? `${p.total_ram_mb} MB` : "--"} mono />
+                    <div>
+                      <div className="mb-1 flex justify-between font-mono text-[10px] tabular-nums text-[#6e6e78]">
+                        <span>RAM used</span>
+                        <span>{p ? `${p.used_ram_mb} / ${p.total_ram_mb} MB` : "--"}</span>
+                      </div>
+                      <Bar pct={memPct} />
+                    </div>
+                    <div>
+                      <div className="mb-1 flex justify-between font-mono text-[10px] tabular-nums text-[#6e6e78]">
+                        <span>App heap</span>
+                        <span>{p ? `${p.app_rss_mb} MB` : "--"}</span>
+                      </div>
+                      <Bar pct={p && p.total_ram_mb > 0 ? (p.app_rss_mb / p.total_ram_mb) * 100 : 0} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-[#2c2c31] bg-[#161618] p-4">
+                  <div className="flex items-center gap-2 text-[12px] font-bold text-white">
+                    <Monitor size={14} className="text-[#8fb6f5]" /> Graphics — WebGPU + WebGL
+                  </div>
+                  <div className="mt-2.5 space-y-2">
+                    <Row k="Detected" v={gpu ? gpuLabel(gpu) : "Scanning..."} />
+                    <div className="truncate font-mono text-[10px] text-[#6e6e78]">{gpu?.description ?? ""}</div>
+                    <Row k="Backend" v={gpu ? gpu.backend : "--"} mono />
+                    <Row k="Vendor" v={gpu?.vendor || web?.webglVendor || "--"} />
+                    <Row k="Native render" v={`tile ${report ? report.renderTile : "--"} ${report?.fastPath ? "fast" : "lean"}`} mono />
+                    <Row k="Max texture" v={web?.maxTexture ? `${web.maxTexture}px` : "--"} mono />
+                    <Row k="Screen" v={web ? `${web.screenW}x${web.screenH} @${web.dpr}x${web.touch ? " touch" : ""}` : "--"} mono />
+                    {!gpu?.available && (
+                      <div className="rounded-md border border-[#2c2c31] bg-[#101012] px-2 py-1.5 text-[10.5px] leading-snug text-[#6e6e78]">
+                        No WebGPU here — WebGL fallback active, editor uses the CPU tiled path. RTX/RX/iGPU appear automatically when WebGPU is present.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-[#2c2c31] bg-[#161618] p-4">
+                  <div className="flex items-center gap-2 text-[12px] font-bold text-white">
+                    <MemoryStick size={14} className="text-[#8fb6f5]" /> Platform
+                  </div>
+                  <div className="mt-2.5 space-y-2">
+                    <Row k="Mode" v={report?.webOnly ? "Web (browser)" : "Tauri native"} />
+                    <Row k="Threads" v={report ? String(report.rayonThreads) : "--"} mono />
+                    <Row k="UA" v={web ? web.ua.slice(0, 64) : "--"} />
+                    <Row k="Heap live" v={web?.heapMb ? `${web.heapMb} MB` : "--"} mono />
+                    <div className="rounded-md border border-[#2c2c31] bg-[#101012] px-2 py-1.5 text-[10.5px] leading-snug text-[#6e6e78]">
+                      Web scan uses cores, device memory, WebGL renderer, heap and screen. Native scan adds Rust sysinfo + render caps when running in Tauri.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {tab === "engine" && (
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="space-y-3 rounded-lg border border-[#2c2c31] bg-[#161618] p-4">
+                  <div className="flex items-center gap-2 text-[12px] font-bold text-white">
+                    <MemoryStick size={14} className="text-[#8fb6f5]" /> Engine
+                  </div>
+                  <Seg<PerfMode>
+                    label="Performance mode"
+                    value={s.perfMode}
+                    onPick={(v) => s.set({ perfMode: v })}
+                    options={[
+                      { id: "auto", label: "Auto", hint: "Follows recommendation + doc size" },
+                      { id: "eco", label: "Eco", hint: "256px tiles, light path early, history max 4" },
+                      { id: "balanced", label: "Balanced", hint: "Standard thresholds, history max 8" },
+                      { id: "max", label: "Max", hint: "1024px tiles, full pipeline longer" },
+                    ]}
+                  />
+                  <Seg<EngineDevice>
+                    label="Compute device"
+                    value={s.device}
+                    onPick={(v) => {
+                      s.set({ device: v });
+                      void resetGpuCache();
+                    }}
+                    options={[
+                      { id: "auto", label: "Auto", hint: "High performance adapter when present" },
+                      { id: "cpu", label: "CPU", hint: "Force the lean CPU tiled path" },
+                      { id: "gpu", label: "GPU", hint: "Prefer the discrete GPU adapter" },
+                    ]}
+                  />
+                  <Seg<256 | 512 | 1024>
+                    label={`Render tile, effective ${effectiveTile()}`}
+                    value={s.tileSize}
+                    onPick={(v) => s.set({ tileSize: v })}
+                    options={[
+                      { id: 256, label: "256", hint: "Smallest RAM per call, more calls" },
+                      { id: 512, label: "512", hint: "Balanced default" },
+                      { id: 1024, label: "1024", hint: "Fewer calls, more RAM per call" },
+                    ]}
+                  />
+                  <div>
+                    <div className="mb-1 flex justify-between text-[11px] text-[#a7a7b0]">
+                      History cap <span className="font-mono text-white">{s.historyCap}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={4}
+                      max={30}
+                      value={s.historyCap}
+                      onChange={(e) => s.set({ historyCap: Number(e.target.value) })}
+                      className="w-full"
+                    />
+                    <div className="mt-1 font-mono text-[10px] text-[#6e6e78]">Large files clamp this down automatically.</div>
+                  </div>
+                </div>
+                <div className="space-y-3 rounded-lg border border-[#2c2c31] bg-[#161618] p-4">
+                  <div className="flex items-center gap-2 text-[12px] font-bold text-white">
+                    <Monitor size={14} className="text-[#8fb6f5]" /> Render quality
+                  </div>
+                  <Seg<"draft" | "balanced" | "best">
+                    label="Canvas quality"
+                    value={s.canvasQuality}
+                    onPick={(v) => s.set({ canvasQuality: v })}
+                    options={[
+                      { id: "draft", label: "Draft", hint: "Fast preview while painting" },
+                      { id: "balanced", label: "Balanced", hint: "Default full quality on release" },
+                      { id: "best", label: "Best", hint: "Always full pipeline, slower on potato PCs" },
+                    ]}
+                  />
+                  <Seg<number>
+                    label="Max zoom"
+                    value={s.maxZoom}
+                    onPick={(v) => s.set({ maxZoom: v })}
+                    options={[
+                      { id: 400, label: "400%" },
+                      { id: 800, label: "800%" },
+                      { id: 1600, label: "1600%" },
+                      { id: 3200, label: "3200%" },
+                    ]}
+                  />
+                  <div className="rounded-md border border-[#2c2c31] bg-[#101012] px-2 py-1.5 text-[10.5px] leading-snug text-[#6e6e78]">
+                    Draft skips adjust/filter passes while a stroke is wet (same fast path the canvas already uses). Best forces full quality every frame.
+                  </div>
+                  <button
+                    onClick={() => {
+                      resetGpuCache();
+                      void rescan();
+                    }}
+                    className="flex h-8 w-full items-center justify-center gap-1.5 rounded-md bg-[#232327] text-[11px] text-white hover:bg-[#2c2c31]"
+                  >
+                    <RefreshCw size={12} /> Flush GPU cache + rescan
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {tab === "canvas" && (
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="space-y-3 rounded-lg border border-[#2c2c31] bg-[#161618] p-4">
+                  <div className="text-[12px] font-bold text-white">View defaults (live)</div>
+                  <Toggle on={s.showRulersOnStart} onFlip={() => s.set({ showRulersOnStart: !s.showRulersOnStart })} label="Rulers on start" desc="Pixel rulers + guide drag" />
+                  <Toggle on={s.showGridOnStart} onFlip={() => s.set({ showGridOnStart: !s.showGridOnStart })} label="Grid on start" desc="Photoshop-style pro grid" />
+                  <Toggle on={s.snapOnStart} onFlip={() => s.set({ snapOnStart: !s.snapOnStart })} label="Snap on start" desc="Guides + grid + center snap" />
+                  <Toggle on={s.autoFitOnOpen} onFlip={() => s.set({ autoFitOnOpen: !s.autoFitOnOpen })} label="Auto-fit on open" desc="Fit document after open/drop" />
+                  <CanvasLiveControls />
+                </div>
+                <div className="space-y-3 rounded-lg border border-[#2c2c31] bg-[#161618] p-4">
+                  <div className="text-[12px] font-bold text-white">Theme + guides</div>
+                  <Seg<"dark" | "light">
+                    label="Interface theme"
+                    value={s.themeMode}
+                    onPick={(v) => {
+                      s.set({ themeMode: v });
+                      useEditorStore.getState().theme !== v && useEditorStore.setState({ theme: v });
+                    }}
+                    options={[
+                      { id: "dark", label: "Dark", hint: "Studio dark (default)" },
+                      { id: "light", label: "Light", hint: "Bright review mode" },
+                    ]}
+                  />
+                  <GuideControls />
+                </div>
+              </div>
+            )}
+
+            {tab === "tools" && (
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="space-y-3 rounded-lg border border-[#2c2c31] bg-[#161618] p-4">
+                  <div className="text-[12px] font-bold text-white">Brush defaults (apply to all 174 tools)</div>
+                  <div>
+                    <div className="mb-1 flex justify-between text-[11px] text-[#a7a7b0]">
+                      Default size <span className="font-mono text-white">{s.defaultBrushSize}px</span>
+                    </div>
+                    <input type="range" min={1} max={300} value={s.defaultBrushSize} onChange={(e) => s.set({ defaultBrushSize: Number(e.target.value) })} className="w-full" />
+                  </div>
+                  <div>
+                    <div className="mb-1 flex justify-between text-[11px] text-[#a7a7b0]">
+                      Default hardness <span className="font-mono text-white">{s.defaultHardness}%</span>
+                    </div>
+                    <input type="range" min={0} max={100} value={s.defaultHardness} onChange={(e) => s.set({ defaultHardness: Number(e.target.value) })} className="w-full" />
+                  </div>
+                  <div>
+                    <div className="mb-1 flex justify-between text-[11px] text-[#a7a7b0]">
+                      Stroke smoothing <span className="font-mono text-white">{s.brushSmoothing}%</span>
+                    </div>
+                    <input type="range" min={0} max={100} value={s.brushSmoothing} onChange={(e) => s.set({ brushSmoothing: Number(e.target.value) })} className="w-full" />
+                    <div className="mt-1 font-mono text-[10px] text-[#6e6e78]">Higher = steadier long strokes, slightly more lag.</div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      useEditorStore.getState().setBrush({ size: s.defaultBrushSize, hardness: s.defaultHardness });
+                    }}
+                    className="flex h-8 w-full items-center justify-center gap-1.5 rounded-md bg-[#232327] text-[11px] text-white hover:bg-[#2c2c31]"
+                  >
+                    <Brush size={12} /> Apply defaults to current brush
+                  </button>
+                </div>
+                <div className="space-y-3 rounded-lg border border-[#2c2c31] bg-[#161618] p-4">
+                  <div className="text-[12px] font-bold text-white">Safety</div>
+                  <Toggle on={s.confirmDestructive} onFlip={() => s.set({ confirmDestructive: !s.confirmDestructive })} label="Confirm destructive ops" desc="Merge, flatten, pattern fill ask first" />
+                  <div className="rounded-md border border-[#2c2c31] bg-[#101012] px-2 py-1.5 text-[10.5px] leading-snug text-[#6e6e78]">
+                    All 174 tools share Size / Hardness / Strength from the top options bar. These defaults reset the bar for every family at once.
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {tab === "workspace" && (
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="space-y-3 rounded-lg border border-[#2c2c31] bg-[#161618] p-4">
+                  <div className="text-[12px] font-bold text-white">Studio</div>
+                  <Seg<number>
+                    label="Crash recovery autosave"
+                    value={s.autosaveMin}
+                    onPick={(v) => s.set({ autosaveMin: v })}
+                    options={[
+                      { id: 0, label: "Off" },
+                      { id: 1, label: "1 min" },
+                      { id: 2, label: "2 min" },
+                      { id: 5, label: "5 min" },
+                    ]}
+                  />
+                  <Toggle on={s.animations} onFlip={() => s.set({ animations: !s.animations })} label="Playful interface motion" desc="Bouncy popups, sliding toggles, animated meters" />
+                </div>
+                <div className="space-y-3 rounded-lg border border-[#2c2c31] bg-[#161618] p-4">
+                  <div className="flex items-center gap-2 text-[12px] font-bold text-white">
+                    <HardDrive size={14} className="text-[#8fb6f5]" /> Storage & recovery
+                  </div>
+                  <button
+                    onClick={async () => {
+                      if (await askConfirm("Discard the autosaved recovery snapshot?")) clearRecovery();
+                    }}
+                    className="flex h-8 w-full items-center justify-center rounded-md bg-[#232327] text-[11px] text-white hover:bg-[#2c2c31]"
+                  >
+                    Clear recovery snapshot
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!(await askConfirm("Clear all layer pixels + history? Document resets to blank."))) return;
+                      layerManager.clear();
+                      useEditorStore.getState().newDocument("Untitled", 1920, 1080);
+                    }}
+                    className="flex h-8 w-full items-center justify-center rounded-md border border-red-900 bg-[#2a1414] text-[11px] text-red-200 hover:bg-[#3a1a1a]"
+                  >
+                    Nuke canvas (free GPU/RAM)
+                  </button>
+                  <div className="font-mono text-[10px] leading-relaxed text-[#6e6e78]">
+                    settings key avero-settings-v2 · workspace avero-workspace · recovery avero-recovery
+                  </div>
+                </div>
+              </div>
             )}
           </div>
-
-          <div className="rounded-lg border border-[#2c2c31] bg-[#161618] p-4">
-            <div className="flex items-center gap-2 text-[12px] font-bold text-white">
-              <Cpu size={14} className="text-[#8fb6f5]" /> Processor and memory
-            </div>
-            <div className="mt-2.5 space-y-2 text-[11px]">
-              <div className="flex justify-between gap-2">
-                <span className="text-[#6e6e78]">CPU</span>
-                <span className="truncate text-right font-medium text-white">{p ? p.cpu_brand : busy ? "..." : "Unknown"}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#6e6e78]">Cores and threads</span>
-                <span className="font-mono tabular-nums text-white">{p ? `${p.cpu_cores} / ${p.cpu_threads}` : "--"}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#6e6e78]">System</span>
-                <span className="font-mono text-white">{p ? `${p.os} ${p.arch}` : "--"}</span>
-              </div>
-              <div>
-                <div className="mb-1 flex justify-between font-mono text-[10px] tabular-nums text-[#6e6e78]">
-                  <span>RAM used</span>
-                  <span>{p ? `${p.used_ram_mb} / ${p.total_ram_mb} MB` : "--"}</span>
-                </div>
-                <Bar pct={p && p.total_ram_mb > 0 ? (p.used_ram_mb / p.total_ram_mb) * 100 : 0} />
-              </div>
-              <div>
-                <div className="mb-1 flex justify-between font-mono text-[10px] tabular-nums text-[#6e6e78]">
-                  <span>App footprint</span>
-                  <span>{p ? `${p.app_rss_mb} MB` : "--"}</span>
-                </div>
-                <Bar pct={p && p.total_ram_mb > 0 ? (p.app_rss_mb / p.total_ram_mb) * 100 : 0} />
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-[#2c2c31] bg-[#161618] p-4">
-            <div className="flex items-center gap-2 text-[12px] font-bold text-white">
-              <Monitor size={14} className="text-[#8fb6f5]" /> Graphics
-            </div>
-            <div className="mt-2.5 space-y-2 text-[11px]">
-              <div className="flex justify-between gap-2">
-                <span className="text-[#6e6e78]">Detected</span>
-                <span className="truncate text-right font-medium text-white">{gpu ? gpuLabel(gpu) : "..."}</span>
-              </div>
-              <div className="truncate text-right font-mono text-[10px] text-[#6e6e78]">
-                {gpu?.description ?? ""}
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#6e6e78]">Backend</span>
-                <span className="font-mono text-white">{gpu ? gpu.backend : "--"}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#6e6e78]">Native render</span>
-                <span className="font-mono text-white">
-                  tile {report ? report.renderTile : "--"} {report?.fastPath ? "fast" : ""}
-                </span>
-              </div>
-              {!gpu?.available && (
-                <div className="rounded-md border border-[#2c2c31] bg-[#101012] px-2 py-1.5 text-[10.5px] leading-snug text-[#6e6e78]">
-                  No WebGPU adapter here, the editor uses the CPU tiled path. RTX, RX, and Intel or AMD iGPUs appear automatically when WebGPU is present.
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-3 rounded-lg border border-[#2c2c31] bg-[#161618] p-4">
-            <div className="flex items-center gap-2 text-[12px] font-bold text-white">
-              <MemoryStick size={14} className="text-[#8fb6f5]" /> Engine
-            </div>
-            <Seg<PerfMode>
-              label="Performance mode"
-              value={s.perfMode}
-              onPick={(v) => s.set({ perfMode: v })}
-              options={[
-                { id: "auto", label: "Auto", hint: "Thresholds follow tile and history settings" },
-                { id: "eco", label: "Eco", hint: "256px tiles, light path early, history max 4" },
-                { id: "balanced", label: "Balanced", hint: "Standard thresholds, history max 8" },
-                { id: "max", label: "Max", hint: "1024px tiles, full pipeline longer" },
-              ]}
-            />
-            <Seg<EngineDevice>
-              label="Compute device"
-              value={s.device}
-              onPick={(v) => {
-                s.set({ device: v });
-                void resetGpuCache();
-              }}
-              options={[
-                { id: "auto", label: "Auto", hint: "High performance adapter when present" },
-                { id: "cpu", label: "CPU", hint: "Force the lean CPU tiled path" },
-                { id: "gpu", label: "GPU", hint: "Prefer the discrete GPU adapter" },
-              ]}
-            />
-            <Seg<256 | 512 | 1024>
-              label={`Render tile, effective ${effectiveTile()}`}
-              value={s.tileSize}
-              onPick={(v) => s.set({ tileSize: v })}
-              options={[
-                { id: 256, label: "256", hint: "Smallest RAM per call, more calls" },
-                { id: 512, label: "512", hint: "Balanced default" },
-                { id: 1024, label: "1024", hint: "Fewer calls, more RAM per call" },
-              ]}
-            />
-            <div>
-              <div className="mb-1 flex justify-between text-[11px] text-[#a7a7b0]">
-                History cap <span className="font-mono text-white">{s.historyCap}</span>
-              </div>
-              <input
-                type="range"
-                min={4}
-                max={30}
-                value={s.historyCap}
-                onChange={(e) => s.set({ historyCap: Number(e.target.value) })}
-                className="w-full"
-              />
-              <div className="mt-1 font-mono text-[10px] text-[#6e6e78]">Large files clamp this down automatically.</div>
-            </div>
-          </div>
-
-          <div className="space-y-3 rounded-lg border border-[#2c2c31] bg-[#161618] p-4 md:col-span-2">
-            <div className="text-[12px] font-bold text-white">Studio</div>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <Seg<number>
-                label="Crash recovery autosave"
-                value={s.autosaveMin}
-                onPick={(v) => s.set({ autosaveMin: v })}
-                options={[
-                  { id: 0, label: "Off" },
-                  { id: 1, label: "1 min" },
-                  { id: 2, label: "2 min" },
-                  { id: 5, label: "5 min" },
-                ]}
-              />
-              <Toggle
-                on={s.animations}
-                onFlip={() => s.set({ animations: !s.animations })}
-                label="Playful interface motion"
-                desc="Bouncy popups, sliding toggles, animated meters"
-              />
-            </div>
-          </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function CanvasLiveControls() {
+  const zoom = useEditorStore((st) => st.zoom);
+  const setZoom = useEditorStore((st) => st.setZoom);
+  const viewRotate = useEditorStore((st) => st.viewRotate);
+  const setViewRotate = useEditorStore((st) => st.setViewRotate);
+  const showGrid = useProStore((st) => st.showGrid);
+  const gridSize = useProStore((st) => st.gridSize);
+  return (
+    <div className="space-y-2 rounded-md border border-[#2c2c31] bg-[#101012] p-2.5">
+      <div className="mb-1 flex justify-between text-[11px] text-[#a7a7b0]">
+        Zoom <span className="font-mono text-white">{zoom}%</span>
+      </div>
+      <input type="range" min={10} max={800} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} className="w-full" />
+      <div className="mb-1 flex justify-between text-[11px] text-[#a7a7b0]">
+        View rotate <span className="font-mono text-white">{viewRotate}°</span>
+      </div>
+      <input type="range" min={0} max={359} value={viewRotate} onChange={(e) => setViewRotate(Number(e.target.value))} className="w-full" />
+      <div className="flex gap-1">
+        <button onClick={() => window.dispatchEvent(new Event("avero:fit-zoom"))} className="flex-1 rounded bg-[#232327] px-2 py-1 text-[11px] text-white hover:bg-[#2c2c31]">Fit</button>
+        <button onClick={() => setZoom(100)} className="flex-1 rounded bg-[#232327] px-2 py-1 text-[11px] text-white hover:bg-[#2c2c31]">100%</button>
+        <button onClick={() => setViewRotate(0)} className="flex-1 rounded bg-[#232327] px-2 py-1 text-[11px] text-white hover:bg-[#2c2c31]">0°</button>
+      </div>
+      <div className="font-mono text-[10px] text-[#6e6e78]">grid {showGrid ? "on" : "off"} · {gridSize}px</div>
+    </div>
+  );
+}
+
+function GuideControls() {
+  const pro = useProStore();
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-1">
+        <button onClick={() => pro.toggleGuides()} className={clsx("flex-1 rounded px-2 py-1.5 text-[11px]", pro.showGuides ? "bg-[#2f7cf6] text-white" : "bg-[#232327] text-[#a7a7b0]")}>
+          Guides {pro.showGuides ? "on" : "off"}
+        </button>
+        <button onClick={() => pro.toggleGrid()} className={clsx("flex-1 rounded px-2 py-1.5 text-[11px]", pro.showGrid ? "bg-[#2f7cf6] text-white" : "bg-[#232327] text-[#a7a7b0]")}>
+          Grid {pro.showGrid ? "on" : "off"}
+        </button>
+        <button onClick={() => pro.toggleSnap()} className={clsx("flex-1 rounded px-2 py-1.5 text-[11px]", pro.snapEnabled ? "bg-[#2f7cf6] text-white" : "bg-[#232327] text-[#a7a7b0]")}>
+          Snap {pro.snapEnabled ? "on" : "off"}
+        </button>
+      </div>
+      <div>
+        <div className="mb-1 flex justify-between text-[11px] text-[#a7a7b0]">
+          Grid size <span className="font-mono text-white">{pro.gridSize}px</span>
+        </div>
+        <input type="range" min={8} max={256} value={pro.gridSize} onChange={(e) => pro.setGridSize(Number(e.target.value))} className="w-full" />
+      </div>
+      <div className="flex gap-1">
+        <button onClick={() => pro.clearGuides()} className="flex-1 rounded bg-[#232327] px-2 py-1.5 text-[11px] text-[#a7a7b0] hover:text-white">Clear guides ({pro.guidesH.length + pro.guidesV.length})</button>
+        <button onClick={() => pro.clearSlices()} className="flex-1 rounded bg-[#232327] px-2 py-1.5 text-[11px] text-[#a7a7b0] hover:text-white">Clear slices ({pro.slices.length})</button>
+      </div>
+      <div className="flex gap-1">
+        <button onClick={() => pro.clearNotes()} className="flex-1 rounded bg-[#232327] px-2 py-1.5 text-[11px] text-[#a7a7b0] hover:text-white">Notes ({pro.notes.length})</button>
+        <button onClick={() => pro.clearSamplers()} className="flex-1 rounded bg-[#232327] px-2 py-1.5 text-[11px] text-[#a7a7b0] hover:text-white">Samplers ({pro.samplers.length})</button>
+        <button onClick={() => pro.clearMeasures()} className="flex-1 rounded bg-[#232327] px-2 py-1.5 text-[11px] text-[#a7a7b0] hover:text-white">Measures ({pro.measures.length})</button>
       </div>
     </div>
   );

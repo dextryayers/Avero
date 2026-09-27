@@ -34,6 +34,14 @@ function buildFamilies(): Map<string, Family> {
     C: "crop",
     H: "hand",
     Z: "zoom",
+    N: "sketch-charcoal",
+    F: "art-oil",
+    D: "distort-twirl",
+    K: "light-highlights",
+    X: "detail-grain-remove",
+    Y: "select-rounded",
+    A: "crop-169",
+    Q: "exposure-brush",
   };
   for (const [letter, id] of Object.entries(preferred)) {
     const arr = map.get(letter);

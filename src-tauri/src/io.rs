@@ -117,26 +117,26 @@ pub const MAX_TEXT_BYTES: usize = 200 * 1024 * 1024;
 const ALLOWED_TEXT_EXT: [&str; 6] = [".avx", ".json", ".svg", ".txt", ".md", ".csv"];
 const ALLOWED_IMAGE_EXT: [&str; 6] = [".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff"];
 
-// Ekstensi yang boleh disentuh perintah teks (proyek .avx, ekspor SVG, catatan).
+// Extensions allowed for text commands (.avx projects, SVG export, notes).
 fn text_path_ok(path: &str) -> Result<(), String> {
     let p = path.trim();
     if p.is_empty() {
-        return Err("Path file kosong".into());
+        return Err("Empty file path".into());
     }
     if p.len() > 1024 {
-        return Err("Path file terlalu panjang".into());
+        return Err("File path too long".into());
     }
     if p.contains('\0') || p.chars().any(|c| c.is_control()) {
-        return Err("Path file mengandung karakter tidak valid".into());
+        return Err("File path contains invalid characters".into());
     }
-    // Tolak traversal eksplisit. Dialog save Tauri memberi path absolut yang sah,
-    // tapi pola seperti `..` tidak pernah dibutuhkan untuk .avx/SVG/catatan.
+    // Reject explicit traversal. Tauri save dialogs provide valid absolute
+    // paths, but `..` segments are never needed for .avx/SVG/notes.
     let lower = p.to_lowercase().replace('\\', "/");
     if lower.split('/').any(|seg| seg == "..") {
-        return Err("Path file tidak diizinkan".into());
+        return Err("File path not allowed".into());
     }
     if !ALLOWED_TEXT_EXT.iter().any(|ext| lower.ends_with(ext)) {
-        return Err("Format file tidak didukung untuk simpan teks".into());
+        return Err("File format not supported for text save".into());
     }
     Ok(())
 }
@@ -146,12 +146,12 @@ fn image_ext_ok(path: &str) -> Result<(), String> {
     if ALLOWED_IMAGE_EXT.iter().any(|ext| lower.ends_with(ext)) {
         Ok(())
     } else {
-        Err("Format gambar tidak didukung (png/jpg/webp/bmp/tiff)".into())
+        Err("Image format not supported (png/jpg/webp/bmp/tiff)".into())
     }
 }
 
-/// FNV-1a 64-bit tanpa dependensi tambahan. Dipakai untuk checksum .avx
-/// dan integritas snapshot undo/redo agar rusak cepat ketahuan.
+/// Dependency-free FNV-1a 64-bit. Used for .avx checksums and undo/redo
+/// snapshot integrity so corruption is detected fast.
 pub fn fnv1a_hex(bytes: &[u8]) -> String {
     let mut h: u64 = 0xcbf29ce484222325;
     for b in bytes {

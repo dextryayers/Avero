@@ -52,9 +52,9 @@ pub fn cmd_raw_info(path: String) -> Result<RawInfo, String> {
         format: ext,
         file_size: meta.len(),
         note: if is_raw {
-            "RAW terdeteksi. Fase 3: decode preview via pipeline umum, develop non-destructive di panel RAW.".to_string()
+            "RAW detected. Preview decodes through the shared pipeline, develop non-destructively in the RAW panel.".to_string()
         } else {
-            "Bukan file RAW.".to_string()
+            "Not a RAW file.".to_string()
         },
     })
 }

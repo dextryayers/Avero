@@ -22,6 +22,7 @@ export default function StatusBar() {
   const [mem, setMem] = useState<string>("");
   const [nat, setNat] = useState<NativeInfo | null>(null);
   const [bench, setBench] = useState<string>("");
+  const [ramMode, setRamMode] = useState<string>("");
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -84,6 +85,22 @@ export default function StatusBar() {
     }, 2500);
     return () => clearInterval(t);
   }, []);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const { smartBudget } = await import("../io/memoryManager");
+        const b = await smartBudget(doc.width, doc.height, Math.max(1, layers.length));
+        if (alive) setRamMode(`${b.mode} ${b.tile ? `tile ${b.tile}` : "direct"} hist ${b.historyCap}`);
+      } catch {
+        if (alive) setRamMode("");
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [doc.width, doc.height, layers.length]);
 
   const mp = ((doc.width * doc.height * 4 * Math.max(1, layers.length)) / 1024 / 1024).toFixed(1);
   const tiles = Math.ceil(doc.width / 256) * Math.ceil(doc.height / 256);
@@ -163,6 +180,11 @@ export default function StatusBar() {
         Guides {showGuides ? "on" : "off"}
       </button>
       {mem && <span className="hidden font-mono xl:block">{mem}</span>}
+      {ramMode && (
+        <span className="hidden font-mono xl:block" title="Smart RAM mode from the Rust budget">
+          {ramMode}
+        </span>
+      )}
       <button
         onClick={runStats}
         className="hidden rounded border border-[#2c2c31] bg-[#232327] px-1.5 py-0.5 font-mono text-[#a7a7b0] hover:text-white md:block"

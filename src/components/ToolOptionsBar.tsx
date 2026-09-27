@@ -87,6 +87,18 @@ export default function ToolOptionsBar({
     "object-select": "Click subject to auto select + expand.",
     "color-range": "Click a color to select it everywhere.",
     "select-subject": "One click auto-selects the subject.",
+    "exposure-brush": "Paint to lift local exposure. Size and Strength apply.",
+    "warmth-brush": "Paint to warm local color.",
+    "fade-brush": "Paint for a soft matte fade.",
+    "contrast-brush": "Paint for local midtone contrast.",
+    "posterize-brush": "Paint for a four level graphic tone.",
+    "threshold-brush": "Paint for a black and white snap.",
+    "hue-brush": "Paint to rotate hue gently.",
+    "invert-brush": "Paint for a local invert blend.",
+    "desat-brush": "Paint to pull saturation out.",
+    "grain-brush": "Paint for fine film grain.",
+    "pixelate-brush": "Paint for a local mosaic.",
+    "vignette-brush": "Paint to darken dab edges.",
     frame: "Drag to create a placeholder frame.",
     ruler: "Drag to measure distance and angle.",
     note: "Click to attach a note.",
@@ -149,7 +161,19 @@ export default function ToolOptionsBar({
     tool === "red-eye" ||
     tool === "liquify" ||
     tool === "warp" ||
-    tool === "noise-reduction";
+    tool === "noise-reduction" ||
+    tool === "exposure-brush" ||
+    tool === "warmth-brush" ||
+    tool === "fade-brush" ||
+    tool === "contrast-brush" ||
+    tool === "posterize-brush" ||
+    tool === "threshold-brush" ||
+    tool === "hue-brush" ||
+    tool === "invert-brush" ||
+    tool === "desat-brush" ||
+    tool === "grain-brush" ||
+    tool === "pixelate-brush" ||
+    tool === "vignette-brush";
 
   if (tool === "crop" || tool === "perspective-crop") {
     return (

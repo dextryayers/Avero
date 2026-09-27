@@ -25,13 +25,13 @@ pub fn document_info() -> serde_json::Value {
         "supportedImport": ["png","jpg","jpeg","webp","bmp","tiff","tif","gif","psd","cr2","nef","arw","raf","dng"],
         "supportedExport": ["png","jpg","webp","tiff","bmp"],
         "colorModes": ["8bit-sRGB","8bit-AdobeRGB","8bit-ProPhoto","16bit-sim"],
-        "phase": "fase-3-color-raw"
+        "phase": "phase-3-color-raw"
     })
 }
 
 #[tauri::command]
 pub fn list_fonts_system() -> Vec<String> {
-    // Fase 2: daftar font umum lintas platform. Enumerasi OS penuh via fontconfig/directwrite masuk 1.0.
+    // Phase 2: common cross-platform font list. Full OS enumeration via fontconfig/directwrite lands in 1.0.
     vec![
         "Inter".into(),
         "system-ui".into(),

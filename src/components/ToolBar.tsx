@@ -302,6 +302,27 @@ export const TOOL_FAMILIES: ToolFamily[] = [
       { id: "zoom", icon: ZoomIn, label: "Zoom", shortcut: "Z", description: "Click zoom in, Alt-click zoom out.", usage: "Click / Alt-click." },
     ],
   },
+  {
+    id: "localfx",
+    label: "Local FX",
+    icon: Sparkles,
+    shortcut: "Q",
+    description: "Twelve local adjustment brushes with soft falloff.",
+    tools: [
+      { id: "exposure-brush", icon: Sun, label: "Exposure Brush", shortcut: "Q", description: "Lift local exposure with soft falloff.", usage: "Paint to brighten." },
+      { id: "warmth-brush", icon: Sun, label: "Warmth Brush", shortcut: "Q", description: "Warm local color, cool shadows stay.", usage: "Paint to warm." },
+      { id: "fade-brush", icon: Droplets, label: "Fade Brush", shortcut: "Q", description: "Soft matte fade toward mid gray.", usage: "Paint to fade." },
+      { id: "contrast-brush", icon: Zap, label: "Contrast Brush", shortcut: "Q", description: "Local contrast around midtones.", usage: "Paint for punch." },
+      { id: "posterize-brush", icon: Layers, label: "Posterize Brush", shortcut: "Q", description: "Four level posterize blend.", usage: "Paint for graphic tone." },
+      { id: "threshold-brush", icon: Circle, label: "Threshold Brush", shortcut: "Q", description: "Local black and white snap.", usage: "Paint for graphic ink." },
+      { id: "hue-brush", icon: Palette, label: "Hue Brush", shortcut: "Q", description: "Rotate local hue gently.", usage: "Paint to shift hue." },
+      { id: "invert-brush", icon: EyeOff, label: "Invert Brush", shortcut: "Q", description: "Local invert blend for drama.", usage: "Paint to invert." },
+      { id: "desat-brush", icon: Droplet, label: "Desaturate Brush", shortcut: "Q", description: "Pull local saturation out.", usage: "Paint to mute color." },
+      { id: "grain-brush", icon: SprayCan, label: "Grain Brush", shortcut: "Q", description: "Add fine deterministic film grain.", usage: "Paint for texture." },
+      { id: "pixelate-brush", icon: LayoutDashboard, label: "Pixelate Brush", shortcut: "Q", description: "Local mosaic for privacy or style.", usage: "Paint to pixelate." },
+      { id: "vignette-brush", icon: Focus, label: "Vignette Brush", shortcut: "Q", description: "Darken dab edges like a lens.", usage: "Paint to vignette." },
+    ],
+  },
 ];
 
 export const TOOL_LABEL: Record<string, string> = Object.fromEntries(

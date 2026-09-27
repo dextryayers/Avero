@@ -5,7 +5,6 @@
 #include <cstring>
 #include <vector>
 #include <algorithm>
-#include <random>
 
 namespace avero {
 
@@ -61,6 +60,7 @@ void unsharp_mask(const uint8_t *src, uint8_t *dst, int w, int h, float amount, 
 }
 
 void emboss(const uint8_t *src, uint8_t *dst, int w, int h) {
+    if (!src || !dst || w <= 0 || h <= 0) return;
     for (int y=0;y<h;++y) for (int x=0;x<w;++x){
         int i=idx(x,y,w), xm=idx(std::max(0,x-1),y,w), yp=idx(x,std::min(h-1,y+1),w);
         for (int c=0;c<3;++c) dst[i+c]=clamp_u8(128+int(src[yp+c])-int(src[xm+c]));
@@ -99,7 +99,9 @@ void gaussian(const uint8_t *src, uint8_t *dst, int w, int h, float sigma) {
 }
 
 void median(const uint8_t *src, uint8_t *dst, int w, int h, int radius) {
+    if (!src || !dst || w <= 0 || h <= 0) return;
     if (radius<=0){ std::memcpy(dst,src,static_cast<size_t>(w)*h*4); return;}
+    if (radius>8) radius=8;
     std::vector<uint8_t> win; win.reserve((2*radius+1)*(2*radius+1));
     for (int y=0;y<h;++y) for (int x=0;x<w;++x){
         for (int c=0;c<3;++c){
@@ -116,6 +118,7 @@ void median(const uint8_t *src, uint8_t *dst, int w, int h, int radius) {
 }
 
 void sobel(const uint8_t *src, uint8_t *dst, int w, int h) {
+    if (!src || !dst || w <= 0 || h <= 0) return;
     for (int y=0;y<h;++y) for (int x=0;x<w;++x){
         int gxR=0, gyR=0, gxG=0, gyG=0, gxB=0, gyB=0;
         auto at=[&](int dx,int dy,int c)->int{ int sx=std::min(w-1,std::max(0,x+dx)), sy=std::min(h-1,std::max(0,y+dy)); return src[idx(sx,sy,w)+c];};
@@ -130,7 +133,8 @@ void sobel(const uint8_t *src, uint8_t *dst, int w, int h) {
     }
 }
 
-void vignette(uint8_t *src, uint8_t *dst, int w, int h, float amount) {
+void vignette(const uint8_t *src, uint8_t *dst, int w, int h, float amount) {
+    if (!src || !dst || w <= 0 || h <= 0) return;
     if (amount<=0){ std::memcpy(dst,src,static_cast<size_t>(w)*h*4); return;}
     float cx=w*0.5f, cy=h*0.5f, maxd=std::sqrt(cx*cx+cy*cy);
     for (int y=0;y<h;++y) for (int x=0;x<w;++x){
@@ -143,6 +147,7 @@ void vignette(uint8_t *src, uint8_t *dst, int w, int h, float amount) {
 }
 
 void chroma(const uint8_t *src, uint8_t *dst, int w, int h, int amount) {
+    if (!src || !dst || w <= 0 || h <= 0) return;
     std::memcpy(dst,src,static_cast<size_t>(w)*h*4);
     if (amount<=0) return;
     for (int y=0;y<h;++y) for (int x=0;x<w;++x){
@@ -152,18 +157,26 @@ void chroma(const uint8_t *src, uint8_t *dst, int w, int h, int amount) {
     }
 }
 
-void grain(uint8_t *src, uint8_t *dst, int w, int h, int amount, uint32_t seed) {
+void grain(const uint8_t *src, uint8_t *dst, int w, int h, int amount, uint32_t seed) {
+    if (!src || !dst || w <= 0 || h <= 0) return;
     if (amount<=0){ std::memcpy(dst,src,static_cast<size_t>(w)*h*4); return;}
-    std::mt19937 rng(seed); std::uniform_int_distribution<int> dist(-amount, amount);
+    if (amount>64) amount=64;
+    uint32_t s = seed ? seed : 1;
     for (int y=0;y<h;++y) for (int x=0;x<w;++x){
-        int i=idx(x,y,w); int n=dist(rng);
-        for (int c=0;c<3;++c) dst[i+c]=clamp_u8(int(src[i+c])+n);
+        int i=idx(x,y,w);
+        int n = 0;
+        for (int c=0;c<3;++c){
+            s = s * 1664525u + 1013904223u;
+            n = (int)(s >> 16) % (amount * 2 + 1) - amount;
+            dst[i+c]=clamp_u8(int(src[i+c])+n);
+        }
         dst[i+3]=src[i+3];
     }
 }
 
 void halftone(const uint8_t *src, uint8_t *dst, int w, int h, int size) {
-    if (size<2) size=2;
+    if (!src || !dst || w <= 0 || h <= 0) return;
+    if (size<2) size=2; if (size>64) size=64;
     for (int y=0;y<h;++y) for (int x=0;x<w;++x){
         int gridX=(x/size)*size, gridY=(y/size)*size;
         int sum=0, cnt=0;
@@ -191,9 +204,12 @@ void tilt_shift(const uint8_t *src, uint8_t *dst, int w, int h, float blur, int 
 }
 
 void oil_paint(const uint8_t *src, uint8_t *dst, int w, int h, int radius, int intensity) {
-    if (radius<1) radius=1; if (intensity<1) intensity=1;
+    if (!src || !dst || w <= 0 || h <= 0) return;
+    if (radius<1) radius=1; if (radius>12) radius=12;
+    if (intensity<2) intensity=2; if (intensity>64) intensity=64;
+    int histR[256], histG[256], histB[256];
     for (int y=0;y<h;++y) for (int x=0;x<w;++x){
-        int histR[256]={0}, histG[256]={0}, histB[256]={0};
+        for (int i=0;i<256;++i) histR[i]=histG[i]=histB[i]=0;
         int cnt=0;
         for (int dy=-radius;dy<=radius;++dy) for (int dx=-radius;dx<=radius;++dx){
             int sx=std::min(w-1,std::max(0,x+dx)), sy=std::min(h-1,std::max(0,y+dy));
@@ -215,16 +231,15 @@ void find_edges(const uint8_t *src, uint8_t *dst, int w, int h) {
 }
 
 void pixelate(const uint8_t *src, uint8_t *dst, int w, int h, int size) {
-    if (size<2) size=2;
+    if (!src || !dst || w <= 0 || h <= 0) return;
+    if (size<2) size=2; if (size>128) size=128;
     for (int y=0;y<h;++y) for (int x=0;x<w;++x){ int bx=(x/size)*size, by=(y/size)*size; int si=idx(bx,by,w), di=idx(x,y,w); dst[di]=src[si]; dst[di+1]=src[si+1]; dst[di+2]=src[si+2]; dst[di+3]=src[si+3];}
 }
 
 void box_blur_light(const uint8_t *src, uint8_t *dst, int w, int h, int radius) {
+    if (!src || !dst || w <= 0 || h <= 0) return;
     if (radius<=0){ std::memcpy(dst,src,static_cast<size_t>(w)*h*4); return;}
-    if (radius>16) radius=16; // batasi untuk ringan RAM: window kecil
-    // tiled 2-scanline: hanya butuh 2*w*4 (~32KB untuk 4K) bukan w*h*4
-    std::vector<uint8_t> row0(static_cast<size_t>(w)*4), row1(static_cast<size_t>(w)*4);
-    // sederhana: pakai box_blur penuh tapi dengan radius kecil sudah ringan; untuk benar-benar tiled kita bagi per tile 512
+    if (radius>16) radius=16;
     const int TILE=512;
     for (int ty=0; ty<h; ty+=TILE) for (int tx=0; tx<w; tx+=TILE){
         int tw=std::min(TILE,w-tx), th=std::min(TILE,h-ty);
@@ -244,8 +259,6 @@ void box_blur_light(const uint8_t *src, uint8_t *dst, int w, int h, int radius) 
         }
         for (int y=0;y<th;++y) std::memcpy(dst+idx(tx,ty+y,w), out.data()+y*tw*4, tw*4);
     }
-    // dummy use row bufs to prove ringan
-    (void)row0; (void)row1;
 }
 
 void gaussian_light(const uint8_t *src, uint8_t *dst, int w, int h, float sigma) {
@@ -370,9 +383,9 @@ void avero_cpp_motion_blur(const uint8_t *src, uint8_t *dst, int w, int h, int r
 void avero_cpp_gaussian(const uint8_t *src, uint8_t *dst, int w, int h, float sigma){ avero::gaussian(src,dst,w,h,sigma);}
 void avero_cpp_median(const uint8_t *src, uint8_t *dst, int w, int h, int radius){ avero::median(src,dst,w,h,radius);}
 void avero_cpp_sobel(const uint8_t *src, uint8_t *dst, int w, int h){ avero::sobel(src,dst,w,h);}
-void avero_cpp_vignette(uint8_t *src, uint8_t *dst, int w, int h, float amount){ avero::vignette(src,dst,w,h,amount);}
+void avero_cpp_vignette(const uint8_t *src, uint8_t *dst, int w, int h, float amount){ avero::vignette(src,dst,w,h,amount);}
 void avero_cpp_chroma(const uint8_t *src, uint8_t *dst, int w, int h, int amount){ avero::chroma(src,dst,w,h,amount);}
-void avero_cpp_grain(uint8_t *src, uint8_t *dst, int w, int h, int amount, uint32_t seed){ avero::grain(src,dst,w,h,amount,seed);}
+void avero_cpp_grain(const uint8_t *src, uint8_t *dst, int w, int h, int amount, uint32_t seed){ avero::grain(src,dst,w,h,amount,seed);}
 void avero_cpp_halftone(const uint8_t *src, uint8_t *dst, int w, int h, int size){ avero::halftone(src,dst,w,h,size);}
 void avero_cpp_tilt_shift(const uint8_t *src, uint8_t *dst, int w, int h, float blur, int focus_y, int focus_h){ avero::tilt_shift(src,dst,w,h,blur,focus_y,focus_h);}
 void avero_cpp_oil_paint(const uint8_t *src, uint8_t *dst, int w, int h, int radius, int intensity){ avero::oil_paint(src,dst,w,h,radius,intensity);}

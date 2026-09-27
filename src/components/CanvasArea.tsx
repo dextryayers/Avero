@@ -99,10 +99,15 @@ export default function CanvasArea() {
   const isClone = tool === "clone" || tool === "pattern-stamp";
   const isEyedropper = tool === "eyedropper" || tool === "color-sampler";
   const isCrop = tool === "crop" || tool === "perspective-crop";
+  const isLocalFx =
+    tool === "exposure-brush" || tool === "warmth-brush" || tool === "fade-brush" ||
+    tool === "contrast-brush" || tool === "posterize-brush" || tool === "threshold-brush" ||
+    tool === "hue-brush" || tool === "invert-brush" || tool === "desat-brush" ||
+    tool === "grain-brush" || tool === "pixelate-brush" || tool === "vignette-brush";
   const showBrushRing =
     isBrush || isEraser || tool === "dodge" || tool === "burn" || tool === "sponge" || tool === "vibrance-brush" ||
     tool === "blur" || tool === "blur-iris" || tool === "sharpen" || tool === "sharpen-edge" || tool === "smudge" ||
-    tool === "noise-reduction" || isHeal || isClone || tool === "liquify" || tool === "warp";
+    tool === "noise-reduction" || isHeal || isClone || tool === "liquify" || tool === "warp" || isLocalFx;
   const zoom = useEditorStore((s) => s.zoom);
   const panX = useEditorStore((s) => s.panX);
   const panY = useEditorStore((s) => s.panY);
@@ -1270,7 +1275,7 @@ export default function CanvasArea() {
     return pts;
   }
 
-  function retouchTo(x: number, y: number, mode: "dodge" | "burn" | "sponge" | "vibrance" | "blur" | "blur-iris" | "sharpen" | "sharpen-edge" | "heal" | "heal-source" | "red-eye" | "content-move" | "smudge" | "noise" | "content-fill") {
+  function retouchTo(x: number, y: number, mode: "dodge" | "burn" | "sponge" | "vibrance" | "blur" | "blur-iris" | "sharpen" | "sharpen-edge" | "heal" | "heal-source" | "red-eye" | "content-move" | "smudge" | "noise" | "content-fill" | "exposure" | "warmth" | "fade" | "contrast" | "posterize" | "threshold" | "hue" | "invert" | "desat" | "grain" | "pixelate" | "vignette") {
     if (!activeLayerId) return;
     const meta = layers.find((l) => l.id === activeLayerId);
     if (!meta || meta.locked || !meta.visible) return;
@@ -1417,6 +1422,89 @@ export default function CanvasArea() {
           ctx.arc(px, py, r * 0.7, 0, Math.PI * 2);
           ctx.fill();
           ctx.restore();
+        } else if (
+          mode === "exposure" || mode === "warmth" || mode === "fade" ||
+          mode === "contrast" || mode === "posterize" || mode === "threshold" ||
+          mode === "hue" || mode === "invert" || mode === "desat" ||
+          mode === "grain" || mode === "pixelate" || mode === "vignette"
+        ) {
+          const id = ctx.getImageData(sx, sy, s, s);
+          const d = id.data;
+          const amt = 0.45 * strength + 0.1;
+          const cx = s / 2;
+          for (let yy = 0; yy < s; yy++) {
+            for (let xx = 0; xx < s; xx++) {
+              const i = (yy * s + xx) * 4;
+              const dx = (xx - cx) / Math.max(1, cx);
+              const dy = (yy - cx) / Math.max(1, cx);
+              const dist = Math.min(1, Math.sqrt(dx * dx + dy * dy));
+              const fall = Math.max(0, 1 - dist);
+              const k = amt * (0.35 + 0.65 * fall);
+              const R = d[i];
+              const G = d[i + 1];
+              const B = d[i + 2];
+              if (mode === "exposure") {
+                d[i] = Math.max(0, Math.min(255, R + 42 * k));
+                d[i + 1] = Math.max(0, Math.min(255, G + 42 * k));
+                d[i + 2] = Math.max(0, Math.min(255, B + 42 * k));
+              } else if (mode === "warmth") {
+                d[i] = Math.max(0, Math.min(255, R + 30 * k));
+                d[i + 2] = Math.max(0, Math.min(255, B - 30 * k));
+              } else if (mode === "fade") {
+                d[i] = Math.round(R + (128 - R) * 0.5 * k);
+                d[i + 1] = Math.round(G + (128 - G) * 0.5 * k);
+                d[i + 2] = Math.round(B + (128 - B) * 0.5 * k);
+              } else if (mode === "contrast") {
+                d[i] = Math.max(0, Math.min(255, 128 + (R - 128) * (1 + 0.6 * k)));
+                d[i + 1] = Math.max(0, Math.min(255, 128 + (G - 128) * (1 + 0.6 * k)));
+                d[i + 2] = Math.max(0, Math.min(255, 128 + (B - 128) * (1 + 0.6 * k)));
+              } else if (mode === "posterize") {
+                const lv = 4;
+                const step = 255 / (lv - 1);
+                d[i] = Math.round(Math.round((R / 255) * (lv - 1)) * step * k + R * (1 - k));
+                d[i + 1] = Math.round(Math.round((G / 255) * (lv - 1)) * step * k + G * (1 - k));
+                d[i + 2] = Math.round(Math.round((B / 255) * (lv - 1)) * step * k + B * (1 - k));
+              } else if (mode === "threshold") {
+                const y = 0.299 * R + 0.587 * G + 0.114 * B;
+                const v = y >= 128 ? 255 : 0;
+                d[i] = Math.round(R + (v - R) * k);
+                d[i + 1] = Math.round(G + (v - G) * k);
+                d[i + 2] = Math.round(B + (v - B) * k);
+              } else if (mode === "hue") {
+                d[i] = Math.round(R + (G - R) * 0.6 * k);
+                d[i + 1] = Math.round(G + (B - G) * 0.6 * k);
+                d[i + 2] = Math.round(B + (R - B) * 0.6 * k);
+              } else if (mode === "invert") {
+                d[i] = Math.round(R + (255 - R - R) * k);
+                d[i + 1] = Math.round(G + (255 - G - G) * k);
+                d[i + 2] = Math.round(B + (255 - B - B) * k);
+              } else if (mode === "desat") {
+                const y = Math.round(0.299 * R + 0.587 * G + 0.114 * B);
+                d[i] = Math.round(R + (y - R) * k);
+                d[i + 1] = Math.round(G + (y - G) * k);
+                d[i + 2] = Math.round(B + (y - B) * k);
+              } else if (mode === "grain") {
+                const n = ((xx * 73 + yy * 149 + Math.round(px + py)) % 29) - 14;
+                d[i] = Math.max(0, Math.min(255, R + n * k * 2));
+                d[i + 1] = Math.max(0, Math.min(255, G + n * k * 2));
+                d[i + 2] = Math.max(0, Math.min(255, B + n * k * 2));
+              } else if (mode === "pixelate") {
+                const cell = Math.max(2, Math.round(3 + 5 * fall));
+                const bx = xx - (xx % cell);
+                const by = yy - (yy % cell);
+                const bi = (by * s + bx) * 4;
+                d[i] = Math.round(R + (d[bi] - R) * k);
+                d[i + 1] = Math.round(G + (d[bi + 1] - G) * k);
+                d[i + 2] = Math.round(B + (d[bi + 2] - B) * k);
+              } else if (mode === "vignette") {
+                const dk = 1 - 0.55 * k * dist;
+                d[i] = Math.max(0, Math.min(255, R * dk));
+                d[i + 1] = Math.max(0, Math.min(255, G * dk));
+                d[i + 2] = Math.max(0, Math.min(255, B * dk));
+              }
+            }
+          }
+          ctx.putImageData(id, sx, sy);
         }
       } catch {
         /* ignore edges */
@@ -2094,13 +2182,19 @@ export default function CanvasArea() {
           const distort = tool === "liquify" || tool === "warp";
           const isTone = tool === "dodge" || tool === "burn" || tool === "sponge" || tool === "vibrance-brush";
           const isDetail = tool === "blur" || tool === "blur-iris" || tool === "sharpen" || tool === "sharpen-edge" || tool === "smudge" || tool === "noise-reduction";
+          const isLocal =
+            tool === "exposure-brush" || tool === "warmth-brush" || tool === "fade-brush" ||
+            tool === "contrast-brush" || tool === "posterize-brush" || tool === "threshold-brush" ||
+            tool === "hue-brush" || tool === "invert-brush" || tool === "desat-brush" ||
+            tool === "grain-brush" || tool === "pixelate-brush" || tool === "vignette-brush";
           if (
             isBrush ||
             isEraser ||
             isTone ||
             isDetail ||
             distort ||
-            isHeal
+            isHeal ||
+            isLocal
           ) {
             // Keep scribbles erasable: paint-family strokes on a photo layer go
             // to a fresh transparent paint layer above it, so the eraser removes
@@ -2138,6 +2232,18 @@ export default function CanvasArea() {
                 sharpen: "Sharpen",
                 smudge: "Smudge",
                 "spot-heal": "Spot heal",
+                "exposure-brush": "Exposure brush",
+                "warmth-brush": "Warmth brush",
+                "fade-brush": "Fade brush",
+                "contrast-brush": "Contrast brush",
+                "posterize-brush": "Posterize brush",
+                "threshold-brush": "Threshold brush",
+                "hue-brush": "Hue brush",
+                "invert-brush": "Invert brush",
+                "desat-brush": "Desaturate brush",
+                "grain-brush": "Grain brush",
+                "pixelate-brush": "Pixelate brush",
+                "vignette-brush": "Vignette brush",
               };
               pushHistory({
                 label: paintMask ? "Paint mask" : (labels[tool] ?? tool),
@@ -2161,6 +2267,18 @@ export default function CanvasArea() {
               historySource.current = snap ?? null;
             }
             if (isBrush || isEraser) paintTo(p.x, p.y, isEraser, strokeLayerId ?? undefined);
+            else if (tool === "exposure-brush") retouchTo(p.x, p.y, "exposure");
+            else if (tool === "warmth-brush") retouchTo(p.x, p.y, "warmth");
+            else if (tool === "fade-brush") retouchTo(p.x, p.y, "fade");
+            else if (tool === "contrast-brush") retouchTo(p.x, p.y, "contrast");
+            else if (tool === "posterize-brush") retouchTo(p.x, p.y, "posterize");
+            else if (tool === "threshold-brush") retouchTo(p.x, p.y, "threshold");
+            else if (tool === "hue-brush") retouchTo(p.x, p.y, "hue");
+            else if (tool === "invert-brush") retouchTo(p.x, p.y, "invert");
+            else if (tool === "desat-brush") retouchTo(p.x, p.y, "desat");
+            else if (tool === "grain-brush") retouchTo(p.x, p.y, "grain");
+            else if (tool === "pixelate-brush") retouchTo(p.x, p.y, "pixelate");
+            else if (tool === "vignette-brush") retouchTo(p.x, p.y, "vignette");
             else if ((tool as string) === "blur-iris") retouchTo(p.x, p.y, "blur-iris");
             else if ((tool as string) === "sharpen-edge") retouchTo(p.x, p.y, "sharpen-edge");
             else if ((tool as string) === "vibrance-brush") retouchTo(p.x, p.y, "vibrance");
@@ -2326,9 +2444,37 @@ export default function CanvasArea() {
               tool === "blur" ||
               tool === "sharpen" ||
               tool === "spot-heal" ||
-              tool === "content-fill"
+              tool === "content-fill" ||
+              tool === "exposure-brush" ||
+              tool === "warmth-brush" ||
+              tool === "fade-brush" ||
+              tool === "contrast-brush" ||
+              tool === "posterize-brush" ||
+              tool === "threshold-brush" ||
+              tool === "hue-brush" ||
+              tool === "invert-brush" ||
+              tool === "desat-brush" ||
+              tool === "grain-brush" ||
+              tool === "pixelate-brush" ||
+              tool === "vignette-brush"
             ) {
-              retouchTo(p.x, p.y, tool === "spot-heal" ? "heal" : tool);
+              const localMap: Record<string, "dodge" | "burn" | "sponge" | "blur" | "sharpen" | "heal" | "content-fill" | "exposure" | "warmth" | "fade" | "contrast" | "posterize" | "threshold" | "hue" | "invert" | "desat" | "grain" | "pixelate" | "vignette"> = {
+                "spot-heal": "heal",
+                "exposure-brush": "exposure",
+                "warmth-brush": "warmth",
+                "fade-brush": "fade",
+                "contrast-brush": "contrast",
+                "posterize-brush": "posterize",
+                "threshold-brush": "threshold",
+                "hue-brush": "hue",
+                "invert-brush": "invert",
+                "desat-brush": "desat",
+                "grain-brush": "grain",
+                "pixelate-brush": "pixelate",
+                "vignette-brush": "vignette",
+              };
+              const m = (localMap[tool] ?? tool) as "dodge" | "burn" | "sponge" | "blur" | "sharpen" | "heal" | "content-fill" | "exposure" | "warmth" | "fade" | "contrast" | "posterize" | "threshold" | "hue" | "invert" | "desat" | "grain" | "pixelate" | "vignette";
+              retouchTo(p.x, p.y, m);
             }
           }
         }}

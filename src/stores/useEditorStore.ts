@@ -78,7 +78,19 @@ export type ToolId =
   | "hand"
   | "rotate-view"
   | "zoom"
-  | "pan";
+  | "pan"
+  | "exposure-brush"
+  | "warmth-brush"
+  | "fade-brush"
+  | "contrast-brush"
+  | "posterize-brush"
+  | "threshold-brush"
+  | "hue-brush"
+  | "invert-brush"
+  | "desat-brush"
+  | "grain-brush"
+  | "pixelate-brush"
+  | "vignette-brush";
 
 export type BlendMode =
   "normal" | "multiply" | "screen" | "overlay" | "darken" | "lighten" | "difference";

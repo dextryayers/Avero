@@ -38,6 +38,7 @@ const PRESETS: Record<PresetCat, { name: string; w: number; h: number; desc: str
   Photo: [
     { name: "HD Photo", w: 1920, h: 1080, desc: "General 16:9 editing" },
     { name: "4K Photo", w: 3840, h: 2160, desc: "High resolution" },
+    { name: "8K UHD Photo", w: 7680, h: 4320, desc: "UHD tiled path" },
     { name: "Portrait 4:5", w: 1080, h: 1350, desc: "IG carousel" },
     { name: "Square 1:1", w: 1080, h: 1080, desc: "IG post" },
     { name: "Story 9:16", w: 1080, h: 1920, desc: "Full vertical" },
@@ -66,6 +67,7 @@ const PRESETS: Record<PresetCat, { name: string; w: number; h: number; desc: str
   ],
   Film: [
     { name: "FHD Video", w: 1920, h: 1080, desc: "Film frame" },
+    { name: "4K UHD Frame", w: 3840, h: 2160, desc: "UHD frame" },
     { name: "2K DCI", w: 2048, h: 1080, desc: "Cinema" },
     { name: "Vertical Film", w: 1080, h: 1920, desc: "Shorts and Reels" },
   ],

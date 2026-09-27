@@ -3,7 +3,6 @@ use serde::Serialize;
 pub const MAX_SIDE: u32 = 16384;
 pub const FULL_PIXELS: u64 = 2048 * 2048;
 pub const TILE: u32 = 512;
-pub const MAX_IPC_BYTES: usize = 256 * 1024 * 1024;
 
 #[derive(Serialize, Clone)]
 pub struct RamBudget {
@@ -77,8 +76,8 @@ pub fn tiles_for(width: u32, height: u32, tile: u32) -> TilePlan {
     let w = clamp_side(width);
     let h = clamp_side(height);
     let t = tile.clamp(256, 1024);
-    let cols = (w + t - 1) / t;
-    let rows = (h + t - 1) / t;
+    let cols = w.div_ceil(t);
+    let rows = h.div_ceil(t);
     TilePlan {
         width: w,
         height: h,
@@ -111,19 +110,6 @@ pub fn export_for(width: u32, height: u32, scale: u32) -> Result<ExportPlan, Str
         tile: if tiled { TILE } else { 0 },
         est_mb,
     })
-}
-
-pub fn ipc_guard(len: usize) -> Result<(), String> {
-    if len == 0 {
-        return Err("Empty buffer".into());
-    }
-    if len % 4 != 0 {
-        return Err("Buffer length must be a multiple of 4".into());
-    }
-    if len > MAX_IPC_BYTES {
-        return Err("Buffer exceeds 256MB IPC limit, use tiled calls".into());
-    }
-    Ok(())
 }
 
 #[tauri::command]

@@ -11,7 +11,7 @@ export const MAX_FULL_PIXELS = 2048 * 2048;
 function assertFullSize(width: number, height: number) {
   if (width * height > MAX_FULL_PIXELS) {
     throw new Error(
-      `Gambar ${width}x${height} terlalu besar untuk pipeline penuh. Pakai tiledPipelineCanvas (tile 512 + light).`,
+      `Image ${width}x${height} exceeds the full pipeline limit. Use tiledPipelineCanvas (512px tiles).`,
     );
   }
 }
@@ -129,9 +129,8 @@ export async function nativePipeline(rgba: Uint8ClampedArray | Uint8Array, width
   return new Uint8ClampedArray(arr.buffer, arr.byteOffset, arr.length);
 }
 export async function nativePipelineLight(rgba: Uint8ClampedArray | Uint8Array, width: number, height: number, ops: NativeOp[], filters: NativeFilterOp[]): Promise<Uint8ClampedArray> {
-  // Light boleh tile 512, tapi tetap batasi 1 tile call max 1024² agar transient Array.from kecil.
   if (width * height > 1024 * 1024) {
-    throw new Error(`Tile ${width}x${height} terlalu besar untuk light single-call. Kecilkan tile ke <=512.`);
+    throw new Error(`Tile ${width}x${height} exceeds single-call limit. Use 512px tiles.`);
   }
   const out = await invoke<number[] | Uint8Array>("cmd_native_pipeline_light", { req: { rgba: Array.from(rgba), width, height, ops, filters } });
   const arr = out instanceof Uint8Array ? out : Uint8Array.from(out as number[]);
@@ -141,24 +140,57 @@ export async function nativePipelineLight(rgba: Uint8ClampedArray | Uint8Array, 
 function clampSize(len: number): boolean { return len > 0 && len % 4 === 0; }
 
 export async function nativeApplyOp(rgba: Uint8ClampedArray | Uint8Array, op: NativeOp): Promise<Uint8ClampedArray> {
-  if (!isTauri() || !clampSize(rgba.length)) throw new Error("Pemrosesan tidak tersedia atau buffer tidak valid");
+  if (!isTauri() || !clampSize(rgba.length)) throw new Error("Processing unavailable or invalid buffer");
   const out = await invoke<number[] | Uint8Array>("cmd_native_apply_op", { rgba: Array.from(rgba), op });
   const arr = out instanceof Uint8Array ? out : Uint8Array.from(out as number[]);
   return new Uint8ClampedArray(arr.buffer, arr.byteOffset, arr.length);
 }
 export async function nativeApplyFilter(rgba: Uint8ClampedArray | Uint8Array, width: number, height: number, op: NativeFilterOp): Promise<Uint8ClampedArray> {
   const need = width * height * 4;
-  if (!isTauri() || rgba.length !== need) throw new Error("Filter tidak tersedia atau dimensi tidak cocok");
+  if (!isTauri() || rgba.length !== need) throw new Error("Filter unavailable or dimension mismatch");
   const out = await invoke<number[] | Uint8Array>("cmd_native_apply_filter", { rgba: Array.from(rgba), width, height, op });
   const arr = out instanceof Uint8Array ? out : Uint8Array.from(out as number[]);
   return new Uint8ClampedArray(arr.buffer, arr.byteOffset, arr.length);
+}
+
+export interface RenderCaps {
+  tile: number;
+  fast_path: boolean;
+  rayon_threads: number;
+  gpu: string;
+}
+
+export interface AvxCodecInfo {
+  name: string;
+  version: string;
+  magic: string;
+}
+
+export async function renderCaps(): Promise<RenderCaps> {
+  return invoke<RenderCaps>("cmd_render_caps");
+}
+
+export async function avxCodecInfo(): Promise<AvxCodecInfo> {
+  return invoke<AvxCodecInfo>("cmd_avx_codec_info");
+}
+
+export async function avxNativeHash(data: Uint8Array): Promise<string> {
+  return invoke<string>("cmd_avx_native_hash", { data: Array.from(data) });
+}
+
+export async function avxValidate(data: Uint8Array): Promise<boolean> {
+  return invoke<boolean>("cmd_avx_validate", { data: Array.from(data) });
+}
+
+export async function historyBudget(width: number, height: number): Promise<{ recommended_cap: number; snapshot_mb: number; tiled: boolean }> {
+  return invoke("cmd_history_budget", { width, height });
 }
 
 export async function nativeProcessCanvas(canvas: HTMLCanvasElement, kind: "op", op: NativeOp): Promise<void>;
 export async function nativeProcessCanvas(canvas: HTMLCanvasElement, kind: "filter", op: NativeFilterOp): Promise<void>;
 export async function nativeProcessCanvas(canvas: HTMLCanvasElement, kind: "op" | "filter", op: NativeOp | NativeFilterOp): Promise<void> {
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
-  if (!ctx) throw new Error("Canvas 2d gagal");
+  if (!ctx) throw new Error("Canvas 2D unavailable");
   const id = ctx.getImageData(0, 0, canvas.width, canvas.height);
   let out: Uint8ClampedArray;
   if (kind === "op") out = await nativeApplyOp(id.data, op as NativeOp);
@@ -175,7 +207,7 @@ export async function nativePipelineCanvas(canvas: HTMLCanvasElement, ops: Nativ
     return;
   }
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
-  if (!ctx) throw new Error("Canvas 2d gagal");
+  if (!ctx) throw new Error("Canvas 2D unavailable");
   const id = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const out = autoLight
     ? await nativePipelineLight(id.data, canvas.width, canvas.height, ops, filters)

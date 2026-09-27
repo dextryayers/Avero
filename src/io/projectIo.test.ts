@@ -89,33 +89,33 @@ describe("parseAvxJson", () => {
     expect(out.layers).toHaveLength(2);
   });
 
-  it("menolak JSON rusak", () => {
-    expect(() => parseAvxJson("{tidak valid")).toThrow("File bukan proyek .avx yang valid");
-    expect(() => parseAvxJson("")).toThrow("File bukan proyek .avx yang valid");
+  it("rejects corrupt JSON", () => {
+    expect(() => parseAvxJson("{invalid")).toThrow("Not a valid .avx project file");
+    expect(() => parseAvxJson("")).toThrow("Not a valid .avx project file");
   });
 
-  it("menolak magic yang salah", () => {
+  it("rejects wrong magic", () => {
     const src = sampleProject();
     (src as { magic: string }).magic = "PSD1";
-    expect(() => parseAvxJson(JSON.stringify(src))).toThrow("File bukan proyek .avx yang valid");
+    expect(() => parseAvxJson(JSON.stringify(src))).toThrow("Not a valid .avx project file");
   });
 
-  it("menolak versi lebih baru", () => {
+  it("rejects newer version", () => {
     const src = sampleProject();
     src.version = AVX_VERSION + 1;
-    expect(() => parseAvxJson(JSON.stringify(src))).toThrow("versi AVERO yang lebih baru");
+    expect(() => parseAvxJson(JSON.stringify(src))).toThrow("newer AVERO version");
   });
 
-  it("menolak dokumen tanpa ukuran", () => {
+  it("rejects document without size", () => {
     const src = sampleProject();
     (src as { doc: unknown }).doc = { name: "x" };
-    expect(() => parseAvxJson(JSON.stringify(src))).toThrow("data dokumen hilang");
+    expect(() => parseAvxJson(JSON.stringify(src))).toThrow("missing document data");
   });
 
-  it("menolak file tanpa daftar layer", () => {
+  it("rejects file without layer list", () => {
     const src = sampleProject();
-    (src as { layers: unknown }).layers = "bukan-array";
-    expect(() => parseAvxJson(JSON.stringify(src))).toThrow("data layer hilang");
+    (src as { layers: unknown }).layers = "not-an-array";
+    expect(() => parseAvxJson(JSON.stringify(src))).toThrow("missing layer data");
   });
 });
 

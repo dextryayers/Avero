@@ -112,41 +112,136 @@ fn downscale_if_needed(img: image::DynamicImage, max_side: Option<u32>) -> image
     img.resize(nw, nh, image::imageops::FilterType::Triangle)
 }
 
+// Batas keamanan data: cegah OOM dan path traversal.
+pub const MAX_TEXT_BYTES: usize = 200 * 1024 * 1024;
+const ALLOWED_TEXT_EXT: [&str; 6] = [".avx", ".json", ".svg", ".txt", ".md", ".csv"];
+const ALLOWED_IMAGE_EXT: [&str; 6] = [".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff"];
+
 // Ekstensi yang boleh disentuh perintah teks (proyek .avx, ekspor SVG, catatan).
 fn text_path_ok(path: &str) -> Result<(), String> {
-    if path.trim().is_empty() {
+    let p = path.trim();
+    if p.is_empty() {
         return Err("Path file kosong".into());
     }
-    let lower = path.to_lowercase();
-    let allowed = [".avx", ".json", ".svg", ".txt", ".md", ".csv"];
-    if !allowed.iter().any(|ext| lower.ends_with(ext)) {
+    if p.len() > 1024 {
+        return Err("Path file terlalu panjang".into());
+    }
+    if p.contains('\0') || p.chars().any(|c| c.is_control()) {
+        return Err("Path file mengandung karakter tidak valid".into());
+    }
+    // Tolak traversal eksplisit. Dialog save Tauri memberi path absolut yang sah,
+    // tapi pola seperti `..` tidak pernah dibutuhkan untuk .avx/SVG/catatan.
+    let lower = p.to_lowercase().replace('\\', "/");
+    if lower.split('/').any(|seg| seg == "..") {
+        return Err("Path file tidak diizinkan".into());
+    }
+    if !ALLOWED_TEXT_EXT.iter().any(|ext| lower.ends_with(ext)) {
         return Err("Format file tidak didukung untuk simpan teks".into());
     }
     Ok(())
 }
 
+fn image_ext_ok(path: &str) -> Result<(), String> {
+    let lower = path.to_lowercase();
+    if ALLOWED_IMAGE_EXT.iter().any(|ext| lower.ends_with(ext)) {
+        Ok(())
+    } else {
+        Err("Format gambar tidak didukung (png/jpg/webp/bmp/tiff)".into())
+    }
+}
+
+/// FNV-1a 64-bit tanpa dependensi tambahan. Dipakai untuk checksum .avx
+/// dan integritas snapshot undo/redo agar rusak cepat ketahuan.
+pub fn fnv1a_hex(bytes: &[u8]) -> String {
+    let mut h: u64 = 0xcbf29ce484222325;
+    for b in bytes {
+        h ^= *b as u64;
+        h = h.wrapping_mul(0x100000001b3);
+    }
+    format!("{h:016x}")
+}
+
 #[tauri::command]
 pub fn cmd_write_text_file(path: String, contents: String) -> Result<(), String> {
     text_path_ok(&path)?;
+    if contents.len() > MAX_TEXT_BYTES {
+        return Err("Text payload exceeds 200MB limit".into());
+    }
     if let Some(parent) = std::path::Path::new(&path).parent() {
         if !parent.as_os_str().is_empty() && !parent.exists() {
-            std::fs::create_dir_all(parent).map_err(|e| format!("Gagal membuat folder: {e}"))?;
+            std::fs::create_dir_all(parent).map_err(|e| format!("Failed to create folder: {e}"))?;
         }
     }
-    std::fs::write(&path, contents).map_err(|e| format!("Gagal menulis file: {e}"))
+    std::fs::write(&path, contents).map_err(|e| format!("Failed to write file: {e}"))
 }
 
 #[tauri::command]
 pub fn cmd_read_text_file(path: String) -> Result<String, String> {
     text_path_ok(&path)?;
-    let bytes = std::fs::read(&path).map_err(|e| format!("Gagal membaca file: {e}"))?;
-    String::from_utf8(bytes).map_err(|e| format!("File bukan teks UTF-8 yang valid: {e}"))
+    let meta = std::fs::metadata(&path).map_err(|e| format!("Failed to read file: {e}"))?;
+    if meta.len() > MAX_TEXT_BYTES as u64 {
+        return Err("File exceeds 200MB limit".into());
+    }
+    let bytes = std::fs::read(&path).map_err(|e| format!("Failed to read file: {e}"))?;
+    String::from_utf8(bytes).map_err(|e| format!("File is not valid UTF-8 text: {e}"))
+}
+
+#[derive(serde::Serialize)]
+pub struct HistoryBudget {
+    pub width: u32,
+    pub height: u32,
+    pub snapshot_mb: f64,
+    pub max_history_full: u32,
+    pub max_history_large: u32,
+    pub recommended_cap: u32,
+    pub tiled: bool,
+}
+
+#[tauri::command]
+pub fn cmd_history_budget(width: u32, height: u32) -> Result<HistoryBudget, String> {
+    let w = width.clamp(1, 16384);
+    let h = height.clamp(1, 16384);
+    let bytes = (w as u64) * (h as u64) * 4;
+    let mb = bytes as f64 / 1024.0 / 1024.0;
+    let large = (w as u64) * (h as u64) > 8 * 1024 * 1024;
+    Ok(HistoryBudget {
+        width: w,
+        height: h,
+        snapshot_mb: mb,
+        max_history_full: 15,
+        max_history_large: 8,
+        recommended_cap: if large { 8 } else { 15 },
+        tiled: large || mb > 16.0,
+    })
+}
+
+#[tauri::command]
+pub fn cmd_data_hash(contents: String) -> String {
+    fnv1a_hex(contents.as_bytes())
+}
+
+#[tauri::command]
+pub fn cmd_snapshot_hash(rgba: Vec<u8>) -> Result<String, String> {
+    if rgba.is_empty() || rgba.len() % 4 != 0 {
+        return Err("Invalid RGBA buffer".into());
+    }
+    if rgba.len() > 256 * 1024 * 1024 {
+        return Err("Snapshot exceeds 256MB limit".into());
+    }
+    Ok(fnv1a_hex(&rgba))
 }
 
 #[tauri::command]
 pub fn cmd_save_dataurl_to_file(data_url: String, path: String) -> Result<(), String> {
+    image_ext_ok(&path)?;
     let (_, b64) = data_url.split_once(",").ok_or("Invalid data URL")?;
+    if b64.len() > 110_000_000 {
+        return Err("Image payload exceeds size limit".into());
+    }
     let bytes = B64.decode(b64.trim()).map_err(|e| e.to_string())?;
+    if bytes.len() > 80_000_000 {
+        return Err("Decoded image exceeds 80MB limit".into());
+    }
     let img = image::load_from_memory(&bytes).map_err(|e| e.to_string())?;
     let lower = path.to_lowercase();
     if lower.ends_with(".jpg") || lower.ends_with(".jpeg") {

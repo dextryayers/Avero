@@ -1,6 +1,6 @@
 [package]
 name = "avero-studio"
-version = "0.1.0"
+version = "2.0.0"
 description = "AVERO STUDIO - Open source professional photo editor for Linux and Windows"
 authors = ["AVERO STUDIO Contributors"]
 edition = "2021"

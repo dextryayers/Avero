@@ -77,6 +77,17 @@ fn avero_cpp_maximize(src: *const u8, dst: *mut u8, w: i32, h: i32, radius: i32)
 fn avero_cpp_swirl(src: *const u8, dst: *mut u8, w: i32, h: i32, radius: f32, strength: f32);
     fn avero_cpp_engine_name() -> *const core::ffi::c_char;
     fn avero_cpp_version() -> *const core::ffi::c_char;
+
+    fn avero_avx_hash(data: *const u8, len: usize) -> u64;
+    fn avero_avx_validate(data: *const u8, len: usize) -> i32;
+    fn avero_rle_encode(src: *const u8, src_len: usize, dst: *mut u8, dst_cap: usize) -> usize;
+    fn avero_rle_decode(src: *const u8, src_len: usize, dst: *mut u8, dst_cap: usize) -> usize;
+    fn avero_avx_codec_name() -> *const core::ffi::c_char;
+    fn avero_avx_codec_version() -> *const core::ffi::c_char;
+
+    fn avero_cpp_tile_size() -> i32;
+    fn avero_cpp_has_fast_path() -> i32;
+    fn avero_cpp_lut_map(src: *const u8, dst: *mut u8, w: i32, h: i32, lut_r: *const u8, lut_g: *const u8, lut_b: *const u8);
 }
 
 fn cstr_to_string(p: *const core::ffi::c_char) -> String {
@@ -864,6 +875,103 @@ pub fn cmd_native_pipeline_light(req: PipelineRequest) -> Result<Vec<u8>, String
         ops,
         filters,
     })
+}
+
+#[derive(serde::Serialize)]
+pub struct AvxCodecInfo {
+    pub name: String,
+    pub version: String,
+    pub magic: String,
+}
+
+#[tauri::command]
+pub fn cmd_avx_codec_info() -> AvxCodecInfo {
+    AvxCodecInfo {
+        name: cstr_to_string(unsafe { avero_avx_codec_name() }),
+        version: cstr_to_string(unsafe { avero_avx_codec_version() }),
+        magic: "AVX1".into(),
+    }
+}
+
+#[tauri::command]
+pub fn cmd_avx_native_hash(data: Vec<u8>) -> Result<String, String> {
+    if data.is_empty() || data.len() > 200 * 1024 * 1024 {
+        return Err("AVX payload out of range".into());
+    }
+    let h = unsafe { avero_avx_hash(data.as_ptr(), data.len()) };
+    Ok(format!("{h:016x}"))
+}
+
+#[tauri::command]
+pub fn cmd_avx_validate(data: Vec<u8>) -> Result<bool, String> {
+    if data.len() > 200 * 1024 * 1024 {
+        return Err("AVX payload out of range".into());
+    }
+    let ok = unsafe { avero_avx_validate(data.as_ptr(), data.len()) };
+    Ok(ok == 1)
+}
+
+#[tauri::command]
+pub fn cmd_rle_roundtrip(data: Vec<u8>) -> Result<bool, String> {
+    if data.is_empty() || data.len() > 16 * 1024 * 1024 {
+        return Err("RLE payload out of range".into());
+    }
+    let mut enc = vec![0u8; data.len() * 2 + 8];
+    let mut dec = vec![0u8; data.len()];
+    let elen = unsafe { avero_rle_encode(data.as_ptr(), data.len(), enc.as_mut_ptr(), enc.len()) };
+    if elen == 0 {
+        return Err("RLE encode failed".into());
+    }
+    let dlen = unsafe { avero_rle_decode(enc.as_ptr(), elen, dec.as_mut_ptr(), dec.len()) };
+    Ok(dlen == data.len() && dec == data)
+}
+
+#[derive(serde::Serialize)]
+pub struct RenderCaps {
+    pub tile: i32,
+    pub fast_path: bool,
+    pub rayon_threads: usize,
+    pub gpu: String,
+}
+
+#[tauri::command]
+pub fn cmd_render_caps() -> RenderCaps {
+    let threads = rayon::current_num_threads();
+    RenderCaps {
+        tile: unsafe { avero_cpp_tile_size() },
+        fast_path: unsafe { avero_cpp_has_fast_path() } == 1,
+        rayon_threads: threads,
+        gpu: "CPU tiled + GPU ready via WebGPU canvas path".into(),
+    }
+}
+
+#[tauri::command]
+pub fn cmd_lut_map(
+    rgba: Vec<u8>,
+    width: u32,
+    height: u32,
+    lut_r: Vec<u8>,
+    lut_g: Vec<u8>,
+    lut_b: Vec<u8>,
+) -> Result<Vec<u8>, String> {
+    check_rgba(&rgba)?;
+    let (w, h) = check_wh(width, height, rgba.len())?;
+    if lut_r.len() != 256 || lut_g.len() != 256 || lut_b.len() != 256 {
+        return Err("LUT must be 256 entries per channel".into());
+    }
+    let mut out = vec![0u8; rgba.len()];
+    unsafe {
+        avero_cpp_lut_map(
+            rgba.as_ptr(),
+            out.as_mut_ptr(),
+            w,
+            h,
+            lut_r.as_ptr(),
+            lut_g.as_ptr(),
+            lut_b.as_ptr(),
+        );
+    }
+    Ok(out)
 }
 
 #[cfg(test)]

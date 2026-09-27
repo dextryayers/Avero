@@ -6,6 +6,7 @@ mod document;
 mod io;
 mod native;
 mod pro;
+mod ram;
 
 use commands::{app_ping, document_info, list_fonts_system};
 
@@ -25,6 +26,9 @@ pub fn run() {
             io::cmd_save_dataurl_to_file,
             io::cmd_read_text_file,
             io::cmd_write_text_file,
+            io::cmd_history_budget,
+            io::cmd_data_hash,
+            io::cmd_snapshot_hash,
             pro::cmd_psd_layer_list,
             pro::cmd_raw_info,
             pro::cmd_image_histogram,
@@ -36,7 +40,16 @@ pub fn run() {
             native::cmd_native_pipeline,
             native::cmd_native_pipeline_light,
             native::cmd_native_memory_budget,
-            native::cmd_native_benchmark
+            native::cmd_native_benchmark,
+            native::cmd_avx_codec_info,
+            native::cmd_avx_native_hash,
+            native::cmd_avx_validate,
+            native::cmd_rle_roundtrip,
+            native::cmd_render_caps,
+            native::cmd_lut_map,
+            ram::cmd_ram_budget,
+            ram::cmd_tile_plan,
+            ram::cmd_export_plan
         ])
         .run(tauri::generate_context!())
         .expect("error while running AVERO STUDIO");

@@ -245,19 +245,36 @@ export default function ToolOptionsBar({
     );
   }
 
+  const fallbackMap: Record<string, string> = {
+    "slice-select": "Drag a slice area first with the Slice tool, then click to select it.",
+    "color-sampler": "Click the canvas to pin a persistent color readout.",
+    "path-select": "Click a shape or text layer, then drag to move the full path.",
+    "direct-select": "Click an anchor point on a shape layer to edit it.",
+    pan: "Drag to pan the canvas view. Scroll zooms.",
+    "rotate-view": "Drag to pan. View rotation ships in a later update.",
+    "curvature-pen": "Drag on canvas to draw a smooth curved path.",
+    artboard: "Click to place a new artboard frame.",
+    frame: "Click to place an image placeholder frame.",
+    slice: "Drag a rectangle to define an export slice.",
+    ruler: "Drag to measure distance and angle.",
+    note: "Click to attach a note.",
+    count: "Click to add a numbered marker.",
+  };
+
   return (
     <div className={BAR}>
       <span className="rounded-md bg-[#2f7cf6] px-2 py-0.5 font-semibold text-white">{name}</span>
       <Hint>
-        {(tool as string) === "select-rect" || (tool as string) === "select-ellipse"
-          ? "Drag to select. Shift adds, Alt subtracts. Feather in Select panel."
-          : (tool as string) === "wand"
-            ? "Click similar colors. Tolerance in Select panel."
-            : (tool as string) === "move"
-              ? "Drag layer. Shift snaps, Ctrl+T free transform."
-              : (tool as string) === "hand"
-                ? "Drag to pan canvas. Scroll to zoom."
-                : "Select and drag on canvas to use this tool."}
+        {fallbackMap[tool] ??
+          ((tool as string) === "select-rect" || (tool as string) === "select-ellipse"
+            ? "Drag to select. Shift adds, Alt subtracts. Feather in Select panel."
+            : (tool as string) === "wand"
+              ? "Click similar colors. Tolerance in Select panel."
+              : (tool as string) === "move"
+                ? "Drag layer. Shift snaps, Ctrl+T free transform."
+                : (tool as string) === "hand"
+                  ? "Drag to pan canvas. Scroll to zoom."
+                  : "Select and drag on canvas to use this tool.")}
       </Hint>
     </div>
   );

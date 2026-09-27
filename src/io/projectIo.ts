@@ -46,7 +46,7 @@ function loadImage(dataUrl: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error("Gambar layer rusak"));
+    img.onerror = () => reject(new Error("Corrupt layer image"));
     img.src = dataUrl;
   });
 }
@@ -141,14 +141,14 @@ export function parseAvxJson(json: string): AvxFile {
   try {
     file = JSON.parse(json) as AvxFile;
   } catch {
-    throw new Error("File bukan proyek .avx yang valid");
+    throw new Error("Not a valid .avx project file");
   }
-  if (file.magic !== AVX_MAGIC) throw new Error("File bukan proyek .avx yang valid");
-  if (file.version > AVX_VERSION) throw new Error("Proyek dibuat versi AVERO yang lebih baru");
+  if (file.magic !== AVX_MAGIC) throw new Error("Not a valid .avx project file");
+  if (file.version > AVX_VERSION) throw new Error("Project was created with a newer AVERO version");
   if (!file.doc || typeof file.doc.width !== "number" || typeof file.doc.height !== "number") {
-    throw new Error("File bukan proyek .avx yang valid (data dokumen hilang)");
+    throw new Error("Not a valid .avx project file (missing document data)");
   }
-  if (!Array.isArray(file.layers)) throw new Error("File bukan proyek .avx yang valid (data layer hilang)");
+  if (!Array.isArray(file.layers)) throw new Error("Not a valid .avx project file (missing layer data)");
   return file;
 }
 

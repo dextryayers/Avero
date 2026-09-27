@@ -385,6 +385,19 @@ void avero_cpp_unsharp_light(const uint8_t *src, uint8_t *dst, int w, int h, flo
 void avero_cpp_minimize(const uint8_t *src, uint8_t *dst, int w, int h, int radius){ avero::minimize(src,dst,w,h,radius);}
 void avero_cpp_maximize(const uint8_t *src, uint8_t *dst, int w, int h, int radius){ avero::maximize(src,dst,w,h,radius);}
 void avero_cpp_swirl(const uint8_t *src, uint8_t *dst, int w, int h, float radius, float strength){ avero::swirl(src,dst,w,h,radius,strength);}
+int avero_cpp_tile_size(void){ return 512; }
+int avero_cpp_has_fast_path(void){ return 1; }
+void avero_cpp_lut_map(const uint8_t *src, uint8_t *dst, int w, int h, const uint8_t *lut_r, const uint8_t *lut_g, const uint8_t *lut_b){
+    if (!src || !dst || !lut_r || !lut_g || !lut_b || w <= 0 || h <= 0) return;
+    size_t n = (size_t)w * (size_t)h;
+    for (size_t i = 0; i < n; i++) {
+        size_t o = i * 4;
+        dst[o] = lut_r[src[o]];
+        dst[o+1] = lut_g[src[o+1]];
+        dst[o+2] = lut_b[src[o+2]];
+        dst[o+3] = src[o+3];
+    }
+}
 const char *avero_cpp_engine_name(void){ return "AVERO C++ filters v2";}
 const char *avero_cpp_version(void){ return "2.0.0";}
 

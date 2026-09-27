@@ -31,6 +31,9 @@ void avero_cpp_unsharp_light(const uint8_t *src, uint8_t *dst, int w, int h, flo
 void avero_cpp_minimize(const uint8_t *src, uint8_t *dst, int w, int h, int radius);
 void avero_cpp_maximize(const uint8_t *src, uint8_t *dst, int w, int h, int radius);
 void avero_cpp_swirl(const uint8_t *src, uint8_t *dst, int w, int h, float radius, float strength);
+int avero_cpp_tile_size(void);
+int avero_cpp_has_fast_path(void);
+void avero_cpp_lut_map(const uint8_t *src, uint8_t *dst, int w, int h, const uint8_t *lut_r, const uint8_t *lut_g, const uint8_t *lut_b);
 const char *avero_cpp_engine_name(void);
 const char *avero_cpp_version(void);
 

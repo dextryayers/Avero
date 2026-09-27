@@ -1,4 +1,4 @@
-// Compile native C + C++ image engine bersama binary Tauri.
+// Compile the native C + C++ image engine alongside the Tauri binary.
 fn main() {
     println!("cargo:rerun-if-changed=native/image_ops.c");
     println!("cargo:rerun-if-changed=native/image_ops.h");
@@ -13,6 +13,8 @@ fn main() {
         .warnings(true)
         .opt_level(3)
         .flag_if_supported("-O3")
+        .flag_if_supported("-ffast-math")
+        .flag_if_supported("-funroll-loops")
         .cargo_metadata(true);
     if cfg!(target_os = "windows") {
         c.define("NOMINMAX", None)
@@ -26,6 +28,8 @@ fn main() {
         .warnings(true)
         .opt_level(3)
         .flag_if_supported("-O3")
+        .flag_if_supported("-ffast-math")
+        .flag_if_supported("-funroll-loops")
         .cargo_metadata(true);
     if cfg!(target_os = "windows") {
         avx.define("NOMINMAX", None)
@@ -40,6 +44,8 @@ fn main() {
         .std("c++17")
         .opt_level(3)
         .flag_if_supported("-O3")
+        .flag_if_supported("-ffast-math")
+        .flag_if_supported("-funroll-loops")
         .flag_if_supported("-march=native")
         .cargo_metadata(true);
     if cfg!(target_os = "windows") {

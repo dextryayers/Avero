@@ -1,11 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 import { shouldUseLight } from "./memoryManager";
 
-// Jalur A ringan:
-// - invoke Tauri pakai Array.from(rgba) = duplikat 4-8x di JS heap + JSON.
-//   Untuk 1920x1080 ~8MB -> jadi ~32-64MB transient per panggil.
-//   Solusi: jangan panggil full-res untuk gambar besar, pakai tiledPipelineCanvas (tile 512).
-// - Batas full pipeline 16MP (2048x2048). Di atas itu wajib tiled agar tidak OOM.
+// Lightweight path:
+//   Never call full-res on large images; use tiledPipelineCanvas (512px tiles).
+// - invoke with Array.from(rgba) duplicates 4-8x in the JS heap + JSON.
+//   For 1920x1080 ~8MB that becomes ~32-64MB transient per call.
+//   Fix: never call full-res on large images, use tiledPipelineCanvas (512px tiles).
+// - Full pipeline cap is 16MP (2048x2048). Above that, tiling is required to avoid OOM.
 export const MAX_FULL_PIXELS = 2048 * 2048;
 
 function assertFullSize(width: number, height: number) {
@@ -16,7 +17,7 @@ function assertFullSize(width: number, height: number) {
   }
 }
 
-// --- 23 operasi penyesuaian ---
+// --- 23 adjustment ops ---
 export type NativeOp =
   | { op: "gray" }
   | { op: "invert" }
@@ -110,9 +111,9 @@ export async function nativeHistogram(rgba: Uint8ClampedArray | Uint8Array, widt
   return invoke<NativeHistogram>("cmd_native_histogram", { rgba: Array.from(rgba), width, height });
 }
 export async function nativeStats(rgba: Uint8ClampedArray | Uint8Array): Promise<NativeStats> {
-  // Stats full-layer mahal. StatusBar hanya panggil on-demand (tombol), jangan tiap frame.
+  // Full-layer stats are expensive. StatusBar only calls this on demand (button), never per frame.
   if (rgba.length > MAX_FULL_PIXELS * 4) {
-    throw new Error("Stats full-res terlalu besar. Downscale dulu atau pakai sampling.");
+    throw new Error("Full-res stats are too large. Downscale first or use sampling.");
   }
   return invoke<NativeStats>("cmd_native_stats", { rgba: Array.from(rgba) });
 }
@@ -232,9 +233,9 @@ export async function nativeProcessCanvas(canvas: HTMLCanvasElement, kind: "op" 
   ctx.putImageData(new ImageData(out, canvas.width, canvas.height), 0, 0);
 }
 export async function nativePipelineCanvas(canvas: HTMLCanvasElement, ops: NativeOp[], filters: NativeFilterOp[], light = false): Promise<void> {
-  // Jalur A: otomatis pilih light untuk dokumen besar agar hemat RAM.
+  // Fast path: auto-pick light variants on large documents to save RAM.
   const autoLight = light || shouldUseLight(canvas.width, canvas.height);
-  // Untuk >16MP jangan full-invoke, lempar ke tiled agar tidak OOM.
+  // Above 16MP never full-invoke; route to tiled to avoid OOM.
   if (canvas.width * canvas.height > MAX_FULL_PIXELS) {
     const { tiledPipelineCanvas } = await import("../engine/tiledRenderer");
     await tiledPipelineCanvas(canvas, ops, filters, { light: true, tile: 512 });

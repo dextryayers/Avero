@@ -8,9 +8,9 @@
 extern "C" {
 #endif
 
-/* Operasi in-place RGBA8. len = w*h*4 harus kelipatan 4. */
+/* In-place RGBA8 ops. len = w*h*4 must be a multiple of 4. */
 
-/* Basis (6) */
+/* Base (6) */
 void avero_c_gray(uint8_t *rgba, size_t len);
 void avero_c_invert(uint8_t *rgba, size_t len);
 void avero_c_brightness(uint8_t *rgba, size_t len, int32_t amount);
@@ -18,7 +18,7 @@ void avero_c_contrast(uint8_t *rgba, size_t len, int32_t amount);
 void avero_c_threshold(uint8_t *rgba, size_t len, int32_t level);
 void avero_c_desaturate(uint8_t *rgba, size_t len, int32_t amount);
 
-/* Level lanjut (12) */
+/* Advanced levels (12) */
 void avero_c_exposure(uint8_t *rgba, size_t len, float ev);
 void avero_c_gamma(uint8_t *rgba, size_t len, float gamma);
 void avero_c_vibrance(uint8_t *rgba, size_t len, int32_t amount);
@@ -32,7 +32,7 @@ void avero_c_auto_levels(uint8_t *rgba, size_t len);
 void avero_c_auto_contrast(uint8_t *rgba, size_t len);
 void avero_c_opacity(uint8_t *rgba, size_t len, int32_t opacity);
 
-/* Advance ringan RAM: hanya 256-entry LUT atau histogram, tanpa alokasi gambar kedua */
+/* Lightweight extras: 256-entry LUTs or histograms only, never a second image alloc */
 void avero_c_lut_map(uint8_t *rgba, size_t len, const uint8_t lut_r[256], const uint8_t lut_g[256], const uint8_t lut_b[256]);
 void avero_c_equalize(uint8_t *rgba, size_t len);
 void avero_c_dither_floyd(uint8_t *rgba, size_t w, size_t h);

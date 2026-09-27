@@ -1,4 +1,4 @@
-// Fase 6.1: Auto-save dan crash recovery ringan.
+// Phase 6.1: lightweight auto-save and crash recovery.
 // Simpan thumbnail composite + metadata tiap 2 menit ke localStorage.
 // Saat start, jika ada sesi kotor, tawarkan recovery banner.
 

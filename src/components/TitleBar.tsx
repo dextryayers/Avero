@@ -30,6 +30,9 @@ export default function TitleBar({
     checkBackend().then((r) => {
       setBackend(r.ok ? "online" : "web-only", r.info);
     });
+    import("../io/projectIo").then(({ registerAvxAssociation }) => {
+      void registerAvxAssociation();
+    });
   }, [setBackend]);
 
   useEffect(() => {
@@ -130,10 +133,18 @@ export default function TitleBar({
         void openAvxProject().catch((e) => showError(`Failed to open project: ${String(e)}`));
         break;
       case "save-avx":
-        void saveAvxProject(false).catch((e) => showError(`Failed to save project: ${String(e)}`));
+        void saveAvxProject(false)
+          .then((p) => {
+            if (p) void showMessage(`Saved: ${p}`);
+          })
+          .catch((e) => showError(`Failed to save project: ${String(e)}`));
         break;
       case "save-avx-as":
-        void saveAvxProject(true).catch((e) => showError(`Failed to save project: ${String(e)}`));
+        void saveAvxProject(true)
+          .then((p) => {
+            if (p) void showMessage(`Saved as: ${p}`);
+          })
+          .catch((e) => showError(`Failed to save project: ${String(e)}`));
         break;
       case "export":
         onOpenExport();
@@ -615,7 +626,7 @@ export default function TitleBar({
         >
           <Settings2 size={14} />
         </button>
-        <span className="hidden max-w-[280px] truncate rounded border border-[#2c2c31] bg-[#101012] px-2 py-1 font-mono text-[10px] text-[#a7a7b0] xl:flex items-center gap-1.5">
+        <span className="hidden max-w-[280px] truncate rounded border border-[#2c2c31] bg-[#101012] px-2 py-1 font-mono text-[10px] text-[#a7a7b0] xl:flex items-center gap-1.5" title={doc.projectPath ?? doc.projectFolder ?? doc.name}>
           <span className={`h-1.5 w-1.5 rounded-full ${doc.dirty ? "bg-[#d9a441]" : "bg-[#7ad69e]"}`} />
           {doc.name}
           {doc.dirty ? " *" : ""} {doc.width}x{doc.height}

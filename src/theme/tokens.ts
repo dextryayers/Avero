@@ -5,7 +5,7 @@ export const AVERO_BRAND = {
   logo: "/logo.png",
 } as const;
 
-// Palet netral profesional. Satu aksen solid, tanpa gradien, tanpa glow.
+// Professional neutral palette. One solid accent, no gradients, no glow.
 export const tokens = {
   color: {
     bgApp: "#161618",

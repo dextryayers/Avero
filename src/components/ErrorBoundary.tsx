@@ -9,8 +9,8 @@ interface State {
   stack: string;
 }
 
-// Deep improve Fase 6: layar hitam tanpa pesan tidak boleh terjadi lagi.
-// Boundary ini menangkap error render dan tampilkan diagnosis + tombol pulih.
+// Phase 6 hardening: a black screen with no message must never happen again.
+// This boundary catches render errors and shows a diagnosis + recovery button.
 export default class ErrorBoundary extends React.Component<Props, State> {
   state: State = { error: null, stack: "" };
 
@@ -52,7 +52,7 @@ export default class ErrorBoundary extends React.Component<Props, State> {
                 }}
                 className="rounded bg-[#2c2c31] px-3 py-1.5 text-[12px]"
               >
-                Reset setting lokal dan muat ulang
+                Reset local settings and reload
               </button>
             </div>
           </div>

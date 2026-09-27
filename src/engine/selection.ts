@@ -1,7 +1,7 @@
-// Fase 2.1: Selection engine.
-// Model seleksi disimpan sebagai mask alpha di offscreen canvas seukuran dokumen.
-// Tipe: rect marquee, lasso freehand/polygon, wand flood fill dengan tolerance.
-// Operasi: feather (blur), expand/contract (dilate/erode aproksimasi), inverse, clear.
+// Selection engine.
+// The selection is stored as an alpha mask on a document-sized offscreen canvas.
+// Types: rect marquee, freehand/polygon lasso, tolerance flood-fill wand.
+// Ops: feather (blur), expand/contract (dilate/erode approximation), inverse, clear.
 
 export type SelectionKind = "none" | "rect" | "lasso" | "wand";
 
@@ -16,8 +16,8 @@ let selCanvas: HTMLCanvasElement | null = null;
 let selW = 0;
 let selH = 0;
 
-// Jalur A: cache hasil hasSelection agar tidak getImageData full tiap frame.
-// getImageData 1920x1080 = 8MB copy tiap panggil, dipanggil berkali-kali saat render.
+// Fast path: cache the hasSelection result to avoid a full getImageData per frame.
+// A 1920x1080 getImageData is an 8MB copy on every call, hit several times per render.
 let selDirty = true;
 let selCachedHas = false;
 export function markSelectionDirty() {
@@ -51,7 +51,7 @@ export function selectionMaskCanvas(): HTMLCanvasElement | null {
   return selCanvas;
 }
 
-// Pulihkan mask seleksi dari gambar (dipakai saat membuka proyek .avx).
+// Restore the selection mask from an image (used when opening an .avx project).
 export function restoreSelectionMask(w: number, h: number, img: CanvasImageSource) {
   const c = ensureSel(w, h);
   const ctx = c.getContext("2d")!;
@@ -63,7 +63,7 @@ export function restoreSelectionMask(w: number, h: number, img: CanvasImageSourc
 export function hasSelection(): boolean {
   if (!selCanvas) return false;
   if (!selDirty) return selCachedHas;
-  // cek cepat via alpha sampling tiap 8px agar murah
+  // fast alpha-sample check every 8px to stay cheap
   const ctx = selCanvas.getContext("2d", { willReadFrequently: true })!;
   try {
     const d = ctx.getImageData(0, 0, selCanvas.width, selCanvas.height);
@@ -206,7 +206,7 @@ export function wandFromImage(
   const stack: number[] = [iy * w + ix];
   visited[iy * w + ix] = 1;
   let count = 0;
-  const maxVisit = 600000; // batasi agar tidak freeze di file besar
+  const maxVisit = 600000; // cap to avoid freezing on huge files
   while (stack.length > 0 && count < maxVisit) {
     const p = stack.pop()!;
     const px = p % w;
@@ -247,7 +247,7 @@ export function wandFromImage(
 export function featherSelection(feather: number) {
   if (!selCanvas) return;
   if (feather <= 0) return;
-  // aproksimasi feather dengan blur via canvas temp + ctx.filter
+  // Feather approximation via a temp canvas + ctx.filter blur
   const tmp = document.createElement("canvas");
   tmp.width = selCanvas.width;
   tmp.height = selCanvas.height;
@@ -262,7 +262,7 @@ export function featherSelection(feather: number) {
 
 export function expandContractSelection(delta: number) {
   if (!selCanvas || delta === 0) return;
-  // aproksimasi morphological dengan blur + threshold
+  // Morphological approximation with blur + threshold
   const tmp = document.createElement("canvas");
   tmp.width = selCanvas.width;
   tmp.height = selCanvas.height;
@@ -293,12 +293,12 @@ export function inverseSelection() {
   markSelectionDirty();
 }
 
-// Terapkan mask seleksi ke stroke brush: clip ctx dengan selection mask.
+// Apply the selection mask to a brush stroke: clip ctx with the selection mask.
 export function applySelectionClip(ctx: CanvasRenderingContext2D) {
   if (!selCanvas || !hasSelection()) return;
   ctx.save();
-  // gunakan composite: gambar hanya di area seleksi via clip dari mask luminance
-  // Sederhana: buat path clip dari bounding? Untuk akurasi, gunakan globalCompositeOperation di layer temp.
+  // use compositing: paint only inside the selection via a luminance mask clip
+  // Simple version: build a clip path from the bounds? For accuracy, use globalCompositeOperation on a temp layer.
   ctx.restore();
 }
 

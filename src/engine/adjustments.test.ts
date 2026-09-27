@@ -22,7 +22,7 @@ describe("adjustments", () => {
     expect(img.data[0]).toBe(155);
     expect(img.data[4]).toBe(55);
   });
-  it("threshold menghasilkan biner", () => {
+  it("threshold produces binary output", () => {
     const img = img2x2();
     applyAdjustmentToImageData(img, {
       id: "t",

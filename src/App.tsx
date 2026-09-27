@@ -358,10 +358,18 @@ export default function App() {
       setExportOpen(true);
     }
     function onSaveEvent() {
-      saveAvxProject(false).catch((err) => showError(`Failed to save project: ${String(err)}`));
+      saveAvxProject(false)
+        .then((p) => {
+          if (p) import("./ui/notify").then(({ showMessage }) => showMessage(`Saved: ${p}`));
+        })
+        .catch((err) => showError(`Failed to save project: ${String(err)}`));
     }
     function onOpenAvxEvent() {
-      openAvxProject().catch((err) => showError(`Failed to open project: ${String(err)}`));
+      openAvxProject()
+        .then((ok) => {
+          if (ok) import("./ui/notify").then(({ showMessage }) => showMessage("The .avx project opened successfully."));
+        })
+        .catch((err) => showError(`Failed to open project: ${String(err)}`));
     }
     async function onSelectEvent(e: Event) {
       const detail = (e as CustomEvent).detail as string;

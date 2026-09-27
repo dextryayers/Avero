@@ -1,4 +1,4 @@
-// Fase 2.4: Render text dan shape vector ke layer raster.
+// Phase 2.4: render text and vector shapes to a raster layer.
 
 export interface TextSpec {
   text: string;
@@ -19,7 +19,7 @@ export function renderTextToLayer(canvas: HTMLCanvasElement, spec: TextSpec, x =
   ctx.font = style;
   ctx.fillStyle = spec.color;
   ctx.textBaseline = "top";
-  // tracking manual per karakter untuk akurasi
+  // manual per-character tracking for accuracy
   const lines = spec.text.split("\n");
   let cy = y;
   const lh = spec.fontSize * spec.leading;
@@ -60,7 +60,7 @@ export interface ShapeSpec {
   fill: string;
   stroke: string;
   strokeWidth: number;
-  sides: number; // untuk polygon
+  sides: number; // polygon sides
   rotation: number;
 }
 

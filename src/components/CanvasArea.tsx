@@ -67,6 +67,32 @@ function getPooledComp(w: number, h: number): HTMLCanvasElement {
   return pooledComp;
 }
 
+// Small scratch-canvas pool for per-dab temp surfaces in the brush engines.
+// Reuses a handful of canvases instead of allocating (and GC-ing) one per dab.
+const scratchPool: HTMLCanvasElement[] = [];
+function getScratch(w: number, h: number): HTMLCanvasElement {
+  for (let i = 0; i < scratchPool.length; i++) {
+    const c = scratchPool[i];
+    if (c.width === w && c.height === h) {
+      scratchPool.splice(i, 1);
+      const g = c.getContext("2d")!;
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.globalAlpha = 1;
+      g.globalCompositeOperation = "source-over";
+      g.filter = "none";
+      g.clearRect(0, 0, w, h);
+      return c;
+    }
+  }
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  return c;
+}
+function releaseScratch(c: HTMLCanvasElement) {
+  if (scratchPool.length < 8) scratchPool.push(c);
+}
+
 export default function CanvasArea() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -110,6 +136,39 @@ export default function CanvasArea() {
   const rotateStart = useRef<{ x: number; rot: number } | null>(null);
   const directStart = useRef<{ x: number; rotation: number; layerId: string } | null>(null);
   const sliceMove = useRef<{ id: string; dx: number; dy: number; sx: number; sy: number } | null>(null);
+  // Per-stroke selection snapshot: isPointInSelection() costs a 1x1 getImageData
+  // per dab, so brush strokes snapshot the mask once at stroke start and read
+  // from RAM via inSel(). Captured at every setIsPainting(true) site.
+  const strokeSelCache = useRef<{ data: Uint8ClampedArray; w: number; h: number } | null>(null);
+  // Pre-rendered history-source canvas for the history brushes (built once per
+  // stroke instead of rebuilding ImageData->canvas on every dab).
+  const historyCanvas = useRef<HTMLCanvasElement | null>(null);
+  function inSel(x: number, y: number): boolean {
+    const sc = strokeSelCache.current;
+    if (!sc) return isPointInSelection(x, y);
+    const ix = Math.floor(x);
+    const iy = Math.floor(y);
+    if (ix < 0 || iy < 0 || ix >= sc.w || iy >= sc.h) return false;
+    return sc.data[(iy * sc.w + ix) * 4 + 3] > 10;
+  }
+  function captureStrokeSel() {
+    strokeSelCache.current = null;
+    try {
+      const sel = selectionMaskCanvas();
+      if (sel && hasSelection()) {
+        const g = sel.getContext("2d", { willReadFrequently: true });
+        if (!g) return;
+        const id = g.getImageData(0, 0, sel.width, sel.height);
+        strokeSelCache.current = { data: id.data, w: sel.width, h: sel.height };
+      }
+    } catch {
+      strokeSelCache.current = null;
+    }
+  }
+  function clearStrokeSel() {
+    strokeSelCache.current = null;
+    historyCanvas.current = null;
+  }
 
   const doc = useEditorStore((s) => s.doc);
   const layers = useEditorStore((s) => s.layers);
@@ -1087,7 +1146,7 @@ export default function CanvasArea() {
     for (let i = 0; i <= steps; i++) {
       const px = x0 + (dx * i) / steps;
       const py = y0 + (dy * i) / steps;
-      if (checkSel && !isPointInSelection(px, py)) continue;
+      if (checkSel && !inSel(px, py)) continue;
       ctx.drawImage(sprite, px - size / 2, py - size / 2, size, size);
     }
   }
@@ -1275,11 +1334,26 @@ export default function CanvasArea() {
 
   // History Brush: paint back from stroke-start snapshot (or last undo entry).
   // Art variant adds hue jitter for a stylized look.
+  // Optimized: the source snapshot is pre-rendered to a canvas once per stroke
+  // (historyCanvas) and dab tiles use the pooled scratch canvas.
   function historyBrushTo(x: number, y: number, art: boolean, forceId?: string) {
     const aid = forceId ?? useEditorStore.getState().activeLayerId ?? activeLayerId;
     if (!aid) return;
     const src = historySource.current;
     if (!src) return;
+    let full = historyCanvas.current;
+    if (!full || full.width !== src.width || full.height !== src.height) {
+      try {
+        full = document.createElement("canvas");
+        full.width = src.width;
+        full.height = src.height;
+        const sd = new ImageData(new Uint8ClampedArray(src.data), src.width, src.height);
+        full.getContext("2d")!.putImageData(sd, 0, 0);
+        historyCanvas.current = full;
+      } catch {
+        return;
+      }
+    }
     const c = layerManager.ensure(aid, doc.width, doc.height);
     const ctx = c.getContext("2d")!;
     const last = lastPos.current ?? { x, y };
@@ -1293,20 +1367,13 @@ export default function CanvasArea() {
     for (let i = 0; i <= steps; i++) {
       const px = Math.round(last.x + (dx * i) / steps);
       const py = Math.round(last.y + (dy * i) / steps);
-      if (!isPointInSelection(px, py)) continue;
+      if (!inSel(px, py)) continue;
       const s = Math.max(1, Math.round(r * 2));
       const sx = Math.max(0, Math.min(src.width - s, px - Math.round(r)));
       const sy = Math.max(0, Math.min(src.height - s, py - Math.round(r)));
+      const tmp = getScratch(s, s);
       try {
-        const tmp = document.createElement("canvas");
-        tmp.width = s;
-        tmp.height = s;
         const tctx = tmp.getContext("2d")!;
-        const sd = new ImageData(new Uint8ClampedArray(src.data), src.width, src.height);
-        const full = document.createElement("canvas");
-        full.width = src.width;
-        full.height = src.height;
-        full.getContext("2d")!.putImageData(sd, 0, 0);
         tctx.drawImage(full, sx, sy, s, s, 0, 0, s, s);
         if (art) {
           tctx.globalCompositeOperation = "source-atop";
@@ -1318,6 +1385,7 @@ export default function CanvasArea() {
         }
         ctx.drawImage(tmp, px - Math.round(r), py - Math.round(r));
       } catch { /* ignore edges */ }
+      releaseScratch(tmp);
     }
     ctx.restore();
     lastPos.current = { x, y };
@@ -1337,7 +1405,7 @@ export default function CanvasArea() {
     const fg = parseInt(brushColor.slice(3, 5), 16);
     const fb = parseInt(brushColor.slice(5, 7), 16);
     for (const { px, py } of dabPath(last.x, last.y, x, y)) {
-      if (!isPointInSelection(px, py)) continue;
+      if (!inSel(px, py)) continue;
       const s = Math.round(r * 2);
       const sx = Math.round(px - r);
       const sy = Math.round(py - r);
@@ -1385,12 +1453,13 @@ export default function CanvasArea() {
 
   // Pattern Stamp: neutral checker weave stamped with brush color tint.
   // Manual 2026: dots variant draws polka dots for textile/poster work.
-  function patternStampTo(x: number, y: number, kind: "checker" | "dots" = "checker") {
-    if (!activeLayerId) return;
-    const c = layerManager.ensure(activeLayerId, doc.width, doc.height);
-    const ctx = c.getContext("2d")!;
-    const last = lastPos.current ?? { x, y };
+  // Optimized: the tile is cached per (size, color, kind) instead of rebuilt per dab.
+  const patternCache = useRef(new Map<string, HTMLCanvasElement>());
+  function patternTile(kind: "checker" | "dots"): HTMLCanvasElement {
     const s = Math.max(8, Math.round(brushSize));
+    const key = `${s}|${brushColor}|${kind}`;
+    const hit = patternCache.current.get(key);
+    if (hit) return hit;
     const pat = document.createElement("canvas");
     pat.width = s;
     pat.height = s;
@@ -1418,6 +1487,17 @@ export default function CanvasArea() {
       }
     }
     pctx.globalAlpha = 1;
+    if (patternCache.current.size > 12) patternCache.current.clear();
+    patternCache.current.set(key, pat);
+    return pat;
+  }
+  function patternStampTo(x: number, y: number, kind: "checker" | "dots" = "checker") {
+    if (!activeLayerId) return;
+    const c = layerManager.ensure(activeLayerId, doc.width, doc.height);
+    const ctx = c.getContext("2d")!;
+    const last = lastPos.current ?? { x, y };
+    const s = Math.max(8, Math.round(brushSize));
+    const pat = patternTile(kind);
     ctx.save();
     ctx.globalAlpha = brushOpacity / 100;
     const dx = x - last.x;
@@ -1427,7 +1507,7 @@ export default function CanvasArea() {
     for (let i = 0; i <= steps; i++) {
       const px = last.x + (dx * i) / steps;
       const py = last.y + (dy * i) / steps;
-      if (!isPointInSelection(px, py)) continue;
+      if (!inSel(px, py)) continue;
       ctx.drawImage(pat, px - s / 2, py - s / 2, s, s);
     }
     ctx.restore();
@@ -1491,7 +1571,7 @@ export default function CanvasArea() {
     for (let i = 0; i <= steps; i++) {
       const px = last.x + (dx * i) / steps;
       const py = last.y + (dy * i) / steps;
-      if (!isPointInSelection(px, py)) continue;
+      if (!inSel(px, py)) continue;
       ctx.drawImage(srcCanvas, px - ox - r, py - oy - r, r * 2, r * 2, px - r, py - r, r * 2, r * 2);
     }
     ctx.restore();
@@ -1520,7 +1600,7 @@ export default function CanvasArea() {
     const strength = brushOpacity / 100;
     const r = Math.max(1, brushSize / 2);
     for (const { px, py } of dabPath(last.x, last.y, x, y)) {
-      if (!isPointInSelection(px, py)) continue;
+      if (!inSel(px, py)) continue;
       const sx = Math.round(px - r);
       const sy = Math.round(py - r);
       const s = Math.round(r * 2);
@@ -1538,22 +1618,19 @@ export default function CanvasArea() {
           const hs = healRef.current;
           const ox = mode === "heal-source" && hs ? px - hs.x : 0;
           const oy = mode === "heal-source" && hs ? py - hs.y : 0;
-          const tmp = document.createElement("canvas");
-          tmp.width = s;
-          tmp.height = s;
+          const tmp = getScratch(s, s);
           const tctx = tmp.getContext("2d")!;
           // Low-spec guard: CSS blur with r>48 is extremely slow per dab.
           // Use cheap downscale-upscale blur approximation for large brushes.
           if (r > 48) {
             const ds = Math.max(8, Math.round(s / 4));
-            const tiny = document.createElement("canvas");
-            tiny.width = ds;
-            tiny.height = ds;
+            const tiny = getScratch(ds, ds);
             const ictx = tiny.getContext("2d")!;
             if (mode === "heal-source" && hs) ictx.drawImage(c, sx - Math.round(ox), sy - Math.round(oy), s, s, 0, 0, ds, ds);
             else ictx.drawImage(c, sx, sy, s, s, 0, 0, ds, ds);
             tctx.imageSmoothingEnabled = true;
             tctx.drawImage(tiny, 0, 0, s, s);
+            releaseScratch(tiny);
           } else {
             const blurR = mode === "blur-iris" ? Math.max(2, r / 1.5) : Math.max(1, r / 3);
             tctx.filter = `blur(${blurR}px)`;
@@ -1565,6 +1642,7 @@ export default function CanvasArea() {
           ctx.globalAlpha = mode === "heal" || mode === "heal-source" ? 0.85 * strength + 0.15 : mode === "blur-iris" ? 0.8 * strength + 0.15 : 0.55 * strength + 0.1;
           ctx.drawImage(tmp, sx, sy);
           ctx.restore();
+          releaseScratch(tmp);
         } else if (mode === "red-eye") {
           const id = ctx.getImageData(sx, sy, s, s);
           const d = id.data;
@@ -1584,14 +1662,13 @@ export default function CanvasArea() {
           const mvy = Math.round(r * 0.3);
           try {
             const id = ctx.getImageData(sx, sy, s, s);
-            const tmp = document.createElement("canvas");
-            tmp.width = s;
-            tmp.height = s;
+            const tmp = getScratch(s, s);
             tmp.getContext("2d")!.putImageData(id, 0, 0);
             ctx.save();
             ctx.globalAlpha = 0.9 * strength + 0.1;
             ctx.drawImage(tmp, sx + mvx, sy + mvy, s, s, sx, sy, s, s);
             ctx.restore();
+            releaseScratch(tmp);
           } catch { /* ignore */ }
         } else if (mode === "sharpen" || mode === "sharpen-edge") {
           const id = ctx.getImageData(sx, sy, s, s);
@@ -1637,9 +1714,7 @@ export default function CanvasArea() {
           }
           ctx.putImageData(id, sx, sy);
         } else if (mode === "content-fill") {
-          const tmp = document.createElement("canvas");
-          tmp.width = s;
-          tmp.height = s;
+          const tmp = getScratch(s, s);
           const tctx = tmp.getContext("2d")!;
           tctx.filter = `blur(${Math.max(2, r / 2)}px)`;
           tctx.drawImage(c, sx, sy, s, s, 0, 0, s, s);
@@ -1648,6 +1723,7 @@ export default function CanvasArea() {
           ctx.globalAlpha = 0.9 * strength + 0.1;
           ctx.drawImage(tmp, sx, sy);
           ctx.restore();
+          releaseScratch(tmp);
         } else if (mode === "smudge") {
           const col = smudgeColor.current ?? brushColor;
           ctx.save();
@@ -1860,15 +1936,13 @@ export default function CanvasArea() {
     const strength = brushOpacity / 100;
     const r = Math.max(4, brushSize / 2);
     for (const { px, py } of dabPath(last.x, last.y, x, y)) {
-      if (!isPointInSelection(px, py)) continue;
+      if (!inSel(px, py)) continue;
       const s = Math.round(r * 2);
       const sx = Math.round(px - r);
       const sy = Math.round(py - r);
       if (sx < 0 || sy < 0 || sx + s > c.width || sy + s > c.height) continue;
       try {
-        const tmp = document.createElement("canvas");
-        tmp.width = s;
-        tmp.height = s;
+        const tmp = getScratch(s, s);
         const tctx = tmp.getContext("2d")!;
         tctx.drawImage(c, sx, sy, s, s, 0, 0, s, s);
         ctx.save();
@@ -1897,17 +1971,17 @@ export default function CanvasArea() {
           }
         } else if (kind === "crystal") {
           const cell = Math.max(3, Math.round(4 + 6 * strength));
-          const small = document.createElement("canvas");
-          const dw2 = Math.max(1, Math.round(s / cell));
-          const dh2 = Math.max(1, Math.round(s / cell));
-          small.width = dw2;
-          small.height = dh2;
+          const small = getScratch(Math.max(1, Math.round(s / cell)), Math.max(1, Math.round(s / cell)));
+          const dw2 = small.width;
+          const dh2 = small.height;
           small.getContext("2d")!.drawImage(tmp, 0, 0, dw2, dh2);
           ctx.imageSmoothingEnabled = false;
           ctx.drawImage(small, 0, 0, dw2, dh2, sx, sy, s, s);
           ctx.imageSmoothingEnabled = true;
+          releaseScratch(small);
         }
         ctx.restore();
+        releaseScratch(tmp);
       } catch {
         /* ignore edges */
       }
@@ -1968,7 +2042,7 @@ export default function CanvasArea() {
         }
       }
     } catch {
-      /* lanjut flood fill */
+      /* fall through to flood fill */
     }
     // OOM guard: visited W*H bytes can be 64MB+ on 8K docs. Fall back to selection-safe solid.
     if (c.width * c.height > 9_000_000) {
@@ -1995,6 +2069,24 @@ export default function CanvasArea() {
         return;
       }
       const tol = 42;
+      // Snapshot the selection mask once: per-pixel isPointInSelection() would
+      // cost a 1x1 getImageData for every visited pixel.
+      let selData: Uint8ClampedArray | null = null;
+      let selW = 0;
+      let selH = 0;
+      const selActive = hasSelection();
+      if (selActive) {
+        try {
+          const sel = selectionMaskCanvas();
+          if (sel) {
+            selW = sel.width;
+            selH = sel.height;
+            selData = sel.getContext("2d", { willReadFrequently: true })!.getImageData(0, 0, selW, selH).data;
+          }
+        } catch {
+          selData = null;
+        }
+      }
       const visited = new Uint8Array(W * H);
       const stack: number[] = [iy * W + ix];
       visited[iy * W + ix] = 1;
@@ -2008,7 +2100,9 @@ export default function CanvasArea() {
         const dg = Math.abs(d[o + 1] - sg);
         const db = Math.abs(d[o + 2] - sb);
         if (dr + dg + db > tol * 3) continue;
-        if (!isPointInSelection(cx, cy)) continue;
+        if (selData) {
+          if (cx < 0 || cy < 0 || cx >= selW || cy >= selH || selData[(cy * selW + cx) * 4 + 3] <= 10) continue;
+        }
         d[o] = fr;
         d[o + 1] = fg;
         d[o + 2] = fb;
@@ -2610,16 +2704,14 @@ export default function CanvasArea() {
     for (let i = 0; i <= steps; i++) {
       const px = last.x + (dx * i) / steps;
       const py = last.y + (dy * i) / steps;
-      if (!isPointInSelection(px, py)) continue;
+      if (!inSel(px, py)) continue;
       const sx = px - ox;
       const sy = py - oy;
       if (variant === "normal" || variant === "soft") {
         ctx.drawImage(srcCanvas, sx - r, sy - r, r * 2, r * 2, px - r, py - r, r * 2, r * 2);
       } else {
-        const tmp = document.createElement("canvas");
         const s = Math.max(2, Math.round(r * 2));
-        tmp.width = s;
-        tmp.height = s;
+        const tmp = getScratch(s, s);
         const tctx = tmp.getContext("2d")!;
         tctx.drawImage(srcCanvas, sx - r, sy - r, s, s, 0, 0, s, s);
         ctx.save();
@@ -2628,6 +2720,7 @@ export default function CanvasArea() {
         else ctx.rotate(Math.PI / 2);
         ctx.drawImage(tmp, -r, -r, r * 2, r * 2);
         ctx.restore();
+        releaseScratch(tmp);
       }
     }
     ctx.restore();
@@ -3208,6 +3301,7 @@ export default function CanvasArea() {
             setIsPainting(true);
             lastPos.current = null;
             cloneOrigin.current = null;
+            captureStrokeSel();
             if (tool === "clone-mirror") cloneToVariant(p.x, p.y, "mirror");
             else if (tool === "clone-rotate") cloneToVariant(p.x, p.y, "rotate");
             else if (tool === "clone-soft") cloneToVariant(p.x, p.y, "soft");
@@ -3353,6 +3447,7 @@ export default function CanvasArea() {
               if (snap0 && activeLayerId) pushHistory({ label: "Content fill", layerId: activeLayerId, snapshot: snap0 });
               setIsPainting(true);
               lastPos.current = null;
+              captureStrokeSel();
               retouchTo(p.x, p.y, "content-fill");
               st0.markDirty();
               bumpHistogram();
@@ -3471,6 +3566,7 @@ export default function CanvasArea() {
             }
             setIsPainting(true);
             lastPos.current = null;
+            captureStrokeSel();
             if (tool === "smudge" || distortLegacy || dk !== null) pickSmudgeColor(p);
             // Alt sets heal source for healing-brush / patch (does not paint)
             if (needsHealSource && e.altKey) {
@@ -3864,6 +3960,7 @@ export default function CanvasArea() {
             (cloneTo as unknown as { _src?: HTMLCanvasElement | null; _id?: string | null })._src = null;
             (cloneTo as unknown as { _src?: HTMLCanvasElement | null; _id?: string | null })._id = null;
           } catch { /* ignore */ }
+          clearStrokeSel();
           if (isPainting) bumpHistogram();
         }}
         onMouseLeave={() => {
@@ -3876,6 +3973,7 @@ export default function CanvasArea() {
           rotateStart.current = null;
           directStart.current = null;
           sliceMove.current = null;
+          clearStrokeSel();
           setRing(null);
         }}
       >

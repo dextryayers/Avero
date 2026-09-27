@@ -1,9 +1,9 @@
-// Fase 3.1: Color management ringan.
+// Phase 3.1: lightweight color management.
 // Working space conversion via matrix Bradford sederhana + histogram + proofing.
 
 export type WorkingSpace = "sRGB" | "AdobeRGB" | "ProPhoto";
 
-// Matriks sRGB -> XYZ D65 (approx), lalu balik dengan gain per space.
+// sRGB -> XYZ D65 matrix (approx), then back with per-space gain.
 const spaceGain: Record<WorkingSpace, [number, number, number]> = {
   sRGB: [1, 1, 1],
   AdobeRGB: [1.06, 1.0, 0.94],
@@ -39,7 +39,7 @@ export function computeHistogram(img: ImageData): Histogram {
   const b = new Array(256).fill(0);
   const lum = new Array(256).fill(0);
   const d = img.data;
-  // sampling tiap 4px untuk performa di 4K
+  // 4px sampling for 4K performance
   for (let i = 0; i < d.length; i += 16) {
     r[d[i]]++;
     g[d[i + 1]]++;

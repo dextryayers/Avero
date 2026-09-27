@@ -1,7 +1,7 @@
 import type { AdjustmentEntry } from "../stores/useProStore";
 
-// Fase 2.3: Terapkan satu adjustment ke ImageData secara non-destructive.
-// Semua fungsi bekerja di CPU untuk MVP; struktur siap dipindah ke wgpu shader.
+// Phase 2.3: apply one adjustment to ImageData non-destructively.
+// All functions run on the CPU for the MVP; structured for a future wgpu shader move.
 
 function clamp255(v: number) {
   return v < 0 ? 0 : v > 255 ? 255 : v;
@@ -82,7 +82,7 @@ export function applyAdjustmentToImageData(img: ImageData, adj: AdjustmentEntry)
       break;
     }
     case "blackWhite": {
-      // aproksimasi mixer channel sederhana
+      // simple channel-mixer approximation
       for (let i = 0; i < d.length; i += 4) {
         const v = Math.round(d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11);
         d[i] = v;

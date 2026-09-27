@@ -5,7 +5,7 @@ export interface RecentFile {
   name: string;
   path: string | null;
   thumb: string | null;
-  full: string | null; // dataURL penuh bila kecil, untuk buka ulang offline
+  full: string | null; // full dataURL when small, for offline reopen
   w: number;
   h: number;
   size: number | null;
@@ -39,7 +39,7 @@ function saveRecents(r: RecentFile[]) {
   try {
     localStorage.setItem(KEY, JSON.stringify(r.slice(0, 18)));
   } catch {
-    // storage penuh (thumb besar): simpan tanpa full/thumb
+    // storage full (large thumbs): persist without full/thumb
     try {
       localStorage.setItem(
         KEY,
@@ -98,7 +98,7 @@ export const useHomeStore = create<HomeState>((set, get) => ({
   },
 }));
 
-// Buka ulang dari recent: full dataURL dulu, lalu path via Rust, else null.
+// Reopen from recents: full dataURL first, then path via Rust, else null.
 export async function resolveRecent(r: RecentFile): Promise<{ dataUrl: string; w: number; h: number } | null> {
   if (r.full) return { dataUrl: r.full, w: r.w, h: r.h };
   if (r.path) {

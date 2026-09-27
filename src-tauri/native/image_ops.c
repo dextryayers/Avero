@@ -2,6 +2,13 @@
 #include <math.h>
 #include <string.h>
 
+/* restrict lets the compiler vectorize the pixel loops (src/dst never alias). */
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
+#define AVERO_RESTRICT restrict
+#else
+#define AVERO_RESTRICT
+#endif
+
 static inline uint8_t clamp_u8(int32_t v) {
     if (v < 0) return 0;
     if (v > 255) return 255;
@@ -13,67 +20,100 @@ static inline uint8_t clamp_f(float v) {
     return (uint8_t)(v + 0.5f);
 }
 
-/* --- Basis --- */
-
-void avero_c_gray(uint8_t *rgba, size_t len) {
-    for (size_t i = 0; i + 3 < len; i += 4) {
-        int32_t y = (int32_t)(0.299f * rgba[i] + 0.587f * rgba[i + 1] + 0.114f * rgba[i + 2] + 0.5f);
-        uint8_t g = clamp_u8(y);
-        rgba[i] = g; rgba[i + 1] = g; rgba[i + 2] = g;
+/* Build a 256-entry LUT from a mapping fn, then apply with 3 table reads/px. */
+typedef uint8_t (*avero_map_fn)(int v, void *ctx);
+static void apply_lut3(uint8_t * AVERO_RESTRICT rgba, size_t len,
+                       avero_map_fn fn, void *ctx) {
+    uint8_t lut[256];
+    for (int i = 0; i < 256; ++i) lut[i] = fn(i, ctx);
+    size_t n = len / 4;
+    uint8_t * AVERO_RESTRICT p = rgba;
+    for (size_t k = 0; k < n; ++k, p += 4) {
+        p[0] = lut[p[0]];
+        p[1] = lut[p[1]];
+        p[2] = lut[p[2]];
     }
 }
 
-void avero_c_invert(uint8_t *rgba, size_t len) {
-    for (size_t i = 0; i + 3 < len; i += 4) {
-        rgba[i] = (uint8_t)(255 - rgba[i]);
-        rgba[i + 1] = (uint8_t)(255 - rgba[i + 1]);
-        rgba[i + 2] = (uint8_t)(255 - rgba[i + 2]);
+/* --- Base --- */
+
+void avero_c_gray(uint8_t * AVERO_RESTRICT rgba, size_t len) {
+    if (!rgba || len < 4) return;
+    size_t n = len / 4;
+    uint8_t * AVERO_RESTRICT p = rgba;
+    for (size_t k = 0; k < n; ++k, p += 4) {
+        int32_t y = (int32_t)(0.299f * p[0] + 0.587f * p[1] + 0.114f * p[2] + 0.5f);
+        uint8_t g = clamp_u8(y);
+        p[0] = g; p[1] = g; p[2] = g;
     }
+}
+
+void avero_c_invert(uint8_t * AVERO_RESTRICT rgba, size_t len) {
+    if (!rgba || len < 4) return;
+    size_t n = len / 4;
+    uint8_t * AVERO_RESTRICT p = rgba;
+    for (size_t k = 0; k < n; ++k, p += 4) {
+        p[0] = (uint8_t)(255 - p[0]);
+        p[1] = (uint8_t)(255 - p[1]);
+        p[2] = (uint8_t)(255 - p[2]);
+    }
+}
+
+static uint8_t bright_map(int v, void *ctx) {
+    int32_t shift = *(int32_t *)ctx;
+    return clamp_u8(v + shift);
 }
 
 void avero_c_brightness(uint8_t *rgba, size_t len, int32_t amount) {
+    if (!rgba || len < 4) return;
     int32_t shift = amount * 2;
-    for (size_t i = 0; i + 3 < len; i += 4) {
-        rgba[i] = clamp_u8((int32_t)rgba[i] + shift);
-        rgba[i + 1] = clamp_u8((int32_t)rgba[i + 1] + shift);
-        rgba[i + 2] = clamp_u8((int32_t)rgba[i + 2] + shift);
-    }
+    apply_lut3(rgba, len, bright_map, &shift);
+}
+
+typedef struct { float f; int32_t c; } contrast_ctx;
+static uint8_t contrast_map(int v, void *ctx) {
+    contrast_ctx *cc = (contrast_ctx *)ctx;
+    return clamp_u8((int32_t)(cc->f * (v - cc->c) + cc->c));
 }
 
 void avero_c_contrast(uint8_t *rgba, size_t len, int32_t amount) {
+    if (!rgba || len < 4) return;
     float f = ((float)(amount + 100)) / 100.0f;
     if (f < 0.01f) f = 0.01f;
-    int32_t c = 128;
-    for (size_t i = 0; i + 3 < len; i += 4) {
-        rgba[i] = clamp_u8((int32_t)(f * ((int32_t)rgba[i] - c) + c));
-        rgba[i + 1] = clamp_u8((int32_t)(f * ((int32_t)rgba[i + 1] - c) + c));
-        rgba[i + 2] = clamp_u8((int32_t)(f * ((int32_t)rgba[i + 2] - c) + c));
-    }
+    contrast_ctx ctx = { f, 128 };
+    apply_lut3(rgba, len, contrast_map, &ctx);
 }
 
-void avero_c_threshold(uint8_t *rgba, size_t len, int32_t level) {
+void avero_c_threshold(uint8_t * AVERO_RESTRICT rgba, size_t len, int32_t level) {
+    if (!rgba || len < 4) return;
     if (level < 0) level = 0; if (level > 255) level = 255;
-    for (size_t i = 0; i + 3 < len; i += 4) {
-        int32_t y = (int32_t)(0.299f * rgba[i] + 0.587f * rgba[i + 1] + 0.114f * rgba[i + 2] + 0.5f);
+    size_t n = len / 4;
+    uint8_t * AVERO_RESTRICT p = rgba;
+    for (size_t k = 0; k < n; ++k, p += 4) {
+        int32_t y = (int32_t)(0.299f * p[0] + 0.587f * p[1] + 0.114f * p[2] + 0.5f);
         uint8_t v = (y >= level) ? 255 : 0;
-        rgba[i] = v; rgba[i + 1] = v; rgba[i + 2] = v;
+        p[0] = v; p[1] = v; p[2] = v;
     }
 }
 
-void avero_c_desaturate(uint8_t *rgba, size_t len, int32_t amount) {
+void avero_c_desaturate(uint8_t * AVERO_RESTRICT rgba, size_t len, int32_t amount) {
+    if (!rgba || len < 4) return;
     if (amount < 0) amount = 0; if (amount > 100) amount = 100;
     float a = (float)amount / 100.0f;
-    for (size_t i = 0; i + 3 < len; i += 4) {
-        float y = 0.299f * rgba[i] + 0.587f * rgba[i + 1] + 0.114f * rgba[i + 2];
-        rgba[i] = clamp_u8((int32_t)(rgba[i] + (y - rgba[i]) * a + 0.5f));
-        rgba[i + 1] = clamp_u8((int32_t)(rgba[i + 1] + (y - rgba[i + 1]) * a + 0.5f));
-        rgba[i + 2] = clamp_u8((int32_t)(rgba[i + 2] + (y - rgba[i + 2]) * a + 0.5f));
+    size_t n = len / 4;
+    uint8_t * AVERO_RESTRICT p = rgba;
+    for (size_t k = 0; k < n; ++k, p += 4) {
+        float y = 0.299f * p[0] + 0.587f * p[1] + 0.114f * p[2];
+        p[0] = clamp_u8((int32_t)(p[0] + (y - p[0]) * a + 0.5f));
+        p[1] = clamp_u8((int32_t)(p[1] + (y - p[1]) * a + 0.5f));
+        p[2] = clamp_u8((int32_t)(p[2] + (y - p[2]) * a + 0.5f));
     }
 }
 
-/* --- Lanjut --- */
+/* --- Advanced --- */
 
 void avero_c_exposure(uint8_t *rgba, size_t len, float ev) {
+    if (!rgba || len < 4) return;
     if (ev < -6.0f) ev = -6.0f; if (ev > 6.0f) ev = 6.0f;
     float g = powf(2.0f, ev);
     for (size_t i = 0; i + 3 < len; i += 4) {
@@ -84,6 +124,7 @@ void avero_c_exposure(uint8_t *rgba, size_t len, float ev) {
 }
 
 void avero_c_gamma(uint8_t *rgba, size_t len, float gamma) {
+    if (!rgba || len < 4) return;
     if (gamma < 0.1f) gamma = 0.1f; if (gamma > 4.0f) gamma = 4.0f;
     float inv = 1.0f / gamma;
     uint8_t lut[256];
@@ -96,6 +137,7 @@ void avero_c_gamma(uint8_t *rgba, size_t len, float gamma) {
 }
 
 void avero_c_vibrance(uint8_t *rgba, size_t len, int32_t amount) {
+    if (!rgba || len < 4) return;
     if (amount < -100) amount = -100; if (amount > 100) amount = 100;
     float a = amount / 100.0f;
     for (size_t i = 0; i + 3 < len; i += 4) {
@@ -112,27 +154,35 @@ void avero_c_vibrance(uint8_t *rgba, size_t len, int32_t amount) {
     }
 }
 
-void avero_c_warmth(uint8_t *rgba, size_t len, int32_t warmth) {
+void avero_c_warmth(uint8_t * AVERO_RESTRICT rgba, size_t len, int32_t warmth) {
+    if (!rgba || len < 4) return;
     if (warmth < -100) warmth = -100; if (warmth > 100) warmth = 100;
-    for (size_t i = 0; i + 3 < len; i += 4) {
-        int32_t r = rgba[i], g = rgba[i + 1], b = rgba[i + 2];
-        r = clamp_u8(r + warmth * 0.7f);
-        b = clamp_u8(b - warmth * 0.7f);
-        rgba[i] = (uint8_t)r; rgba[i + 1] = (uint8_t)g; rgba[i + 2] = (uint8_t)b;
+    int32_t d = (int32_t)(warmth * 0.7f);
+    uint8_t lut_r[256], lut_b[256];
+    for (int i = 0; i < 256; ++i) { lut_r[i] = clamp_u8(i + d); lut_b[i] = clamp_u8(i - d); }
+    size_t n = len / 4;
+    uint8_t * AVERO_RESTRICT p = rgba;
+    for (size_t k = 0; k < n; ++k, p += 4) {
+        p[0] = lut_r[p[0]];
+        p[2] = lut_b[p[2]];
     }
+}
+
+typedef struct { float step; } posterize_ctx;
+static uint8_t posterize_map(int v, void *ctx) {
+    float step = ((posterize_ctx *)ctx)->step;
+    return clamp_u8((int32_t)(roundf(v / step) * step));
 }
 
 void avero_c_posterize(uint8_t *rgba, size_t len, int32_t levels) {
+    if (!rgba || len < 4) return;
     if (levels < 2) levels = 2; if (levels > 32) levels = 32;
-    float step = 255.0f / (levels - 1);
-    for (size_t i = 0; i + 3 < len; i += 4) {
-        rgba[i] = clamp_u8((int32_t)(roundf(rgba[i] / step) * step));
-        rgba[i + 1] = clamp_u8((int32_t)(roundf(rgba[i + 1] / step) * step));
-        rgba[i + 2] = clamp_u8((int32_t)(roundf(rgba[i + 2] / step) * step));
-    }
+    posterize_ctx ctx = { 255.0f / (levels - 1) };
+    apply_lut3(rgba, len, posterize_map, &ctx);
 }
 
 void avero_c_sepia(uint8_t *rgba, size_t len, int32_t amount) {
+    if (!rgba || len < 4) return;
     if (amount < 0) amount = 0; if (amount > 100) amount = 100;
     float a = amount / 100.0f, b = 1.0f - a;
     for (size_t i = 0; i + 3 < len; i += 4) {
@@ -146,18 +196,28 @@ void avero_c_sepia(uint8_t *rgba, size_t len, int32_t amount) {
     }
 }
 
-void avero_c_color_balance(uint8_t *rgba, size_t len, int32_t cr, int32_t mg, int32_t yb) {
+void avero_c_color_balance(uint8_t * AVERO_RESTRICT rgba, size_t len, int32_t cr, int32_t mg, int32_t yb) {
+    if (!rgba || len < 4) return;
     if (cr < -100) cr = -100; if (cr > 100) cr = 100;
     if (mg < -100) mg = -100; if (mg > 100) mg = 100;
     if (yb < -100) yb = -100; if (yb > 100) yb = 100;
-    for (size_t i = 0; i + 3 < len; i += 4) {
-        rgba[i] = clamp_u8((int32_t)rgba[i] + cr);
-        rgba[i + 1] = clamp_u8((int32_t)rgba[i + 1] + mg);
-        rgba[i + 2] = clamp_u8((int32_t)rgba[i + 2] + yb);
+    uint8_t lut_r[256], lut_g[256], lut_b[256];
+    for (int i = 0; i < 256; ++i) {
+        lut_r[i] = clamp_u8(i + cr);
+        lut_g[i] = clamp_u8(i + mg);
+        lut_b[i] = clamp_u8(i + yb);
+    }
+    size_t n = len / 4;
+    uint8_t * AVERO_RESTRICT p = rgba;
+    for (size_t k = 0; k < n; ++k, p += 4) {
+        p[0] = lut_r[p[0]];
+        p[1] = lut_g[p[1]];
+        p[2] = lut_b[p[2]];
     }
 }
 
 void avero_c_shadows_highlights(uint8_t *rgba, size_t len, int32_t shadows, int32_t highlights) {
+    if (!rgba || len < 4) return;
     if (shadows < -100) shadows = -100; if (shadows > 100) shadows = 100;
     if (highlights < -100) highlights = -100; if (highlights > 100) highlights = 100;
     float s = shadows / 100.0f, h = highlights / 100.0f;
@@ -206,6 +266,7 @@ static void hsl_to_rgb(float h, float s, float l, uint8_t *r, uint8_t *g, uint8_
 }
 
 void avero_c_hue_shift(uint8_t *rgba, size_t len, int32_t hue_deg) {
+    if (!rgba || len < 4) return;
     float sh = fmodf(hue_deg / 360.0f, 1.0f);
     if (sh < 0) sh += 1.0f;
     for (size_t i = 0; i + 3 < len; i += 4) {
@@ -219,7 +280,7 @@ void avero_c_hue_shift(uint8_t *rgba, size_t len, int32_t hue_deg) {
 }
 
 void avero_c_auto_levels(uint8_t *rgba, size_t len) {
-    if (len < 4) return;
+    if (!rgba || len < 4) return;
     uint8_t mnR = 255, mxR = 0, mnG = 255, mxG = 0, mnB = 255, mxB = 0;
     for (size_t i = 0; i + 3 < len; i += 4) {
         if (rgba[i] < mnR) mnR = rgba[i]; if (rgba[i] > mxR) mxR = rgba[i];
@@ -237,7 +298,7 @@ void avero_c_auto_levels(uint8_t *rgba, size_t len) {
 }
 
 void avero_c_auto_contrast(uint8_t *rgba, size_t len) {
-    if (len < 4) return;
+    if (!rgba || len < 4) return;
     uint8_t mn = 255, mx = 0;
     for (size_t i = 0; i + 3 < len; i += 4) {
         uint8_t y = (uint8_t)(0.299f * rgba[i] + 0.587f * rgba[i + 1] + 0.114f * rgba[i + 2] + 0.5f);
@@ -250,12 +311,15 @@ void avero_c_auto_contrast(uint8_t *rgba, size_t len) {
     }
 }
 
-void avero_c_opacity(uint8_t *rgba, size_t len, int32_t opacity) {
+void avero_c_opacity(uint8_t * AVERO_RESTRICT rgba, size_t len, int32_t opacity) {
+    if (!rgba || len < 4) return;
     if (opacity < 0) opacity = 0; if (opacity > 100) opacity = 100;
-    for (size_t i = 0; i + 3 < len; i += 4) rgba[i + 3] = (uint8_t)(rgba[i + 3] * opacity / 100);
+    size_t n = len / 4;
+    uint8_t * AVERO_RESTRICT p = rgba;
+    for (size_t k = 0; k < n; ++k, p += 4) p[3] = (uint8_t)(p[3] * opacity / 100);
 }
 
-/* --- Advance ringan RAM --- */
+/* --- Lightweight extras --- */
 
 void avero_c_lut_map(uint8_t *rgba, size_t len, const uint8_t lut_r[256], const uint8_t lut_g[256], const uint8_t lut_b[256]) {
     if (!rgba || !lut_r || !lut_g || !lut_b || len < 4) return;
@@ -263,7 +327,7 @@ void avero_c_lut_map(uint8_t *rgba, size_t len, const uint8_t lut_r[256], const 
 }
 
 void avero_c_equalize(uint8_t *rgba, size_t len) {
-    if (len < 4) return;
+    if (!rgba || len < 4) return;
     int hist[256] = {0};
     for (size_t i = 0; i + 3 < len; i += 4) { uint8_t y = (uint8_t)(0.299f * rgba[i] + 0.587f * rgba[i + 1] + 0.114f * rgba[i + 2] + 0.5f); hist[y]++; }
     int cdf[256]; cdf[0] = hist[0]; for (int i = 1; i < 256; ++i) cdf[i] = cdf[i - 1] + hist[i];
@@ -284,6 +348,7 @@ void avero_c_dither_floyd(uint8_t *rgba, size_t w, size_t h) {
 }
 
 void avero_c_noise_mono(uint8_t *rgba, size_t len, int32_t amount, uint32_t seed) {
+    if (!rgba || len < 4) return;
     if (amount <= 0) return; if (amount > 64) amount = 64;
     uint32_t s = seed ? seed : 1;
     for (size_t i = 0; i + 3 < len; i += 4) { s = s * 1664525u + 1013904223u; int32_t n = ((int32_t)(s >> 16) % (amount * 2 + 1)) - amount; rgba[i] = clamp_u8((int32_t)rgba[i] + n); rgba[i + 1] = clamp_u8((int32_t)rgba[i + 1] + n); rgba[i + 2] = clamp_u8((int32_t)rgba[i + 2] + n); }
@@ -296,6 +361,7 @@ void avero_c_channel_swap(uint8_t *rgba, size_t len, int32_t mode) {
 }
 
 void avero_c_alpha_premultiply(uint8_t *rgba, size_t len) {
+    if (!rgba || len < 4) return;
     for (size_t i = 0; i + 3 < len; i += 4) { float a = rgba[i + 3] / 255.0f; rgba[i] = clamp_f(rgba[i] * a); rgba[i + 1] = clamp_f(rgba[i + 1] * a); rgba[i + 2] = clamp_f(rgba[i + 2] * a); }
 }
 

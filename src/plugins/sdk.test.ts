@@ -5,7 +5,7 @@ describe("plugin SDK", () => {
   it("3 contoh plugin tersedia", () => {
     expect(EXAMPLE_PLUGINS.length).toBe(3);
   });
-  it("duotone berjalan tanpa error", () => {
+  it("duotone runs without errors", () => {
     const d = new Uint8ClampedArray(4 * 4 * 4).fill(128);
     d[3] = 255;
     const img = new ImageData(d, 4, 4);

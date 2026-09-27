@@ -41,9 +41,10 @@
     "fileAssociations": [
       {
         "ext": ["avx"],
-        "name": "AVERO Studio Project",
-        "description": "AVERO STUDIO non destructive project",
-        "mimeType": "application/x-avero-studio"
+        "name": "Avero Project Design",
+        "description": "Avero Project Design",
+        "mimeType": "application/x-avero-studio",
+        "role": "Editor"
       },
       {
         "ext": ["png", "jpg", "jpeg", "webp", "bmp", "tiff"],

@@ -10,7 +10,7 @@ export interface PNode {
   label: string;
   x: number;
   y: number;
-  refId?: string; // adjustment/filter id atau layer id
+  refId?: string; // adjustment/filter id or layer id
   params?: Record<string, number>;
 }
 

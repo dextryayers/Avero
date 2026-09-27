@@ -18,7 +18,7 @@ function isTauri(): boolean {
   }
 }
 
-// Baca/tulis file teks lewat proses inti aplikasi (tanpa batas scope plugin fs).
+// Read/write text files through the app core process (no plugin-fs scope limits).
 export async function readTextFile(path: string): Promise<string> {
   return await invoke<string>("cmd_read_text_file", { path });
 }
@@ -69,7 +69,9 @@ export async function pickAvxToOpen(): Promise<string | null> {
   try {
     const file = await open({
       multiple: false,
-      filters: [{ name: "AVERO Project", extensions: ["avx"] }],
+      directory: false,
+      title: "Open Avero project (.avx)",
+      filters: [{ name: "Avero Project Design", extensions: ["avx"] }],
     });
     return typeof file === "string" ? file : null;
   } catch {
@@ -77,18 +79,123 @@ export async function pickAvxToOpen(): Promise<string | null> {
   }
 }
 
-export async function pickAvxSavePath(defaultName: string): Promise<string | null> {
+export async function pickAvxSavePath(defaultPath: string): Promise<string | null> {
   if (!isTauri()) return null;
   try {
+    // Word-like: the dialog always appears on first save, defaulting to .avx.
+    const withExt = ensureAvxExtension(defaultPath);
     const file = await save({
-      defaultPath: defaultName.endsWith(".avx") ? defaultName : `${defaultName}.avx`,
-      filters: [{ name: "AVERO Project", extensions: ["avx"] }],
+      defaultPath: withExt,
+      title: "Save Avero project (.avx)",
+      filters: [{ name: "Avero Project Design", extensions: ["avx"] }],
     });
     if (!file) return null;
-    return file.toLowerCase().endsWith(".avx") ? file : `${file}.avx`;
+    return ensureAvxExtension(file);
   } catch {
     return null;
   }
+}
+
+// ---- Word-like project folder helpers ----
+export function sanitizeProjectName(name: string): string {
+  const clean = (name || "Untitled").replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, " ").trim();
+  return clean.slice(0, 80) || "Untitled";
+}
+
+export function ensureAvxExtension(p: string): string {
+  const t = (p || "").trim();
+  if (!t) return "Untitled.avx";
+  return t.toLowerCase().endsWith(".avx") ? t : `${t}.avx`;
+}
+
+export function joinPath(a: string, b: string): string {
+  if (!a) return b;
+  const sep = a.includes("\\") && !a.includes("/") ? "\\" : "/";
+  const left = a.endsWith("/") || a.endsWith("\\") ? a.slice(0, -1) : a;
+  const right = b.startsWith("/") || b.startsWith("\\") ? b.slice(1) : b;
+  return `${left}${sep}${right}`;
+}
+
+export function parentDir(p: string | null): string | null {
+  if (!p) return null;
+  const t = p.replace(/[/\\]+$/, "");
+  const i = Math.max(t.lastIndexOf("/"), t.lastIndexOf("\\"));
+  if (i <= 0) return null;
+  return t.slice(0, i);
+}
+
+export function baseName(p: string | null, ext = true): string {
+  if (!p) return "Untitled";
+  const t = p.split(/[/\\]/).pop() ?? "Untitled";
+  if (ext || !t.toLowerCase().endsWith(".avx")) return t;
+  return t.slice(0, -4);
+}
+
+// Pick a dedicated project folder (enforced on Create New, holds assets/images like Word).
+// canCreateDirectories lets the user create the special folder on the spot.
+export async function pickProjectFolder(): Promise<string | null> {
+  if (!isTauri()) return null;
+  try {
+    const dir = await open({
+      multiple: false,
+      directory: true,
+      canCreateDirectories: true,
+      title: "Choose a folder for the new project",
+    });
+    return typeof dir === "string" ? dir : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function ensureProjectDir(folder: string): Promise<string> {
+  if (!isTauri()) return folder;
+  try {
+    return await invoke<string>("cmd_ensure_dir", { path: folder });
+  } catch (e) {
+    throw new Error(`Could not create project folder: ${String(e)}`);
+  }
+}
+
+async function projectDirExists(folder: string): Promise<boolean> {
+  if (!isTauri()) return false;
+  try {
+    return await invoke<boolean>("cmd_path_exists", { path: folder });
+  } catch {
+    return false;
+  }
+}
+
+export function getProjectFolder(): string | null {
+  return useEditorStore.getState().doc.projectFolder ?? null;
+}
+
+// Best-effort startup registration so Explorer shows
+// "Avero Project Design" in the Type column for .avx files.
+export async function registerAvxAssociation(): Promise<void> {
+  if (!isTauri()) return;
+  try {
+    await invoke("cmd_register_avx_association");
+  } catch {
+    /* best effort only, never blocks startup */
+  }
+}
+
+// Create a dedicated `<parent>/<Name>/` folder + `images/`; linked to the new document.
+// Appends ` - 2`, ` - 3`, ... when the name is taken so projects never mix.
+// The .avx file itself is written on Save (dialog defaults into this folder).
+export async function createNewProjectWithFolder(
+  name: string,
+  parentFolder: string,
+): Promise<string> {
+  const clean = sanitizeProjectName(name);
+  let root = joinPath(parentFolder, clean);
+  for (let n = 2; n <= 99; n++) {
+    if (!(await projectDirExists(root))) break;
+    root = joinPath(parentFolder, `${clean} - ${n}`);
+  }
+  await ensureProjectDir(root);
+  return root;
 }
 
 interface AvxLayer {
@@ -136,7 +243,7 @@ export function getProjectPath(): string | null {
   return useEditorStore.getState().doc.projectPath ?? null;
 }
 
-// Validasi isi .avx secara murni tanpa menyentuh store. Melempar Error bila tidak sah.
+// Validate .avx contents purely, without touching the store. Throws on invalid data.
 export function parseAvxJson(json: string): AvxFile {
   let file: AvxFile;
   try {
@@ -209,20 +316,95 @@ export function verifyAvxChecksum(file: AvxFile): boolean {
   return fnv1aHex(canonicalPayload(file)) === file.checksum;
 }
 
-// Simpan seluruh proyek ke .avx. Jika saveAs false dan sudah ada path, tulis langsung.
+// Tolerant normalization: old files / missing fields still open without corruption.
+// Fills safe defaults for every invalid section.
+export function normalizeAvxFile(file: AvxFile): AvxFile {
+  const layers = Array.isArray(file.layers) ? file.layers : [];
+  const cleanLayers: AvxLayer[] = layers
+    .filter((l) => l && typeof l === "object")
+    .map((l, i) => ({
+      meta: {
+        id: typeof l.meta?.id === "string" ? l.meta.id : `layer-${i}`,
+        name: typeof l.meta?.name === "string" && l.meta.name ? l.meta.name : `Layer ${i + 1}`,
+        visible: l.meta?.visible !== false,
+        locked: l.meta?.locked === true,
+        opacity: clampNum(l.meta?.opacity, 0, 100, 100),
+        blendMode: (typeof l.meta?.blendMode === "string" ? l.meta.blendMode : "normal") as AvxLayer["meta"]["blendMode"],
+        kind: (l.meta?.kind === "text" || l.meta?.kind === "shape" || l.meta?.kind === "background"
+          ? l.meta.kind
+          : "raster") as AvxLayer["meta"]["kind"],
+        clipped: l.meta?.clipped === true ? true : undefined,
+      },
+      pixels: typeof l.pixels === "string" && l.pixels.startsWith("data:image/") ? l.pixels : null,
+      maskPixels:
+        typeof l.maskPixels === "string" && l.maskPixels.startsWith("data:image/") ? l.maskPixels : null,
+    }));
+  return {
+    magic: AVX_MAGIC,
+    version: typeof file.version === "number" ? file.version : AVX_VERSION,
+    app: typeof file.app === "string" ? file.app : "AVERO STUDIO",
+    savedAt: typeof file.savedAt === "number" ? file.savedAt : Date.now(),
+    checksum: typeof file.checksum === "string" ? file.checksum : undefined,
+    doc: {
+      name: typeof file.doc?.name === "string" && file.doc.name ? file.doc.name : "Untitled",
+      width: clampNum(file.doc?.width, 1, 16384, 1920),
+      height: clampNum(file.doc?.height, 1, 16384, 1080),
+    },
+    layers: cleanLayers,
+    activeLayerName: typeof file.activeLayerName === "string" ? file.activeLayerName : null,
+    adjustments: Array.isArray(file.adjustments) ? file.adjustments : [],
+    filters: Array.isArray(file.filters) ? file.filters : [],
+    masks: file.masks && typeof file.masks === "object" ? file.masks : {},
+    transforms: file.transforms && typeof file.transforms === "object" ? file.transforms : {},
+    textSpecs: file.textSpecs && typeof file.textSpecs === "object" ? file.textSpecs : {},
+    shapeSpecs: file.shapeSpecs && typeof file.shapeSpecs === "object" ? file.shapeSpecs : {},
+    guidesH: Array.isArray(file.guidesH) ? file.guidesH.filter((n) => Number.isFinite(n)) : [],
+    guidesV: Array.isArray(file.guidesV) ? file.guidesV.filter((n) => Number.isFinite(n)) : [],
+    showGrid: !!file.showGrid,
+    gridSize: clampNum(file.gridSize, 8, 512, 64),
+    color: file.color && typeof file.color === "object" ? file.color : {},
+    raw: file.raw && typeof file.raw === "object" ? file.raw : {},
+    selPixels:
+      typeof file.selPixels === "string" && file.selPixels.startsWith("data:image/")
+        ? file.selPixels
+        : null,
+    ui: file.ui && typeof file.ui === "object" ? file.ui : undefined,
+  };
+}
+
+// Word-style automatic backup: before overwriting an old .avx, keep a `.bak` copy.
+async function backupExistingAvx(path: string): Promise<void> {
+  if (!isTauri() || !path.toLowerCase().endsWith(".avx")) return;
+  try {
+    const prev = await readTextFile(path);
+    if (!prev || prev.length < 32) return;
+    await writeTextFile(`${path}.bak`, prev);
+  } catch {
+    /* best-effort backup; a backup failure never fails the save */
+  }
+}
+
+// Save the full project to .avx, Word-style.
+// - First save / Save As: ALWAYS opens the file manager, defaulting to `Name.avx`
+//   inside the dedicated project folder when one exists.
+// - Later saves: write straight to the same path (atomic + backup + verify).
 export async function saveAvxProject(saveAs = false): Promise<string | null> {
   const ed = useEditorStore.getState();
   const pro = useProStore.getState();
   const doc = ed.doc;
   let path = saveAs ? null : (doc.projectPath ?? null);
   if (!path) {
-    const base = (doc.name || "Untitled").replace(/[\\/:*?"<>|]+/g, "_");
+    const base = sanitizeProjectName(doc.name);
     if (isTauri()) {
-      path = await pickAvxSavePath(base);
+      const folder = doc.projectFolder ?? null;
+      const def = folder ? joinPath(folder, ensureAvxExtension(base)) : ensureAvxExtension(base);
+      path = await pickAvxSavePath(def);
       if (!path) return null;
     } else {
-      path = `${base}.avx`;
+      path = ensureAvxExtension(base);
     }
+  } else {
+    path = ensureAvxExtension(path);
   }
 
   const layers: AvxLayer[] = ed.layers.map((l) => {
@@ -294,11 +476,31 @@ export async function saveAvxProject(saveAs = false): Promise<string | null> {
   const stamped: AvxFile = { ...file, checksum };
   const json = JSON.stringify(stamped);
 
+  // Verify before writing: never write a corrupt file to disk.
+  // If verification fails, abort the save with a clear error.
+  try {
+    const recheck = parseAvxJson(json);
+    if (recheck.layers.length !== file.layers.length) {
+      throw new Error("Layer count changed during verify");
+    }
+  } catch (e) {
+    throw new Error(`Project file is invalid, save aborted: ${String(e)}`);
+  }
+
   if (isTauri() && path && !path.startsWith("<")) {
+    await backupExistingAvx(path);
     try {
       await invoke("cmd_write_text_atomic", { path, contents: json });
     } catch {
       await writeTextFile(path, json);
+    }
+    // Light post-verify: re-read the header + magic so corruption is caught immediately.
+    try {
+      const back = await readTextFile(path);
+      const head = back.slice(0, 64);
+      if (!head.includes(AVX_MAGIC)) throw new Error("header mismatch");
+    } catch (e) {
+      throw new Error(`Save verification failed: ${String(e)}`);
     }
   } else {
     const blob = new Blob([json], { type: "application/x-avero" });
@@ -311,10 +513,15 @@ export async function saveAvxProject(saveAs = false): Promise<string | null> {
   }
 
   useEditorStore.setState((s) => ({
-    doc: { ...s.doc, projectPath: isTauri() ? path : s.doc.projectPath, dirty: false },
+    doc: {
+      ...s.doc,
+      projectPath: isTauri() ? path : s.doc.projectPath,
+      projectFolder: isTauri() && path ? (parentDir(path) ?? s.doc.projectFolder) : s.doc.projectFolder,
+      dirty: false,
+    },
   }));
   const short = (isTauri() ? path : doc.name).split(/[/\\]/).pop() ?? doc.name;
-  // thumbnail untuk recent: komposit ringan
+  // Lightweight recent thumbnail from the composite
   let thumb: string | null = null;
   try {
     const comp = getCompositeCanvas();
@@ -340,7 +547,8 @@ export async function saveAvxProject(saveAs = false): Promise<string | null> {
   return path;
 }
 
-// Buka .avx dan pulihkan utuh: layer, mask, adjustment, filter, transform, guide.
+// Open an .avx file and fully restore it: layers, masks, adjustments, filters, transforms, guides.
+// Corruption-proof: tolerant normalization + safe per-layer loading + image timeouts.
 export async function openAvxProject(fromPath?: string): Promise<boolean> {
   let path = fromPath ?? null;
   let json = "";
@@ -370,7 +578,9 @@ export async function openAvxProject(fromPath?: string): Promise<boolean> {
     path = null;
   }
 
-  const file = parseAvxJson(json);
+  if (!json || json.length < 16) throw new Error("Empty or corrupt .avx file");
+  const raw = parseAvxJson(json);
+  const file = normalizeAvxFile(raw);
 
   const ed = useEditorStore.getState();
   const pro = useProStore.getState();
@@ -392,7 +602,7 @@ export async function openAvxProject(fromPath?: string): Promise<boolean> {
     idMap.set(l.meta.id, nid);
     newLayers.push({ ...l.meta, id: nid, name: l.meta.name || `Layer ${i + 1}` });
   }
-  if (newLayers.length === 0) throw new Error("Proyek kosong, tidak ada layer");
+  if (newLayers.length === 0) throw new Error("Empty project, no layers found");
 
   ed.openDocument(file.doc.name || "Untitled", W, H, path, json.length);
   useEditorStore.setState((s) => ({
@@ -401,9 +611,16 @@ export async function openAvxProject(fromPath?: string): Promise<boolean> {
       newLayers.find((l) => l.name === file.activeLayerName)?.id ?? newLayers[newLayers.length - 1].id,
     history: [],
     future: [],
-    doc: { ...s.doc, projectPath: path },
+    doc: { ...s.doc, projectPath: path, projectFolder: parentDir(path) ?? s.doc.projectFolder },
   }));
 
+  const loadWithTimeout = (dataUrl: string, ms = 8000): Promise<HTMLImageElement> =>
+    Promise.race([
+      loadImage(dataUrl),
+      new Promise<never>((_, rej) => setTimeout(() => rej(new Error("Layer image timeout")), ms)),
+    ]);
+
+  let okLayers = 0;
   for (const [i, l] of file.layers.entries()) {
     const nid = idMap.get(l.meta.id)!;
     const c = layerManager.ensure(nid, W, H);
@@ -411,27 +628,40 @@ export async function openAvxProject(fromPath?: string): Promise<boolean> {
     ctx.clearRect(0, 0, W, H);
     if (l.pixels) {
       try {
-        const img = await loadImage(l.pixels);
-        ctx.drawImage(img, 0, 0, W, H);
+        const img = await loadWithTimeout(l.pixels);
+        // Gambar corrupt berdimensi aneh: gambar apa adanya, jangan stretch merusak.
+        try {
+          ctx.drawImage(img, 0, 0, W, H);
+        } catch {
+          ctx.drawImage(img, 0, 0);
+        }
+        okLayers += 1;
       } catch {
-        /* layer dibiarkan kosong */
+        /* leave the layer blank, the document still opens normally */
       }
+    } else {
+      okLayers += 1; // an empty layer is valid (e.g. pure text/shape)
     }
     if (l.maskPixels) {
       try {
         const mc = layerManager.ensureMask(nid, W, H);
         const mctx = mc.getContext("2d")!;
         mctx.clearRect(0, 0, W, H);
-        const mimg = await loadImage(l.maskPixels);
-        mctx.drawImage(mimg, 0, 0, W, H);
+        const mimg = await loadWithTimeout(l.maskPixels);
+        try {
+          mctx.drawImage(mimg, 0, 0, W, H);
+        } catch {
+          mctx.drawImage(mimg, 0, 0);
+        }
       } catch {
-        /* abaikan mask rusak */
+        /* ignore a broken mask */
       }
     }
     void i;
   }
+  void okLayers;
 
-  // Pulihkan mask seleksi aktif bila tersimpan
+  // Restore the saved active selection mask, if present
   if (file.selPixels) {
     try {
       const simg = await loadImage(file.selPixels);
@@ -441,7 +671,7 @@ export async function openAvxProject(fromPath?: string): Promise<boolean> {
     }
   }
 
-  // Kembalikan state non-destruktif dengan id layer baru
+  // Restore non-destructive state with the new layer ids
   const remap = <T extends Record<string, unknown>>(obj: T): T => {
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(obj ?? {})) {
@@ -464,7 +694,7 @@ export async function openAvxProject(fromPath?: string): Promise<boolean> {
     raw: { ...pro.raw, ...((file.raw ?? {}) as object) },
   });
 
-  // State UI editor ikut dipulihkan bila tersimpan
+  // Restore saved editor UI state, if present
   const ui = file.ui ?? {};
   const selKinds = ["none", "rect", "ellipse", "lasso", "wand"];
   const gradTos = ["transparent", "white", "black"];
@@ -487,7 +717,7 @@ export async function openAvxProject(fromPath?: string): Promise<boolean> {
     });
   }
 
-  // Thumbnail recent dari komposit manual
+  // Recent thumbnail from a manual composite
   try {
     const comp = document.createElement("canvas");
     comp.width = W;
@@ -514,7 +744,7 @@ export async function openAvxProject(fromPath?: string): Promise<boolean> {
       size: json.length,
     });
   } catch {
-    /* abaikan */
+    /* ignore thumbnail failures */
   }
 
   pro.bumpHistogram();
@@ -522,7 +752,7 @@ export async function openAvxProject(fromPath?: string): Promise<boolean> {
   return true;
 }
 
-// Encoder BMP 24-bit manual untuk export yang tidak didukung browser.
+// Manual 24-bit BMP encoder for exports the browser cannot produce.
 export function encodeBmpDataUrl(img: ImageData): string {
   const w = img.width;
   const h = img.height;
@@ -568,7 +798,7 @@ export interface ExportOptions {
   fileName: string;
 }
 
-// Render komposit final sesuai opsi export. SVG menanam PNG base64.
+// Render the final composite for the export options. SVG embeds base64 PNG.
 export function renderExportCanvas(opts: ExportOptions): { canvas: HTMLCanvasElement; mime: string } {
   const comp = getCompositeCanvas();
   const ed = useEditorStore.getState();

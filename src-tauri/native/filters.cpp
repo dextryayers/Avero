@@ -16,7 +16,7 @@ static inline uint8_t clamp_u8(int v) {
 static inline int idx(int x, int y, int w) { return (y * w + x) * 4; }
 
 void box_blur(const uint8_t *src, uint8_t *dst, int w, int h, int radius) {
-    if (w <= 0 || h <= 0) return;
+    if (!src || !dst || w <= 0 || h <= 0) return;
     if (radius <= 0) { std::memcpy(dst, src, static_cast<size_t>(w)*h*4); return; }
     std::vector<uint8_t> tmp(static_cast<size_t>(w)*h*4);
     const int r = radius; const int win = 2*r+1;
@@ -37,7 +37,7 @@ void box_blur(const uint8_t *src, uint8_t *dst, int w, int h, int radius) {
 }
 
 void sharpen(const uint8_t *src, uint8_t *dst, int w, int h, float amount) {
-    if (w<=0||h<=0) return;
+    if (!src || !dst || w<=0||h<=0) return;
     if (amount<=0){ std::memcpy(dst,src,static_cast<size_t>(w)*h*4); return;}
     float a=amount;
     for (int y=0;y<h;++y) for (int x=0;x<w;++x){
@@ -49,7 +49,7 @@ void sharpen(const uint8_t *src, uint8_t *dst, int w, int h, float amount) {
 }
 
 void unsharp_mask(const uint8_t *src, uint8_t *dst, int w, int h, float amount, int radius) {
-    if (w<=0||h<=0) return;
+    if (!src || !dst || w<=0||h<=0) return;
     std::vector<uint8_t> bl(static_cast<size_t>(w)*h*4);
     box_blur(src,bl.data(),w,h,radius<1?1:radius);
     for (int y=0;y<h;++y) for (int x=0;x<w;++x){
@@ -69,7 +69,7 @@ void emboss(const uint8_t *src, uint8_t *dst, int w, int h) {
 }
 
 void motion_blur(const uint8_t *src, uint8_t *dst, int w, int h, int radius, float angle_deg) {
-    if (w<=0||h<=0) return; if (radius<1) radius=1;
+    if (!src || !dst || w<=0||h<=0) return; if (radius<1) radius=1;
     float rad=angle_deg*3.14159265f/180, dx=std::cos(rad), dy=std::sin(rad), inv=1.0f/radius;
     for (int y=0;y<h;++y) for (int x=0;x<w;++x){
         float r=0,g=0,b=0; for (int k=0;k<radius;++k){ float off=k-radius*0.5f;
@@ -81,7 +81,7 @@ void motion_blur(const uint8_t *src, uint8_t *dst, int w, int h, int radius, flo
 }
 
 void gaussian(const uint8_t *src, uint8_t *dst, int w, int h, float sigma) {
-    if (w<=0||h<=0) return;
+    if (!src || !dst || w<=0||h<=0) return;
     if (sigma<=0.1f){ std::memcpy(dst,src,static_cast<size_t>(w)*h*4); return;}
     int radius = int(std::ceil(sigma*3)); if (radius<1) radius=1; if (radius>32) radius=32;
     std::vector<float> kernel(2*radius+1);
@@ -102,7 +102,9 @@ void median(const uint8_t *src, uint8_t *dst, int w, int h, int radius) {
     if (!src || !dst || w <= 0 || h <= 0) return;
     if (radius<=0){ std::memcpy(dst,src,static_cast<size_t>(w)*h*4); return;}
     if (radius>8) radius=8;
-    std::vector<uint8_t> win; win.reserve((2*radius+1)*(2*radius+1));
+    // Reused window buffer: one allocation per call instead of per pixel.
+    std::vector<uint8_t> win;
+    win.reserve(static_cast<size_t>(2*radius+1)*(2*radius+1));
     for (int y=0;y<h;++y) for (int x=0;x<w;++x){
         for (int c=0;c<3;++c){
             win.clear();
@@ -207,9 +209,12 @@ void oil_paint(const uint8_t *src, uint8_t *dst, int w, int h, int radius, int i
     if (!src || !dst || w <= 0 || h <= 0) return;
     if (radius<1) radius=1; if (radius>12) radius=12;
     if (intensity<2) intensity=2; if (intensity>64) intensity=64;
+    // Single memset per pixel instead of a 768-iteration zero loop.
     int histR[256], histG[256], histB[256];
     for (int y=0;y<h;++y) for (int x=0;x<w;++x){
-        for (int i=0;i<256;++i) histR[i]=histG[i]=histB[i]=0;
+        memset(histR, 0, sizeof(histR));
+        memset(histG, 0, sizeof(histG));
+        memset(histB, 0, sizeof(histB));
         int cnt=0;
         for (int dy=-radius;dy<=radius;++dy) for (int dx=-radius;dx<=radius;++dx){
             int sx=std::min(w-1,std::max(0,x+dx)), sy=std::min(h-1,std::max(0,y+dy));
@@ -245,7 +250,7 @@ void box_blur_light(const uint8_t *src, uint8_t *dst, int w, int h, int radius) 
         int tw=std::min(TILE,w-tx), th=std::min(TILE,h-ty);
         std::vector<uint8_t> tile(static_cast<size_t>(tw)*th*4), out(static_cast<size_t>(tw)*th*4);
         for (int y=0;y<th;++y) std::memcpy(tile.data()+y*tw*4, src+idx(tx,ty+y,w), tw*4);
-        // box blur pada tile
+        // box blur on the tile
         std::vector<uint8_t> tmp(static_cast<size_t>(tw)*th*4);
         int r=radius, win=2*r+1;
         for (int y=0;y<th;++y) for (int c=0;c<3;++c){
@@ -262,12 +267,12 @@ void box_blur_light(const uint8_t *src, uint8_t *dst, int w, int h, int radius) 
 }
 
 void gaussian_light(const uint8_t *src, uint8_t *dst, int w, int h, float sigma) {
-    if (sigma>8) sigma=8; // batasi radius agar ringan
+    if (sigma>8) sigma=8; // cap the radius to stay light
     gaussian(src,dst,w,h,sigma);
 }
 
 void bilateral_light(const uint8_t *src, uint8_t *dst, int w, int h, int radius, float sigma_color) {
-    if (radius<1) radius=1; if (radius>4) radius=4; // jaga ringan
+    if (radius<1) radius=1; if (radius>4) radius=4; // keep it light
     if (sigma_color<1) sigma_color=10; if (sigma_color>100) sigma_color=100;
     for (int y=0;y<h;++y) for (int x=0;x<w;++x){
         int i=idx(x,y,w);
@@ -285,14 +290,14 @@ void bilateral_light(const uint8_t *src, uint8_t *dst, int w, int h, int radius,
 }
 
 void unsharp_light(const uint8_t *src, uint8_t *dst, int w, int h, float amount, int radius) {
-    if (radius>6) radius=6; // ringan
+    if (radius>6) radius=6; // stay light
     std::vector<uint8_t> bl(static_cast<size_t>(w)*h*4);
     box_blur_light(src, bl.data(), w, h, radius);
     for (int y=0;y<h;++y) for (int x=0;x<w;++x){ int i=idx(x,y,w); for (int c=0;c<3;++c){ int v=int(src[i+c]+amount*(src[i+c]-bl[i+c])+0.5f); dst[i+c]=clamp_u8(v);} dst[i+3]=src[i+3];}
 }
 
 
-// Morfologi piksel: erode (perkecil area terang) dan dilate (perbesar)
+// Pixel morphology: erode (shrinks bright areas) and dilate (expands them)
 void minimize(const uint8_t *src, uint8_t *dst, int w, int h, int radius) {
     if (w<=0||h<=0) return;
     if (radius<1) radius=1; if (radius>8) radius=8;
@@ -331,7 +336,7 @@ void maximize(const uint8_t *src, uint8_t *dst, int w, int h, int radius) {
     }
 }
 
-// Distorsi pusaran halus (dipakai tool Liquify/Warp), sampling bilinear
+// Gentle swirl distortion (used by the Liquify/Warp tools), bilinear sampling
 static inline void sample_bilinear(const uint8_t *src, int w, int h, float x, float y, uint8_t *out) {
     if (x<0) x=0; if (y<0) y=0;
     if (x>w-1) x=float(w-1); if (y>h-1) y=float(h-1);
@@ -352,7 +357,7 @@ void swirl(const uint8_t *src, uint8_t *dst, int w, int h, float radius, float s
     if (radius<1) radius=1;
     const float cx = w*0.5f, cy = h*0.5f;
     const float r2 = radius*radius;
-    const float maxAng = strength * 0.017453292519943295f; // derajat ke radian
+    const float maxAng = strength * 0.017453292519943295f; // degrees to radians
     for (int y=0;y<h;++y) for (int x=0;x<w;++x){
         float dx=float(x)-cx, dy=float(y)-cy;
         float d2=dx*dx+dy*dy;

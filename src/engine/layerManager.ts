@@ -1,10 +1,10 @@
-// LayerManager memegang pixel data per layer di offscreen canvas.
-// Zustand hanya simpan metadata, pixel disimpan di sini agar undo cepat.
+// LayerManager holds per-layer pixel data on offscreen canvases.
+// Zustand keeps metadata only, pixels live here for fast undo.
 
-// Jalur A ringan: pool canvas temp untuk komposit agar tidak alloc 2 canvas
-// per layer per frame (penyebab GC spike + RAM bengkak).
-// Pool dipisah per slot + ukuran agar comp doc-size tidak pernah alias dengan
-// mask temp (bug lama: mask menimpa composite saat layer bermask dirender).
+// Lightweight path: pooled temp canvases for compositing to avoid allocating
+// 2 canvases per layer per frame (the cause of GC spikes + RAM bloat).
+// The pool is split per slot + size so the doc-size comp never aliases the
+// mask temp (old bug: the mask overwrote the composite on masked layers).
 const pools = new Map<string, HTMLCanvasElement>();
 function pooledCanvas(w: number, h: number, slot: "out" | "mask"): HTMLCanvasElement {
   const key = `${slot}:${w}x${h}`;
@@ -65,7 +65,7 @@ class LayerManager {
     this.photoLayers.clear();
   }
 
-  // Fase 2.2: mask bitmap per layer, putih = tampil, hitam = sembunyi
+  // Phase 2.2: per-layer bitmap mask, white = visible, black = hidden
   ensureMask(id: string, w: number, h: number): HTMLCanvasElement {
     let m = this.masks.get(id);
     if (!m) {
@@ -98,9 +98,9 @@ class LayerManager {
     this.masks.delete(id);
   }
 
-  // Komposit layer + mask menjadi canvas temp dengan feather dan density.
-  // Jalur A: tanpa mask -> return src langsung (zero-alloc).
-  // Dengan mask -> pakai pooled canvas, salin ke out baru hanya bila perlu dibaca di luar frame.
+  // Composite layer + mask into a temp canvas with feather and density.
+  // Fast path: no mask -> return src directly (zero-alloc).
+  // With mask -> use the pooled canvas; copy to a fresh canvas only for outside reads.
   compositedWithMask(
     id: string,
     feather: number,
@@ -113,7 +113,7 @@ class LayerManager {
     if (!mask || !enabled) return src;
     const out = pooledCanvas(src.width, src.height, "out");
     const ctx = out.getContext("2d")!;
-    // terapkan mask via destination-in dengan blur feather
+    // apply the mask via destination-in with feather blur
     const mtmp = pooledCanvas(mask.width, mask.height, "mask");
     const mctx = mtmp.getContext("2d")!;
     mctx.filter = feather > 0 ? `blur(${feather}px)` : "none";

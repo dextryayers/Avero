@@ -1,5 +1,5 @@
-// Fase 5.5: Mockup warp perspektif.
-// Hitung homografi dari rect sumber ke quad tujuan, terapkan via sampling invers.
+// Phase 5.5: perspective-warp mockups.
+// Compute the homography from source rect to target quad, apply via inverse sampling.
 
 export interface Quad {
   x0: number;
@@ -13,7 +13,7 @@ export interface Quad {
 }
 
 function homography(srcW: number, srcH: number, q: Quad): number[] {
-  // Selesaikan H 3x3 dengan DLT 4 titik (sumber rect -> quad).
+  // Solve the 3x3 H with 4-point DLT (source rect -> quad).
   const src = [
     [0, 0],
     [srcW, 0],
@@ -72,7 +72,7 @@ export function warpToQuad(
   const octx = out.getContext("2d")!;
   const oid = octx.createImageData(out.width, out.height);
   const H = homography(src.width, src.height, q);
-  // invers H untuk sampling
+  // inverse H for sampling
   const [a, b, c, d, e, f, g, h] = H;
   const det = a * (e * 1 - f * h) - b * (d * 1 - f * g) + c * (d * h - e * g);
   const inv = [
@@ -111,7 +111,7 @@ export function warpToQuad(
   return out;
 }
 
-// Deteksi quad otomatis sederhana: area kontras terbesar di tengah.
+// Simple automatic quad detection: largest central contrast area.
 export function autoQuad(w: number, h: number): Quad {
   return {
     x0: w * 0.24,

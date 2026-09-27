@@ -60,7 +60,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   },
 }));
 
-// Shortcut map yang bisa diedit user
+// User-editable shortcut map
 export type ShortcutMap = Record<string, string>;
 
 const DEFAULT_SHORTCUTS: ShortcutMap = {

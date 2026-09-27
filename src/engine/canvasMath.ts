@@ -2,7 +2,7 @@ export function clampZoom(z: number) {
   return Math.min(3200, Math.max(10, Math.round(z)));
 }
 
-// Hitung ukuran canvas tampil agar fit ke viewport dengan padding.
+// Compute the display canvas size so it fits the viewport with padding.
 export function fitZoom(docW: number, docH: number, viewW: number, viewH: number) {
   if (docW <= 0 || docH <= 0 || viewW <= 0 || viewH <= 0) return 100;
   const zx = (viewW / docW) * 100;

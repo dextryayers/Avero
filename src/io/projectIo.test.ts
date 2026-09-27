@@ -4,7 +4,7 @@ vi.mock("../components/CanvasArea", () => ({
   getCompositeCanvas: () => null,
 }));
 
-import { AVX_MAGIC, AVX_VERSION, parseAvxJson, encodeBmpDataUrl, verifyAvxChecksum, type AvxFile } from "./projectIo";
+import { AVX_MAGIC, AVX_VERSION, parseAvxJson, encodeBmpDataUrl, verifyAvxChecksum, normalizeAvxFile, sanitizeProjectName, ensureAvxExtension, joinPath, parentDir, baseName, type AvxFile } from "./projectIo";
 
 function sampleProject(): AvxFile {
   return {
@@ -12,7 +12,7 @@ function sampleProject(): AvxFile {
     version: AVX_VERSION,
     app: "AVERO STUDIO",
     savedAt: 1700000000000,
-    doc: { name: "Uji.avx", width: 800, height: 600 },
+    doc: { name: "Test.avx", width: 800, height: 600 },
     layers: [
       {
         meta: {
@@ -30,7 +30,7 @@ function sampleProject(): AvxFile {
       {
         meta: {
           id: "layer-b",
-          name: "Teks",
+          name: "Text",
           visible: false,
           locked: false,
           opacity: 64,
@@ -41,8 +41,8 @@ function sampleProject(): AvxFile {
         maskPixels: "data:image/png;base64,iVBORw0KGgo=",
       },
     ],
-    activeLayerName: "Teks",
-    adjustments: [{ id: "adj-1", type: "brightness", name: "Kecerahan", enabled: true, opacity: 100, params: { brightness: 12 } }],
+    activeLayerName: "Text",
+    adjustments: [{ id: "adj-1", type: "brightness", name: "Brightness", enabled: true, opacity: 100, params: { brightness: 12 } }],
     filters: [{ id: "flt-1", type: "gaussianBlur", name: "Blur", enabled: false, opacity: 50, params: { radius: 4 } }],
     masks: { "layer-a": { hasMask: true, density: 100 } },
     transforms: { "layer-a": { x: 10, y: 20, scale: 1, rotate: 0 } },
@@ -60,7 +60,7 @@ function sampleProject(): AvxFile {
       selFeather: 3,
       selTolerance: 30,
       selExpand: -2,
-      savedSelections: [{ id: "sel-1", name: "Pilihan 1", time: 1700000000000 }],
+      savedSelections: [{ id: "sel-1", name: "Selection 1", time: 1700000000000 }],
       paintMask: true,
       gradTo: "black",
       snapEnabled: false,
@@ -70,7 +70,7 @@ function sampleProject(): AvxFile {
 }
 
 describe("parseAvxJson", () => {
-  it("menerima proyek valid utuh tanpa kehilangan data", () => {
+  it("accepts a complete valid project without data loss", () => {
     const src = sampleProject();
     const json = JSON.stringify(src);
     const out = parseAvxJson(json);
@@ -81,7 +81,7 @@ describe("parseAvxJson", () => {
     expect(out.selPixels).toBe("data:image/png;base64,iVBORw0KGgo=");
   });
 
-  it("menerima file lama tanpa bagian ui", () => {
+  it("accepts legacy files without a ui section", () => {
     const src = sampleProject();
     delete (src as Partial<AvxFile>).ui;
     const out = parseAvxJson(JSON.stringify(src));
@@ -135,7 +135,7 @@ describe("avx checksum", () => {
 });
 
 describe("encodeBmpDataUrl", () => {
-  it("menghasilkan BMP 24-bit dengan header benar", () => {
+  it("produces a 24-bit BMP with a correct header", () => {
     const w = 3;
     const h = 2;
     const data = new Uint8ClampedArray(w * h * 4);
@@ -156,5 +156,57 @@ describe("encodeBmpDataUrl", () => {
     expect(dv.getUint32(18, true)).toBe(w);
     expect(dv.getUint32(22, true)).toBe(h);
     expect(dv.getUint16(28, true)).toBe(24);
+  });
+});
+
+describe("word-like project helpers", () => {
+  it("sanitizeProjectName strips forbidden characters", () => {
+    expect(sanitizeProjectName('Proyek: Baru/Bagus*?')).toBe("Proyek_ Baru_Bagus_");
+    expect(sanitizeProjectName("")).toBe("Untitled");
+  });
+
+  it("ensureAvxExtension always defaults to .avx", () => {
+    expect(ensureAvxExtension("Kerja")).toBe("Kerja.avx");
+    expect(ensureAvxExtension("Kerja.avx")).toBe("Kerja.avx");
+    expect(ensureAvxExtension("Kerja.AVX")).toBe("Kerja.AVX");
+    expect(ensureAvxExtension("")).toBe("Untitled.avx");
+  });
+
+  it("joinPath + parentDir + baseName stay consistent on win/posix", () => {
+    expect(joinPath("D:\\kerja", "Proyek")).toBe("D:\\kerja\\Proyek");
+    expect(joinPath("/home/u", "Proyek")).toBe("/home/u/Proyek");
+    expect(parentDir("D:\\kerja\\Proyek\\a.avx")).toBe("D:\\kerja\\Proyek");
+    expect(parentDir("/home/u/Proyek/a.avx")).toBe("/home/u/Proyek");
+    expect(baseName("/home/u/Proyek/a.avx")).toBe("a.avx");
+    expect(parentDir(null)).toBeNull();
+  });
+});
+
+describe("normalizeAvxFile anti-corruption", () => {
+  it("fills defaults for minimal legacy files", () => {
+    const raw = {
+      magic: AVX_MAGIC,
+      version: 1,
+      doc: { name: "Lama", width: 100, height: 100 },
+      layers: [{ meta: { id: "x" }, pixels: "bukan-gambar", maskPixels: null }],
+    } as unknown as AvxFile;
+    const out = normalizeAvxFile(raw);
+    expect(out.layers).toHaveLength(1);
+    expect(out.layers[0].meta.name).toBe("Layer 1");
+    expect(out.layers[0].pixels).toBeNull();
+    expect(out.adjustments).toEqual([]);
+    expect(out.guidesH).toEqual([]);
+  });
+
+  it("drops broken layers without failing the document", () => {
+    const raw = {
+      magic: AVX_MAGIC,
+      version: 1,
+      doc: { name: "X", width: 50, height: 50 },
+      layers: [null, { meta: { id: "a", name: "A" }, pixels: null, maskPixels: null }],
+    } as unknown as AvxFile;
+    const out = normalizeAvxFile(raw);
+    expect(out.layers).toHaveLength(1);
+    expect(out.layers[0].meta.id).toBe("a");
   });
 });

@@ -1,7 +1,7 @@
 import type { FilterEntry } from "../stores/useProStore";
 
-// Fase 2.5: Filter stack. Gunakan ctx.filter GPU browser untuk blur,
-// convolution manual untuk sharpen, noise additive, pixelate via downscale.
+// Phase 2.5: filter stack. Browser-GPU ctx.filter for blur,
+// manual convolution for sharpen, additive noise, downscale pixelate.
 
 export function applyFilterToCanvas(
   src: HTMLCanvasElement,
@@ -92,7 +92,7 @@ export function applyFilterToCanvas(
       }
       convolve(id, outId, src.width, src.height, kernel);
       if (filter.type === "highPass") {
-        // overlay gray 128 agar natural
+        // 128 gray overlay for a natural look
         for (let i = 0; i < outId.data.length; i += 4) {
           outId.data[i] = Math.max(0, Math.min(255, outId.data[i] * 0.6 + 128 * 0.4));
           outId.data[i + 1] = Math.max(0, Math.min(255, outId.data[i + 1] * 0.6 + 128 * 0.4));
@@ -224,7 +224,7 @@ export function applyFilterToCanvas(
   }
 
   if (alpha < 1) {
-    // blend hasil filter dengan source sesuai opacity
+    // blend the filter result with the source per opacity
     const blended = document.createElement("canvas");
     blended.width = src.width;
     blended.height = src.height;

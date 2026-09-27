@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Save, Download, ChevronDown, FileImage, FileBox, Layers } from "lucide-react";
 import { saveAvxProject, openAvxProject, exportDataUrl, type ExportFormat } from "../io/projectIo";
 import { useEditorStore } from "../stores/useEditorStore";
-import { showError } from "../ui/notify";
+import { showError, showMessage } from "../ui/notify";
 import clsx from "clsx";
 
 const IMG_FORMATS: { id: ExportFormat; label: string; ext: string }[] = [
@@ -23,7 +23,8 @@ export default function QuickExportBar({ onOpenExport }: { onOpenExport: () => v
     if (busy) return;
     setBusy(true);
     try {
-      await saveAvxProject(as);
+      const p = await saveAvxProject(as);
+      if (p) await showMessage(`Saved: ${p}`);
     } catch (e) {
       await showError(`Failed to save .avx: ${String(e)}`);
     } finally {

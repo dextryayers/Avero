@@ -137,7 +137,7 @@ export default function FilterPanel() {
           <NativeFRow label="Median" desc="denoise radius 0..16" busy={busy === "median"} onApply={() => runFilter({ op: "median", radius: p.median }, "median")}>
             <Row label="Radius" value={p.median} min={0} max={8} onChange={(v) => setP({ ...p, median: v })} />
           </NativeFRow>
-          <NativeFRow label="Motion Blur" desc="panjang dan sudut" busy={busy === "motion"} onApply={() => runFilter({ op: "motionBlur", radius: p.motionR, angle: p.motionA }, "motion")}>
+          <NativeFRow label="Motion Blur" desc="length and angle" busy={busy === "motion"} onApply={() => runFilter({ op: "motionBlur", radius: p.motionR, angle: p.motionA }, "motion")}>
             <Row label="Radius" value={p.motionR} min={1} max={32} onChange={(v) => setP({ ...p, motionR: v })} />
             <Row label="Angle" value={p.motionA} min={0} max={180} onChange={(v) => setP({ ...p, motionA: v })} />
           </NativeFRow>
@@ -150,7 +150,7 @@ export default function FilterPanel() {
       </div>
 
       <div className="space-y-2">
-        <div className="avero-micro">Detail dan sharpen</div>
+        <div className="avero-micro">Detail and sharpen</div>
         <div className="grid gap-2">
           <NativeFRow label="Sharpen" desc="kernel 3x3" busy={busy === "sharpen"} onApply={() => runFilter({ op: "sharpen", amount: p.amount }, "sharpen")}>
             <Row label="Amount" value={p.amount} min={0} max={8} step={0.1} onChange={(v) => setP({ ...p, amount: v })} />
@@ -197,7 +197,7 @@ export default function FilterPanel() {
       </div>
 
       <div className="space-y-2">
-        <div className="avero-micro flex items-center gap-1.5"><Layers size={11} className="text-[#8fb6f5]" /> Morfologi dan distorsi</div>
+        <div className="avero-micro flex items-center gap-1.5"><Layers size={11} className="text-[#8fb6f5]" /> Morphology and distortion</div>
         <div className="grid gap-2">
           <NativeFRow label="Minimize (Erode)" desc="shrink bright areas per pixel" busy={busy === "minimize"} onApply={() => runFilter({ op: "minimize", radius: p.morph }, "minimize")}>
             <Row label="Radius" value={p.morph} min={1} max={8} onChange={(v) => setP({ ...p, morph: v })} />

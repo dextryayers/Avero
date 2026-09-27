@@ -12,5 +12,5 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   </React.StrictMode>,
 );
 
-// Tandai mount sukses untuk pengaman boot di index.html
+// Flag a successful mount for the boot guard in index.html
 (window as unknown as { __avero_mounted: boolean }).__avero_mounted = true;

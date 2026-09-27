@@ -61,7 +61,7 @@ export interface FilterEntry {
   params: Record<string, number>;
 }
 
-// Fase 3.1: Color
+// Phase 3.1: color
 export type WorkingSpace = "sRGB" | "AdobeRGB" | "ProPhoto";
 export interface ColorState {
   workingSpace: WorkingSpace;
@@ -71,7 +71,7 @@ export interface ColorState {
   gamutWarning: boolean;
 }
 
-// Fase 3.2: RAW develop
+// Phase 3.2: RAW develop
 export interface RawState {
   isRaw: boolean;
   fileName: string | null;

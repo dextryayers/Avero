@@ -112,7 +112,7 @@ fn downscale_if_needed(img: image::DynamicImage, max_side: Option<u32>) -> image
     img.resize(nw, nh, image::imageops::FilterType::Triangle)
 }
 
-// Batas keamanan data: cegah OOM dan path traversal.
+// Data safety limits: prevent OOM and path traversal.
 pub const MAX_TEXT_BYTES: usize = 200 * 1024 * 1024;
 const ALLOWED_TEXT_EXT: [&str; 6] = [".avx", ".json", ".svg", ".txt", ".md", ".csv"];
 const ALLOWED_IMAGE_EXT: [&str; 6] = [".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff"];
@@ -209,6 +209,51 @@ pub fn cmd_write_text_atomic(path: String, contents: String) -> Result<(), Strin
     Ok(())
 }
 
+/// Register the .avx extension as "Avero Project Design" so the file manager
+/// Type column shows the real product name. Windows writes a per-user ProgID
+/// under HKCU (no admin needed); other OSes rely on the installer bundle.
+#[tauri::command]
+pub fn cmd_register_avx_association() -> Result<String, String> {
+    #[cfg(target_os = "windows")]
+    {
+        register_avx_windows()?;
+        Ok("Avero Project Design registered for .avx".into())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Ok("File association is handled by the installer on this OS".into())
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn register_avx_windows() -> Result<(), String> {
+    use winreg::{enums::*, RegKey};
+    let exe = std::env::current_exe().map_err(|e| format!("Cannot locate app binary: {e}"))?;
+    let exe_s = exe.to_string_lossy().to_string();
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let (ext, _) = hkcu
+        .create_subkey("Software\\Classes\\.avx")
+        .map_err(|e| format!("Registry write failed: {e}"))?;
+    ext.set_value("", &"AveroProjectDesign")
+        .map_err(|e| format!("Registry write failed: {e}"))?;
+    let (prog, _) = hkcu
+        .create_subkey("Software\\Classes\\AveroProjectDesign")
+        .map_err(|e| format!("Registry write failed: {e}"))?;
+    prog.set_value("", &"Avero Project Design")
+        .map_err(|e| format!("Registry write failed: {e}"))?;
+    let (icon, _) = hkcu
+        .create_subkey("Software\\Classes\\AveroProjectDesign\\DefaultIcon")
+        .map_err(|e| format!("Registry write failed: {e}"))?;
+    icon.set_value("", &format!("\"{exe_s}\",0"))
+        .map_err(|e| format!("Registry write failed: {e}"))?;
+    let (cmd, _) = hkcu
+        .create_subkey("Software\\Classes\\AveroProjectDesign\\shell\\open\\command")
+        .map_err(|e| format!("Registry write failed: {e}"))?;
+    cmd.set_value("", &format!("\"{exe_s}\" \"%1\""))
+        .map_err(|e| format!("Registry write failed: {e}"))?;
+    Ok(())
+}
+
 #[derive(serde::Serialize)]
 pub struct HistoryBudget {
     pub width: u32,
@@ -241,6 +286,41 @@ pub fn cmd_history_budget(width: u32, height: u32) -> Result<HistoryBudget, Stri
 #[tauri::command]
 pub fn cmd_data_hash(contents: String) -> String {
     fnv1a_hex(contents.as_bytes())
+}
+
+/// Check whether a path exists (used to pick a collision-free project folder name).
+#[tauri::command]
+pub fn cmd_path_exists(path: String) -> bool {
+    if path.trim().is_empty() || path.len() > 1024 {
+        return false;
+    }
+    std::path::Path::new(&path).exists()
+}
+
+/// Create the dedicated project folder (called on Create New Project).
+/// Creates the folder + an `images/` subfolder as the home for project images.
+/// Menolak path kosong, karakter kontrol, dan traversal `..`.
+#[tauri::command]
+pub fn cmd_ensure_dir(path: String) -> Result<String, String> {
+    let p = path.trim();
+    if p.is_empty() {
+        return Err("Empty folder path".into());
+    }
+    if p.len() > 1024 {
+        return Err("Folder path too long".into());
+    }
+    if p.contains('\0') || p.chars().any(|c| c.is_control()) {
+        return Err("Folder path contains invalid characters".into());
+    }
+    let lower = p.to_lowercase().replace('\\', "/");
+    if lower.split('/').any(|seg| seg == "..") {
+        return Err("Folder path not allowed".into());
+    }
+    std::fs::create_dir_all(p).map_err(|e| format!("Failed to create folder: {e}"))?;
+    // Wadah khusus gambar seperti Word menyimpan aset di dalam folder proyek.
+    let images = std::path::Path::new(p).join("images");
+    std::fs::create_dir_all(&images).map_err(|e| format!("Failed to create images folder: {e}"))?;
+    Ok(p.to_string())
 }
 
 #[tauri::command]

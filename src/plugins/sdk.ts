@@ -1,6 +1,6 @@
-// Fase 5.4: Plugin SDK JS sandbox.
-// Plugin adalah fungsi JS murni: (imageData, params) => imageData.
-// Dijalankan di Function sandbox dengan timeout, tanpa akses DOM/IPC.
+// Phase 5.4: sandboxed JS plugin SDK.
+// A plugin is a pure JS function: (imageData, params) => imageData.
+// Runs in a Function sandbox with a timeout, no DOM/IPC access.
 
 export interface PluginParam {
   key: string;

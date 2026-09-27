@@ -324,6 +324,7 @@ interface DocumentState {
   height: number;
   filePath: string | null;
   projectPath: string | null;
+  projectFolder: string | null;
   dirty: boolean;
   fileSize: number | null;
 }
@@ -357,14 +358,16 @@ interface EditorState {
   setViewRotate: (deg: number) => void;
   toggleRulers: () => void;
   setBackend: (s: EditorState["backendStatus"], info: string) => void;
-  newDocument: (name: string, w: number, h: number) => void;
+  newDocument: (name: string, w: number, h: number, projectFolder?: string | null) => void;
   openDocument: (
     name: string,
     w: number,
     h: number,
     filePath: string | null,
     fileSize: number | null,
+    projectFolder?: string | null,
   ) => void;
+  setProjectLocation: (p: { projectPath?: string | null; projectFolder?: string | null }) => void;
   markClean: () => void;
   markDirty: () => void;
   setDocSize: (w: number, h: number) => void;
@@ -385,9 +388,9 @@ function uid(prefix: string) {
   return `${prefix}-${Date.now().toString(36)}-${seq}`;
 }
 
-// Jalur A ringan: batasi history agar RAM tidak bengkak.
-// 1920x1080 1 snapshot ~8MB, 50 snapshot = 400MB+ per layer.
-// 15 snapshot = ~120MB max, cukup untuk undo wajar + tetap ringan.
+// Lightweight path: cap history so RAM stays flat.
+// A 1920x1080 snapshot is ~8MB; 50 snapshots = 400MB+ per layer.
+// 15 snapshots = ~120MB max, enough for sane undo while staying light.
 export const MAX_HISTORY = 15;
 
 const defaultLayer = (): LayerMeta => ({
@@ -422,6 +425,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     height: 1080,
     filePath: null,
     projectPath: null,
+    projectFolder: null,
     dirty: false,
     fileSize: null,
   },
@@ -443,11 +447,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   toggleRulers: () => set((s) => ({ showRulers: !s.showRulers })),
   setBackend: (backendStatus, backendInfo) => set({ backendStatus, backendInfo }),
 
-  newDocument: (name, width, height) => {
+  newDocument: (name, width, height, projectFolder = null) => {
     const l = defaultLayer();
     l.name = "Background";
     set({
-      doc: { name, width, height, filePath: null, projectPath: null, dirty: false, fileSize: null },
+      doc: { name, width, height, filePath: null, projectPath: null, projectFolder, dirty: false, fileSize: null },
       layers: [l],
       activeLayerId: l.id,
       history: [],
@@ -458,11 +462,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     });
   },
 
-  openDocument: (name, w, h, filePath, fileSize) => {
+  openDocument: (name, w, h, filePath, fileSize, projectFolder = null) => {
     const l = defaultLayer();
     l.name = "Layer 1";
     set({
-      doc: { name, width: w, height: h, filePath, projectPath: null, dirty: false, fileSize },
+      doc: { name, width: w, height: h, filePath, projectPath: null, projectFolder, dirty: false, fileSize },
       layers: [l],
       activeLayerId: l.id,
       history: [],
@@ -472,6 +476,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       panY: 0,
     });
   },
+
+  setProjectLocation: (p) =>
+    set((s) => ({
+      doc: {
+        ...s.doc,
+        projectPath: p.projectPath !== undefined ? p.projectPath : s.doc.projectPath,
+        projectFolder: p.projectFolder !== undefined ? p.projectFolder : s.doc.projectFolder,
+      },
+    })),
 
   markClean: () => set((s) => ({ doc: { ...s.doc, dirty: false } })),
   markDirty: () => set((s) => ({ doc: { ...s.doc, dirty: true } })),

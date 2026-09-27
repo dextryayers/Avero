@@ -30,9 +30,9 @@ import { useHomeStore, resolveRecent, type RecentFile } from "../stores/useHomeS
 import { useEditorStore } from "../stores/useEditorStore";
 import { useProStore } from "../stores/useProStore";
 import { layerManager } from "../engine/layerManager";
-import { openAvxProject } from "../io/projectIo";
+import { openAvxProject, pickProjectFolder, createNewProjectWithFolder, joinPath, sanitizeProjectName } from "../io/projectIo";
 import { pickImageToOpen, rustDecodeToDataUrl, rustImageInfo } from "../io/tauriIo";
-import { showError } from "../ui/notify";
+import { showError, showMessage } from "../ui/notify";
 import clsx from "clsx";
 
 type PresetCat = "Photo" | "Print" | "Art" | "Web" | "Mobile" | "Film";
@@ -168,36 +168,103 @@ export default function HomeScreen() {
   const [dw, setDw] = useState("1920");
   const [dh, setDh] = useState("1080");
   const [bg, setBg] = useState<"white" | "black" | "transparent">("white");
+  const [pfolder, setPfolder] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const isDesktop = typeof window !== "undefined" && "__TAURI__" in window;
+
+  async function chooseProjectFolder() {
+    if (!isDesktop) {
+      setFormError("Folder picker needs the desktop app. On web, the project runs in memory and Save downloads Name.avx.");
+      return;
+    }
+    try {
+      const dir = await pickProjectFolder();
+      if (dir) {
+        setPfolder(dir);
+        setFormError(null);
+      } else {
+        setFormError("No folder chosen. Pick a folder to hold the project and its images, then press Create.");
+      }
+    } catch (e) {
+      setFormError(`Could not open the folder picker: ${String(e)}`);
+    }
+  }
+
+  function submitNew() {
+    void createNew(dn.trim() || "Untitled", Math.max(1, parseInt(dw) || 1920), Math.max(1, parseInt(dh) || 1080));
+  }
 
   useEffect(() => {
     if (!showNew) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setShowNew(false);
-      if (e.key === "Enter") createNew(dn.trim() || "Untitled", Math.max(1, parseInt(dw) || 1920), Math.max(1, parseInt(dh) || 1080));
+      if (e.key === "Enter") submitNew();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showNew, dn, dw, dh]);
 
-  function createNew(name: string, w: number, h: number) {
+  async function createNew(name: string, w: number, h: number) {
+    if (creating) return;
     const cw = Math.max(1, Math.min(16384, Math.round(w)));
     const ch = Math.max(1, Math.min(16384, Math.round(h)));
-    layerManager.clear();
-    newDocument(name, cw, ch);
-    const id = useEditorStore.getState().activeLayerId;
-    if (id) {
-      const c = layerManager.ensure(id, cw, ch);
-      if (bg !== "transparent") {
-        const ctx = c.getContext("2d")!;
-        ctx.fillStyle = bg === "white" ? "#ffffff" : "#000000";
-        ctx.fillRect(0, 0, cw, ch);
-      }
-      useProStore.getState().ensureTransform(id);
+    if (!Number.isFinite(cw) || !Number.isFinite(ch) || cw < 1 || ch < 1) {
+      setFormError("Width and height must be between 1 and 16384 px.");
+      return;
     }
-    pushRecent({ name, path: null, thumb: null, full: null, w: cw, h: ch, size: null });
-    setShowNew(false);
-    setHome(false);
+    setFormError(null);
+    setCreating(true);
+    try {
+      const clean = sanitizeProjectName(name.trim() || "Untitled");
+      // Word-like: require a dedicated project folder as the home for images/assets.
+      // On desktop: open the file manager when no folder is selected yet.
+      let folder = pfolder;
+      try {
+        if (isDesktop && !folder) {
+          const picked = await pickProjectFolder();
+          if (!picked) {
+            setFormError("Choose a folder to hold the project and its images, then press Create again.");
+            return;
+          }
+          folder = picked;
+          setPfolder(picked);
+        }
+      } catch (e) {
+        setFormError(`Could not open the folder picker: ${String(e)}`);
+        return;
+      }
+      let projectFolder: string | null = null;
+      if (folder) {
+        try {
+          projectFolder = await createNewProjectWithFolder(clean, folder);
+        } catch (e) {
+          setFormError(String(e));
+          return;
+        }
+      }
+      layerManager.clear();
+      newDocument(clean, cw, ch, projectFolder);
+      const id = useEditorStore.getState().activeLayerId;
+      if (id) {
+        const c = layerManager.ensure(id, cw, ch);
+        if (bg !== "transparent") {
+          const ctx = c.getContext("2d")!;
+          ctx.fillStyle = bg === "white" ? "#ffffff" : "#000000";
+          ctx.fillRect(0, 0, cw, ch);
+        }
+        useProStore.getState().ensureTransform(id);
+      }
+      pushRecent({ name: clean, path: null, thumb: null, full: null, w: cw, h: ch, size: null });
+      setShowNew(false);
+      setHome(false);
+      if (projectFolder) {
+        await showMessage(`Project folder ready: ${projectFolder} (images in images/). Press Ctrl+S to save ${clean}.avx.`);
+      }
+    } finally {
+      setCreating(false);
+    }
   }
 
   async function openRecent(r: RecentFile) {
@@ -646,27 +713,37 @@ export default function HomeScreen() {
       </div>
 
       {showNew && (
-        <div className="avero-fade-in fixed inset-0 z-[70] grid place-items-center bg-black/70 p-4" onClick={() => setShowNew(false)}>
+        <div className="avero-fade-in fixed inset-0 z-[70] grid place-items-center bg-black/70 p-4" onClick={() => !creating && setShowNew(false)}>
           <div
-            className="avero-pop w-[560px] max-w-full overflow-hidden rounded-lg border border-[#2c2c31] bg-[#1c1c1f]"
+            className="avero-pop w-[600px] max-w-full overflow-hidden rounded-xl border border-[#2c2c31] bg-[#1c1c1f] shadow-[0_24px_80px_rgba(0,0,0,0.6)]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 border-b border-[#2c2c31] px-5 py-4">
-              <div className="grid h-8 w-8 place-items-center rounded-md bg-[#2f7cf6] text-white">
-                <ImagePlus size={16} />
+              <div className="grid h-9 w-9 place-items-center rounded-lg bg-[#2f7cf6] text-white">
+                <ImagePlus size={17} />
               </div>
               <div>
-                <div className="text-[13px] font-bold text-white">New Document</div>
-                <div className="text-[11px] text-[#6e6e78]">Pick a ratio or type a custom size, max 16384px</div>
+                <div className="text-[13px] font-bold text-white">New Project</div>
+                <div className="text-[11px] text-[#6e6e78]">Canvas details, then a dedicated folder. Max 16384px per side</div>
+              </div>
+              <div className="ml-auto flex items-center gap-1 font-mono text-[10px] text-[#6e6e78]">
+                <span className="rounded border border-[#2f7cf6] bg-[#2f7cf6]/15 px-1.5 py-px text-[#8fb6f5]">1 Canvas</span>
+                <span>→</span>
+                <span className="rounded border border-[#2c2c31] bg-[#101012] px-1.5 py-px">2 Folder</span>
+                <span>→</span>
+                <span className="rounded border border-[#2c2c31] bg-[#101012] px-1.5 py-px">3 Create</span>
               </div>
               <button
-                onClick={() => setShowNew(false)}
-                className="ml-auto rounded-md p-1.5 text-[#a7a7b0] hover:bg-[#232327] hover:text-white"
+                onClick={() => !creating && setShowNew(false)}
+                disabled={creating}
+                className="rounded-md p-1.5 text-[#a7a7b0] hover:bg-[#232327] hover:text-white disabled:opacity-40"
+                title="Close (Esc)"
               >
                 <X size={15} />
               </button>
             </div>
-            <div className="p-5">
+            <div className="max-h-[70vh] overflow-y-auto p-5">
+              <div className="avero-micro mb-1.5">01 - Canvas</div>
               <div className="avero-micro mb-1.5">Aspect ratio shortcuts</div>
               <div className="mb-4 flex flex-wrap gap-1.5">
                 {RATIO_PRESETS.map((r) => (
@@ -689,11 +766,15 @@ export default function HomeScreen() {
                 ))}
               </div>
               <label className="col-span-3">
-                <span className="avero-micro mb-1.5 block">Document name</span>
+                <span className="avero-micro mb-1.5 block">Project name</span>
                 <input
                   value={dn}
-                  onChange={(e) => setDn(e.target.value)}
+                  onChange={(e) => {
+                    setDn(e.target.value);
+                    setFormError(null);
+                  }}
                   placeholder="Untitled-1"
+                  maxLength={80}
                   className="h-9 w-full rounded-md border border-[#2c2c31] bg-[#101012] px-3 text-[12px] text-white outline-none placeholder:text-[#4a4a52] focus:border-[#2f7cf6]"
                 />
               </label>
@@ -702,7 +783,10 @@ export default function HomeScreen() {
                   <span className="avero-micro mb-1.5 block">Width (px)</span>
                   <input
                     value={dw}
-                    onChange={(e) => setDw(e.target.value.replace(/[^0-9]/g, ""))}
+                    onChange={(e) => {
+                      setDw(e.target.value.replace(/[^0-9]/g, ""));
+                      setFormError(null);
+                    }}
                     inputMode="numeric"
                     className="h-9 w-full rounded-md border border-[#2c2c31] bg-[#101012] px-3 font-mono text-[12px] text-white outline-none focus:border-[#2f7cf6]"
                   />
@@ -721,7 +805,10 @@ export default function HomeScreen() {
                   <span className="avero-micro mb-1.5 block">Height (px)</span>
                   <input
                     value={dh}
-                    onChange={(e) => setDh(e.target.value.replace(/[^0-9]/g, ""))}
+                    onChange={(e) => {
+                      setDh(e.target.value.replace(/[^0-9]/g, ""));
+                      setFormError(null);
+                    }}
                     inputMode="numeric"
                     className="h-9 w-full rounded-md border border-[#2c2c31] bg-[#101012] px-3 font-mono text-[12px] text-white outline-none focus:border-[#2f7cf6]"
                   />
@@ -754,21 +841,52 @@ export default function HomeScreen() {
                 <span className="capitalize">{bg}</span>
                 {(nw * nh > 2048 * 2048) && <span className="ml-auto text-[#8fb6f5]">tiled path</span>}
               </div>
+              <div className="avero-micro mb-1.5 mt-5">02 - Project folder</div>
+              <div className="rounded-md border border-[#2c2c31] bg-[#101012] p-3">
+                <div className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1 truncate rounded border border-[#2c2c31] bg-[#161618] px-2.5 py-2 font-mono text-[10px] text-[#a7a7b0]" title={pfolder ?? "No parent folder selected yet"}>
+                    {pfolder ?? (isDesktop ? "No folder selected - click Choose" : "Web preview: files download on save")}
+                  </div>
+                  <button
+                    onClick={() => void chooseProjectFolder()}
+                    disabled={creating}
+                    className="flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-[#2c2c31] bg-[#232327] px-3 text-[12px] text-white hover:border-[#3a3a41] disabled:opacity-40"
+                  >
+                    <FolderOpen size={13} /> {pfolder ? "Change" : "Choose"}
+                  </button>
+                </div>
+                <div className="mt-2 rounded border border-[#2c2c31] bg-[#161618] px-2.5 py-2 font-mono text-[10px] leading-relaxed text-[#6e6e78]">
+                  <div className="text-[#a7a7b0]">Will be created:</div>
+                  <div className="truncate" title={pfolder ? joinPath(pfolder, sanitizeProjectName(dn.trim() || "Untitled")) : "-"}>
+                    {pfolder ? joinPath(pfolder, sanitizeProjectName(dn.trim() || "Untitled")) + "/" : "-"}
+                  </div>
+                  <div className="truncate text-[#4a4a52]">
+                    {pfolder ? `├─ ${sanitizeProjectName(dn.trim() || "Untitled")}.avx (on first Ctrl+S) └─ images/` : "Pick a parent folder to preview the layout"}
+                  </div>
+                </div>
+              </div>
+              {formError && (
+                <div className="mt-3 rounded-md border border-[#e5534b]/50 bg-[#e5534b]/10 px-3 py-2 text-[11px] leading-relaxed text-[#f0883e]">
+                  {formError}
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-2 border-t border-[#2c2c31] bg-[#161618] px-5 py-3">
               <span className="font-mono text-[10px] text-[#6e6e78]">Enter creates, Esc closes</span>
               <div className="ml-auto flex gap-2">
                 <button
                   onClick={() => setShowNew(false)}
-                  className="h-8 rounded-md border border-[#2c2c31] bg-[#232327] px-3 text-[12px] text-white hover:border-[#3a3a41]"
+                  disabled={creating}
+                  className="h-8 rounded-md border border-[#2c2c31] bg-[#232327] px-3 text-[12px] text-white hover:border-[#3a3a41] disabled:opacity-40"
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={() => createNew(dn.trim() || "Untitled", Math.max(1, parseInt(dw) || 1920), Math.max(1, parseInt(dh) || 1080))}
-                  className="avero-btn-primary avero-lift h-8 rounded-md px-4 text-[12px] font-semibold text-white"
+                  onClick={submitNew}
+                  disabled={creating}
+                  className="avero-btn-primary avero-lift h-8 rounded-md px-4 text-[12px] font-semibold text-white disabled:opacity-60"
                 >
-                  Create
+                  {creating ? "Creating..." : "03 - Create project"}
                 </button>
               </div>
             </div>

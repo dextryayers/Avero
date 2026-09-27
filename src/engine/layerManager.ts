@@ -190,3 +190,8 @@ class LayerManager {
 }
 
 export const layerManager = new LayerManager();
+
+export function clearRenderPools() {
+  poolOut = null;
+  poolMask = null;
+}

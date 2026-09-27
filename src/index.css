@@ -109,3 +109,14 @@ body {
 input[type="range"] {
   accent-color: var(--color-accent-500);
 }
+
+/* Interactive animations stay on transform and opacity only so they
+   ride the compositor thread and never add RAM pressure. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

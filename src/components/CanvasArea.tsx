@@ -80,6 +80,7 @@ export default function CanvasArea() {
   const paintLayerToastShown = useRef(false);
   const cloneHintShown = useRef(false);
   const healHintShown = useRef(false);
+  const lastPaintRef = useRef<string | null>(null);
   const [penDrag, setPenDrag] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
   const [shapeDrag, setShapeDrag] = useState<{ x0: number; y0: number; x1: number; y1: number; kind: string } | null>(null);
   const [ring, setRing] = useState<{ x: number; y: number } | null>(null);
@@ -1808,7 +1809,7 @@ export default function CanvasArea() {
       const hex = `#${[d[0], d[1], d[2]].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
       const st = useEditorStore.getState();
       st.setBrush({ color: hex });
-      st.setTool("brush");
+      if (st.tool === "eyedropper") st.setTool("brush");
       setCursor(`Color ${hex}`);
     } catch {
       /* ignore */
@@ -1853,6 +1854,8 @@ export default function CanvasArea() {
     const c = layerManager.ensure(l.id, doc.width, doc.height);
     renderTextToLayer(c, spec, Math.round(p.x), Math.round(p.y));
     st.addLayer({ ...l, kind: "text" });
+    st.setActiveLayer(l.id);
+    lastPaintRef.current = l.id;
     pro.ensureTransform(l.id);
     markDirty();
   }
@@ -1873,7 +1876,10 @@ export default function CanvasArea() {
     pro.setShapeSpec(l.id, spec);
     renderShapeToLayer(layerManager.ensure(l.id, doc.width, doc.height), spec);
     st.addLayer({ ...l, kind: "shape" });
+    st.setActiveLayer(l.id);
+    lastPaintRef.current = l.id;
     pro.ensureTransform(l.id);
+    markDirty();
   }
 
   // Drag from the ruler to create a new guide, pro-editor style
@@ -2198,8 +2204,7 @@ export default function CanvasArea() {
           ) {
             // Keep scribbles erasable: paint-family strokes on a photo layer go
             // to a fresh transparent paint layer above it, so the eraser removes
-            // only strokes — never the photo underneath. Erasers intentionally
-            // stay on the active layer (erasing the photo itself is valid work).
+            // only strokes, never the photo underneath.
             let strokeLayerId = activeLayerId;
             if (isBrush && strokeLayerId && layerManager.isPhotoLayer(strokeLayerId)) {
               const st = useEditorStore.getState();
@@ -2209,9 +2214,36 @@ export default function CanvasArea() {
               st.addLayer(l);
               st.setActiveLayer(l.id);
               strokeLayerId = l.id;
+              lastPaintRef.current = l.id;
               if (!paintLayerToastShown.current) {
                 paintLayerToastShown.current = true;
-                notify("Painting on a new transparent layer — the eraser will only remove your strokes, not the photo.");
+                notify("Painting on a new transparent layer. The eraser only removes your strokes, not the photo.");
+              }
+            }
+            // Eraser targets the created item, never the background photo.
+            // When the active layer is a photo, retarget to the last painted
+            // item or the topmost editable layer instead.
+            if (
+              (tool === "eraser" || tool === "eraser-hard") &&
+              strokeLayerId &&
+              layerManager.isPhotoLayer(strokeLayerId)
+            ) {
+              const st = useEditorStore.getState();
+              const last = lastPaintRef.current ? st.layers.find((l) => l.id === lastPaintRef.current) : undefined;
+              const top = [...st.layers]
+                .reverse()
+                .find(
+                  (l) =>
+                    !layerManager.isPhotoLayer(l.id) &&
+                    l.visible &&
+                    !l.locked &&
+                    layerManager.get(l.id),
+                );
+              const target = last && last.visible && !last.locked ? last : top;
+              if (target) {
+                st.setActiveLayer(target.id);
+                strokeLayerId = target.id;
+                setCursor(`Erasing ${target.name}`);
               }
             }
             // One-time hint for heal tools (cursor text alone is missed).

@@ -180,6 +180,24 @@ export default function StatusBar() {
         Guides {showGuides ? "on" : "off"}
       </button>
       {mem && <span className="hidden font-mono xl:block">{mem}</span>}
+      <button
+        onClick={async () => {
+          try {
+            const { clearRenderPools } = await import("../engine/layerManager");
+            clearRenderPools();
+            const { useHomeStore } = await import("../stores/useHomeStore");
+            const freed = useHomeStore.getState().stripHeavyRecents();
+            const mb = freed > 0 ? `, freed ${(freed / 1024 / 1024).toFixed(1)}MB recents` : "";
+            await showMessage(`Render pools cleared${mb}. Heavy work stays in Rust.`, "Memory Trim");
+          } catch (e) {
+            await showError(String(e));
+          }
+        }}
+        className="hidden rounded border border-[#2c2c31] bg-[#232327] px-1.5 py-0.5 font-mono text-[#a7a7b0] hover:text-white md:block"
+        title="Clear render pools and old recent image bytes"
+      >
+        Trim
+      </button>
       {ramMode && (
         <span className="hidden font-mono xl:block" title="Smart RAM mode from the Rust budget">
           {ramMode}

@@ -19,6 +19,7 @@ interface HomeState {
   pushRecent: (r: Omit<RecentFile, "id" | "time">) => void;
   removeRecent: (id: string) => void;
   clearRecents: () => void;
+  stripHeavyRecents: () => number;
 }
 
 const KEY = "avero-recents-v1";
@@ -65,9 +66,26 @@ export const useHomeStore = create<HomeState>((set, get) => ({
     const dedup = get().recents.filter(
       (x) => !(x.path && r.path && x.path === r.path) && x.name !== r.name,
     );
-    const next = [entry, ...dedup].slice(0, 18);
+    // Keep full image bytes only for the 3 newest entries. Older entries
+    // reload from disk through Rust, which keeps the JS heap flat.
+    const next = [entry, ...dedup]
+      .slice(0, 18)
+      .map((x, i) => (i > 2 && x.full ? { ...x, full: null } : x));
     set({ recents: next });
     saveRecents(next);
+  },
+  stripHeavyRecents: () => {
+    const recents = get().recents;
+    let freed = 0;
+    const next = recents.map((x, i) => {
+      if (i > 2 && x.full) {
+        freed += x.full.length;
+        return { ...x, full: null };
+      }
+      return x;
+    });
+    if (freed > 0) set({ recents: next });
+    return freed;
   },
   removeRecent: (id) => {
     const next = get().recents.filter((x) => x.id !== id);

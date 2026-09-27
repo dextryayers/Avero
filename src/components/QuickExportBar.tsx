@@ -68,30 +68,30 @@ export default function QuickExportBar({ onOpenExport }: { onOpenExport: () => v
 
   return (
     <div className="flex shrink-0 items-center gap-1.5 border-l border-[#2c2c31] px-2 py-1">
-      <span className="hidden items-center gap-1 font-mono text-[10px] text-[#6e6e78] md:flex">
+      <span className="hidden items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-[#6e6e78] md:flex">
         <Layers size={11} /> Export
       </span>
       <div className="flex items-center gap-1">
         <button
           onClick={() => quickSaveAvx(false)}
           disabled={busy}
-          className="flex items-center gap-1.5 rounded-full bg-[#2f7cf6] px-3 py-1 text-[11px] font-semibold text-white hover:bg-[#3b8bff] disabled:opacity-40"
+          className="flex h-7 items-center gap-1.5 rounded-md bg-[#2f7cf6] px-2.5 text-[11px] font-semibold text-white hover:bg-[#3b8bff] disabled:opacity-40"
           title="Save full .avx project (Ctrl+S)"
         >
           <Save size={12} /> .avx {doc.dirty ? "*" : ""}
         </button>
         <div className="relative group">
-          <button className="grid h-7 w-7 place-items-center rounded-full bg-[#232327] text-[#a7a7b0] hover:text-white">
+          <button className="grid h-7 w-7 place-items-center rounded-md border border-[#2c2c31] bg-[#232327] text-[#a7a7b0] hover:text-white">
             <ChevronDown size={12} />
           </button>
-          <div className="absolute left-0 top-full z-20 mt-1 hidden w-40 overflow-hidden rounded-xl border border-[#2c2c31] bg-[#1c1c1f] p-1 shadow-xl group-hover:block">
-            <button onClick={() => quickSaveAvx(false)} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[11px] text-[#c9c9d1] hover:bg-[#232327] hover:text-white">
+          <div className="absolute left-0 top-full z-20 mt-1 hidden w-40 overflow-hidden rounded-lg border border-[#2c2c31] bg-[#1c1c1f] p-1 group-hover:block">
+            <button onClick={() => quickSaveAvx(false)} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[11px] text-[#c9c9d1] hover:bg-[#232327] hover:text-white">
               <Save size={12} /> Save (Ctrl+S)
             </button>
-            <button onClick={() => quickSaveAvx(true)} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[11px] text-[#c9c9d1] hover:bg-[#232327] hover:text-white">
+            <button onClick={() => quickSaveAvx(true)} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[11px] text-[#c9c9d1] hover:bg-[#232327] hover:text-white">
               <FileBox size={12} /> Save As
             </button>
-            <button onClick={() => void openAvxProject().catch((e) => showError(String(e)))} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[11px] text-[#c9c9d1] hover:bg-[#232327] hover:text-white">
+            <button onClick={() => void openAvxProject().catch((e) => showError(String(e)))} className="flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[11px] text-[#c9c9d1] hover:bg-[#232327] hover:text-white">
               <Layers size={12} /> Open .avx
             </button>
           </div>
@@ -103,7 +103,7 @@ export default function QuickExportBar({ onOpenExport }: { onOpenExport: () => v
       <div className="flex items-center gap-1">
         <button
           onClick={onOpenExport}
-          className="flex items-center gap-1.5 rounded-full border border-[#2c2c31] bg-[#232327] px-3 py-1 text-[11px] font-medium text-white hover:bg-[#2c2c31] hover:border-[#3a3a41]"
+          className="flex h-7 items-center gap-1.5 rounded-md border border-[#2c2c31] bg-[#232327] px-2.5 text-[11px] font-medium text-white hover:border-[#3a3a41]"
           title="Full export dialog (Ctrl+E)"
         >
           <Download size={12} /> Export
@@ -115,8 +115,8 @@ export default function QuickExportBar({ onOpenExport }: { onOpenExport: () => v
               onClick={() => quickExport(f.id)}
               disabled={busy}
               className={clsx(
-                "rounded-full px-2 py-1 font-mono text-[10px] font-bold transition-colors",
-                fmt === f.id ? "bg-[#2f7cf6] text-white" : "bg-[#1c1c1f] text-[#a7a7b0] border border-[#2c2c31] hover:text-white hover:border-[#3a3a41]",
+                "h-7 rounded-md border px-2 font-mono text-[10px]",
+                fmt === f.id ? "border-[#2f7cf6] bg-[#2f7cf6] text-white" : "border-[#2c2c31] bg-transparent text-[#a7a7b0] hover:border-[#3a3a41] hover:text-white",
               )}
               onMouseEnter={() => setFmt(f.id)}
               title={`Quick export ${f.ext.toUpperCase()}`}
@@ -127,7 +127,7 @@ export default function QuickExportBar({ onOpenExport }: { onOpenExport: () => v
         </div>
         <button
           onClick={() => quickExport(fmt)}
-          className="flex items-center gap-1 rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-[#161618] hover:bg-[#ececee] md:hidden"
+          className="flex h-7 items-center gap-1 rounded-md bg-white px-2.5 text-[11px] font-semibold text-[#161618] hover:bg-[#ececee] md:hidden"
         >
           <FileImage size={12} /> {fmt.toUpperCase()}
         </button>

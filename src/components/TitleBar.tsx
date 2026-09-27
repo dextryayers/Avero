@@ -553,17 +553,17 @@ export default function TitleBar({
   }
 
   return (
-    <div className="sticky top-0 z-30 flex h-11 shrink-0 items-center gap-2 border-b border-[#2c2c31] bg-[#1c1c1f]/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-[#1c1c1f]/80">
+    <div className="sticky top-0 z-30 flex h-11 shrink-0 items-center gap-2 border-b border-[#2c2c31] bg-[#1c1c1f] px-3">
       <div className="flex items-center gap-2">
         <button onClick={onHome} title="Home" className="group">
-          <img src="/logo.png" alt="AVERO" className="h-7 w-7 rounded-md object-cover ring-1 ring-white/10 group-hover:ring-[#2f7cf6]/50 transition" />
+          <img src="/logo.png" alt="AVERO" className="h-7 w-7 rounded-md border border-[#2c2c31] object-cover" />
         </button>
         <button onClick={onHome} title="Home" className="hidden items-center gap-1.5 sm:flex">
-          <span className="text-[12.5px] font-bold tracking-wide text-white">AVERO STUDIO</span>
-          <House size={13} className="text-[#6e6e78] group-hover:text-white" />
+          <span className="text-[12px] font-bold tracking-wide text-white">AVERO STUDIO</span>
+          <House size={13} className="text-[#6e6e78]" />
         </button>
-        <span className="hidden items-center gap-1 rounded-full border border-[#2c2c31] bg-[#161618] px-2 py-0.5 font-mono text-[9.5px] text-[#a7a7b0] sm:flex">
-          v2.0.0 <span className="h-1 w-1 rounded-full bg-[#7ad69e]" />
+        <span className="hidden items-center gap-1.5 rounded border border-[#2c2c31] bg-[#101012] px-2 py-0.5 font-mono text-[9px] text-[#a7a7b0] sm:flex">
+          v2.0.0 <span className="h-1.5 w-1.5 rounded-full bg-[#7ad69e]" />
         </span>
       </div>
 
@@ -576,19 +576,19 @@ export default function TitleBar({
                 if (openMenu) setOpenMenu(m);
               }}
               className={clsx(
-                "rounded-full px-2.5 py-1.5 transition-colors",
-                openMenu === m ? "bg-[#232327] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]" : "text-[#a7a7b0] hover:bg-[#232327] hover:text-white",
+                "rounded-md px-2 py-1",
+                openMenu === m ? "bg-[#232327] text-white" : "text-[#a7a7b0] hover:bg-[#232327] hover:text-white",
               )}
             >
               {m}
             </button>
             {openMenu === m && (
-              <div className="absolute left-0 top-full z-50 mt-1 max-h-[70vh] w-[240px] overflow-y-auto rounded-xl border border-[#2c2c31] bg-[#1c1c1f] p-1 shadow-[0_12px_32px_rgba(0,0,0,0.5)]">
+              <div className="absolute left-0 top-full z-50 mt-1 max-h-[70vh] w-[240px] overflow-y-auto rounded-lg border border-[#2c2c31] bg-[#1c1c1f] p-1">
                 {MENUS[m].map((it) => (
                   <button
                     key={it.label}
                     onClick={() => runAction(it.action)}
-                    className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[12px] text-[#c9c9d1] hover:bg-[#2f7cf6] hover:text-white"
+                    className="flex w-full items-center justify-between rounded-md px-3 py-1.5 text-left text-[12px] text-[#c9c9d1] hover:bg-[#2f7cf6] hover:text-white"
                   >
                     <span>{it.label}</span>
                     {it.hint && <span className="font-mono text-[10px] opacity-60">{it.hint}</span>}
@@ -602,19 +602,19 @@ export default function TitleBar({
 
       <button
         onClick={onOpenCommand}
-        className="ml-2 hidden items-center gap-1.5 rounded-full border border-[#2c2c31] bg-[#161618] px-3 py-1.5 text-[11.5px] text-[#6e6e78] hover:border-[#3a3a41] hover:text-white md:flex transition-colors"
+        className="ml-2 hidden h-8 items-center gap-1.5 rounded-md border border-[#2c2c31] bg-[#101012] px-3 text-[11px] text-[#6e6e78] hover:border-[#3a3a41] hover:text-white md:flex"
       >
         <Search size={13} /> Ctrl+K all actions
       </button>
 
       <div className="ml-auto flex items-center gap-2 text-[11px]">
-        <span className="hidden max-w-[280px] truncate rounded-full border border-[#2c2c31] bg-[#161618] px-2.5 py-1 font-mono text-[#a7a7b0] xl:flex items-center gap-1.5">
-          <span className={`h-1.5 w-1.5 rounded-full ${doc.dirty ? "bg-[#d9a441] animate-pulse" : "bg-[#7ad69e]"}`} />
+        <span className="hidden max-w-[280px] truncate rounded border border-[#2c2c31] bg-[#101012] px-2 py-1 font-mono text-[10px] text-[#a7a7b0] xl:flex items-center gap-1.5">
+          <span className={`h-1.5 w-1.5 rounded-full ${doc.dirty ? "bg-[#d9a441]" : "bg-[#7ad69e]"}`} />
           {doc.name}
-          {doc.dirty ? " *" : ""} • {doc.width}x{doc.height}
+          {doc.dirty ? " *" : ""} {doc.width}x{doc.height}
         </span>
-        <span className={clsx("hidden items-center gap-1 rounded-full px-2 py-1 font-mono text-[10px] sm:flex", doc.dirty ? "bg-[#3a2f14] text-amber-200" : "bg-[#1a2b1f] text-[#7ad69e]")}>
-          <span className={`h-1 w-1 rounded-full ${doc.dirty ? "bg-amber-300" : "bg-[#7ad69e]"}`} />
+        <span className={clsx("hidden items-center gap-1.5 rounded border border-[#2c2c31] px-2 py-1 font-mono text-[10px] sm:flex", doc.dirty ? "bg-[#161618] text-[#d9a441]" : "bg-[#161618] text-[#7ad69e]")}>
+          <span className={`h-1.5 w-1.5 rounded-full ${doc.dirty ? "bg-[#d9a441]" : "bg-[#7ad69e]"}`} />
           {doc.dirty ? "Unsaved" : "Saved"}
         </span>
       </div>

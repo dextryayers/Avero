@@ -3,7 +3,7 @@ import { useProStore } from "../stores/useProStore";
 import { TOOL_LABEL } from "./ToolBar";
 
 const BAR =
-  "pointer-events-auto absolute left-1/2 top-6 z-30 flex max-w-[94%] -translate-x-1/2 items-center gap-2.5 rounded-xl border border-white/10 bg-[#161618]/92 px-3 py-2 text-[11px] text-[#a7a7b0] shadow-[0_10px_30px_rgba(0,0,0,0.55)] backdrop-blur-xl";
+  "pointer-events-auto absolute left-1/2 top-3 z-30 flex max-w-[94%] -translate-x-1/2 items-center gap-2.5 rounded-md border border-[#2c2c31] bg-[#1c1c1f] px-3 py-2 text-[11px] text-[#a7a7b0]";
 
 function Hint({ children }: { children: React.ReactNode }) {
   return <span className="truncate text-[#c9c9d1]">{children}</span>;
@@ -58,7 +58,7 @@ export default function ToolOptionsBar({
     pencil: "Hard edge, no anti-alias. Pixel precise.",
     airbrush: "Soft spray. Hold to build up tone gradually.",
     "soft-brush": "Extra soft blending brush.",
-    "overlay-brush": "Overlay-blend glow. Press B to cycle brushes.",
+    "overlay-brush": "Overlay blend contrast. Press B to cycle brushes.",
     "color-replacement": "Replace target hue while keeping luminance.",
     "mixer-brush": "Wet oil-paint color mixing.",
     eraser: "Erase pixels or mask. Press E to cycle erasers.",
@@ -190,7 +190,7 @@ export default function ToolOptionsBar({
       <div className={BAR}>
         <span className="shrink-0 rounded-md bg-[#2f7cf6] px-2 py-0.5 font-semibold text-white">{name}</span>
         <Hint>{retouchHint[tool] ?? "Click to auto select."}</Hint>
-        <span className="hidden shrink-0 items-center gap-3 border-l border-white/10 pl-2.5 lg:flex">
+        <span className="hidden shrink-0 items-center gap-3 border-l border-[#2c2c31] pl-2.5 lg:flex">
           <Slider label="Tolerance" value={selTolerance} min={1} max={100} onChange={(v) => setSelParams({ selTolerance: v })} />
           <Slider label="Feather" value={selFeather} min={0} max={50} onChange={(v) => setSelParams({ selFeather: v })} suffix="px" />
         </span>
@@ -203,7 +203,7 @@ export default function ToolOptionsBar({
       <div className={BAR}>
         <span className="shrink-0 rounded-md bg-[#2f7cf6] px-2 py-0.5 font-semibold text-white">{name}</span>
         <Hint>{retouchHint[tool] ?? "Drag to select. Shift adds, Alt subtracts."}</Hint>
-        <span className="hidden shrink-0 items-center gap-3 border-l border-white/10 pl-2.5 lg:flex">
+        <span className="hidden shrink-0 items-center gap-3 border-l border-[#2c2c31] pl-2.5 lg:flex">
           <Slider label="Feather" value={selFeather} min={0} max={50} onChange={(v) => setSelParams({ selFeather: v })} suffix="px" />
         </span>
       </div>
@@ -216,7 +216,7 @@ export default function ToolOptionsBar({
         <span className="shrink-0 rounded-md bg-[#2f7cf6] px-2 py-0.5 font-semibold text-white">{name}</span>
         <Hint>{retouchHint[tool]}</Hint>
         {usesBrushSliders && (
-          <span className="hidden shrink-0 items-center gap-3 border-l border-white/10 pl-2.5 lg:flex">
+          <span className="hidden shrink-0 items-center gap-3 border-l border-[#2c2c31] pl-2.5 lg:flex">
             <Slider label="Size" value={brushSize} min={1} max={300} onChange={(v) => setBrush({ size: v })} />
             <Slider label="Hard" value={brushHardness} min={0} max={100} onChange={(v) => setBrush({ hardness: v })} suffix="%" />
             <Slider label="Strength" value={brushOpacity} min={1} max={100} onChange={(v) => setBrush({ opacity: v })} suffix="%" />
@@ -228,8 +228,8 @@ export default function ToolOptionsBar({
 
   if (paintMask && (tool === "brush" || tool === "eraser")) {
     return (
-      <div className="pointer-events-none absolute left-1/2 top-6 z-30 -translate-x-1/2 rounded-xl border border-[#5a3a10] bg-[#2c2313]/95 px-3 py-2 text-[11px] text-[#f0c674] shadow-lg backdrop-blur-md">
-        MASK paint mode. Brush reveals, Eraser hides.
+      <div className="pointer-events-none absolute left-1/2 top-3 z-30 -translate-x-1/2 rounded-md border border-[#2c2c31] bg-[#1c1c1f] px-3 py-2 text-[11px] text-[#d9a441]">
+        Mask paint mode. Brush reveals, Eraser hides.
       </div>
     );
   }

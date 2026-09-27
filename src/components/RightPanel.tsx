@@ -259,16 +259,16 @@ export default function RightPanel() {  const [tab, setTab] = useState<Tab>("lay
               onClick={() => setTab(t.id)}
               title={t.label}
               className={clsx(
-                "flex shrink-0 flex-col items-center gap-0.5 px-2.5 py-2 transition-colors",
+                "flex shrink-0 flex-col items-center gap-0.5 border-b-2 px-2.5 pb-1.5 pt-2",
                 tab === t.id
-                  ? "bg-[#232327] font-semibold text-white shadow-[inset_0_-2px_0_#2f7cf6]"
-                  : "text-[#6e6e78] hover:bg-[#1c1c1f] hover:text-white",
+                  ? "border-[#2f7cf6] bg-[#232327] font-semibold text-white"
+                  : "border-transparent text-[#6e6e78] hover:bg-[#232327] hover:text-white",
               )}
             >
-              <Icon size={12} />
+              <Icon size={13} />
               <span>{t.label}</span>
               {(t.id === "adjust" && adjustments.length > 0) || (t.id === "filter" && filters.length > 0) || (t.id === "history" && history.length > 0) ? (
-                <span className="rounded-full bg-[#2f7cf6] px-1 py-0 text-[9px] leading-none text-white">
+                <span className="rounded bg-[#2f7cf6] px-1 font-mono text-[9px] leading-tight text-white">
                   {t.id === "adjust" ? adjustments.length : t.id === "filter" ? filters.length : history.length}
                 </span>
               ) : null}

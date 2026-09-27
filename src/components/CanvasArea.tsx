@@ -2487,68 +2487,68 @@ export default function CanvasArea() {
         )}
         <ToolOptionsBar onApplyCrop={applyCrop} onCancelCrop={() => setCropDrag(null)} />
         {/* Bottom-left HUD: position and tool info */}
-        <div className="pointer-events-none absolute bottom-3 left-3 flex items-center gap-2 rounded-lg border border-white/10 bg-black/65 px-2.5 py-1.5 font-mono text-[10px] text-white/75 shadow-lg backdrop-blur-md">
+        <div className="pointer-events-none absolute bottom-3 left-3 flex items-center gap-2 rounded-md border border-[#2c2c31] bg-[#1c1c1f] px-2.5 py-1.5 font-mono text-[10px] text-[#a7a7b0]">
           <span className="rounded bg-[#2f7cf6] px-1.5 py-0.5 font-semibold text-white">{TOOL_LABEL[tool] ?? tool}</span>
           <span className="tabular-nums">{cursor}</span>
-          <span className="text-white/40">|</span>
-          <span className="tabular-nums text-white/60">
+          <span className="text-[#3a3a41]">|</span>
+          <span className="tabular-nums">
             {doc.width} x {doc.height}
           </span>
           {hasSelection() && (
             <>
-              <span className="text-white/40">|</span>
-              <span className="rounded bg-[#d9a441]/20 px-1.5 py-0.5 text-[#f0c674]">Selection active</span>
+              <span className="text-[#3a3a41]">|</span>
+              <span className="rounded border border-[#2c2c31] bg-[#101012] px-1.5 py-0.5 text-[#d9a441]">Selection</span>
             </>
           )}
           {countN > 0 && (
             <>
-              <span className="text-white/40">|</span>
-              <span className="rounded bg-[#5a30ff]/25 px-1.5 py-0.5 text-[#b9a8ff]">Count {countN}</span>
+              <span className="text-[#3a3a41]">|</span>
+              <span className="rounded border border-[#2c2c31] bg-[#101012] px-1.5 py-0.5 text-white">Count {countN}</span>
             </>
           )}
           {paintMask && (
             <>
-              <span className="text-white/40">|</span>
-              <span className="rounded bg-[#2f7cf6]/20 px-1.5 py-0.5 text-[#8fb6f5]">Mask paint</span>
+              <span className="text-[#3a3a41]">|</span>
+              <span className="rounded border border-[#2c2c31] bg-[#101012] px-1.5 py-0.5 text-[#8fb6f5]">Mask</span>
             </>
           )}
         </div>
 
         {/* Bottom-right zoom controls */}
-        <div className="absolute bottom-3 right-3 flex items-center gap-0.5 overflow-hidden rounded-lg border border-white/10 bg-black/70 p-1 shadow-lg backdrop-blur-md">
+        <div className="absolute bottom-3 right-3 flex items-center gap-0.5 overflow-hidden rounded-md border border-[#2c2c31] bg-[#1c1c1f] p-1">
           <button
             onClick={() => setZoom(Math.max(1, zoom - 25))}
-            className="grid h-6 w-6 place-items-center rounded text-white/70 hover:bg-white/10 hover:text-white"
+            className="grid h-6 w-6 place-items-center rounded text-[#a7a7b0] hover:bg-[#232327] hover:text-white"
             title="Zoom out (Ctrl+-)"
           >
             -
           </button>
           <button
             onClick={() => setZoom(100)}
-            className="min-w-[46px] rounded px-1 py-0.5 font-mono text-[10px] tabular-nums text-white/85 hover:bg-white/10 hover:text-white"
+            className="min-w-[46px] rounded px-1 py-0.5 font-mono text-[10px] tabular-nums text-white hover:bg-[#232327]"
             title="Zoom 100% (Ctrl+1)"
           >
             {zoom}%
           </button>
           <button
             onClick={() => setZoom(Math.min(400, zoom + 25))}
-            className="grid h-6 w-6 place-items-center rounded text-white/70 hover:bg-white/10 hover:text-white"
+            className="grid h-6 w-6 place-items-center rounded text-[#a7a7b0] hover:bg-[#232327] hover:text-white"
             title="Zoom in (Ctrl++)"
           >
             +
           </button>
-          <span className="mx-0.5 h-4 w-px bg-white/15" />
+          <span className="mx-0.5 h-4 w-px bg-[#2c2c31]" />
           <button
             onClick={() => window.dispatchEvent(new Event("avero:fit-zoom"))}
-            className="rounded px-2 py-0.5 font-mono text-[10px] text-white/70 hover:bg-white/10 hover:text-white"
+            className="rounded px-2 py-0.5 font-mono text-[10px] text-[#a7a7b0] hover:bg-[#232327] hover:text-white"
             title="Fit to screen"
           >
             Fit
           </button>
         </div>
         {dragging && (
-          <div className="pointer-events-none absolute inset-4 grid place-items-center rounded-lg border-2 border-dashed border-[#2f7cf6] bg-[#2f7cf6]/10">
-            <div className="rounded bg-black/70 px-4 py-2 text-[13px] text-white">
+          <div className="pointer-events-none absolute inset-4 grid place-items-center rounded-lg border border-dashed border-[#2f7cf6] bg-[#101012]">
+            <div className="rounded-md border border-[#2c2c31] bg-[#1c1c1f] px-4 py-2 text-[12px] text-white">
               Release to open image
             </div>
           </div>
@@ -2568,10 +2568,9 @@ export default function CanvasArea() {
           </div>
         )}
         {isFresh && !dragging && (
-          <div className="pointer-events-none absolute left-1/2 top-10 -translate-x-1/2 rounded-lg bg-black/65 px-4 py-2.5 text-center text-[12px] text-[#c9c9d1]">
-            <span className="font-semibold text-white">Drag image here</span> to start, or
-            press{" "}
-            <span className="rounded bg-[#2c2c31] px-1.5 py-0.5 font-mono text-[11px]">Ctrl+K</span>{" "}
+          <div className="pointer-events-none absolute left-1/2 top-10 -translate-x-1/2 rounded-md border border-[#2c2c31] bg-[#1c1c1f] px-4 py-2 text-center text-[12px] text-[#c9c9d1]">
+            <span className="font-semibold text-white">Drag image here</span> to start, or press{" "}
+            <span className="rounded border border-[#2c2c31] bg-[#101012] px-1.5 py-0.5 font-mono text-[11px]">Ctrl+K</span>{" "}
             then Open image
           </div>
         )}

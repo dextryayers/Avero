@@ -163,7 +163,7 @@ export const TOOL_FAMILIES: ToolFamily[] = [
       { id: "soft-brush", icon: Paintbrush, label: "Soft Brush", shortcut: "B", description: "Extra-large feather for blending.", usage: "Blend and soften." },
       { id: "color-replacement", icon: Pipette, label: "Color Replacement", shortcut: "B", description: "Replace hue while keeping luminance.", usage: "Paint over target color." },
       { id: "mixer-brush", icon: Paintbrush, label: "Mixer Brush", shortcut: "B", description: "Wet oil-paint color mixing.", usage: "Paint to mix wet colors." },
-      { id: "overlay-brush", icon: Blend, label: "Overlay Brush", shortcut: "B", description: "Paint contrast and light with overlay blend.", usage: "Paint for soft-light glow." },
+      { id: "overlay-brush", icon: Blend, label: "Overlay Brush", shortcut: "B", description: "Paint contrast and light with overlay blend.", usage: "Paint for soft light contrast." },
     ],
   },
   {
@@ -373,15 +373,14 @@ export default function ToolBar() {
                 setExpanded(true);
               }}
               className={clsx(
-                "relative grid h-9 w-9 shrink-0 place-items-center rounded-md",
-                active ? "bg-[#2f7cf6] text-white" : "text-[#a7a7b0] hover:bg-[#232327] hover:text-white",
+                "relative grid h-9 w-9 shrink-0 place-items-center rounded-md border",
+                active ? "border-[#2f7cf6] bg-[#2f7cf6] text-white" : "border-transparent text-[#a7a7b0] hover:bg-[#232327] hover:text-white",
               )}
             >
               <Icon size={16} strokeWidth={1.9} />
               {variantCount > 1 && (
-                <span className="absolute bottom-[2px] right-[3px] h-0 w-0 border-b-[6px] border-l-[6px] border-b-[#6e6e78] border-l-transparent" />
+                <span className="absolute bottom-[3px] right-[3px] h-1 w-1 rounded-full bg-current opacity-60" />
               )}
-              {active && <span className="absolute -left-[9px] h-5 w-[3px] rounded-r bg-[#8fb6f5]" />}
             </button>
           );
         })}
@@ -414,14 +413,14 @@ export default function ToolBar() {
               const isCollapsed = !!collapsed[f.id];
               const isActiveFamily = FAMILY_OF[tool] === f.id;
               return (
-                <div key={f.id} className="mb-1 rounded-lg border border-[#232327] bg-[#1c1c1f]">
+                <div key={f.id} className="mb-1.5 rounded-md border border-[#2c2c31] bg-[#1c1c1f]">
                   <button
                     onClick={() => setCollapsed((s) => ({ ...s, [f.id]: !s[f.id] }))}
                     className="flex w-full items-center gap-2 px-2 py-1.5 text-left"
                   >
-                    <f.icon size={14} className={isActiveFamily ? "text-[#8fb6f5]" : "text-[#a7a7b0]"} />
+                    <f.icon size={14} className={isActiveFamily ? "text-white" : "text-[#a7a7b0]"} />
                     <span className="flex-1 text-[12px] font-semibold text-white">{f.label}</span>
-                    <span className="rounded bg-[#232327] px-1 font-mono text-[9px] text-[#a7a7b0]">{f.shortcut}</span>
+                    <span className="rounded border border-[#2c2c31] bg-[#101012] px-1 py-px font-mono text-[9px] text-[#a7a7b0]">{f.shortcut}</span>
                     <ChevronDown
                       size={13}
                       className={clsx("text-[#6e6e78] transition-transform", isCollapsed && "-rotate-90")}
@@ -439,21 +438,20 @@ export default function ToolBar() {
                             onClick={() => setTool(t.id)}
                             title={`${t.label} (${t.shortcut}) - ${t.usage}`}
                             className={clsx(
-                              "mb-1 w-full rounded-md border px-2 py-1.5 text-left transition-colors",
+                              "mb-1 w-full rounded-md border px-2 py-1.5 text-left",
                               active
-                                ? "border-[#2f7cf6] bg-[#2f7cf6]/15"
+                                ? "border-[#2f7cf6] bg-[#232327]"
                                 : "border-transparent hover:border-[#2c2c31] hover:bg-[#232327]",
                             )}
                           >
                             <div className="flex items-center gap-2">
                               <Icon size={14} className={active ? "text-white" : "text-[#a7a7b0]"} />
-                              <span className={clsx("flex-1 text-[12px]", active ? "text-white" : "text-[#c9c9d1]")}>
+                              <span className={clsx("flex-1 text-[12px] font-medium", active ? "text-white" : "text-[#c9c9d1]")}>
                                 {t.label}
                               </span>
                               <span className="font-mono text-[9px] text-[#6e6e78]">{t.shortcut}</span>
                             </div>
-                            <div className="mt-0.5 pl-6 text-[10.5px] leading-snug text-[#6e6e78]">{t.description}</div>
-                            <div className="mt-0.5 pl-6 font-mono text-[9.5px] text-[#5a5a63]">{t.usage}</div>
+                            <div className="mt-0.5 pl-6 text-[11px] leading-snug text-[#6e6e78]">{t.description}</div>
                           </button>
                         );
                       })}

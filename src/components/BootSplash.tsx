@@ -2,53 +2,48 @@ import { useEffect, useRef, useState } from "react";
 import { checkBackend } from "../io/tauriIo";
 import { useEditorStore } from "../stores/useEditorStore";
 
-const BACKGROUNDS = ["/img/1.jpg", "/img/2.jpg"];
+const SAMPLES = [
+  { src: "/img/1.jpg", label: "Sample 01", sub: "img/1.jpg" },
+  { src: "/img/2.jpg", label: "Sample 02", sub: "img/2.jpg" },
+];
 
 const STAGES = [
-  { step: "Setting up the interface", detail: "Assembling workspace, panels, and toolbar" },
-  { step: "Initializing layers", detail: "Loading layer, mask, and blend mode managers" },
-  { step: "Preparing brushes", detail: "Preparing brushes, pens, and precision painting tools" },
-  { step: "Building the color pipeline", detail: "Calibrating curves, levels, and color balance" },
-  { step: "Loading the adjustment stack", detail: "Preparing 18 non-destructive adjustments" },
-  { step: "Stocking the filter library", detail: "Preparing 17 ready-to-use studio filters" },
-  { step: "Optimizing memory", detail: "Tiled mode for large documents, RAM efficient" },
-  { step: "Setting up color management", detail: "sRGB, Adobe RGB, and ProPhoto working spaces" },
-  { step: "Tidying the canvas", detail: "Canvas rulers, guides, and grid" },
-  { step: "Loading the project format", detail: "Full .avx file support" },
-  { step: "Restoring the session", detail: "Restoring your last document" },
-  { step: "Polishing details", detail: "Final touches before you're ready" },
-  { step: "Almost done", detail: "Studio ready, everything is in place" },
+  { step: "Interface", detail: "Workspace, panels, toolbar" },
+  { step: "Layers", detail: "Layer and mask manager" },
+  { step: "Paint tools", detail: "Brush, pen, healing" },
+  { step: "Color pipeline", detail: "Levels, curves, balance" },
+  { step: "Adjustments", detail: "18 non destructive items" },
+  { step: "Filters", detail: "17 studio filters" },
+  { step: "Memory", detail: "Tiled mode, low RAM use" },
+  { step: "Session", detail: "Restore last document" },
 ];
 
 const TIPS = [
-  "Press Ctrl+K to search all commands in one place.",
-  "Ctrl+S saves the full .avx project, including all layers and adjustments.",
-  "Ctrl+E exports PNG, JPG, WEBP, BMP, TIFF, or SVG in one click.",
-  "Hold Space and drag to pan the canvas, scroll to zoom.",
-  "Press V to freely move layers on the canvas. Hold Shift for snapping.",
-  "Press B for brush, E for eraser, J for healing, S for stamp.",
-  "Alt+click sets the Clone Stamp source for a seamless blend.",
-  "Adjustment stacks can be reordered, hidden, and opacity-adjusted.",
-  "Use automatic tiled mode for large documents to stay light and responsive.",
-  "Press Ctrl+T for free transform: scale, rotate, and warp in one action.",
-  "Press Ctrl+Z anytime to undo, Ctrl+Y to redo.",
-  "Save your work often — just press Ctrl+S.",
+  "Ctrl+K opens command search.",
+  "Ctrl+S saves full .avx project.",
+  "Ctrl+E exports to 6 formats.",
+  "Space + drag pans the canvas.",
+  "B brush, E eraser, J heal, S stamp.",
+  "Alt+click sets clone source.",
+  "Ctrl+Z undo, Ctrl+Y redo.",
+  "Tiled mode keeps large files light.",
 ];
 
 export default function BootSplash({ onDone }: { onDone: () => void }) {
   const [idx, setIdx] = useState(0);
   const [fade, setFade] = useState(false);
   const [tipIdx, setTipIdx] = useState(0);
-  const [bgIdx, setBgIdx] = useState(0);
-  const [bgReady, setBgReady] = useState(false);
-  const [pulse, setPulse] = useState(false);
+  const [loaded, setLoaded] = useState<Record<string, boolean>>({});
   const mounted = useRef(true);
 
   useEffect(() => {
     mounted.current = true;
-    BACKGROUNDS.forEach((src) => {
+    SAMPLES.forEach((s) => {
       const img = new Image();
-      img.src = src;
+      img.src = s.src;
+      img.onload = () => {
+        if (mounted.current) setLoaded((p) => ({ ...p, [s.src]: true }));
+      };
     });
     return () => {
       mounted.current = false;
@@ -56,17 +51,7 @@ export default function BootSplash({ onDone }: { onDone: () => void }) {
   }, []);
 
   useEffect(() => {
-    const t = setInterval(() => setTipIdx((v) => (v + 1) % TIPS.length), 4200);
-    return () => clearInterval(t);
-  }, []);
-
-  useEffect(() => {
-    const t = setInterval(() => setBgIdx((v) => (v + 1) % BACKGROUNDS.length), 5200);
-    return () => clearInterval(t);
-  }, []);
-
-  useEffect(() => {
-    const t = setInterval(() => setPulse((v) => !v), 900);
+    const t = setInterval(() => setTipIdx((v) => (v + 1) % TIPS.length), 3600);
     return () => clearInterval(t);
   }, []);
 
@@ -83,14 +68,14 @@ export default function BootSplash({ onDone }: { onDone: () => void }) {
       for (let i = 0; i < STAGES.length; i++) {
         if (!alive) return;
         setIdx(i);
-        await new Promise((r) => setTimeout(r, 150 + Math.random() * 130));
+        await new Promise((r) => setTimeout(r, 170 + Math.random() * 110));
       }
       if (!alive) return;
-      const wait = Math.max(0, 2100 - (Date.now() - t0));
+      const wait = Math.max(0, 1600 - (Date.now() - t0));
       await new Promise((r) => setTimeout(r, wait));
       if (!alive) return;
       setFade(true);
-      await new Promise((r) => setTimeout(r, 460));
+      await new Promise((r) => setTimeout(r, 380));
       if (alive) onDone();
     })();
     return () => {
@@ -100,162 +85,96 @@ export default function BootSplash({ onDone }: { onDone: () => void }) {
 
   const pct = Math.min(100, Math.round(((idx + 1) / STAGES.length) * 100));
   const stage = STAGES[idx];
-  const doneCount = idx + 1;
 
   return (
     <div
-      className={`fixed inset-0 z-[80] flex flex-col overflow-hidden bg-[#0a0a0c] transition-opacity duration-700 ${fade ? "opacity-0" : "opacity-100"}`}
+      className={`fixed inset-0 z-[80] flex items-center justify-center bg-[#101012] p-4 transition-opacity duration-300 ${
+        fade ? "opacity-0" : "opacity-100"
+      }`}
     >
-      {/* Photo background, crossfading one at a time */}
-      <div className="absolute inset-0">
-        {BACKGROUNDS.map((src, i) => (
+      <div className="w-[720px] max-w-full">
+        <div className="flex items-center gap-3">
           <img
-            key={src}
-            src={src}
-            alt=""
-            onLoad={() => setBgReady(true)}
-            className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-[1600ms] ease-in-out ${
-              bgIdx === i ? "opacity-100" : "opacity-0"
-            }`}
+            src="/logo.png"
+            alt="AVERO"
+            className="h-9 w-9 rounded-md border border-[#2c2c31] object-cover"
           />
-        ))}
-        <div className="absolute inset-0 bg-black/45" />
-        <div className="absolute inset-0 bg-gradient-to-br from-black/85 via-black/55 to-black/90" />
-        <div
-          className="absolute inset-0 opacity-[0.03]"
-          style={{
-            backgroundImage: "linear-gradient(#ffffff 1px, transparent 1px), linear-gradient(90deg, #ffffff 1px, transparent 1px)",
-            backgroundSize: "56px 56px",
-          }}
-        />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_45%,rgba(47,124,246,0.16),transparent_55%)]" />
-        {!bgReady && (
-          <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-[#101012] via-[#1c1c1f] to-[#101012]" />
-        )}
-      </div>
-
-      {/* Original logo, top-right corner */}
-      <div className="absolute right-6 top-6 z-20 flex items-center gap-3 rounded-2xl border border-white/12 bg-black/50 px-4 py-2.5 shadow-[0_8px_28px_rgba(0,0,0,0.55)] backdrop-blur-xl">
-        <img src="/logo.png" alt="AVERO STUDIO" className="h-9 w-9 rounded-xl object-cover ring-1 ring-white/15" />
-        <div>
-          <div className="text-[12.5px] font-extrabold tracking-wide text-white">AVERO STUDIO</div>
-          <div className="font-mono text-[9.5px] tracking-[0.14em] text-white/55">v2.0.0 PROFESSIONAL</div>
-        </div>
-      </div>
-
-      {/* Left: copy + loading bar */}
-      <div className="relative z-10 flex flex-1 items-center p-7 md:p-12">
-        <div className="w-[560px] max-w-full">
-          <div className="mb-7">
-            <div className="inline-flex items-center gap-2.5 rounded-full border border-white/12 bg-black/40 px-3.5 py-1.5 backdrop-blur-md">
-              <span className={`h-1.5 w-1.5 rounded-full bg-[#2f7cf6] ${pulse ? "opacity-100 shadow-[0_0_10px_rgba(47,124,246,0.9)]" : "opacity-30"}`} />
-              <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/85">
-                Setting up studio · {pct}%
-              </span>
-            </div>
-            <h1 className="mt-5 text-[34px] font-black leading-[1.02] tracking-tight text-white md:text-[44px]">
-              AVERO <span className="text-[#5fa2ff]">STUDIO</span>
-            </h1>
-            <p className="mt-2.5 max-w-[440px] text-[13px] leading-relaxed text-white/65">
-              A professional photo studio for exploring color, layers, and detail. Fully offline,
-              harnessing your full device, ready in seconds.
-            </p>
-          </div>
-
-          <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#161618]/92 shadow-[0_26px_70px_rgba(0,0,0,0.7)] backdrop-blur-2xl">
-            <div className="border-b border-white/8 px-6 pb-4 pt-5">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="mb-1 flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#5fa2ff]" />
-                    <span className="font-mono text-[9.5px] uppercase tracking-[0.2em] text-[#5fa2ff]">
-                      Step {doneCount} of {STAGES.length}
-                    </span>
-                  </div>
-                  <div className="truncate text-[15px] font-bold leading-tight text-white">{stage.step}</div>
-                  <div className="mt-0.5 truncate text-[11.5px] text-white/55">{stage.detail}</div>
-                </div>
-                <div className="shrink-0 text-right">
-                  <div className="font-mono text-[26px] font-black leading-none tabular-nums text-white">{pct}</div>
-                  <div className="font-mono text-[9px] tracking-[0.18em] text-white/45">PERCENT</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="px-6 pt-4">
-              <div className="relative h-2.5 overflow-hidden rounded-full bg-white/8 ring-1 ring-white/10">
-                <div
-                  className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-[#2f7cf6] to-[#5fa2ff] transition-all duration-500 ease-out"
-                  style={{ width: `${pct}%` }}
-                />
-                <div
-                  className="absolute inset-y-0 w-32 rounded-full bg-gradient-to-r from-transparent via-white/35 to-transparent"
-                  style={{
-                    left: `${Math.max(0, pct - 26)}%`,
-                    opacity: pct < 100 ? 1 : 0,
-                    animation: "avero-shimmer 1.15s ease-in-out infinite",
-                  }}
-                />
-              </div>
-              <div className="mt-2 flex items-center justify-between font-mono text-[10px] text-white/45">
-                <span className="tabular-nums">
-                  {doneCount}/{STAGES.length} modules loaded
-                </span>
-                <span className="flex items-center gap-1.5 text-white/75 tabular-nums">
-                  <span className="h-1 w-1 rounded-full bg-[#7ad69e]" />
-                  {pct < 100 ? "Loading" : "Ready"}
-                </span>
-              </div>
-            </div>
-
-            <div className="px-6 py-4">
-              <div className="mb-2 flex items-center gap-2">
-                <svg className="h-3.5 w-3.5 text-[#5fa2ff]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-                </svg>
-                <span className="font-mono text-[9.5px] uppercase tracking-[0.2em] text-white/45">Studio Tip</span>
-              </div>
-              <div className="min-h-[34px] text-[12px] leading-relaxed text-white/70 transition-opacity duration-500">
-                {TIPS[tipIdx]}
-              </div>
-              <div className="mt-2 flex gap-1">
-                {TIPS.map((_, i) => (
-                  <span
-                    key={i}
-                    className={`h-1 rounded-full transition-all duration-300 ${
-                      i === tipIdx ? "w-5 bg-[#5fa2ff]" : "w-1.5 bg-white/20"
-                    }`}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between border-t border-white/8 bg-black/30 px-6 py-3 font-mono text-[10px] text-white/45">
-              <span className="flex items-center gap-2">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#7ad69e]" />
-                Offline · Non-destructive · No account
-              </span>
-              <span className="tracking-[0.14em] tabular-nums">AVERO v2.0.0</span>
+          <div className="leading-none">
+            <div className="text-[13px] font-bold tracking-wide text-white">AVERO STUDIO</div>
+            <div className="mt-1 font-mono text-[10px] tracking-wider text-[#6e6e78]">
+              v2.0.0 PROFESSIONAL
             </div>
           </div>
-
-          <div className="mt-4 flex items-center gap-3 font-mono text-[10px] text-white/35">
-            <span className="h-px flex-1 bg-white/10" />
-            <span>Setting up your photo studio</span>
-            <span className="h-px flex-1 bg-white/10" />
+          <div className="ml-auto text-right leading-none">
+            <div className="font-mono text-[22px] font-bold tabular-nums text-white">{pct}</div>
+            <div className="mt-1 font-mono text-[9px] tracking-widest text-[#6e6e78]">PERCENT</div>
           </div>
         </div>
-      </div>
 
-      {/* Slim full-width bottom bar */}
-      <div className="relative z-10 h-1.5 w-full bg-white/5">
-        <div
-          className="h-full bg-gradient-to-r from-[#2f7cf6] to-[#5fa2ff] transition-all duration-500 ease-out"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          {SAMPLES.map((s) => (
+            <div
+              key={s.src}
+              className="overflow-hidden rounded-lg border border-[#2c2c31] bg-[#1c1c1f]"
+            >
+              <div className="relative aspect-[16/10] bg-[#161618]">
+                {!loaded[s.src] && <div className="absolute inset-0 bg-[#1c1c1f]" />}
+                <img
+                  src={s.src}
+                  alt={s.label}
+                  className="absolute inset-0 h-full w-full object-cover"
+                  draggable={false}
+                />
+              </div>
+              <div className="flex items-center justify-between border-t border-[#2c2c31] px-3 py-2">
+                <span className="text-[11px] font-semibold text-[#ececee]">{s.label}</span>
+                <span className="font-mono text-[10px] text-[#6e6e78]">{s.sub}</span>
+              </div>
+            </div>
+          ))}
+        </div>
 
-      <style>{`@keyframes avero-shimmer { 0% { transform: translateX(-48px); opacity:0 } 50% { opacity:1 } 100% { transform: translateX(140px); opacity:0 } }`}</style>
+        <div className="mt-2 rounded-lg border border-[#2c2c31] bg-[#1c1c1f]">
+          <div className="flex items-center justify-between gap-3 border-b border-[#2c2c31] px-4 py-3">
+            <div className="min-w-0">
+              <div className="font-mono text-[10px] tracking-widest text-[#8fb6f5]">
+                STEP {idx + 1}/{STAGES.length} {stage.step.toUpperCase()}
+              </div>
+              <div className="mt-1 truncate text-[12px] text-[#a7a7b0]">{stage.detail}</div>
+            </div>
+            <div className="shrink-0 font-mono text-[10px] tabular-nums text-[#6e6e78]">
+              {idx + 1}/{STAGES.length}
+            </div>
+          </div>
+
+          <div className="px-4 pt-3">
+            <div className="h-[4px] overflow-hidden rounded-full bg-[#232327]">
+              <div
+                className="h-full rounded-full bg-[#2f7cf6] transition-all duration-300 ease-out"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <div className="flex items-center justify-between py-2 font-mono text-[10px] tabular-nums text-[#6e6e78]">
+              <span>{pct < 100 ? "Loading modules" : "Ready"}</span>
+              <span>{pct}%</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 border-t border-[#2c2c31] bg-[#161618] px-4 py-2.5">
+            <span className="font-mono text-[9px] tracking-widest text-[#6e6e78]">TIP</span>
+            <span key={tipIdx} className="truncate text-[11px] text-[#a7a7b0]">
+              {TIPS[tipIdx]}
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-3 flex items-center justify-between font-mono text-[10px] text-[#4a4a52]">
+          <span>Offline</span>
+          <span>Non destructive</span>
+          <span>No account</span>
+          <span className="tabular-nums">AVERO v2.0.0</span>
+        </div>
+      </div>
     </div>
   );
 }

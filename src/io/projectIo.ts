@@ -607,6 +607,37 @@ export function renderExportCanvas(opts: ExportOptions): { canvas: HTMLCanvasEle
   return { canvas: out, mime };
 }
 
+export interface SmartExportResult {
+  dataUrl: string;
+  ext: string;
+  outW: number;
+  outH: number;
+  tiled: boolean;
+  estMB: number;
+}
+
+export async function exportImageSmart(
+  opts: ExportOptions,
+  onProgress?: (stage: string) => void,
+): Promise<SmartExportResult> {
+  const ed = useEditorStore.getState();
+  onProgress?.("Planning export");
+  let plan = { outW: Math.max(1, Math.round(ed.doc.width * (opts.scale / 100))), outH: Math.max(1, Math.round(ed.doc.height * (opts.scale / 100))), tiled: false, tile: 0, estMB: 0 };
+  try {
+    const { exportPlan } = await import("./memoryManager");
+    const p = await exportPlan(ed.doc.width, ed.doc.height, opts.scale);
+    plan = { outW: p.outW, outH: p.outH, tiled: p.tiled, tile: p.tile, estMB: p.estMB };
+  } catch {
+    /* use local dimensions */
+  }
+  onProgress?.(plan.tiled ? `Rendering UHD ${plan.outW}x${plan.outH} tiled` : `Rendering ${plan.outW}x${plan.outH}`);
+  // Yield once so the dialog can paint progress before the heavy draw.
+  await new Promise((r) => setTimeout(r, 30));
+  const { dataUrl, ext } = exportDataUrl(opts);
+  onProgress?.("Encoding complete");
+  return { dataUrl, ext, outW: plan.outW, outH: plan.outH, tiled: plan.tiled, estMB: plan.estMB };
+}
+
 export function exportDataUrl(opts: ExportOptions): { dataUrl: string; ext: string } {
   const { canvas, mime } = renderExportCanvas(opts);
   const q = Math.max(1, Math.min(100, Math.round(opts.quality))) / 100;

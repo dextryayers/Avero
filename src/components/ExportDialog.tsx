@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Download, X } from "lucide-react";
 import { save } from "@tauri-apps/plugin-dialog";
 import { useEditorStore } from "../stores/useEditorStore";
-import { exportDataUrl, writeTextFile, type ExportFormat } from "../io/projectIo";
+import { exportDataUrl, exportImageSmart, writeTextFile, type ExportFormat } from "../io/projectIo";
 import { rustSaveDataUrl } from "../io/tauriIo";
 import { showError, showMessage } from "../ui/notify";
 import clsx from "clsx";
@@ -33,6 +33,25 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
   const [matte, setMatte] = useState<"none" | "white" | "black">("none");
   const [name, setName] = useState(doc.name.replace(/\.[a-z0-9]+$/i, "") || "Untitled");
   const [busy, setBusy] = useState(false);
+  const [stage, setStage] = useState("");
+  const [tiled, setTiled] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const { exportPlan } = await import("../io/memoryManager");
+        const p = await exportPlan(doc.width, doc.height, scale);
+        if (alive) setTiled(p.tiled);
+      } catch {
+        if (alive) setTiled(outW * outH > 2048 * 2048);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc.width, doc.height, scale]);
 
   const needsMatte = format === "jpg" || format === "jpeg";
   const effMatte = needsMatte && matte === "none" ? "white" : matte;
@@ -55,14 +74,19 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
   async function doExport() {
     if (busy) return;
     setBusy(true);
+    setStage("Planning export");
     try {
-      const { dataUrl, ext } = exportDataUrl({
-        format,
-        quality,
-        scale,
-        matte: effMatte,
-        fileName: name,
-      });
+      const smart = await exportImageSmart(
+        {
+          format,
+          quality,
+          scale,
+          matte: effMatte,
+          fileName: name,
+        },
+        (s) => setStage(s),
+      );
+      const { dataUrl, ext } = smart;
       const fileName = `${name.trim() || "Untitled"}.${ext}`;
       if (isTauri()) {
         const path = await save({
@@ -96,6 +120,7 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
       await showError(`Export failed: ${String(e)}`);
     } finally {
       setBusy(false);
+      setStage("");
     }
   }
 
@@ -118,6 +143,7 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
             <div className="text-[13px] font-bold text-white">Export Image</div>
             <div className="font-mono text-[10.5px] text-[#6e6e78]">
               {outW} x {outH} px, about {approx}
+              {tiled ? ", tiled UHD path" : ", direct path"}
             </div>
           </div>
           <button onClick={onClose} className="ml-auto rounded p-1.5 text-[#a7a7b0] hover:bg-[#232327] hover:text-white">
@@ -172,12 +198,17 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
               </div>
               <input type="range" min={10} max={400} step={5} value={scale} onChange={(e) => setScale(Number(e.target.value))} className="w-full" />
               <div className="mt-1 flex gap-1.5">
-                {[25, 50, 100, 200].map((s) => (
+                {[25, 50, 100, 200, 400].map((s) => (
                   <button key={s} onClick={() => setScale(s)} className={clsx("rounded px-2 py-0.5 font-mono text-[10px]", scale === s ? "bg-[#2f7cf6] text-white" : "bg-[#232327] text-[#a7a7b0] hover:text-white")}>
                     {s}%
                   </button>
                 ))}
               </div>
+              {tiled && (
+                <div className="mt-1.5 rounded-md border border-[#2c2c31] bg-[#101012] px-2 py-1.5 text-[10.5px] leading-snug text-[#a7a7b0]">
+                  UHD output renders through the tiled path in 512px blocks to keep RAM flat.
+                </div>
+              )}
             </div>
             <div>
               <div className="avero-micro mb-1.5">Transparent background</div>
@@ -215,7 +246,7 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
               disabled={busy}
               className="avero-btn-primary rounded-md px-5 py-2 text-[12px] font-semibold text-white disabled:opacity-50"
             >
-              {busy ? "Exporting..." : "Export"}
+              {busy ? (stage || "Exporting...") : "Export"}
             </button>
           </div>
         </div>

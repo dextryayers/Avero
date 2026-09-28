@@ -264,7 +264,208 @@ export type ToolId =
   | "bw-brush"
   | "film-fade"
   | "split-tone"
-  | "hdr-brush";
+  | "hdr-brush"
+  // ---- Brush Atelier II (photo-painting) ----
+  | "dry-flat"
+  | "dry-round"
+  | "wet-glaze"
+  | "wet-palette"
+  | "oil-fan"
+  | "oil-filbert"
+  | "water-bloom"
+  | "water-salt"
+  | "gouache-flat"
+  | "gouache-velvet"
+  | "acrylic-bristle"
+  | "air-soft"
+  | "air-texture"
+  | "pencil-2b"
+  | "pencil-6b"
+  | "charcoal-vine"
+  | "chalk-oil"
+  | "crayon-wax"
+  | "pastel-hard"
+  | "ink-brush"
+  | "ink-nib"
+  | "liner-fine"
+  | "marker-chisel"
+  | "neon-tube"
+  | "glow-soft"
+  | "glitter-fine"
+  | "glitter-chunk"
+  | "smoke-thin"
+  | "smoke-bill"
+  | "fur-short"
+  // ---- Heal II (face and product retouch) ----
+  | "heal-mole"
+  | "heal-acne"
+  | "heal-scar-fade"
+  | "heal-shine"
+  | "heal-pores"
+  | "heal-tan-line"
+  | "heal-veins"
+  | "heal-chapped"
+  | "heal-stray-hair"
+  | "heal-flyaway"
+  | "heal-price-tag"
+  | "heal-tourist"
+  | "heal-wire"
+  | "heal-trash"
+  | "heal-reflection"
+  | "heal-glare"
+  | "heal-shadow-lift"
+  | "heal-fog-cut"
+  | "heal-grain-match"
+  | "heal-texture-copy"
+  | "heal-fabric"
+  | "heal-glass"
+  | "heal-chrome"
+  | "heal-rust-spot"
+  // ---- Tone II (pro photo grading) ----
+  | "dodge-mid"
+  | "dodge-detail"
+  | "burn-edge"
+  | "burn-depth"
+  | "sponge-warm"
+  | "sponge-cool"
+  | "vibrance-skin"
+  | "vibrance-foliage"
+  | "temp-sunset"
+  | "temp-arctic"
+  | "tint-cinema"
+  | "clarity-skin"
+  | "clarity-detail"
+  | "dehaze-sky"
+  | "dehaze-portrait"
+  | "grain-push"
+  | "grain-pull"
+  | "fade-blacks"
+  | "fade-whites"
+  | "split-gold"
+  // ---- Detail Gallery II ----
+  | "blur-tilt-strong"
+  | "blur-zoom"
+  | "blur-spin"
+  | "blur-frosted"
+  | "blur-mosaic-soft"
+  | "sharpen-halo-fix"
+  | "sharpen-print"
+  | "sharpen-screen"
+  | "clarity-structure"
+  | "denoise-luma"
+  | "denoise-chroma"
+  | "grain-35mm"
+  | "grain-120mm"
+  | "grain-push2"
+  | "lens-swirl"
+  | "lens-bubble"
+  | "motion-zoom"
+  | "motion-spin"
+  // ---- Distort II ----
+  | "distort-bulge"
+  | "distort-dent"
+  | "distort-squeeze"
+  | "distort-stretch"
+  | "distort-swirl-tight"
+  | "distort-waves-big"
+  | "distort-glass"
+  | "distort-heat"
+  | "distort-melt"
+  | "distort-flag"
+  | "distort-ripple-big"
+  | "distort-arc-top"
+  | "distort-arc-bottom"
+  | "distort-perspective"
+  // ---- Select II ----
+  | "select-circle"
+  | "select-stadium"
+  | "select-crosshair"
+  | "select-last"
+  | "select-inverse-click"
+  | "select-feather-2"
+  | "select-feather-4"
+  | "select-feather-12"
+  | "select-grow-2"
+  | "select-grow-8"
+  | "select-border-4"
+  | "select-border-12"
+  | "lasso-straight"
+  | "wand-flood"
+  | "range-skin"
+  | "range-sky"
+  | "range-greens"
+  // ---- Crop II (ratios plus guide overlays) ----
+  | "crop-55"
+  | "crop-a4"
+  | "crop-letter"
+  | "crop-47"
+  | "crop-58"
+  | "crop-thirds"
+  | "crop-diagonal"
+  | "crop-triangle-guide"
+  | "crop-golden-spiral"
+  | "crop-center-dot"
+  // ---- Paint II ----
+  | "gradient-conic"
+  | "gradient-diamond-soft"
+  | "gradient-reflected"
+  | "gradient-noise"
+  | "gradient-fg-transparent"
+  | "fill-foreground"
+  | "fill-background"
+  | "fill-pattern-new"
+  | "fill-content-click"
+  | "fill-history-click"
+  | "fill-transparent-protect"
+  | "bucket-contiguous"
+  | "bucket-global"
+  // ---- Vector II ----
+  | "pen-thin"
+  | "pen-medium"
+  | "pen-bold"
+  | "pen-dashed"
+  | "pen-arrow-both"
+  | "pen-glow"
+  | "shape-trapezoid-wide"
+  | "shape-parallelogram"
+  | "shape-pentagon"
+  | "shape-octagon"
+  | "shape-shield"
+  | "shape-badge"
+  | "shape-ribbon"
+  | "shape-cloud"
+  | "shape-speech"
+  | "shape-gear"
+  | "shape-drop"
+  | "shape-leaf"
+  | "shape-lightning"
+  | "shape-crown"
+  | "shape-pin"
+  | "shape-ticket"
+  // ---- Type II ----
+  | "text-typewriter"
+  | "text-blocky"
+  | "text-condensed"
+  | "text-expanded"
+  | "text-emboss"
+  | "text-engrave"
+  | "text-chrome"
+  | "text-fire"
+  | "text-ice"
+  | "text-retro"
+  // ---- Measure II ----
+  | "ruler-triple"
+  | "measure-dpi"
+  | "guide-mid"
+  | "guide-thirds"
+  | "guide-clear-one"
+  | "grid-pixel"
+  | "note-color"
+  | "count-auto"
+  | "sampler-3x3"
+  | "sampler-11x11"
+  | "zoom-marquee"
+  | "rotate-15";
 
 export type BlendMode =
   | "normal"
@@ -295,15 +496,30 @@ export type BlendMode =
   | "color"
   | "luminosity";
 
+export interface LayerEffects {
+  dropShadow?: { enabled: boolean; color: string; opacity: number; blur: number; dx: number; dy: number };
+  outerGlow?: { enabled: boolean; color: string; opacity: number; blur: number };
+  innerGlow?: { enabled: boolean; color: string; opacity: number; blur: number };
+  stroke?: { enabled: boolean; color: string; width: number; opacity: number };
+}
+
 export interface LayerMeta {
   id: string;
   name: string;
   visible: boolean;
   locked: boolean;
+  lockPixels: boolean;
+  lockPosition: boolean;
   opacity: number; // 0-100
+  fillOpacity: number; // 0-100, Photoshop Fill (pixel only, fx stay full)
   blendMode: BlendMode;
-  kind: "raster" | "background" | "text" | "shape";
+  kind: "raster" | "background" | "text" | "shape" | "group" | "fill";
   clipped?: boolean;
+  groupId?: string | null;
+  collapsed?: boolean;
+  linked?: boolean;
+  fx?: LayerEffects;
+  fillSpec?: { style: "solid" | "gradient" | "pattern"; color: string; color2: string; motif: string };
 }
 
 export interface HistoryEntry {
@@ -335,6 +551,14 @@ interface EditorState {
   brushOpacity: number;
   brushHardness: number;
   brushColor: string;
+  bgColor: string;
+  brushFlow: number; // 1-100, paint buildup per dab
+  brushSpacing: number; // 1-200 percent of size
+  brushJitter: number; // 0-100 size/alpha jitter
+  brushSmoothing: number; // 0-100 stroke smoothing
+  brushAngle: number; // -180-180 nib angle
+  brushRound: number; // 1-100 nib roundness
+  brushBlend: GlobalCompositeOperation; // brush blend override
   zoom: number; // percent
   panX: number;
   panY: number;
@@ -351,8 +575,21 @@ interface EditorState {
 
   setTool: (t: ToolId) => void;
   setBrush: (
-    p: Partial<{ size: number; opacity: number; hardness: number; color: string }>,
+    p: Partial<{
+      size: number;
+      opacity: number;
+      hardness: number;
+      color: string;
+      flow: number;
+      spacing: number;
+      jitter: number;
+      smoothing: number;
+      angle: number;
+      round: number;
+      blend: GlobalCompositeOperation;
+    }>,
   ) => void;
+  setBgColor: (c: string) => void;
   setZoom: (z: number) => void;
   setPan: (x: number, y: number) => void;
   setViewRotate: (deg: number) => void;
@@ -398,7 +635,10 @@ const defaultLayer = (): LayerMeta => ({
   name: "Layer 1",
   visible: true,
   locked: false,
+  lockPixels: false,
+  lockPosition: false,
   opacity: 100,
+  fillOpacity: 100,
   blendMode: "normal",
   kind: "raster",
 });
@@ -409,6 +649,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   brushOpacity: 100,
   brushHardness: 80,
   brushColor: "#2f7cf6",
+  bgColor: "#ffffff",
+  brushFlow: 100,
+  brushSpacing: 18,
+  brushJitter: 0,
+  brushSmoothing: 35,
+  brushAngle: 0,
+  brushRound: 100,
+  brushBlend: "source-over" as GlobalCompositeOperation,
   zoom: 100,
   panX: 0,
   panY: 0,
@@ -439,7 +687,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       brushOpacity: p.opacity ?? s.brushOpacity,
       brushHardness: p.hardness ?? s.brushHardness,
       brushColor: p.color ?? s.brushColor,
+      brushFlow: p.flow !== undefined ? Math.max(1, Math.min(100, Math.round(p.flow))) : s.brushFlow,
+      brushSpacing: p.spacing !== undefined ? Math.max(1, Math.min(200, Math.round(p.spacing))) : s.brushSpacing,
+      brushJitter: p.jitter !== undefined ? Math.max(0, Math.min(100, Math.round(p.jitter))) : s.brushJitter,
+      brushSmoothing: p.smoothing !== undefined ? Math.max(0, Math.min(100, Math.round(p.smoothing))) : s.brushSmoothing,
+      brushAngle: p.angle !== undefined ? Math.max(-180, Math.min(180, Math.round(p.angle))) : s.brushAngle,
+      brushRound: p.round !== undefined ? Math.max(1, Math.min(100, Math.round(p.round))) : s.brushRound,
+      brushBlend: p.blend ?? s.brushBlend,
     })),
+  setBgColor: (bgColor) => set({ bgColor }),
   setZoom: (zoom) => set({ zoom: Math.min(3200, Math.max(10, Math.round(zoom))) }),
   setPan: (panX, panY) => set({ panX, panY }),
   setViewRotate: (viewRotate) =>
@@ -564,7 +820,10 @@ export function makeLayer(name: string): LayerMeta {
     name,
     visible: true,
     locked: false,
+    lockPixels: false,
+    lockPosition: false,
     opacity: 100,
+    fillOpacity: 100,
     blendMode: "normal",
     kind: "raster",
   };

@@ -45,6 +45,36 @@ export const PAINT_TOOLS = new Set<ToolId>([
   "brush-smoke",
   "brush-fur",
   "brush-inkwash",
+  "dry-flat",
+  "dry-round",
+  "wet-glaze",
+  "wet-palette",
+  "oil-fan",
+  "oil-filbert",
+  "water-bloom",
+  "water-salt",
+  "gouache-flat",
+  "gouache-velvet",
+  "acrylic-bristle",
+  "air-soft",
+  "air-texture",
+  "pencil-2b",
+  "pencil-6b",
+  "charcoal-vine",
+  "chalk-oil",
+  "crayon-wax",
+  "pastel-hard",
+  "ink-brush",
+  "ink-nib",
+  "liner-fine",
+  "marker-chisel",
+  "neon-tube",
+  "glow-soft",
+  "glitter-fine",
+  "glitter-chunk",
+  "smoke-thin",
+  "smoke-bill",
+  "fur-short",
 ]);
 
 export function paintPreset(tool: ToolId, userHard: number): PaintPreset {
@@ -68,6 +98,66 @@ export function paintPreset(tool: ToolId, userHard: number): PaintPreset {
       return { hardness: 10, alphaMul: 0.45, composite: "multiply", sizeMul: 1.2 };
     case "brush-wet":
       return { hardness: Math.max(0, userHard - 30), alphaMul: 0.5, composite: "source-over", sizeMul: 1 };
+    case "dry-flat":
+      return { hardness: 80, alphaMul: 0.85, composite: "source-over", sizeMul: 1.1, scatter: true };
+    case "dry-round":
+      return { hardness: 65, alphaMul: 0.8, composite: "source-over", sizeMul: 1, scatter: true };
+    case "wet-glaze":
+      return { hardness: 0, alphaMul: 0.3, composite: "source-over", sizeMul: 1.2 };
+    case "wet-palette":
+      return { hardness: Math.max(0, userHard - 40), alphaMul: 0.45, composite: "source-over", sizeMul: 1.1 };
+    case "oil-fan":
+      return { hardness: Math.max(0, userHard - 25), alphaMul: 0.75, composite: "source-over", sizeMul: 1.35, scatter: true };
+    case "oil-filbert":
+      return { hardness: Math.max(0, userHard - 15), alphaMul: 0.9, composite: "source-over", sizeMul: 1 };
+    case "water-bloom":
+      return { hardness: 0, alphaMul: 0.28, composite: "multiply", sizeMul: 1.5 };
+    case "water-salt":
+      return { hardness: 5, alphaMul: 0.5, composite: "source-over", sizeMul: 1, scatter: true };
+    case "gouache-flat":
+      return { hardness: 75, alphaMul: 0.95, composite: "source-over", sizeMul: 1.15 };
+    case "gouache-velvet":
+      return { hardness: 25, alphaMul: 0.8, composite: "source-over", sizeMul: 1.2 };
+    case "acrylic-bristle":
+      return { hardness: 60, alphaMul: 0.85, composite: "source-over", sizeMul: 1.2, scatter: true };
+    case "air-soft":
+      return { hardness: 0, alphaMul: 0.15, composite: "source-over", sizeMul: 1.8 };
+    case "air-texture":
+      return { hardness: 0, alphaMul: 0.3, composite: "source-over", sizeMul: 1.3, scatter: true };
+    case "pencil-2b":
+      return { hardness: 95, alphaMul: 0.9, composite: "source-over", sizeMul: 0.9 };
+    case "pencil-6b":
+      return { hardness: 80, alphaMul: 1, composite: "multiply", sizeMul: 1 };
+    case "charcoal-vine":
+      return { hardness: 20, alphaMul: 0.6, composite: "multiply", sizeMul: 1.2, scatter: true };
+    case "chalk-oil":
+      return { hardness: 35, alphaMul: 0.75, composite: "source-over", sizeMul: 1.1, scatter: true };
+    case "crayon-wax":
+      return { hardness: 70, alphaMul: 0.9, composite: "source-over", sizeMul: 1.05, scatter: true };
+    case "pastel-hard":
+      return { hardness: 55, alphaMul: 0.9, composite: "source-over", sizeMul: 1 };
+    case "ink-brush":
+      return { hardness: 30, alphaMul: 0.95, composite: "source-over", sizeMul: 1.1 };
+    case "ink-nib":
+      return { hardness: 100, alphaMul: 1, composite: "source-over", sizeMul: 0.8 };
+    case "liner-fine":
+      return { hardness: 100, alphaMul: 1, composite: "source-over", sizeMul: 0.5 };
+    case "marker-chisel":
+      return { hardness: 90, alphaMul: 0.95, composite: "source-over", sizeMul: 1.25 };
+    case "neon-tube":
+      return { hardness: 50, alphaMul: 1, composite: "lighter", sizeMul: 1 };
+    case "glow-soft":
+      return { hardness: 0, alphaMul: 0.6, composite: "lighter", sizeMul: 1.5 };
+    case "glitter-fine":
+      return { hardness: 70, alphaMul: 0.85, composite: "lighter", sizeMul: 0.8, scatter: true };
+    case "glitter-chunk":
+      return { hardness: 60, alphaMul: 0.95, composite: "lighter", sizeMul: 1.3, scatter: true };
+    case "smoke-thin":
+      return { hardness: 0, alphaMul: 0.12, composite: "source-over", sizeMul: 1.9 };
+    case "smoke-bill":
+      return { hardness: 0, alphaMul: 0.22, composite: "source-over", sizeMul: 2.2 };
+    case "fur-short":
+      return { hardness: 55, alphaMul: 0.7, composite: "multiply", sizeMul: 0.9, scatter: true };
     case "airbrush":
     case "art-watercolor":
     case "art-glaze":
@@ -155,7 +245,69 @@ export type RetouchMode =
   | "bw"
   | "filmfade"
   | "splittone"
-  | "hdr";
+  | "hdr"
+  | "mole"
+  | "acne"
+  | "scarfade"
+  | "shine"
+  | "pores"
+  | "tanline"
+  | "veins"
+  | "chapped"
+  | "strayhair"
+  | "flyaway"
+  | "pricetag"
+  | "tourist"
+  | "wire"
+  | "trash"
+  | "reflection"
+  | "glare"
+  | "shadowlift"
+  | "fogcut"
+  | "grainmatch"
+  | "texturecopy"
+  | "fabric"
+  | "glass"
+  | "chrome"
+  | "rustspot"
+  | "dodgemid"
+  | "dodgedetail"
+  | "burnedge"
+  | "burndepth"
+  | "spongewarm"
+  | "spongecool"
+  | "vibrskin"
+  | "vibrfoliage"
+  | "tempsunset"
+  | "temparctic"
+  | "tintcinema"
+  | "clarityskin"
+  | "claritydetail"
+  | "dehazesky"
+  | "dehazeportrait"
+  | "grainpush"
+  | "grainpull"
+  | "fadeblacks"
+  | "fadewhites"
+  | "splitgold"
+  | "tiltstrong"
+  | "blurzoom"
+  | "blurspin"
+  | "blurfrosted"
+  | "blurmosaic"
+  | "halofix"
+  | "sharpenprint"
+  | "sharpenscreen"
+  | "claritystruct"
+  | "denoiseluma"
+  | "denoisechroma"
+  | "grain35"
+  | "grain120"
+  | "grainpush2"
+  | "lensswirl"
+  | "lensbubble"
+  | "motionzoom"
+  | "motionspin";
 
 export const RETOUCH_MAP: Partial<Record<ToolId, RetouchMode>> = {
   dodge: "dodge",
@@ -224,6 +376,68 @@ export const RETOUCH_MAP: Partial<Record<ToolId, RetouchMode>> = {
   "film-fade": "filmfade",
   "split-tone": "splittone",
   "hdr-brush": "hdr",
+  "heal-mole": "mole",
+  "heal-acne": "acne",
+  "heal-scar-fade": "scarfade",
+  "heal-shine": "shine",
+  "heal-pores": "pores",
+  "heal-tan-line": "tanline",
+  "heal-veins": "veins",
+  "heal-chapped": "chapped",
+  "heal-stray-hair": "strayhair",
+  "heal-flyaway": "flyaway",
+  "heal-price-tag": "pricetag",
+  "heal-tourist": "tourist",
+  "heal-wire": "wire",
+  "heal-trash": "trash",
+  "heal-reflection": "reflection",
+  "heal-glare": "glare",
+  "heal-shadow-lift": "shadowlift",
+  "heal-fog-cut": "fogcut",
+  "heal-grain-match": "grainmatch",
+  "heal-texture-copy": "texturecopy",
+  "heal-fabric": "fabric",
+  "heal-glass": "glass",
+  "heal-chrome": "chrome",
+  "heal-rust-spot": "rustspot",
+  "dodge-mid": "dodgemid",
+  "dodge-detail": "dodgedetail",
+  "burn-edge": "burnedge",
+  "burn-depth": "burndepth",
+  "sponge-warm": "spongewarm",
+  "sponge-cool": "spongecool",
+  "vibrance-skin": "vibrskin",
+  "vibrance-foliage": "vibrfoliage",
+  "temp-sunset": "tempsunset",
+  "temp-arctic": "temparctic",
+  "tint-cinema": "tintcinema",
+  "clarity-skin": "clarityskin",
+  "clarity-detail": "claritydetail",
+  "dehaze-sky": "dehazesky",
+  "dehaze-portrait": "dehazeportrait",
+  "grain-push": "grainpush",
+  "grain-pull": "grainpull",
+  "fade-blacks": "fadeblacks",
+  "fade-whites": "fadewhites",
+  "split-gold": "splitgold",
+  "blur-tilt-strong": "tiltstrong",
+  "blur-zoom": "blurzoom",
+  "blur-spin": "blurspin",
+  "blur-frosted": "blurfrosted",
+  "blur-mosaic-soft": "blurmosaic",
+  "sharpen-halo-fix": "halofix",
+  "sharpen-print": "sharpenprint",
+  "sharpen-screen": "sharpenscreen",
+  "clarity-structure": "claritystruct",
+  "denoise-luma": "denoiseluma",
+  "denoise-chroma": "denoisechroma",
+  "grain-35mm": "grain35",
+  "grain-120mm": "grain120",
+  "grain-push2": "grainpush2",
+  "lens-swirl": "lensswirl",
+  "lens-bubble": "lensbubble",
+  "motion-zoom": "motionzoom",
+  "motion-spin": "motionspin",
 };
 
 export type DistortKind =
@@ -234,7 +448,21 @@ export type DistortKind =
   | "wave"
   | "zigzag"
   | "spherize"
-  | "crystal";
+  | "crystal"
+  | "bulge"
+  | "dent"
+  | "squeeze"
+  | "stretch"
+  | "swirltight"
+  | "wavesbig"
+  | "glass"
+  | "heat"
+  | "melt"
+  | "flag"
+  | "ripplebig"
+  | "arctop"
+  | "arcbottom"
+  | "perspective";
 
 export const DISTORT_MAP: Partial<Record<ToolId, DistortKind>> = {
   "distort-twirl": "twirl",
@@ -245,6 +473,20 @@ export const DISTORT_MAP: Partial<Record<ToolId, DistortKind>> = {
   "distort-zigzag": "zigzag",
   "distort-spherize": "spherize",
   "distort-crystal": "crystal",
+  "distort-bulge": "bulge",
+  "distort-dent": "dent",
+  "distort-squeeze": "squeeze",
+  "distort-stretch": "stretch",
+  "distort-swirl-tight": "swirltight",
+  "distort-waves-big": "wavesbig",
+  "distort-glass": "glass",
+  "distort-heat": "heat",
+  "distort-melt": "melt",
+  "distort-flag": "flag",
+  "distort-ripple-big": "ripplebig",
+  "distort-arc-top": "arctop",
+  "distort-arc-bottom": "arcbottom",
+  "distort-perspective": "perspective",
 };
 
 export const CROP_RATIOS: Partial<Record<ToolId, number | null>> = {
@@ -260,6 +502,11 @@ export const CROP_RATIOS: Partial<Record<ToolId, number | null>> = {
   "crop-45": 4 / 5,
   "crop-916": 9 / 16,
   "crop-golden": 1.618,
+  "crop-55": 5 / 4,
+  "crop-a4": 210 / 297,
+  "crop-letter": 8.5 / 11,
+  "crop-47": 4 / 6,
+  "crop-58": 5 / 7,
 };
 
 export const IS_CROP_TOOL = new Set<ToolId>([
@@ -275,7 +522,23 @@ export const IS_CROP_TOOL = new Set<ToolId>([
   "crop-45",
   "crop-916",
   "crop-golden",
+  "crop-55",
+  "crop-a4",
+  "crop-letter",
+  "crop-47",
+  "crop-58",
 ]);
+
+// Crop overlay guide modes (visual composition aids, not separate crops).
+export const CROP_OVERLAYS = ["thirds", "diagonal", "triangle", "spiral", "center"] as const;
+export type CropOverlayKind = (typeof CROP_OVERLAYS)[number];
+export const CROP_OVERLAY_TOOLS: Partial<Record<ToolId, CropOverlayKind>> = {
+  "crop-thirds": "thirds",
+  "crop-diagonal": "diagonal",
+  "crop-triangle-guide": "triangle",
+  "crop-golden-spiral": "spiral",
+  "crop-center-dot": "center",
+};
 
 export const IS_SELECTION_TOOL = new Set<ToolId>([
   "select-rect",
@@ -301,6 +564,14 @@ export const IS_SELECTION_TOOL = new Set<ToolId>([
   "sky-select",
   "background-select",
   "focus-select",
+  "select-circle",
+  "select-stadium",
+  "select-crosshair",
+  "lasso-straight",
+  "wand-flood",
+  "range-skin",
+  "range-sky",
+  "range-greens",
 ]);
 
 export const IS_SHAPE_TOOL = new Set<ToolId>([
@@ -323,6 +594,22 @@ export const IS_SHAPE_TOOL = new Set<ToolId>([
   "shape-cross",
   "shape-plus",
   "shape-trapezoid",
+  "shape-trapezoid-wide",
+  "shape-parallelogram",
+  "shape-pentagon",
+  "shape-octagon",
+  "shape-shield",
+  "shape-badge",
+  "shape-ribbon",
+  "shape-cloud",
+  "shape-speech",
+  "shape-gear",
+  "shape-drop",
+  "shape-leaf",
+  "shape-lightning",
+  "shape-crown",
+  "shape-pin",
+  "shape-ticket",
 ]);
 
 export const SHAPE_KIND_OF: Partial<Record<ToolId, string>> = {
@@ -345,6 +632,22 @@ export const SHAPE_KIND_OF: Partial<Record<ToolId, string>> = {
   "shape-cross": "cross",
   "shape-plus": "plus",
   "shape-trapezoid": "trapezoid",
+  "shape-trapezoid-wide": "trapezoid-wide",
+  "shape-parallelogram": "parallelogram",
+  "shape-pentagon": "pentagon",
+  "shape-octagon": "octagon",
+  "shape-shield": "shield",
+  "shape-badge": "badge",
+  "shape-ribbon": "ribbon",
+  "shape-cloud": "cloud",
+  "shape-speech": "speech",
+  "shape-gear": "gear",
+  "shape-drop": "drop",
+  "shape-leaf": "leaf",
+  "shape-lightning": "lightning",
+  "shape-crown": "crown",
+  "shape-pin": "pin",
+  "shape-ticket": "ticket",
 };
 
 export function isPaintTool(t: ToolId): boolean {
@@ -361,4 +664,255 @@ export function distortOf(t: ToolId): DistortKind | null {
 
 export function cropRatioOf(t: ToolId): number | null | undefined {
   return CROP_RATIOS[t];
+}
+
+// ---- Dispatch classification (mirrors CanvasArea onMouseDown branch order) ----
+// Every ToolId must resolve to exactly one dispatch kind. No dead tools.
+
+export const ERASER_TOOLS = new Set<ToolId>([
+  "eraser",
+  "background-eraser",
+  "magic-eraser",
+  "eraser-hard",
+  "eraser-soft",
+  "eraser-block",
+]);
+
+export const CLONE_TOOLS = new Set<ToolId>([
+  "clone",
+  "clone-mirror",
+  "clone-rotate",
+  "clone-soft",
+  "pattern-stamp",
+  "pattern-dots",
+  "texture-stamp",
+  "pattern-fill",
+]);
+
+export const MOVE_TOOLS = new Set<ToolId>([
+  "move",
+  "path-select",
+  "direct-select",
+  "move-auto",
+  "transform-free",
+  "align-center",
+  "pan",
+  "hand",
+  "rotate-view",
+]);
+
+export const MARQUEE_TOOLS = new Set<ToolId>([
+  "select-rect",
+  "select-ellipse",
+  "single-row",
+  "single-column",
+  "select-square",
+  "select-circle",
+  "select-stadium",
+  "select-crosshair",
+]);
+
+export const EYEDROPPER_TOOLS = new Set<ToolId>(["eyedropper", "color-sampler", "sampler-avg"]);
+
+export const TEXT_TOOLS = new Set<ToolId>([
+  "text",
+  "text-vertical",
+  "text-outline",
+  "text-glow",
+  "text-shadow",
+  "text-arc",
+  "text-3d",
+  "text-neon",
+  "text-gradient",
+  "text-typewriter",
+  "text-blocky",
+  "text-condensed",
+  "text-expanded",
+  "text-emboss",
+  "text-engrave",
+  "text-chrome",
+  "text-fire",
+  "text-ice",
+  "text-retro",
+]);
+
+export const ZOOM_TOOLS = new Set<ToolId>([
+  "zoom",
+  "zoom-fit",
+  "zoom-100",
+  "zoom-200",
+  "zoom-400",
+  "zoom-50",
+  "zoom-800",
+  "zoom-marquee",
+  "rotate-reset",
+]);
+
+export const MEASURE_DRAG_TOOLS = new Set<ToolId>(["ruler", "measure-angle", "measure-area", "protractor", "ruler-triple"]);
+
+export const PEN_TOOLS = new Set<ToolId>([
+  "pen",
+  "pen-free",
+  "line",
+  "line-arrow",
+  "curvature-pen",
+  "pen-thin",
+  "pen-medium",
+  "pen-bold",
+  "pen-dashed",
+  "pen-arrow-both",
+  "pen-glow",
+]);
+
+export interface PenStyle {
+  widthMul: number;
+  dashed: boolean;
+  bothArrows: boolean;
+  glow: boolean;
+}
+
+export const PEN_STYLES: Partial<Record<ToolId, PenStyle>> = {
+  pen: { widthMul: 1, dashed: false, bothArrows: false, glow: false },
+  "pen-free": { widthMul: 0.6, dashed: false, bothArrows: false, glow: false },
+  line: { widthMul: 1, dashed: false, bothArrows: false, glow: false },
+  "line-arrow": { widthMul: 1, dashed: false, bothArrows: false, glow: false },
+  "curvature-pen": { widthMul: 1, dashed: false, bothArrows: false, glow: false },
+  "pen-thin": { widthMul: 0.45, dashed: false, bothArrows: false, glow: false },
+  "pen-medium": { widthMul: 1, dashed: false, bothArrows: false, glow: false },
+  "pen-bold": { widthMul: 2.1, dashed: false, bothArrows: false, glow: false },
+  "pen-dashed": { widthMul: 1, dashed: true, bothArrows: false, glow: false },
+  "pen-arrow-both": { widthMul: 1, dashed: false, bothArrows: true, glow: false },
+  "pen-glow": { widthMul: 1.1, dashed: false, bothArrows: false, glow: true },
+};
+
+export function penStyleOf(t: ToolId): PenStyle {
+  return PEN_STYLES[t] ?? { widthMul: 1, dashed: false, bothArrows: false, glow: false };
+}
+
+export const GRADIENT_TOOLS = new Set<ToolId>(["gradient", "gradient-radial", "gradient-diamond", "gradient-conic", "gradient-diamond-soft", "gradient-reflected", "gradient-noise"]);
+
+export const FILL_TOOLS = new Set<ToolId>([
+  "fill",
+  "fill-solid",
+  "fill-clear",
+  "fill-foreground",
+  "fill-background",
+  "fill-pattern-new",
+  "fill-content-click",
+  "fill-history-click",
+  "fill-transparent-protect",
+  "bucket-contiguous",
+  "bucket-global",
+]);
+
+export type PatternMotif = "checker" | "dots" | "stripes" | "grid";
+
+export const PATTERN_MOTIF_OF: Partial<Record<ToolId, PatternMotif>> = {
+  "pattern-stamp": "checker",
+  "pattern-fill": "checker",
+  "texture-stamp": "checker",
+  "pattern-dots": "dots",
+  "fill-pattern-new": "stripes",
+};
+
+// One-click tools: select ops, utilities, navigate presets. No AI tools in workspace.
+export const CLICK_TOOLS = new Set<ToolId>([
+  "select-feather",
+  "select-border",
+  "select-grow",
+  "select-shrink",
+  "select-feather-2",
+  "select-feather-4",
+  "select-feather-12",
+  "select-grow-2",
+  "select-grow-8",
+  "select-border-4",
+  "select-border-12",
+  "select-last",
+  "select-inverse-click",
+  "sky-select",
+  "background-select",
+  "focus-select",
+  "select-subject",
+  "guide-clear",
+  "guide-mid",
+  "guide-thirds",
+  "guide-clear-one",
+  "grid-toggle",
+  "grid-pixel",
+  "snap-toggle",
+  "note",
+  "note-color",
+  "count",
+  "count-auto",
+  "slice",
+  "slice-select",
+  "measure-dpi",
+  "sampler-3x3",
+  "sampler-11x11",
+  "rotate-15",
+  "gradient-fg-transparent",
+  "crop-thirds",
+  "crop-diagonal",
+  "crop-triangle-guide",
+  "crop-golden-spiral",
+  "crop-center-dot",
+]);
+
+export type DispatchKind =
+  | "move"
+  | "paint"
+  | "clone"
+  | "retouch"
+  | "distort"
+  | "crop"
+  | "selection"
+  | "shape"
+  | "gradient"
+  | "fill"
+  | "pen"
+  | "text"
+  | "measure"
+  | "zoom"
+  | "eyedropper"
+  | "click";
+
+export function dispatchKindOf(t: ToolId): DispatchKind | null {
+  if (MOVE_TOOLS.has(t)) return "move";
+  if (IS_CROP_TOOL.has(t)) return "crop";
+  if (GRADIENT_TOOLS.has(t)) return "gradient";
+  if (FILL_TOOLS.has(t)) return "fill";
+  if (MARQUEE_TOOLS.has(t)) return "selection";
+  // Click branch precedes generic selection: feather/border/grow/shrink and
+  // one-click selects are handled by dedicated click handlers in CanvasArea.
+  if (CLICK_TOOLS.has(t)) return "click";
+  if (toolIsSelectionOp(t)) return "selection";
+  if (TEXT_TOOLS.has(t)) return "text";
+  if (ZOOM_TOOLS.has(t)) return "zoom";
+  if (MEASURE_DRAG_TOOLS.has(t)) return "measure";
+  if (PEN_TOOLS.has(t)) return "pen";
+  if (EYEDROPPER_TOOLS.has(t)) return "eyedropper";
+  if (CLONE_TOOLS.has(t)) return "clone";
+  if (IS_SHAPE_TOOL.has(t) || t === "frame" || t === "artboard") return "shape";
+  if (isPaintTool(t) || ERASER_TOOLS.has(t)) return "paint";
+  if (RETOUCH_MAP[t] !== undefined || t === "liquify" || t === "warp") return "retouch";
+  if (DISTORT_MAP[t] !== undefined) return "distort";
+  if (t === "smudge" || t === "dodge" || t === "burn" || t === "sponge") return "retouch";
+  return null;
+}
+
+function toolIsSelectionOp(t: ToolId): boolean {
+  return (
+    IS_SELECTION_TOOL.has(t) ||
+    t === "select-lasso" ||
+    t === "select-polygon" ||
+    t === "magnetic-lasso" ||
+    t === "select-rounded" ||
+    t === "wand" ||
+    t === "wand-plus" ||
+    t === "wand-minus" ||
+    t === "quick-select" ||
+    t === "object-select" ||
+    t === "color-range"
+  );
 }

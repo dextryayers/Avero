@@ -345,7 +345,10 @@ export function normalizeAvxFile(file: AvxFile): AvxFile {
         name: typeof l.meta?.name === "string" && l.meta.name ? l.meta.name : `Layer ${i + 1}`,
         visible: l.meta?.visible !== false,
         locked: l.meta?.locked === true,
+        lockPixels: l.meta?.lockPixels === true,
+        lockPosition: l.meta?.lockPosition === true,
         opacity: clampNum(l.meta?.opacity, 0, 100, 100),
+        fillOpacity: clampNum(l.meta?.fillOpacity, 0, 100, 100),
         blendMode: (typeof l.meta?.blendMode === "string" ? l.meta.blendMode : "normal") as AvxLayer["meta"]["blendMode"],
         kind: (l.meta?.kind === "text" || l.meta?.kind === "shape" || l.meta?.kind === "background"
           ? l.meta.kind

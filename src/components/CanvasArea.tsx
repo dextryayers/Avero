@@ -14,7 +14,9 @@ import {
   expandContractSelection,
   featherSelection,
   hasSelection,
+  inverseSelection,
   isPointInSelection,
+  restoreLastSelection,
   selectionMaskCanvas,
   wandFromImage,
 } from "../engine/selection";
@@ -23,17 +25,22 @@ import { applyFilterToCanvas } from "../engine/filters";
 import { applySoftProof, convertWorkingSpace } from "../engine/color";
 import { renderShapeToLayer, renderTextToLayer } from "../engine/textShape";
 import {
+  CROP_OVERLAY_TOOLS,
   CROP_RATIOS,
+  ERASER_TOOLS,
   IS_CROP_TOOL,
   IS_SHAPE_TOOL,
   SHAPE_KIND_OF,
   distortOf,
   isPaintTool,
   paintPreset,
+  penStyleOf,
   retouchModeOf,
+  type CropOverlayKind,
   type DistortKind,
   type RetouchMode,
 } from "../engine/toolPresets";
+import { isPaintEraser, resolveEraserTarget } from "../engine/strokeTarget";
 import {
   blendToComposite,
   clearRenderCaches,
@@ -136,6 +143,7 @@ export default function CanvasArea() {
   const rotateStart = useRef<{ x: number; rot: number } | null>(null);
   const directStart = useRef<{ x: number; rotation: number; layerId: string } | null>(null);
   const sliceMove = useRef<{ id: string; dx: number; dy: number; sx: number; sy: number } | null>(null);
+  const tripleChain = useRef<{ x: number; y: number } | null>(null);
   // Per-stroke selection snapshot: isPointInSelection() costs a 1x1 getImageData
   // per dab, so brush strokes snapshot the mask once at stroke start and read
   // from RAM via inSel(). Captured at every setIsPainting(true) site.
@@ -176,7 +184,8 @@ export default function CanvasArea() {
   const tool = useEditorStore((s) => s.tool);
   // Every ToolId has a real behavior via toolPresets registry, no dead tools.
   const isBrush = isPaintTool(tool);
-  const isEraser = tool === "eraser" || tool === "background-eraser" || tool === "magic-eraser" || tool === "eraser-hard" || tool === "eraser-soft" || tool === "eraser-block";
+  // Single source of truth for the eraser set (plan2 Fase B).
+  const isEraser = ERASER_TOOLS.has(tool);
   const isHeal =
     tool === "spot-heal" || tool === "healing-brush" || tool === "patch" || tool === "red-eye" ||
     tool === "content-move" || tool === "content-fill" ||
@@ -1189,7 +1198,7 @@ export default function CanvasArea() {
     }
     if (curTool === "magic-eraser") {
       ctx.restore();
-      magicEraseAt(x, y);
+      magicEraseAt(x, y, aid);
       return;
     }
     if (curTool === "history-brush" || curTool === "art-history-brush") {
@@ -1259,40 +1268,55 @@ export default function CanvasArea() {
   }
 
   // Background Eraser: erase only pixels similar to edge sample.
+  // Interpolated along the stroke so fast drags leave no gaps.
   function eraseBackgroundTo(x: number, y: number, forceId?: string) {
     const aid = forceId ?? useEditorStore.getState().activeLayerId ?? activeLayerId;
     if (!aid) return;
+    const meta = useEditorStore.getState().layers.find((l) => l.id === aid);
+    if (!meta || meta.locked || !meta.visible) return;
     const c = layerManager.ensure(aid, doc.width, doc.height);
     const ctx = c.getContext("2d", { willReadFrequently: true })!;
     const r = Math.max(1, brushSize / 2);
-    const s = Math.round(r * 2);
-    const sx = Math.round(x - r);
-    const sy = Math.round(y - r);
-    try {
-      const edge = ctx.getImageData(Math.max(0, Math.min(c.width - 1, Math.floor(x))), Math.max(0, Math.min(c.height - 1, Math.floor(y))), 1, 1).data;
-      const id = ctx.getImageData(Math.max(0, sx), Math.max(0, sy), Math.min(s, c.width), Math.min(s, c.height));
-      const d = id.data;
-      const tol = 48;
-      for (let i = 0; i < d.length; i += 4) {
-        const dr = Math.abs(d[i] - edge[0]);
-        const dg = Math.abs(d[i + 1] - edge[1]);
-        const db = Math.abs(d[i + 2] - edge[2]);
-        if ((dr + dg + db) / 3 < tol) d[i + 3] = 0;
-      }
-      ctx.putImageData(id, Math.max(0, sx), Math.max(0, sy));
-      markDirty();
-    } catch { /* ignore edges */ }
+    const last = lastPos.current ?? { x, y };
+    for (const { px, py } of dabPath(last.x, last.y, x, y)) {
+      if (hasSelection() && !inSel(px, py)) continue;
+      const s = Math.round(r * 2);
+      const sx = Math.round(px - r);
+      const sy = Math.round(py - r);
+      try {
+        const edge = ctx.getImageData(Math.max(0, Math.min(c.width - 1, Math.floor(px))), Math.max(0, Math.min(c.height - 1, Math.floor(py))), 1, 1).data;
+        const id = ctx.getImageData(Math.max(0, sx), Math.max(0, sy), Math.min(s, c.width), Math.min(s, c.height));
+        const d = id.data;
+        const tol = 48;
+        for (let i = 0; i < d.length; i += 4) {
+          const dr = Math.abs(d[i] - edge[0]);
+          const dg = Math.abs(d[i + 1] - edge[1]);
+          const db = Math.abs(d[i + 2] - edge[2]);
+          if ((dr + dg + db) / 3 < tol) d[i + 3] = 0;
+        }
+        ctx.putImageData(id, Math.max(0, sx), Math.max(0, sy));
+      } catch { /* ignore edges */ }
+    }
+    markDirty();
     lastPos.current = { x, y };
   }
 
   // Magic Eraser: one-click flood erase with tolerance.
-  function magicEraseAt(x: number, y: number) {
-    if (!activeLayerId) return;
+  // Photo-editing tool by design: works on the resolved active layer with
+  // lock/visibility guard, respects the active selection, pushes history
+  // only when pixels actually changed, and reports empty clicks.
+  function magicEraseAt(x: number, y: number, forceId?: string) {
     const st = useEditorStore.getState();
-    const snap = layerManager.snapshot(activeLayerId);
-    if (snap) st.pushHistory({ label: "Magic erase", layerId: activeLayerId, snapshot: snap });
-    const c = layerManager.ensure(activeLayerId, doc.width, doc.height);
+    const aid = forceId ?? st.activeLayerId ?? activeLayerId;
+    if (!aid) return;
+    const meta = st.layers.find((l) => l.id === aid);
+    if (!meta || meta.locked || !meta.visible) {
+      notify("Active layer is locked or hidden. Unlock it first.");
+      return;
+    }
+    const c = layerManager.ensure(aid, doc.width, doc.height);
     const ctx = c.getContext("2d", { willReadFrequently: true })!;
+    const snap = layerManager.snapshot(aid);
     try {
       const W = c.width;
       const H = c.height;
@@ -1305,6 +1329,7 @@ export default function CanvasArea() {
       const sg = d[start + 1];
       const sb = d[start + 2];
       const tol = 32;
+      const selActive = hasSelection();
       const visited = new Uint8Array(Math.min(W * H, 2000000));
       const stack = [iy * W + ix];
       let n = 0;
@@ -1315,17 +1340,24 @@ export default function CanvasArea() {
         const idx = p * 4;
         const dist = (Math.abs(d[idx] - sr) + Math.abs(d[idx + 1] - sg) + Math.abs(d[idx + 2] - sb)) / 3;
         if (dist <= tol) {
-          d[idx + 3] = 0;
-          n++;
           const px = p % W;
           const py = Math.floor(p / W);
+          if (selActive && !inSel(px, py)) continue;
+          d[idx + 3] = 0;
+          n++;
           if (px > 0) stack.push(p - 1);
           if (px < W - 1) stack.push(p + 1);
           if (py > 0) stack.push(p - W);
           if (py < H - 1) stack.push(p + W);
         }
       }
+      if (n === 0) {
+        notify("Nothing to erase here. Try a flatter area.");
+        lastPos.current = { x, y };
+        return;
+      }
       ctx.putImageData(img, 0, 0);
+      if (snap) st.pushHistory({ label: "Magic erase", layerId: aid, snapshot: snap });
       st.markDirty();
       bumpHistogram();
     } catch { /* ignore */ }
@@ -1455,7 +1487,7 @@ export default function CanvasArea() {
   // Manual 2026: dots variant draws polka dots for textile/poster work.
   // Optimized: the tile is cached per (size, color, kind) instead of rebuilt per dab.
   const patternCache = useRef(new Map<string, HTMLCanvasElement>());
-  function patternTile(kind: "checker" | "dots"): HTMLCanvasElement {
+  function patternTile(kind: "checker" | "dots" | "stripes" | "grid"): HTMLCanvasElement {
     const s = Math.max(8, Math.round(brushSize));
     const key = `${s}|${brushColor}|${kind}`;
     const hit = patternCache.current.get(key);
@@ -1476,7 +1508,30 @@ export default function CanvasArea() {
           pctx.fill();
         }
       }
-    } else {
+    } else if (kind === "stripes") {
+      pctx.fillStyle = "#ffffff";
+      pctx.fillRect(0, 0, s, s);
+      pctx.fillStyle = brushColor;
+      const stripeCell = Math.max(3, Math.round(s / 6));
+      for (let xx = 0; xx < s; xx += stripeCell * 2) {
+        pctx.globalAlpha = 0.9;
+        pctx.fillRect(xx, 0, stripeCell, s);
+      }
+    } else if (kind === "grid") {
+      pctx.fillStyle = "#ffffff";
+      pctx.fillRect(0, 0, s, s);
+      pctx.strokeStyle = brushColor;
+      pctx.globalAlpha = 0.9;
+      pctx.lineWidth = Math.max(1, Math.round(s / 24));
+      const gridCell = Math.max(4, Math.round(s / 4));
+      pctx.beginPath();
+      for (let v = 0; v <= s; v += gridCell) {
+        pctx.moveTo(v + 0.5, 0);
+        pctx.lineTo(v + 0.5, s);
+        pctx.moveTo(0, v + 0.5);
+        pctx.lineTo(s, v + 0.5);
+      }
+      pctx.stroke();
       const cell = Math.max(2, Math.round(s / 8));
       for (let yy = 0; yy < s; yy += cell) {
         for (let xx = 0; xx < s; xx += cell) {
@@ -1491,7 +1546,7 @@ export default function CanvasArea() {
     patternCache.current.set(key, pat);
     return pat;
   }
-  function patternStampTo(x: number, y: number, kind: "checker" | "dots" = "checker") {
+  function patternStampTo(x: number, y: number, kind: "checker" | "dots" | "stripes" | "grid" = "checker") {
     if (!activeLayerId) return;
     const c = layerManager.ensure(activeLayerId, doc.width, doc.height);
     const ctx = c.getContext("2d")!;
@@ -1911,6 +1966,392 @@ export default function CanvasArea() {
                 d[i] = Math.max(0, Math.min(255, 128 + (R - 128) * (1 + 0.9 * k) + (R - avg) * 0.3 * k));
                 d[i + 1] = Math.max(0, Math.min(255, 128 + (G - 128) * (1 + 0.9 * k) + (G - avg) * 0.3 * k));
                 d[i + 2] = Math.max(0, Math.min(255, 128 + (B - 128) * (1 + 0.9 * k) + (B - avg) * 0.3 * k));
+              } else if (mode === "mole") {
+                const avg = (R + G + B) / 3;
+                const f = 0.85 * k + 0.1;
+                d[i] = Math.round(R + (avg - R) * f);
+                d[i + 1] = Math.round(G + (avg - G) * f);
+                d[i + 2] = Math.round(B + (avg - B) * f);
+              } else if (mode === "acne") {
+                const red = R - (G + B) / 2;
+                const rk = Math.max(0, Math.min(1, red / 60)) * k;
+                const avg = (R + G + B) / 3;
+                d[i] = Math.round(R + (avg - R) * (0.4 * k + 0.6 * rk));
+                d[i + 1] = Math.round(G + (avg - G) * 0.4 * k);
+                d[i + 2] = Math.round(B + (avg - B) * 0.4 * k);
+              } else if (mode === "scarfade") {
+                const bi = Math.max(0, i - 4);
+                d[i] = Math.round(R * (1 - 0.5 * k) + d[bi] * 0.5 * k);
+                d[i + 1] = Math.round(G * (1 - 0.5 * k) + d[bi + 1] * 0.5 * k);
+                d[i + 2] = Math.round(B * (1 - 0.5 * k) + d[bi + 2] * 0.5 * k);
+              } else if (mode === "shine") {
+                const lum = (0.299 * R + 0.587 * G + 0.114 * B) / 255;
+                const w = Math.max(0, (lum - 0.7) / 0.3);
+                const dk = 1 - 0.35 * k * w;
+                d[i] = Math.max(0, Math.min(255, R * dk + 128 * (1 - dk) * 0.4));
+                d[i + 1] = Math.max(0, Math.min(255, G * dk + 128 * (1 - dk) * 0.4));
+                d[i + 2] = Math.max(0, Math.min(255, B * dk + 128 * (1 - dk) * 0.4));
+              } else if (mode === "pores") {
+                const avg = (R + G + B) / 3;
+                const dev = Math.abs(R - avg) + Math.abs(G - avg) + Math.abs(B - avg);
+                const w = Math.max(0, 1 - dev / 45);
+                d[i] = Math.round(R + (avg - R) * 0.75 * k * w);
+                d[i + 1] = Math.round(G + (avg - G) * 0.75 * k * w);
+                d[i + 2] = Math.round(B + (avg - B) * 0.75 * k * w);
+              } else if (mode === "tanline") {
+                const orange = Math.max(0, (R - B) / 60);
+                const w = Math.max(0, Math.min(1, orange)) * k;
+                d[i] = Math.max(0, Math.min(255, R - 22 * w));
+                d[i + 1] = Math.max(0, Math.min(255, G - 6 * w));
+                d[i + 2] = Math.max(0, Math.min(255, B + 14 * w));
+              } else if (mode === "veins") {
+                const reddish = R > 120 && R > G * 1.15 && R > B * 1.15 ? 1 : 0;
+                const w = reddish * k;
+                const avg = (R + G + B) / 3;
+                d[i] = Math.round(R + (avg - R) * 0.65 * w);
+                d[i + 1] = Math.round(G + (avg - G) * 0.3 * w);
+                d[i + 2] = Math.round(B + (avg - B) * 0.3 * w);
+              } else if (mode === "chapped") {
+                const avg = (R + G + B) / 3;
+                d[i] = Math.round(R + (avg - R) * 0.4 * k + 8 * k);
+                d[i + 1] = Math.round(G + (avg - G) * 0.4 * k + 2 * k);
+                d[i + 2] = Math.round(B + (avg - B) * 0.4 * k);
+              } else if (mode === "strayhair") {
+                const dark = Math.max(0, (90 - (R + G + B) / 3) / 90);
+                const w = dark * k;
+                const avg = (R + G + B) / 3;
+                d[i] = Math.round(R + (avg + 24 - R) * 0.7 * w);
+                d[i + 1] = Math.round(G + (avg + 24 - G) * 0.7 * w);
+                d[i + 2] = Math.round(B + (avg + 24 - B) * 0.7 * w);
+              } else if (mode === "flyaway") {
+                const avg = (R + G + B) / 3;
+                d[i] = Math.round(R + (avg - R) * 0.5 * k);
+                d[i + 1] = Math.round(G + (avg - G) * 0.5 * k);
+                d[i + 2] = Math.round(B + (avg - B) * 0.5 * k);
+                const n = ((xx * 31 + yy * 57) % 13) - 6;
+                d[i] = Math.max(0, Math.min(255, d[i] + n * k * 0.6));
+                d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + n * k * 0.6));
+                d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + n * k * 0.6));
+              } else if (mode === "pricetag" || mode === "tourist" || mode === "wire" || mode === "trash") {
+                const f = mode === "wire" ? 0.55 : mode === "pricetag" ? 0.7 : 0.6;
+                const avg = (R + G + B) / 3;
+                d[i] = Math.round(R + (avg - R) * f * k + 10 * k);
+                d[i + 1] = Math.round(G + (avg - G) * f * k + 10 * k);
+                d[i + 2] = Math.round(B + (avg - B) * f * k + 10 * k);
+              } else if (mode === "reflection") {
+                const lum = (0.299 * R + 0.587 * G + 0.114 * B) / 255;
+                const w = Math.max(0, (lum - 0.5) / 0.5) * k;
+                d[i] = Math.max(0, Math.min(255, R - 30 * w));
+                d[i + 1] = Math.max(0, Math.min(255, G - 30 * w));
+                d[i + 2] = Math.max(0, Math.min(255, B - 30 * w));
+                const avg2 = (d[i] + d[i + 1] + d[i + 2]) / 3;
+                d[i] = Math.round(d[i] + (avg2 - d[i]) * 0.25 * w);
+                d[i + 1] = Math.round(d[i + 1] + (avg2 - d[i + 1]) * 0.25 * w);
+                d[i + 2] = Math.round(d[i + 2] + (avg2 - d[i + 2]) * 0.25 * w);
+              } else if (mode === "glare") {
+                const lum = (0.299 * R + 0.587 * G + 0.114 * B) / 255;
+                const w = Math.max(0, (lum - 0.6) / 0.4) * k;
+                d[i] = Math.max(0, Math.min(255, R - 52 * w));
+                d[i + 1] = Math.max(0, Math.min(255, G - 52 * w));
+                d[i + 2] = Math.max(0, Math.min(255, B - 52 * w));
+              } else if (mode === "shadowlift") {
+                const lum = (0.299 * R + 0.587 * G + 0.114 * B) / 255;
+                const w = Math.max(0, (0.35 - lum) / 0.35) * k;
+                d[i] = Math.max(0, Math.min(255, R + 52 * w));
+                d[i + 1] = Math.max(0, Math.min(255, G + 52 * w));
+                d[i + 2] = Math.max(0, Math.min(255, B + 52 * w));
+              } else if (mode === "fogcut") {
+                d[i] = Math.max(0, Math.min(255, 128 + (R - 128) * (1 + 0.45 * k) - 6 * k));
+                d[i + 1] = Math.max(0, Math.min(255, 128 + (G - 128) * (1 + 0.45 * k) - 6 * k));
+                d[i + 2] = Math.max(0, Math.min(255, 128 + (B - 128) * (1 + 0.45 * k) + 4 * k));
+              } else if (mode === "grainmatch") {
+                const avg = (R + G + B) / 3;
+                d[i] = Math.round(R + (avg - R) * 0.35 * k);
+                d[i + 1] = Math.round(G + (avg - G) * 0.35 * k);
+                d[i + 2] = Math.round(B + (avg - B) * 0.35 * k);
+                const n = ((xx * 73 + yy * 149) % 23) - 11;
+                d[i] = Math.max(0, Math.min(255, d[i] + n * k * 1.4));
+                d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + n * k * 1.4));
+                d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + n * k * 1.4));
+              } else if (mode === "texturecopy") {
+                const lv = 6;
+                const step = 255 / (lv - 1);
+                d[i] = Math.round(Math.round((R / 255) * (lv - 1)) * step * 0.7 * k + R * (1 - 0.7 * k));
+                d[i + 1] = Math.round(Math.round((G / 255) * (lv - 1)) * step * 0.7 * k + G * (1 - 0.7 * k));
+                d[i + 2] = Math.round(Math.round((B / 255) * (lv - 1)) * step * 0.7 * k + B * (1 - 0.7 * k));
+              } else if (mode === "fabric") {
+                const weave = ((xx + yy) % 2 === 0 ? 1 : -1) * 7 * k;
+                const avg = (R + G + B) / 3;
+                d[i] = Math.max(0, Math.min(255, R + (avg - R) * 0.3 * k + weave));
+                d[i + 1] = Math.max(0, Math.min(255, G + (avg - G) * 0.3 * k + weave));
+                d[i + 2] = Math.max(0, Math.min(255, B + (avg - B) * 0.3 * k + weave));
+              } else if (mode === "glass") {
+                d[i] = Math.max(0, Math.min(255, R - 8 * k));
+                d[i + 1] = Math.max(0, Math.min(255, G + 2 * k));
+                d[i + 2] = Math.max(0, Math.min(255, B + 18 * k));
+                const avg = (R + G + B) / 3;
+                d[i] = Math.round(d[i] + (avg - d[i]) * 0.2 * k);
+                d[i + 1] = Math.round(d[i + 1] + (avg - d[i + 1]) * 0.2 * k);
+                d[i + 2] = Math.round(d[i + 2] + (avg - d[i + 2]) * 0.2 * k);
+              } else if (mode === "chrome") {
+                d[i] = Math.max(0, Math.min(255, 128 + (R - 128) * (1 + 0.8 * k)));
+                d[i + 1] = Math.max(0, Math.min(255, 128 + (G - 128) * (1 + 0.8 * k)));
+                d[i + 2] = Math.max(0, Math.min(255, 128 + (B - 128) * (1 + 0.8 * k)));
+                const avg = (d[i] + d[i + 1] + d[i + 2]) / 3;
+                const y = Math.round(0.299 * R + 0.587 * G + 0.114 * B);
+                d[i] = Math.round(d[i] + (y - d[i]) * 0.25 * k + (avg - d[i]) * 0.1);
+                d[i + 1] = Math.round(d[i + 1] + (y - d[i + 1]) * 0.25 * k);
+                d[i + 2] = Math.round(d[i + 2] + (y - d[i + 2]) * 0.25 * k);
+              } else if (mode === "rustspot") {
+                const orange = Math.max(0, Math.min(1, ((R - G) + (R - B)) / 120)) * k;
+                const y = Math.round(0.299 * R + 0.587 * G + 0.114 * B);
+                d[i] = Math.round(R + (y - R) * 0.7 * orange);
+                d[i + 1] = Math.round(G + (y - G) * 0.7 * orange);
+                d[i + 2] = Math.round(B + (y - B) * 0.7 * orange);
+              } else if (mode === "dodgemid") {
+                const lum = (0.299 * R + 0.587 * G + 0.114 * B) / 255;
+                const w = Math.max(0, 1 - Math.abs(lum - 0.5) * 2.4);
+                d[i] = Math.max(0, Math.min(255, R + 40 * k * w));
+                d[i + 1] = Math.max(0, Math.min(255, G + 40 * k * w));
+                d[i + 2] = Math.max(0, Math.min(255, B + 40 * k * w));
+              } else if (mode === "dodgedetail") {
+                const avg = (R + G + B) / 3;
+                const dev = Math.abs(R - avg) + Math.abs(G - avg) + Math.abs(B - avg);
+                const w = Math.max(0, Math.min(1, dev / 40)) * k;
+                d[i] = Math.max(0, Math.min(255, R + 26 * w));
+                d[i + 1] = Math.max(0, Math.min(255, G + 26 * w));
+                d[i + 2] = Math.max(0, Math.min(255, B + 26 * w));
+              } else if (mode === "burnedge") {
+                const dk = 1 - 0.4 * k * dist;
+                d[i] = Math.max(0, Math.min(255, R * dk));
+                d[i + 1] = Math.max(0, Math.min(255, G * dk));
+                d[i + 2] = Math.max(0, Math.min(255, B * dk));
+              } else if (mode === "burndepth") {
+                const lum = (0.299 * R + 0.587 * G + 0.114 * B) / 255;
+                const w = Math.max(0, (0.5 - lum) / 0.5);
+                const dk = 1 - 0.4 * k * w;
+                d[i] = Math.max(0, Math.min(255, R * dk));
+                d[i + 1] = Math.max(0, Math.min(255, G * dk));
+                d[i + 2] = Math.max(0, Math.min(255, B * dk));
+              } else if (mode === "spongewarm") {
+                const avg = (R + G + B) / 3;
+                d[i] = Math.max(0, Math.min(255, avg + (R - avg) * (1 + 0.7 * k) + 10 * k));
+                d[i + 1] = Math.max(0, Math.min(255, avg + (G - avg) * (1 + 0.7 * k)));
+                d[i + 2] = Math.max(0, Math.min(255, avg + (B - avg) * (1 + 0.7 * k) - 12 * k));
+              } else if (mode === "spongecool") {
+                const avg = (R + G + B) / 3;
+                d[i] = Math.max(0, Math.min(255, avg + (R - avg) * (1 + 0.7 * k) - 10 * k));
+                d[i + 1] = Math.max(0, Math.min(255, avg + (G - avg) * (1 + 0.7 * k)));
+                d[i + 2] = Math.max(0, Math.min(255, avg + (B - avg) * (1 + 0.7 * k) + 12 * k));
+              } else if (mode === "vibrskin") {
+                const skin = R > 110 && R > G + 12 && G > B ? 1 : 0;
+                const avg = (R + G + B) / 3;
+                const mx = Math.max(R, G, B);
+                const mn = Math.min(R, G, B);
+                const sat = mx - mn;
+                const w = (1 - skin) * Math.max(0, 1 - sat / 90);
+                d[i] = Math.max(0, Math.min(255, avg + (R - avg) * (1 + 0.5 * k * w)));
+                d[i + 1] = Math.max(0, Math.min(255, avg + (G - avg) * (1 + 0.5 * k * w)));
+                d[i + 2] = Math.max(0, Math.min(255, avg + (B - avg) * (1 + 0.5 * k * w)));
+              } else if (mode === "vibrfoliage") {
+                const green = G > R && G >= B ? 1 : 0;
+                const avg = (R + G + B) / 3;
+                const boost = 1 + (0.9 * green + 0.25) * k;
+                d[i] = Math.max(0, Math.min(255, avg + (R - avg) * boost));
+                d[i + 1] = Math.max(0, Math.min(255, avg + (G - avg) * boost));
+                d[i + 2] = Math.max(0, Math.min(255, avg + (B - avg) * boost));
+              } else if (mode === "tempsunset") {
+                d[i] = Math.max(0, Math.min(255, R + 34 * k));
+                d[i + 1] = Math.max(0, Math.min(255, G + 8 * k));
+                d[i + 2] = Math.max(0, Math.min(255, B - 30 * k));
+              } else if (mode === "temparctic") {
+                d[i] = Math.max(0, Math.min(255, R - 26 * k));
+                d[i + 1] = Math.max(0, Math.min(255, G + 2 * k));
+                d[i + 2] = Math.max(0, Math.min(255, B + 30 * k));
+              } else if (mode === "tintcinema") {
+                const lum = (0.299 * R + 0.587 * G + 0.114 * B) / 255;
+                const sh = (1 - lum) * k;
+                const hi = lum * k;
+                d[i] = Math.max(0, Math.min(255, R - 16 * sh + 20 * hi));
+                d[i + 1] = Math.max(0, Math.min(255, G + 10 * sh + 8 * hi));
+                d[i + 2] = Math.max(0, Math.min(255, B + 18 * sh - 12 * hi));
+              } else if (mode === "clarityskin") {
+                const avg = (R + G + B) / 3;
+                d[i] = Math.max(0, Math.min(255, 128 + (R - 128) * (1 - 0.35 * k)));
+                d[i + 1] = Math.max(0, Math.min(255, 128 + (G - 128) * (1 - 0.35 * k)));
+                d[i + 2] = Math.max(0, Math.min(255, 128 + (B - 128) * (1 - 0.35 * k)));
+                d[i] = Math.round(d[i] + (avg - d[i]) * 0.2 * k);
+                d[i + 1] = Math.round(d[i + 1] + (avg - d[i + 1]) * 0.2 * k);
+                d[i + 2] = Math.round(d[i + 2] + (avg - d[i + 2]) * 0.2 * k);
+              } else if (mode === "claritydetail") {
+                const avg = (R + G + B) / 3;
+                d[i] = Math.max(0, Math.min(255, 128 + (R - 128) * (1 + 1.1 * k) + (R - avg) * 0.2 * k));
+                d[i + 1] = Math.max(0, Math.min(255, 128 + (G - 128) * (1 + 1.1 * k) + (G - avg) * 0.2 * k));
+                d[i + 2] = Math.max(0, Math.min(255, 128 + (B - 128) * (1 + 1.1 * k) + (B - avg) * 0.2 * k));
+              } else if (mode === "dehazesky") {
+                d[i] = Math.max(0, Math.min(255, R + (R - 128) * 0.5 * k - 10 * k));
+                d[i + 1] = Math.max(0, Math.min(255, G + (G - 128) * 0.5 * k - 6 * k));
+                d[i + 2] = Math.max(0, Math.min(255, B + (B - 128) * 0.5 * k + 16 * k));
+              } else if (mode === "dehazeportrait") {
+                const skin = R > 110 && R > G + 12 && G > B ? 1 : 0;
+                const w = 1 - 0.55 * skin;
+                d[i] = Math.max(0, Math.min(255, R + (R - 128) * 0.4 * k * w - 4 * k * w));
+                d[i + 1] = Math.max(0, Math.min(255, G + (G - 128) * 0.4 * k * w - 4 * k * w));
+                d[i + 2] = Math.max(0, Math.min(255, B + (B - 128) * 0.4 * k * w + 2 * k * w));
+              } else if (mode === "grainpush") {
+                d[i] = Math.max(0, Math.min(255, 128 + (R - 128) * (1 + 0.5 * k)));
+                d[i + 1] = Math.max(0, Math.min(255, 128 + (G - 128) * (1 + 0.5 * k)));
+                d[i + 2] = Math.max(0, Math.min(255, 128 + (B - 128) * (1 + 0.5 * k)));
+                const n = ((xx * 53 + yy * 97) % 31) - 15;
+                d[i] = Math.max(0, Math.min(255, d[i] + n * k * 1.6));
+                d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + n * k * 1.6));
+                d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + n * k * 1.6));
+              } else if (mode === "grainpull") {
+                const avg = (R + G + B) / 3;
+                d[i] = Math.round(R + (avg - R) * 0.55 * k);
+                d[i + 1] = Math.round(G + (avg - G) * 0.55 * k);
+                d[i + 2] = Math.round(B + (avg - B) * 0.55 * k);
+                d[i] = Math.round(d[i] + (128 - d[i]) * 0.2 * k);
+                d[i + 1] = Math.round(d[i + 1] + (128 - d[i + 1]) * 0.2 * k);
+                d[i + 2] = Math.round(d[i + 2] + (128 - d[i + 2]) * 0.2 * k);
+              } else if (mode === "fadeblacks") {
+                d[i] = Math.round(R + (34 - R) * 0.5 * k * (R < 90 ? 1 : 0.2));
+                d[i + 1] = Math.round(G + (34 - G) * 0.5 * k * (G < 90 ? 1 : 0.2));
+                d[i + 2] = Math.round(B + (34 - B) * 0.5 * k * (B < 90 ? 1 : 0.2));
+              } else if (mode === "fadewhites") {
+                d[i] = Math.round(R + (228 - R) * 0.5 * k * (R > 165 ? 1 : 0.2));
+                d[i + 1] = Math.round(G + (228 - G) * 0.5 * k * (G > 165 ? 1 : 0.2));
+                d[i + 2] = Math.round(B + (228 - B) * 0.5 * k * (B > 165 ? 1 : 0.2));
+              } else if (mode === "splitgold") {
+                const lum = (0.299 * R + 0.587 * G + 0.114 * B) / 255;
+                const sh = (1 - lum) * k;
+                const hi = lum * k;
+                d[i] = Math.max(0, Math.min(255, R + 26 * sh + 10 * hi));
+                d[i + 1] = Math.max(0, Math.min(255, G + 8 * sh - 2 * hi));
+                d[i + 2] = Math.max(0, Math.min(255, B - 22 * sh - 6 * hi));
+              } else if (mode === "tiltstrong") {
+                const vfall = Math.min(1, Math.abs(yy - cx) / Math.max(1, cx));
+                const avg = (R + G + B) / 3;
+                const f = 0.85 * k * vfall;
+                d[i] = Math.round(R + (avg - R) * f);
+                d[i + 1] = Math.round(G + (avg - G) * f);
+                d[i + 2] = Math.round(B + (avg - B) * f);
+              } else if (mode === "blurzoom") {
+                const zx = cx + (xx - cx) * 0.82;
+                const zy = cx + (yy - cx) * 0.82;
+                const six = Math.max(0, Math.min(s - 1, Math.round(zx)));
+                const siy = Math.max(0, Math.min(s - 1, Math.round(zy)));
+                const bi = (siy * s + six) * 4;
+                d[i] = Math.round(R + (d[bi] - R) * 0.65 * k);
+                d[i + 1] = Math.round(G + (d[bi + 1] - G) * 0.65 * k);
+                d[i + 2] = Math.round(B + (d[bi + 2] - B) * 0.65 * k);
+              } else if (mode === "blurspin") {
+                const ang = 0.35 * k * fall + 0.05;
+                const six = Math.max(0, Math.min(s - 1, Math.round(cx + (xx - cx) * Math.cos(ang) - (yy - cx) * Math.sin(ang))));
+                const siy = Math.max(0, Math.min(s - 1, Math.round(cx + (xx - cx) * Math.sin(ang) + (yy - cx) * Math.cos(ang))));
+                const bi = (siy * s + six) * 4;
+                d[i] = Math.round(R + (d[bi] - R) * 0.6 * k);
+                d[i + 1] = Math.round(G + (d[bi + 1] - G) * 0.6 * k);
+                d[i + 2] = Math.round(B + (d[bi + 2] - B) * 0.6 * k);
+              } else if (mode === "blurfrosted") {
+                const avg = (R + G + B) / 3;
+                d[i] = Math.round(R + (avg - R) * 0.7 * k + 14 * k);
+                d[i + 1] = Math.round(G + (avg - G) * 0.7 * k + 14 * k);
+                d[i + 2] = Math.round(B + (avg - B) * 0.7 * k + 14 * k);
+              } else if (mode === "blurmosaic") {
+                const cell = Math.max(4, Math.round(6 + 8 * fall));
+                const bx = xx - (xx % cell);
+                const by = yy - (yy % cell);
+                const bi = (by * s + bx) * 4;
+                d[i] = Math.round(R + (d[bi] - R) * 0.85 * k);
+                d[i + 1] = Math.round(G + (d[bi + 1] - G) * 0.85 * k);
+                d[i + 2] = Math.round(B + (d[bi + 2] - B) * 0.85 * k);
+              } else if (mode === "halofix") {
+                const avg = (R + G + B) / 3;
+                const dev = R - avg;
+                const over = Math.abs(dev) > 48 ? 1 : 0;
+                d[i] = Math.round(R - dev * 0.55 * k * over);
+                d[i + 1] = Math.round(G - (G - avg) * 0.55 * k * over);
+                d[i + 2] = Math.round(B - (B - avg) * 0.55 * k * over);
+              } else if (mode === "sharpenprint") {
+                const avg = (R + G + B) / 3;
+                const amt2 = 0.9 * k + 0.2;
+                d[i] = Math.max(0, Math.min(255, R + (R - avg) * amt2));
+                d[i + 1] = Math.max(0, Math.min(255, G + (G - avg) * amt2));
+                d[i + 2] = Math.max(0, Math.min(255, B + (B - avg) * amt2));
+                d[i] = Math.max(0, Math.min(255, 128 + (d[i] - 128) * (1 + 0.2 * k)));
+                d[i + 1] = Math.max(0, Math.min(255, 128 + (d[i + 1] - 128) * (1 + 0.2 * k)));
+                d[i + 2] = Math.max(0, Math.min(255, 128 + (d[i + 2] - 128) * (1 + 0.2 * k)));
+              } else if (mode === "sharpenscreen") {
+                const avg = (R + G + B) / 3;
+                const amt2 = 0.35 * k + 0.05;
+                d[i] = Math.max(0, Math.min(255, R + (R - avg) * amt2));
+                d[i + 1] = Math.max(0, Math.min(255, G + (G - avg) * amt2));
+                d[i + 2] = Math.max(0, Math.min(255, B + (B - avg) * amt2));
+              } else if (mode === "claritystruct") {
+                const avg = (R + G + B) / 3;
+                d[i] = Math.max(0, Math.min(255, 128 + (R - 128) * (1 + 0.7 * k) + (R - avg) * 0.45 * k));
+                d[i + 1] = Math.max(0, Math.min(255, 128 + (G - 128) * (1 + 0.7 * k) + (G - avg) * 0.45 * k));
+                d[i + 2] = Math.max(0, Math.min(255, 128 + (B - 128) * (1 + 0.7 * k) + (B - avg) * 0.45 * k));
+              } else if (mode === "denoiseluma") {
+                const y = 0.299 * R + 0.587 * G + 0.114 * B;
+                const avg = (R + G + B) / 3 || 1;
+                const ny = y + (avg - y) * 0.7 * k;
+                const f = avg > 0 ? ny / avg : 1;
+                d[i] = Math.max(0, Math.min(255, R * f));
+                d[i + 1] = Math.max(0, Math.min(255, G * f));
+                d[i + 2] = Math.max(0, Math.min(255, B * f));
+              } else if (mode === "denoisechroma") {
+                const avg = (R + G + B) / 3;
+                d[i] = Math.round(R + (avg - R) * 0.8 * k);
+                d[i + 1] = Math.round(G + (avg - G) * 0.8 * k);
+                d[i + 2] = Math.round(B + (avg - B) * 0.8 * k);
+              } else if (mode === "grain35") {
+                const n = ((xx * 37 + yy * 91 + Math.round(px)) % 25) - 12;
+                d[i] = Math.max(0, Math.min(255, R + n * k * 1.8));
+                d[i + 1] = Math.max(0, Math.min(255, G + n * k * 1.8));
+                d[i + 2] = Math.max(0, Math.min(255, B + n * k * 1.8));
+              } else if (mode === "grain120") {
+                const n = ((xx * 17 + yy * 41 + Math.round(py)) % 13) - 6;
+                d[i] = Math.max(0, Math.min(255, R + n * k));
+                d[i + 1] = Math.max(0, Math.min(255, G + n * k));
+                d[i + 2] = Math.max(0, Math.min(255, B + n * k));
+              } else if (mode === "grainpush2") {
+                const n = ((xx * 67 + yy * 131 + Math.round(px + py)) % 41) - 20;
+                d[i] = Math.max(0, Math.min(255, 128 + (R - 128) * (1 + 0.4 * k) + n * k * 2));
+                d[i + 1] = Math.max(0, Math.min(255, 128 + (G - 128) * (1 + 0.4 * k) + n * k * 2));
+                d[i + 2] = Math.max(0, Math.min(255, 128 + (B - 128) * (1 + 0.4 * k) + n * k * 2));
+              } else if (mode === "lensswirl") {
+                const ang = 0.5 * k * fall;
+                const six = Math.max(0, Math.min(s - 1, Math.round(cx + (xx - cx) * Math.cos(ang) - (yy - cx) * Math.sin(ang))));
+                const siy = Math.max(0, Math.min(s - 1, Math.round(cx + (xx - cx) * Math.sin(ang) + (yy - cx) * Math.cos(ang))));
+                const bi = (siy * s + six) * 4;
+                const avg = (R + G + B) / 3;
+                d[i] = Math.round(R + (d[bi] - R) * 0.5 * k + (R - avg) * 0.15 * k);
+                d[i + 1] = Math.round(G + (d[bi + 1] - G) * 0.5 * k + (G - avg) * 0.15 * k);
+                d[i + 2] = Math.round(B + (d[bi + 2] - B) * 0.5 * k + (B - avg) * 0.15 * k);
+              } else if (mode === "lensbubble") {
+                const lum = (0.299 * R + 0.587 * G + 0.114 * B) / 255;
+                const w = Math.max(0, (lum - 0.55) / 0.45);
+                const avg = (R + G + B) / 3;
+                d[i] = Math.max(0, Math.min(255, R + (avg - R) * 0.4 * k + 30 * k * w));
+                d[i + 1] = Math.max(0, Math.min(255, G + (avg - G) * 0.4 * k + 30 * k * w));
+                d[i + 2] = Math.max(0, Math.min(255, B + (avg - B) * 0.4 * k + 30 * k * w));
+              } else if (mode === "motionzoom") {
+                const six = Math.max(0, Math.min(s - 1, Math.round(cx + (xx - cx) * 0.9)));
+                const siy = Math.max(0, Math.min(s - 1, Math.round(cx + (yy - cx) * 0.9)));
+                const bi3 = (siy * s + six) * 4;
+                d[i] = Math.round(R * (1 - k * 0.55) + d[bi3] * k * 0.55);
+                d[i + 1] = Math.round(G * (1 - k * 0.55) + d[bi3 + 1] * k * 0.55);
+                d[i + 2] = Math.round(B * (1 - k * 0.55) + d[bi3 + 2] * k * 0.55);
+              } else if (mode === "motionspin") {
+                const ang = 0.22 * k + 0.03;
+                const six = Math.max(0, Math.min(s - 1, Math.round(cx + (xx - cx) * Math.cos(ang) - (yy - cx) * Math.sin(ang))));
+                const siy = Math.max(0, Math.min(s - 1, Math.round(cx + (xx - cx) * Math.sin(ang) + (yy - cx) * Math.cos(ang))));
+                const bi = (siy * s + six) * 4;
+                d[i] = Math.round(R * (1 - k * 0.55) + d[bi] * k * 0.55);
+                d[i + 1] = Math.round(G * (1 - k * 0.55) + d[bi + 1] * k * 0.55);
+                d[i + 2] = Math.round(B * (1 - k * 0.55) + d[bi + 2] * k * 0.55);
               }
             }
           }
@@ -1924,7 +2365,7 @@ export default function CanvasArea() {
     markDirty();
   }
 
-  // Real pixel distort: twirl/pinch/ripple/wave/zigzag/spherize/crystal.
+  // Real pixel distort: twirl/pinch/ripple/wave/zigzag/spherize/crystal + gallery II.
   // Operates on a dab-size block via offscreen rotate/scale/offset, visible and distinct.
   function distortTo(x: number, y: number, kind: DistortKind) {
     if (!activeLayerId) return;
@@ -1979,6 +2420,76 @@ export default function CanvasArea() {
           ctx.drawImage(small, 0, 0, dw2, dh2, sx, sy, s, s);
           ctx.imageSmoothingEnabled = true;
           releaseScratch(small);
+        } else if (kind === "bulge" || kind === "dent") {
+          // Radial magnify (bulge) or minify (dent) around the dab center.
+          const dir = kind === "bulge" ? 1 : -1;
+          const f = 1 + dir * 0.22 * strength;
+          const dw = Math.max(2, s * f);
+          const dh = Math.max(2, s * f);
+          ctx.globalAlpha = 0.95;
+          if (dir > 0) ctx.drawImage(tmp, 0, 0, s, s, px - dw / 2, py - dh / 2, dw, dh);
+          else ctx.drawImage(tmp, px - dw / 2, py - dh / 2, dw, dh, sx, sy, s, s);
+        } else if (kind === "squeeze" || kind === "stretch") {
+          // Horizontal squeeze vs stretch, vertical compensates opposite.
+          const f = kind === "squeeze" ? 1 - 0.2 * strength : 1 + 0.2 * strength;
+          const dw = Math.max(2, s * f);
+          const dh = Math.max(2, s / f);
+          ctx.globalAlpha = 0.95;
+          ctx.drawImage(tmp, 0, 0, s, s, px - dw / 2, py - dh / 2, dw, dh);
+        } else if (kind === "swirltight") {
+          const ang = 0.55 * strength + 0.15;
+          ctx.translate(px, py);
+          ctx.rotate(ang);
+          ctx.globalAlpha = 0.95;
+          ctx.drawImage(tmp, -s / 2, -s / 2, s, s);
+        } else if (kind === "wavesbig" || kind === "ripplebig") {
+          const amp = (kind === "wavesbig" ? 10 : 7) * strength + 2;
+          const freq = kind === "wavesbig" ? 0.18 : 0.3;
+          for (let yy = 0; yy < s; yy += 2) {
+            const off = Math.sin(yy * freq) * amp;
+            ctx.drawImage(tmp, 0, yy, s, 2, sx + off, sy + yy, s, 2);
+          }
+        } else if (kind === "glass") {
+          // Refraction: offset rows by a smooth pseudo-random wobble.
+          for (let yy = 0; yy < s; yy += 2) {
+            const off = Math.round(Math.sin(yy * 0.55) * 3 * strength + Math.cos(yy * 0.21) * 2 * strength);
+            ctx.drawImage(tmp, 0, yy, s, 2, sx + off, sy + yy, s, 2);
+          }
+        } else if (kind === "heat") {
+          // Heat haze: vertical shimmer growing toward dab edges.
+          for (let xx = 0; xx < s; xx += 2) {
+            const edge = Math.abs(xx - s / 2) / (s / 2);
+            const off = Math.round(Math.sin(xx * 0.7) * 4 * strength * edge);
+            ctx.drawImage(tmp, xx, 0, 2, s, sx + xx, sy + off, 2, s);
+          }
+        } else if (kind === "melt") {
+          // Gravity drip: lower columns stretch downward smoothly.
+          for (let xx = 0; xx < s; xx += 2) {
+            const drop = Math.round(Math.abs(Math.sin(xx * 0.35)) * 8 * strength);
+            if (drop > 0) ctx.drawImage(tmp, xx, s - drop, 2, drop, sx + xx, sy + s - drop, 2, drop);
+          }
+        } else if (kind === "flag") {
+          // Waving flag: horizontal sine with vertical amplitude envelope.
+          for (let xx = 0; xx < s; xx += 2) {
+            const env = Math.sin((xx / s) * Math.PI);
+            const off = Math.round(Math.sin(xx * 0.4) * 6 * strength * env);
+            ctx.drawImage(tmp, xx, 0, 2, s, sx + xx, sy + off, 2, s);
+          }
+        } else if (kind === "arctop" || kind === "arcbottom") {
+          // Arc bend: rows shift horizontally along a parabola.
+          const dir = kind === "arctop" ? -1 : 1;
+          for (let yy = 0; yy < s; yy += 2) {
+            const t = yy / s;
+            const off = Math.round(dir * (t * t) * 14 * strength);
+            ctx.drawImage(tmp, 0, yy, s, 2, sx + off, sy + yy, s, 2);
+          }
+        } else if (kind === "perspective") {
+          // Slant shear toward a vanishing corner; Transform panel does full perspective.
+          const slant = 0.22 * strength;
+          ctx.translate(px, py);
+          ctx.transform(1, 0, slant, 1, 0, 0);
+          ctx.globalAlpha = 0.95;
+          ctx.drawImage(tmp, -s / 2, -s / 2, s, s);
         }
         ctx.restore();
         releaseScratch(tmp);
@@ -2144,16 +2655,26 @@ export default function CanvasArea() {
     if (snap) st.pushHistory({ label: cur === "pen-free" ? "Freeform pen" : cur === "line-arrow" ? "Arrow line" : tool === "pen" ? "Pen stroke" : "Line", layerId: id, snapshot: snap });
     const c = layerManager.ensure(id, st.doc.width, st.doc.height);
     const ctx = c.getContext("2d")!;
+    const ps = penStyleOf(st.tool);
     ctx.save();
     ctx.globalAlpha = st.brushOpacity / 100;
     ctx.strokeStyle = st.brushColor;
     ctx.fillStyle = st.brushColor;
-    ctx.lineWidth = Math.max(1, cur === "pen-free" ? st.brushSize / 6 : st.brushSize / 4);
+    ctx.lineWidth = Math.max(1, (cur === "pen-free" ? st.brushSize / 6 : st.brushSize / 4) * ps.widthMul);
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
+    if (ps.dashed) ctx.setLineDash([Math.max(4, st.brushSize / 2), Math.max(3, st.brushSize / 3)]);
+    if (ps.glow) {
+      ctx.shadowColor = st.brushColor;
+      ctx.shadowBlur = st.brushSize;
+    }
+    // Store the path for the Paths tab before rasterizing.
+    try {
+      useProStore.getState().addPath({ name: `${cur} path`, kind: cur === "line" || cur === "line-arrow" ? "line" : "pen", points: [{ x: Math.round(x0), y: Math.round(y0) }, { x: Math.round(x1), y: Math.round(y1) }] });
+    } catch { /* paths optional */ }
     ctx.beginPath();
     ctx.moveTo(x0, y0);
-    if (cur === "line" || cur === "line-arrow") {
+    if (cur === "line" || cur === "line-arrow" || cur === "pen-arrow-both") {
       ctx.lineTo(x1, y1);
     } else if (cur === "pen-free") {
       // Manual freehand: slight mid wobble for organic ink feel.
@@ -2166,16 +2687,21 @@ export default function CanvasArea() {
       ctx.lineTo(x1, y1);
     }
     ctx.stroke();
-    if (cur === "line-arrow") {
-      // Manual arrow head at end point.
-      const ang = Math.atan2(y1 - y0, x1 - x0);
-      const L = Math.max(10, st.brushSize * 0.9);
+    const arrowAt = (ax: number, ay: number, ang: number) => {
+      const L = Math.max(10, st.brushSize * 0.9 * ps.widthMul);
       ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x1 - L * Math.cos(ang - 0.42), y1 - L * Math.sin(ang - 0.42));
-      ctx.lineTo(x1 - L * Math.cos(ang + 0.42), y1 - L * Math.sin(ang + 0.42));
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(ax - L * Math.cos(ang - 0.42), ay - L * Math.sin(ang - 0.42));
+      ctx.lineTo(ax - L * Math.cos(ang + 0.42), ay - L * Math.sin(ang + 0.42));
       ctx.closePath();
       ctx.fill();
+    };
+    if (cur === "line-arrow") {
+      // Manual arrow head at end point.
+      arrowAt(x1, y1, Math.atan2(y1 - y0, x1 - x0));
+    } else if (cur === "line-arrow-both" || cur === "pen-arrow-both") {
+      arrowAt(x1, y1, Math.atan2(y1 - y0, x1 - x0));
+      arrowAt(x0, y0, Math.atan2(y0 - y1, x0 - x1));
     }
     ctx.restore();
     st.markDirty();
@@ -2411,6 +2937,316 @@ export default function CanvasArea() {
     setCursor("Diamond gradient");
   }
 
+  // Shared selection-safe painter: draws a full-layer paint fn, clipped to selection.
+  function paintFullLayer(label: string, paint: (g: CanvasRenderingContext2D, W: number, H: number) => void) {
+    const st = useEditorStore.getState();
+    const id = st.activeLayerId;
+    if (!id) return;
+    const meta = st.layers.find((l) => l.id === id);
+    if (!meta || meta.locked || !meta.visible) {
+      notify("Active layer is locked or hidden. Unlock it first.");
+      return;
+    }
+    const snap = layerManager.snapshot(id);
+    if (snap) st.pushHistory({ label, layerId: id, snapshot: snap });
+    const c = layerManager.ensure(id, st.doc.width, st.doc.height);
+    const ctx = c.getContext("2d")!;
+    const sel = selectionMaskCanvas();
+    if (sel && hasSelection()) {
+      const tmp = document.createElement("canvas");
+      tmp.width = c.width;
+      tmp.height = c.height;
+      const tctx = tmp.getContext("2d")!;
+      tctx.save();
+      tctx.globalAlpha = st.brushOpacity / 100;
+      paint(tctx, tmp.width, tmp.height);
+      tctx.restore();
+      tctx.globalCompositeOperation = "destination-in";
+      tctx.globalAlpha = 1;
+      tctx.drawImage(sel, 0, 0);
+      ctx.save();
+      ctx.drawImage(tmp, 0, 0);
+      ctx.restore();
+    } else {
+      ctx.save();
+      ctx.globalAlpha = st.brushOpacity / 100;
+      paint(ctx, c.width, c.height);
+      ctx.restore();
+    }
+    st.markDirty();
+    useProStore.getState().bumpHistogram();
+    setCursor(label);
+  }
+
+  function gradStops(g: CanvasGradient, from: string, to: string) {
+    if (to === "transparent") {
+      g.addColorStop(0, from);
+      const r = parseInt(from.slice(1, 3), 16);
+      const gg = parseInt(from.slice(3, 5), 16);
+      const b = parseInt(from.slice(5, 7), 16);
+      g.addColorStop(1, `rgba(${r},${gg},${b},0)`);
+    } else {
+      g.addColorStop(0, from);
+      g.addColorStop(1, to);
+    }
+  }
+
+  function gradToColor(): string {
+    const gt = useProStore.getState().gradTo;
+    return gt === "white" ? "#ffffff" : gt === "black" ? "#000000" : "transparent";
+  }
+
+  function applyConicGradient(x: number, y: number) {
+    const st = useEditorStore.getState();
+    const from = st.brushColor;
+    const to = gradToColor();
+    paintFullLayer("Conic gradient", (g, W, H) => {
+      // Angular sweep approximation: 72 wedges around the click point.
+      const steps = 72;
+      for (let k = 0; k < steps; k++) {
+        const a0 = (k / steps) * Math.PI * 2;
+        const a1 = ((k + 1) / steps) * Math.PI * 2;
+        const t = k / (steps - 1);
+        g.fillStyle = to === "transparent" ? withAlpha(from, 1 - t) : mixHex(from, to, t);
+        g.beginPath();
+        g.moveTo(x, y);
+        g.arc(x, y, Math.max(W, H), a0, a1 + 0.02);
+        g.closePath();
+        g.fill();
+      }
+    });
+  }
+
+  function withAlpha(hex: string, a: number): string {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r},${g},${b},${Math.max(0, Math.min(1, a))})`;
+  }
+
+  function mixHex(a: string, b: string, t: number): string {
+    const pa = [1, 3, 5].map((i) => parseInt(a.slice(i, i + 2), 16));
+    const pb = [1, 3, 5].map((i) => parseInt(b.slice(i, i + 2), 16));
+    const m = pa.map((v, i) => Math.round(v + (pb[i] - v) * t));
+    return `rgb(${m[0]},${m[1]},${m[2]})`;
+  }
+
+  function applyReflectedGradient(x: number, y: number) {
+    const st = useEditorStore.getState();
+    const from = st.brushColor;
+    const to = gradToColor();
+    paintFullLayer("Reflected gradient", (g, W, H) => {
+      const half = Math.max(W, H) * 0.5;
+      const lg = g.createLinearGradient(x - half, y, x + half, y);
+      if (to === "transparent") {
+        lg.addColorStop(0, withAlpha(from, 0));
+        lg.addColorStop(0.5, from);
+        lg.addColorStop(1, withAlpha(from, 0));
+      } else {
+        lg.addColorStop(0, to);
+        lg.addColorStop(0.5, from);
+        lg.addColorStop(1, to);
+      }
+      g.fillStyle = lg;
+      g.fillRect(0, 0, W, H);
+    });
+  }
+
+  function applyNoiseGradient(x: number, y: number) {
+    const st = useEditorStore.getState();
+    const from = st.brushColor;
+    const to = gradToColor();
+    paintFullLayer("Noise gradient", (g, W, H) => {
+      const lg = g.createLinearGradient(x, y, x + Math.max(W, H) * 0.6, y);
+      gradStops(lg, from, to);
+      g.fillStyle = lg;
+      g.fillRect(0, 0, W, H);
+      // Deterministic dither kills banding.
+      const id = g.getImageData(0, 0, W, H);
+      const d = id.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const n = (((i / 4) * 73) % 17) - 8;
+        d[i] = Math.max(0, Math.min(255, d[i] + n));
+        d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + n));
+        d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + n));
+      }
+      g.putImageData(id, 0, 0);
+    });
+  }
+
+  function applyDiamondSoftGradient(x: number, y: number) {
+    const st = useEditorStore.getState();
+    const from = st.brushColor;
+    const to = gradToColor();
+    paintFullLayer("Soft diamond gradient", (g, W, H) => {
+      const img = g.createImageData(W, H);
+      const d = img.data;
+      const maxD = (Math.abs(W) + Math.abs(H)) / 2 || 1;
+      for (let yy = 0; yy < H; yy++) {
+        for (let xx = 0; xx < W; xx++) {
+          const t = Math.min(1, (Math.abs(xx - x) + Math.abs(yy - y)) / maxD);
+          const e = t * t * (3 - 2 * t);
+          const i = (yy * W + xx) * 4;
+          if (to === "transparent") {
+            const r = parseInt(from.slice(1, 3), 16);
+            const gg = parseInt(from.slice(3, 5), 16);
+            const b = parseInt(from.slice(5, 7), 16);
+            d[i] = r;
+            d[i + 1] = gg;
+            d[i + 2] = b;
+            d[i + 3] = Math.round(255 * (1 - e) * (st.brushOpacity / 100));
+          } else {
+            d[i] = Math.round(parseInt(from.slice(1, 3), 16) + (parseInt(to.slice(1, 3), 16) - parseInt(from.slice(1, 3), 16)) * e);
+            d[i + 1] = Math.round(parseInt(from.slice(3, 5), 16) + (parseInt(to.slice(3, 5), 16) - parseInt(from.slice(3, 5), 16)) * e);
+            d[i + 2] = Math.round(parseInt(from.slice(5, 7), 16) + (parseInt(to.slice(5, 7), 16) - parseInt(from.slice(5, 7), 16)) * e);
+            d[i + 3] = 255;
+          }
+        }
+      }
+      g.putImageData(img, 0, 0);
+    });
+  }
+
+  function fillBackgroundLayer() {
+    const st = useEditorStore.getState();
+    const bg = st.bgColor || "#ffffff";
+    paintFullLayer("Background fill", (g, W, H) => {
+      g.fillStyle = bg;
+      g.fillRect(0, 0, W, H);
+    });
+    setCursor(`Background ${bg}`);
+  }
+
+  function fillPatternNewLayer() {
+    const st = useEditorStore.getState();
+    const s = Math.max(16, Math.round(st.brushSize * 2));
+    paintFullLayer("Pattern fill (stripes)", (g, W, H) => {
+      const tile = document.createElement("canvas");
+      tile.width = s;
+      tile.height = s;
+      const t = tile.getContext("2d")!;
+      t.fillStyle = "#ffffff";
+      t.fillRect(0, 0, s, s);
+      t.fillStyle = st.brushColor;
+      const cell = Math.max(3, Math.round(s / 6));
+      for (let xx = 0; xx < s; xx += cell * 2) {
+        t.globalAlpha = 0.9;
+        t.fillRect(xx, 0, cell, s);
+      }
+      t.globalAlpha = 1;
+      const pat = g.createPattern(tile, "repeat");
+      if (pat) {
+        g.fillStyle = pat;
+        g.fillRect(0, 0, W, H);
+      }
+    });
+  }
+
+  function fillContentClick(x: number, y: number) {
+    const st = useEditorStore.getState();
+    const id = st.activeLayerId;
+    if (!id) return;
+    const meta = st.layers.find((l) => l.id === id);
+    if (!meta || meta.locked || !meta.visible) {
+      notify("Active layer is locked or hidden. Unlock it first.");
+      return;
+    }
+    const snap = layerManager.snapshot(id);
+    if (snap) st.pushHistory({ label: "Content fill click", layerId: id, snapshot: snap });
+    lastPos.current = { x, y };
+    captureStrokeSel();
+    retouchTo(x, y, "content-fill");
+    st.markDirty();
+    bumpHistogram();
+  }
+
+  function fillHistoryClick(x: number, y: number) {
+    const st = useEditorStore.getState();
+    const id = st.activeLayerId;
+    if (!id) return;
+    const meta = st.layers.find((l) => l.id === id);
+    if (!meta || meta.locked || !meta.visible) {
+      notify("Active layer is locked or hidden. Unlock it first.");
+      return;
+    }
+    const snap = layerManager.snapshot(id);
+    if (snap) {
+      st.pushHistory({ label: "History fill click", layerId: id, snapshot: snap });
+      historySource.current = snap;
+      historyCanvas.current = null;
+    }
+    lastPos.current = { x, y };
+    captureStrokeSel();
+    historyBrushTo(x, y, false, id);
+    st.markDirty();
+    bumpHistogram();
+  }
+
+  function fillTransparentProtect() {
+    const st = useEditorStore.getState();
+    const id = st.activeLayerId;
+    if (!id) return;
+    const meta = st.layers.find((l) => l.id === id);
+    if (!meta || meta.locked || !meta.visible) {
+      notify("Active layer is locked or hidden. Unlock it first.");
+      return;
+    }
+    const snap = layerManager.snapshot(id);
+    if (snap) st.pushHistory({ label: "Protect fill", layerId: id, snapshot: snap });
+    const c = layerManager.ensure(id, st.doc.width, st.doc.height);
+    const ctx = c.getContext("2d", { willReadFrequently: true })!;
+    try {
+      const img = ctx.getImageData(0, 0, c.width, c.height);
+      const d = img.data;
+      const fr = parseInt(st.brushColor.slice(1, 3), 16);
+      const fg = parseInt(st.brushColor.slice(3, 5), 16);
+      const fb = parseInt(st.brushColor.slice(5, 7), 16);
+      const a = st.brushOpacity / 100;
+      const sel = selectionMaskCanvas();
+      const useSel = sel && hasSelection() ? sel.getContext("2d")!.getImageData(0, 0, c.width, c.height).data : null;
+      for (let i = 0; i < d.length; i += 4) {
+        if (d[i + 3] === 0) continue;
+        if (useSel && useSel[i + 3] < 10) continue;
+        d[i] = Math.round(d[i] + (fr - d[i]) * a);
+        d[i + 1] = Math.round(d[i + 1] + (fg - d[i + 1]) * a);
+        d[i + 2] = Math.round(d[i + 2] + (fb - d[i + 2]) * a);
+      }
+      ctx.putImageData(img, 0, 0);
+    } catch { /* ignore */ }
+    st.markDirty();
+    useProStore.getState().bumpHistogram();
+    setCursor("Protected fill");
+  }
+
+  function fillGlobalAt(x: number, y: number) {
+    // Global (non-contiguous) fill: every similar pixel on the layer.
+    const st = useEditorStore.getState();
+    const id = st.activeLayerId;
+    if (!id) return;
+    const meta = st.layers.find((l) => l.id === id);
+    if (!meta || meta.locked || !meta.visible) {
+      notify("Active layer is locked or hidden. Unlock it first.");
+      return;
+    }
+    const comp = getCompositeCanvas();
+    if (!comp) {
+      floodFillAt(x, y);
+      return;
+    }
+    try {
+      const ix = Math.max(0, Math.min(comp.width - 1, Math.floor(x)));
+      const iy = Math.max(0, Math.min(comp.height - 1, Math.floor(y)));
+      const d = comp.getContext("2d", { willReadFrequently: true })!.getImageData(ix, iy, 1, 1).data;
+      const hex = `#${[d[0], d[1], d[2]].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+      const full = comp.getContext("2d", { willReadFrequently: true })!.getImageData(0, 0, comp.width, comp.height);
+      colorRangeSelection(comp.width, comp.height, full, hex, 24);
+      floodFillAt(x, y);
+      setCursor(`Global fill ${hex}`);
+    } catch {
+      floodFillAt(x, y);
+    }
+  }
+
   function applyGradient(x0: number, y0: number, x1: number, y1: number) {
     const st = useEditorStore.getState();
     const id = st.activeLayerId;
@@ -2513,7 +3349,25 @@ export default function CanvasArea() {
     p: { x: number; y: number },
     presetText?: string,
     vertical = false,
-    fx: "none" | "outline" | "glow" | "shadow" | "arc" | "3d" | "neon" | "gradient" = "none",
+    fx:
+      | "none"
+      | "outline"
+      | "glow"
+      | "shadow"
+      | "arc"
+      | "3d"
+      | "neon"
+      | "gradient"
+      | "typewriter"
+      | "blocky"
+      | "condensed"
+      | "expanded"
+      | "emboss"
+      | "engrave"
+      | "chrome"
+      | "fire"
+      | "ice"
+      | "retro" = "none",
   ) {
     const st = useEditorStore.getState();
     const pro = useProStore.getState();
@@ -2523,12 +3377,12 @@ export default function CanvasArea() {
     layerManager.ensure(l.id, doc.width, doc.height);
     const spec = {
       text: presetText ?? "Edit text in panel",
-      fontFamily: "Inter",
+      fontFamily: fx === "typewriter" ? "monospace" : "Inter",
       fontSize: Math.max(24, Math.round(doc.width / 24)),
       color: fx === "outline" ? "#2f7cf6" : "#ffffff",
       bold: true,
       italic: false,
-      tracking: 0,
+      tracking: fx === "blocky" ? 6 : 0,
       leading: 1.25,
     };
     if (vertical && !presetText) spec.text = spec.text.split("").join("\n");
@@ -2536,6 +3390,16 @@ export default function CanvasArea() {
     if (fx === "3d" && !presetText) spec.text = "3D TEXT";
     if (fx === "neon" && !presetText) spec.text = "NEON";
     if (fx === "gradient" && !presetText) spec.text = "GRADIENT";
+    if (fx === "typewriter" && !presetText) spec.text = "Typewriter text";
+    if (fx === "blocky" && !presetText) spec.text = "BLOCKY";
+    if (fx === "condensed" && !presetText) spec.text = "Condensed";
+    if (fx === "expanded" && !presetText) spec.text = "Expanded";
+    if (fx === "emboss" && !presetText) spec.text = "EMBOSS";
+    if (fx === "engrave" && !presetText) spec.text = "ENGRAVE";
+    if (fx === "chrome" && !presetText) spec.text = "CHROME";
+    if (fx === "fire" && !presetText) spec.text = "FIRE";
+    if (fx === "ice" && !presetText) spec.text = "ICE";
+    if (fx === "retro" && !presetText) spec.text = "RETRO";
     pro.setTextSpec(l.id, spec);
     const c = layerManager.ensure(l.id, doc.width, doc.height);
     const ctx = c.getContext("2d")!;
@@ -2631,16 +3495,123 @@ export default function CanvasArea() {
         cy += spec.fontSize * 1.25;
       });
       ctx.restore();
+    } else if (fx === "typewriter" || fx === "blocky") {
+      // Monospace stack (blocky adds wide tracking via spec).
+      renderTextToLayer(c, spec, Math.round(p.x), Math.round(p.y));
+    } else if (fx === "condensed" || fx === "expanded") {
+      renderTextToLayer(c, spec, Math.round(p.x), Math.round(p.y));
+    } else if (fx === "emboss") {
+      ctx.save();
+      ctx.font = `700 ${spec.fontSize}px Inter, system-ui, sans-serif`;
+      ctx.textBaseline = "top";
+      ctx.fillStyle = "rgba(255,255,255,0.85)";
+      ctx.fillText(spec.text, Math.round(p.x) - 2, Math.round(p.y) - 2);
+      ctx.fillStyle = "rgba(0,0,0,0.85)";
+      ctx.fillText(spec.text, Math.round(p.x) + 2, Math.round(p.y) + 2);
+      ctx.fillStyle = "#c9c9d1";
+      ctx.fillText(spec.text, Math.round(p.x), Math.round(p.y));
+      ctx.restore();
+    } else if (fx === "engrave") {
+      ctx.save();
+      ctx.font = `700 ${spec.fontSize}px Inter, system-ui, sans-serif`;
+      ctx.textBaseline = "top";
+      ctx.fillStyle = "rgba(0,0,0,0.9)";
+      ctx.fillText(spec.text, Math.round(p.x) - 1, Math.round(p.y) - 1);
+      ctx.fillStyle = "rgba(255,255,255,0.5)";
+      ctx.fillText(spec.text, Math.round(p.x) + 1, Math.round(p.y) + 1);
+      ctx.fillStyle = "#6e6e78";
+      ctx.fillText(spec.text, Math.round(p.x), Math.round(p.y));
+      ctx.restore();
+    } else if (fx === "chrome" || fx === "fire" || fx === "ice") {
+      // Metallic and elemental gradient fills with a soft sheen line.
+      ctx.save();
+      ctx.font = `700 ${spec.fontSize}px Inter, system-ui, sans-serif`;
+      ctx.textBaseline = "top";
+      const gx = ctx.createLinearGradient(0, p.y, 0, p.y + spec.fontSize * 1.2);
+      if (fx === "chrome") {
+        gx.addColorStop(0, "#f5f7fa");
+        gx.addColorStop(0.45, "#8a94a6");
+        gx.addColorStop(0.55, "#3c4252");
+        gx.addColorStop(1, "#d7dce5");
+      } else if (fx === "fire") {
+        gx.addColorStop(0, "#ffe259");
+        gx.addColorStop(0.5, "#ff7518");
+        gx.addColorStop(1, "#c81d25");
+      } else {
+        gx.addColorStop(0, "#e8feff");
+        gx.addColorStop(0.5, "#7dd7f0");
+        gx.addColorStop(1, "#1d4fa1");
+      }
+      ctx.fillStyle = gx;
+      ctx.fillText(spec.text, Math.round(p.x), Math.round(p.y));
+      ctx.fillStyle = "rgba(255,255,255,0.35)";
+      ctx.fillRect(Math.round(p.x), Math.round(p.y) + spec.fontSize * 0.28, ctx.measureText(spec.text).width, 2);
+      if (fx === "fire" || fx === "ice") {
+        ctx.shadowColor = fx === "fire" ? "#ff7518" : "#38e1ff";
+        ctx.shadowBlur = spec.fontSize * 0.35;
+        ctx.fillStyle = gx;
+        ctx.fillText(spec.text, Math.round(p.x), Math.round(p.y));
+      }
+      ctx.restore();
+    } else if (fx === "retro") {
+      // Double hard offset shadows in cream and teal.
+      ctx.save();
+      ctx.font = `700 ${spec.fontSize}px Inter, system-ui, sans-serif`;
+      ctx.textBaseline = "top";
+      ctx.fillStyle = "#0f766e";
+      ctx.fillText(spec.text, Math.round(p.x) + 8, Math.round(p.y) + 8);
+      ctx.fillStyle = "#f5e6c8";
+      ctx.fillText(spec.text, Math.round(p.x) + 4, Math.round(p.y) + 4);
+      ctx.fillStyle = "#c2410c";
+      ctx.fillText(spec.text, Math.round(p.x), Math.round(p.y));
+      ctx.restore();
     }
     st.addLayer({ ...l, kind: "text" });
     st.setActiveLayer(l.id);
     lastPaintRef.current = l.id;
     pro.ensureTransform(l.id);
+    if (fx === "condensed") pro.updateTransform(l.id, { scaleX: 0.8 });
+    if (fx === "expanded") pro.updateTransform(l.id, { scaleX: 1.25 });
     markDirty();
   }
 
   function createShapeLayer(
-    kind: "rect" | "ellipse" | "polygon" | "triangle" | "line" | "star" | "arrow" | "custom" | "rounded" | "diamond" | "heart" | "hexagon" | "burst" | "donut" | "chevron" | "moon" | "cross" | "plus" | "trapezoid",
+    kind:
+      | "rect"
+      | "ellipse"
+      | "polygon"
+      | "triangle"
+      | "line"
+      | "star"
+      | "arrow"
+      | "custom"
+      | "rounded"
+      | "diamond"
+      | "heart"
+      | "hexagon"
+      | "burst"
+      | "donut"
+      | "chevron"
+      | "moon"
+      | "cross"
+      | "plus"
+      | "trapezoid"
+      | "trapezoid-wide"
+      | "parallelogram"
+      | "pentagon"
+      | "octagon"
+      | "shield"
+      | "badge"
+      | "ribbon"
+      | "cloud"
+      | "speech"
+      | "gear"
+      | "drop"
+      | "leaf"
+      | "lightning"
+      | "crown"
+      | "pin"
+      | "ticket",
     sides = 6,
     namePrefix?: string,
   ) {
@@ -2843,7 +3814,7 @@ export default function CanvasArea() {
     }
   }
 
-  function pinSampler(p: { x: number; y: number }, avg: boolean) {
+  function pinSampler(p: { x: number; y: number }, avg: boolean, size = 5) {
     const comp = getCompositeCanvas();
     if (!comp) return;
     try {
@@ -2856,7 +3827,7 @@ export default function CanvasArea() {
         hex = `#${[d[0], d[1], d[2]].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
       } else {
         // Bug fix: average sampler now also sets brush color (was readout-only, felt dead).
-        const s = 5;
+        const s = Math.max(3, Math.min(21, Math.round(size)));
         const ix = Math.max(0, Math.min(comp.width - s, Math.floor(p.x - s / 2)));
         const iy = Math.max(0, Math.min(comp.height - s, Math.floor(p.y - s / 2)));
         const id = g.getImageData(ix, iy, s, s);
@@ -2940,7 +3911,7 @@ export default function CanvasArea() {
         onDragLeave={() => setDragging(false)}
         onDrop={handleDrop}
         onDoubleClick={() => {
-          if ((tool === "select-polygon" || tool === "magnetic-lasso") && lassoPts.length > 2) {
+          if ((tool === "select-polygon" || tool === "magnetic-lasso" || tool === "lasso-straight") && lassoPts.length > 2) {
             drawLassoSelection(doc.width, doc.height, lassoPts);
             if (tool === "magnetic-lasso") expandContractSelection(2);
             const feather = useProStore.getState().selFeather;
@@ -3112,27 +4083,59 @@ export default function CanvasArea() {
             gradientFillAt(p.x, p.y, true);
             return;
           }
-          if (tool === "select-rect" || tool === "select-ellipse" || tool === "single-row" || tool === "single-column" || tool === "select-square") {
+          if (tool === "select-rect" || tool === "select-ellipse" || tool === "single-row" || tool === "single-column" || tool === "select-square" || tool === "select-circle" || tool === "select-stadium" || tool === "select-crosshair") {
             if (tool === "single-row") setSelDrag({ x0: 0, y0: p.y, x1: doc.width, y1: p.y + 1 });
             else if (tool === "single-column") setSelDrag({ x0: p.x, y0: 0, x1: p.x + 1, y1: doc.height });
             else setSelDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
             return;
           }
-          if (tool === "select-feather" || tool === "select-border") {
+          if (tool === "select-feather" || tool === "select-border" || tool === "select-feather-2" || tool === "select-feather-4" || tool === "select-feather-12") {
             if (!hasSelection()) {
               notify("No selection to adjust. Drag a marquee or lasso first.");
               return;
             }
-            if (tool === "select-feather") {
-              featherSelection(6);
-              setCursor("Feathered 6px");
-              notify("Feathered selection 6px.");
-            } else {
+            const f = tool === "select-feather-2" ? 2 : tool === "select-feather-4" ? 4 : tool === "select-feather-12" ? 12 : 6;
+            if (tool === "select-border") {
               expandContractSelection(-4);
               featherSelection(2);
               setCursor("Border smoothed");
               notify("Border smoothed: contracted 4px + feather 2px.");
+            } else {
+              featherSelection(f);
+              setCursor(`Feathered ${f}px`);
+              notify(`Feathered selection ${f}px.`);
             }
+            setAnts((a) => a + 1);
+            window.dispatchEvent(new Event("avero:selection-changed"));
+            return;
+          }
+          if (tool === "select-grow-2" || tool === "select-grow-8" || tool === "select-border-4" || tool === "select-border-12") {
+            if (!hasSelection()) {
+              notify("No selection to adjust. Drag a marquee or lasso first.");
+              return;
+            }
+            const d = tool === "select-grow-2" ? 2 : tool === "select-grow-8" ? 8 : tool === "select-border-4" ? -4 : -12;
+            expandContractSelection(d);
+            if (tool === "select-border-4" || tool === "select-border-12") featherSelection(2);
+            setCursor(d > 0 ? `Grown ${d}px` : `Border ${d}px`);
+            setAnts((a) => a + 1);
+            window.dispatchEvent(new Event("avero:selection-changed"));
+            return;
+          }
+          if (tool === "select-last") {
+            if (restoreLastSelection()) {
+              setCursor("Last selection restored");
+              notify("Last selection restored.");
+              setAnts((a) => a + 1);
+              window.dispatchEvent(new Event("avero:selection-changed"));
+            } else {
+              notify("No previous selection stored yet.");
+            }
+            return;
+          }
+          if (tool === "select-inverse-click") {
+            inverseSelection();
+            setCursor("Selection inverted");
             setAnts((a) => a + 1);
             window.dispatchEvent(new Event("avero:selection-changed"));
             return;
@@ -3176,18 +4179,237 @@ export default function CanvasArea() {
             setCursor(useProStore.getState().showGrid ? "Grid ON" : "Grid OFF");
             return;
           }
-          if (tool === "fill-solid" || tool === "fill-clear" || tool === "gradient-diamond") {
+          if ((CROP_OVERLAY_TOOLS as Partial<Record<string, CropOverlayKind>>)[tool as string]) {
+            const ov = (CROP_OVERLAY_TOOLS as Record<string, CropOverlayKind>)[tool as string];
+            useProStore.getState().setCropOverlay(ov);
+            setCursor(`Overlay ${ov}`);
+            notify(`Crop overlay: ${ov}. Drag with the Crop tool to compose.`);
+            useEditorStore.getState().setTool("crop");
+            return;
+          }
+          if (tool === "guide-mid") {
+            const pro = useProStore.getState();
+            pro.addGuide("h", Math.round(doc.height / 2));
+            pro.addGuide("v", Math.round(doc.width / 2));
+            if (!pro.showGuides) pro.toggleGuides();
+            setCursor("Center guides added");
+            notify("Center guides added.");
+            return;
+          }
+          if (tool === "guide-thirds") {
+            const pro = useProStore.getState();
+            [1 / 3, 2 / 3].forEach((f) => {
+              pro.addGuide("h", Math.round(doc.height * f));
+              pro.addGuide("v", Math.round(doc.width * f));
+            });
+            if (!pro.showGuides) pro.toggleGuides();
+            setCursor("Thirds guides added");
+            notify("Rule-of-thirds guides added.");
+            return;
+          }
+          if (tool === "guide-clear-one") {
+            const pro = useProStore.getState();
+            let bi = -1;
+            let bk: "h" | "v" = "v";
+            let bd = Infinity;
+            pro.guidesV.forEach((g, i) => {
+              const d = Math.abs(p.x - g);
+              if (d < bd) { bd = d; bi = i; bk = "v"; }
+            });
+            pro.guidesH.forEach((g, i) => {
+              const d = Math.abs(p.y - g);
+              if (d < bd) { bd = d; bi = i; bk = "h"; }
+            });
+            if (bi >= 0) {
+              pro.removeGuide(bk, bi);
+              setCursor("Guide removed");
+            } else {
+              notify("No guides to remove.");
+            }
+            return;
+          }
+          if (tool === "grid-pixel") {
+            const pro = useProStore.getState();
+            pro.setGridSize(8);
+            if (!pro.showGrid) pro.toggleGrid();
+            setCursor("Pixel grid 8px");
+            notify("Pixel grid on (8px). Zoom to 800% for 1px cells.");
+            return;
+          }
+          if (tool === "measure-dpi") {
+            const mp = ((doc.width * doc.height) / 1000000).toFixed(1);
+            const a4 = Math.min(doc.width / 2480, doc.height / 3508);
+            const letter = Math.min(doc.width / 2550, doc.height / 3300);
+            setCursor(`${doc.width}x${doc.height}`);
+            notify(`Doc ${doc.width}x${doc.height} (${mp} MP). Prints sharp at A4 x${a4.toFixed(2)}, Letter x${letter.toFixed(2)}.`);
+            return;
+          }
+          if (tool === "note-color") {
+            const colors = ["#d9a441", "#2f7cf6", "#7ad69e", "#e5534b"];
+            const pro = useProStore.getState();
+            const next = colors[pro.notes.length % colors.length];
+            const t = await askText("Add Note", "Note text:", "");
+            if (t) {
+              pro.addNote({ x: Math.round(p.x), y: Math.round(p.y), text: t, color: next });
+              setCursor("Color note added");
+            }
+            return;
+          }
+          if (tool === "count-auto") {
+            // Auto-count high-contrast blobs on the composite.
+            const comp = getCompositeCanvas();
+            if (comp) {
+              try {
+                const g = comp.getContext("2d", { willReadFrequently: true })!;
+                const step = 6;
+                const tw = Math.ceil(comp.width / step);
+                const th = Math.ceil(comp.height / step);
+                const id = g.getImageData(0, 0, comp.width, comp.height);
+                const d = id.data;
+                const mask = new Uint8Array(tw * th);
+                for (let yy = 0; yy < th; yy++) {
+                  for (let xx = 0; xx < tw; xx++) {
+                    const i = (Math.min(comp.height - 1, yy * step) * comp.width + Math.min(comp.width - 1, xx * step)) * 4;
+                    const lum = (d[i] + d[i + 1] + d[i + 2]) / 3;
+                    mask[yy * tw + xx] = lum > 200 ? 1 : 0;
+                  }
+                }
+                const seen = new Uint8Array(tw * th);
+                const pro = useProStore.getState();
+                pro.clearCounts();
+                let n = 0;
+                for (let s = 0; s < tw * th && n < 99; s++) {
+                  if (!mask[s] || seen[s]) continue;
+                  n++;
+                  const stack = [s];
+                  seen[s] = 1;
+                  let sx = 0;
+                  let sy = 0;
+                  let cnt = 0;
+                  while (stack.length) {
+                    const q = stack.pop()!;
+                    const qx = q % tw;
+                    const qy = Math.floor(q / tw);
+                    sx += qx;
+                    sy += qy;
+                    cnt++;
+                    const nb = [q - 1, q + 1, q - tw, q + tw];
+                    for (const m of nb) {
+                      if (m < 0 || m >= tw * th || seen[m] || !mask[m]) continue;
+                      if (Math.abs((m % tw) - qx) + Math.abs(Math.floor(m / tw) - qy) > 1) continue;
+                      seen[m] = 1;
+                      stack.push(m);
+                    }
+                  }
+                  const scale = doc.width / comp.width;
+                  pro.addCount({ x: Math.round((sx / cnt) * step * scale), y: Math.round((sy / cnt) * step * scale), n });
+                }
+                setCountN(n);
+                setCursor(n > 0 ? `Counted ${n} blobs` : "No bright blobs found");
+                notify(n > 0 ? `Auto-counted ${n} bright regions.` : "No bright regions found. Try a higher-contrast area.");
+              } catch { /* ignore */ }
+            }
+            return;
+          }
+          if (tool === "sampler-3x3" || tool === "sampler-11x11") {
+            pinSampler(p, true, tool === "sampler-3x3" ? 3 : 11);
+            return;
+          }
+          if (tool === "zoom-marquee") {
+            setSelDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
+            return;
+          }
+          if (tool === "rotate-15") {
+            const cur = useEditorStore.getState().viewRotate;
+            setViewRotate(cur + 15);
+            setCursor(`Rotate ${useEditorStore.getState().viewRotate}deg`);
+            return;
+          }
+          if (tool === "fill-solid" || tool === "fill-clear" || tool === "gradient-diamond" ||
+            tool === "gradient-conic" || tool === "gradient-diamond-soft" || tool === "gradient-reflected" ||
+            tool === "gradient-noise" || tool === "fill-foreground" || tool === "fill-background" ||
+            tool === "fill-pattern-new" || tool === "fill-content-click" || tool === "fill-history-click" ||
+            tool === "fill-transparent-protect" || tool === "bucket-contiguous" || tool === "bucket-global") {
             if (tool === "gradient-diamond") {
               applyDiamondGradient(p.x, p.y);
-            } else if (tool === "fill-solid") {
+            } else if (tool === "gradient-conic") {
+              applyConicGradient(p.x, p.y);
+            } else if (tool === "gradient-diamond-soft") {
+              applyDiamondSoftGradient(p.x, p.y);
+            } else if (tool === "gradient-reflected") {
+              applyReflectedGradient(p.x, p.y);
+            } else if (tool === "gradient-noise") {
+              applyNoiseGradient(p.x, p.y);
+            } else if (tool === "fill-solid" || tool === "fill-foreground") {
               fillSolidLayer();
+            } else if (tool === "fill-background") {
+              fillBackgroundLayer();
+            } else if (tool === "fill-pattern-new") {
+              fillPatternNewLayer();
+            } else if (tool === "fill-content-click") {
+              fillContentClick(p.x, p.y);
+            } else if (tool === "fill-history-click") {
+              fillHistoryClick(p.x, p.y);
+            } else if (tool === "fill-transparent-protect") {
+              fillTransparentProtect();
+            } else if (tool === "bucket-global") {
+              fillGlobalAt(p.x, p.y);
+            } else if (tool === "bucket-contiguous") {
+              floodFillAt(p.x, p.y);
             } else {
               clearLayerToTransparent();
             }
             return;
           }
-          if (tool === "select-polygon") {
-            setLassoPts((pts) => [...pts.slice(-800), { x: p.x, y: p.y }]);
+          if (tool === "gradient-fg-transparent") {
+            useProStore.getState().setGradTo("transparent");
+            useEditorStore.getState().setTool("gradient");
+            setCursor("FG to transparent ready: drag to paint");
+            notify("Gradient preset: foreground to transparent. Drag on canvas.");
+            return;
+          }
+          if (tool === "select-polygon" || tool === "lasso-straight") {
+            setLassoPts((pts) => {
+              let pt = { x: p.x, y: p.y };
+              // Straight lasso: Shift snaps each edge to 45 degrees.
+              if (tool === "lasso-straight" && e.shiftKey && pts.length > 0) {
+                const prev = pts[pts.length - 1];
+                const dx = pt.x - prev.x;
+                const dy = pt.y - prev.y;
+                const ang = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4);
+                const len = Math.hypot(dx, dy);
+                pt = { x: prev.x + Math.cos(ang) * len, y: prev.y + Math.sin(ang) * len };
+              }
+              return [...pts.slice(-800), pt];
+            });
+            return;
+          }
+          if (tool === "wand-flood") {
+            handleWandClick(p);
+            try {
+              const { expandContractSelection } = await import("../engine/selection");
+              // Flood: max tolerance sweep plus grow for full-region capture.
+              expandContractSelection(6);
+              window.dispatchEvent(new Event("avero:selection-changed"));
+              setCursor("Flood selected");
+            } catch { /* ignore */ }
+            return;
+          }
+          if (tool === "range-skin" || tool === "range-sky" || tool === "range-greens") {
+            const comp = getCompositeCanvas();
+            if (comp) {
+              try {
+                const id = comp.getContext("2d", { willReadFrequently: true })!.getImageData(0, 0, comp.width, comp.height);
+                const tol = useProStore.getState().selTolerance;
+                const seed = tool === "range-skin" ? "#c8966e" : tool === "range-sky" ? "#5a8fd0" : "#4d8a3f";
+                colorRangeSelection(comp.width, comp.height, id, seed, Math.max(tol, 34));
+                const feather = useProStore.getState().selFeather;
+                if (feather > 0) featherSelection(feather);
+                setCursor(tool === "range-skin" ? "Skin tones selected" : tool === "range-sky" ? "Sky tones selected" : "Greens selected");
+                setAnts((a) => a + 1);
+                window.dispatchEvent(new Event("avero:selection-changed"));
+              } catch { /* ignore */ }
+            }
             return;
           }
           if (tool === "quick-select" || tool === "object-select") {
@@ -3379,7 +4601,10 @@ export default function CanvasArea() {
           if (
             tool === "text" || tool === "text-vertical" ||
             tool === "text-outline" || tool === "text-glow" || tool === "text-shadow" || tool === "text-arc" ||
-            tool === "text-3d" || tool === "text-neon" || tool === "text-gradient"
+            tool === "text-3d" || tool === "text-neon" || tool === "text-gradient" ||
+            tool === "text-typewriter" || tool === "text-blocky" || tool === "text-condensed" ||
+            tool === "text-expanded" || tool === "text-emboss" || tool === "text-engrave" ||
+            tool === "text-chrome" || tool === "text-fire" || tool === "text-ice" || tool === "text-retro"
           ) {
             if (tool === "text-outline") createTextLayer(p, undefined, false, "outline");
             else if (tool === "text-glow") createTextLayer(p, undefined, false, "glow");
@@ -3388,6 +4613,16 @@ export default function CanvasArea() {
             else if (tool === "text-3d") createTextLayer(p, undefined, false, "3d");
             else if (tool === "text-neon") createTextLayer(p, undefined, false, "neon");
             else if (tool === "text-gradient") createTextLayer(p, undefined, false, "gradient");
+            else if (tool === "text-typewriter") createTextLayer(p, undefined, false, "typewriter");
+            else if (tool === "text-blocky") createTextLayer(p, undefined, false, "blocky");
+            else if (tool === "text-condensed") createTextLayer(p, undefined, false, "condensed");
+            else if (tool === "text-expanded") createTextLayer(p, undefined, false, "expanded");
+            else if (tool === "text-emboss") createTextLayer(p, undefined, false, "emboss");
+            else if (tool === "text-engrave") createTextLayer(p, undefined, false, "engrave");
+            else if (tool === "text-chrome") createTextLayer(p, undefined, false, "chrome");
+            else if (tool === "text-fire") createTextLayer(p, undefined, false, "fire");
+            else if (tool === "text-ice") createTextLayer(p, undefined, false, "ice");
+            else if (tool === "text-retro") createTextLayer(p, undefined, false, "retro");
             else createTextLayer(p, undefined, tool === "text-vertical");
             return;
           }
@@ -3435,8 +4670,12 @@ export default function CanvasArea() {
             setShapeDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y, kind });
             return;
           }
-          if (tool === "ruler" || tool === "measure-angle" || tool === "measure-area" || tool === "protractor") {
-            setMeasureDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
+          if (tool === "ruler" || tool === "measure-angle" || tool === "measure-area" || tool === "protractor" || tool === "ruler-triple") {
+            if (tool === "ruler-triple" && tripleChain.current) {
+              setMeasureDrag({ x0: tripleChain.current.x, y0: tripleChain.current.y, x1: p.x, y1: p.y });
+            } else {
+              setMeasureDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
+            }
             return;
           }
           if (tool === "fill" || tool === "content-fill") {
@@ -3458,7 +4697,9 @@ export default function CanvasArea() {
             gradientFillAt(p.x, p.y, true);
             return;
           }
-          if (tool === "pen" || tool === "line" || tool === "pen-free" || tool === "line-arrow") {
+          if (tool === "pen" || tool === "line" || tool === "pen-free" || tool === "line-arrow" ||
+            tool === "pen-thin" || tool === "pen-medium" || tool === "pen-bold" ||
+            tool === "pen-dashed" || tool === "pen-arrow-both" || tool === "pen-glow") {
             setPenDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y });
             return;
           }
@@ -3500,30 +4741,26 @@ export default function CanvasArea() {
               }
             }
             // Eraser targets the created item, never the background photo.
-            // When the active layer is a photo, retarget to the last painted
-            // item or the topmost editable layer instead.
-            // Manual 2026: covers eraser-soft / eraser-block too.
-            if (
-              (tool === "eraser" || tool === "eraser-hard" || tool === "eraser-soft" || tool === "eraser-block") &&
-              strokeLayerId &&
-              layerManager.isPhotoLayer(strokeLayerId)
-            ) {
+            // Paint-type erasers resolve through resolveEraserTarget (plan2 Fase B):
+            // photo layers are never touched; null aborts the stroke safely.
+            if (isPaintEraser(tool as ToolId)) {
               const st = useEditorStore.getState();
-              const last = lastPaintRef.current ? st.layers.find((l) => l.id === lastPaintRef.current) : undefined;
-              const top = [...st.layers]
-                .reverse()
-                .find(
-                  (l) =>
-                    !layerManager.isPhotoLayer(l.id) &&
-                    l.visible &&
-                    !l.locked &&
-                    layerManager.get(l.id),
-                );
-              const target = last && last.visible && !last.locked ? last : top;
-              if (target) {
-                st.setActiveLayer(target.id);
-                strokeLayerId = target.id;
-                setCursor(`Erasing ${target.name}`);
+              const targetId = resolveEraserTarget({
+                activeId: strokeLayerId,
+                layers: st.layers,
+                lastPaintId: lastPaintRef.current,
+                isPhoto: (id) => layerManager.isPhotoLayer(id),
+                hasCanvas: (id) => !!layerManager.get(id),
+              });
+              if (!targetId) {
+                notify("Nothing safely erasable here. Paint a stroke first, or use Background / Magic Eraser for photos.");
+                return;
+              }
+              if (targetId !== strokeLayerId) {
+                st.setActiveLayer(targetId);
+                strokeLayerId = targetId;
+                const nm = st.layers.find((l) => l.id === targetId)?.name ?? targetId;
+                setCursor(`Erasing ${nm}`);
               }
             }
             // One-time hint for heal tools (cursor text alone is missed).
@@ -3725,11 +4962,18 @@ export default function CanvasArea() {
             // Bug fix: single-row/col are click tools, ignore drag updates so preview stays 1px.
             if (tool === "single-row" || tool === "single-column") return;
             // Manual 2026: square lock for select-square.
-            if (tool === "select-square") {
+            if (tool === "select-square" || tool === "select-circle") {
               const w = p.x - selDrag.x0;
               const h = p.y - selDrag.y0;
               const m = Math.max(Math.abs(w), Math.abs(h));
               setSelDrag({ ...selDrag, x1: selDrag.x0 + Math.sign(w || 1) * m, y1: selDrag.y0 + Math.sign(h || 1) * m });
+              return;
+            }
+            // Crosshair: symmetric drag around the start point.
+            if (tool === "select-crosshair") {
+              const w = p.x - selDrag.x0;
+              const h = p.y - selDrag.y0;
+              setSelDrag({ x0: selDrag.x0, y0: selDrag.y0, x1: selDrag.x0 + w * 2, y1: selDrag.y0 + h * 2 });
               return;
             }
             setSelDrag({ ...selDrag, x1: p.x, y1: p.y });
@@ -3826,11 +5070,16 @@ export default function CanvasArea() {
               const label =
                 tool === "measure-area"
                   ? `${Math.abs(dx).toFixed(0)}x${Math.abs(dy).toFixed(0)} area ${(Math.abs(dx * dy) / 1000).toFixed(1)}k px`
-                  : tool === "measure-angle" || tool === "protractor"
+                  : tool === "measure-angle" || tool === "protractor" || tool === "ruler-triple"
                     ? `Angle ${ang.toFixed(1)} deg (${Math.abs(dx).toFixed(0)} x ${Math.abs(dy).toFixed(0)})`
                     : `${dist.toFixed(1)} px | ${ang.toFixed(1)} deg`;
-              setCursor(tool === "measure-area" ? `Area ${label}` : tool === "measure-angle" || tool === "protractor" ? label : `Distance ${label}`);
+              setCursor(tool === "measure-area" ? `Area ${label}` : tool === "measure-angle" || tool === "protractor" || tool === "ruler-triple" ? label : `Distance ${label}`);
               useProStore.getState().addMeasure({ x0: Math.round(measureDrag.x0), y0: Math.round(measureDrag.y0), x1: Math.round(measureDrag.x1), y1: Math.round(measureDrag.y1), label });
+              // Triple ruler chains: next segment starts where this one ended.
+              if (tool === "ruler-triple") tripleChain.current = { x: measureDrag.x1, y: measureDrag.y1 };
+              else tripleChain.current = null;
+            } else {
+              tripleChain.current = null;
             }
             setMeasureDrag(null);
           }
@@ -3860,13 +5109,44 @@ export default function CanvasArea() {
               h: selDrag.y1 - selDrag.y0,
             };
             const pro = useProStore.getState();
+            if (tool === "zoom-marquee") {
+              // Zoom the viewport to fit the dragged rect.
+              const rw = Math.abs(r.w);
+              const rh = Math.abs(r.h);
+              if (rw > 8 && rh > 8) {
+                const wrap = wrapRef.current;
+                if (wrap) {
+                  const rect = wrap.getBoundingClientRect();
+                  const z = Math.max(10, Math.min(3200, Math.min((rect.width - 80) / rw, (rect.height - 80) / rh) * 100));
+                  setZoom(z);
+                  const s = z / 100;
+                  const dw = doc.width * s;
+                  const dh = doc.height * s;
+                  const cx = Math.min(r.x, r.x + r.w) + rw / 2;
+                  const cy = Math.min(r.y, r.y + r.h) + rh / 2;
+                  setPan(rect.width / 2 - (rect.width - dw) / 2 - cx * s, rect.height / 2 - (rect.height - dh) / 2 - cy * s);
+                  setCursor(`Zoom ${Math.round(z)}%`);
+                }
+              }
+              setSelDrag(null);
+              return;
+            }
             if (tool === "single-row") {
               drawRectSelection(doc.width, doc.height, { x: 0, y: Math.round(r.y), w: doc.width, h: 1 });
             } else if (tool === "single-column") {
               drawRectSelection(doc.width, doc.height, { x: Math.round(r.x), y: 0, w: 1, h: doc.height });
+            } else if (tool === "select-crosshair") {
+              // Symmetric about the start point: mirror the drag vector.
+              const w = selDrag.x1 - selDrag.x0;
+              const h = selDrag.y1 - selDrag.y0;
+              if (Math.abs(w) > 4 && Math.abs(h) > 4) {
+                drawRectSelection(doc.width, doc.height, { x: selDrag.x0 - w, y: selDrag.y0 - h, w: w * 2, h: h * 2 });
+                if (pro.selFeather > 0) featherSelection(pro.selFeather);
+              }
             } else if (Math.abs(r.w) > 4 && Math.abs(r.h) > 4) {
-              if (tool === "select-ellipse") drawEllipseSelection(doc.width, doc.height, r);
+              if (tool === "select-ellipse" || tool === "select-circle") drawEllipseSelection(doc.width, doc.height, r);
               else if (tool === "select-rounded") drawRoundedRectSelection(doc.width, doc.height, r, 24);
+              else if (tool === "select-stadium") drawRoundedRectSelection(doc.width, doc.height, r, 9999);
               else drawRectSelection(doc.width, doc.height, r);
               if (pro.selFeather > 0) featherSelection(pro.selFeather);
             }
@@ -3875,7 +5155,7 @@ export default function CanvasArea() {
           }
           if (
             lassoPts.length > 2 &&
-            (tool === "select-lasso" || tool === "select-polygon" || tool === "magnetic-lasso")
+            (tool === "select-lasso" || tool === "select-polygon" || tool === "magnetic-lasso" || tool === "lasso-straight")
           ) {
             drawLassoSelection(doc.width, doc.height, lassoPts);
             if (tool === "magnetic-lasso") {
@@ -3885,7 +5165,7 @@ export default function CanvasArea() {
             }
             setLassoPts([]);
             window.dispatchEvent(new Event("avero:selection-changed"));
-          } else if (tool === "select-lasso" || tool === "select-polygon" || tool === "magnetic-lasso") {
+          } else if (tool === "select-lasso" || tool === "select-polygon" || tool === "magnetic-lasso" || tool === "lasso-straight") {
             if (tool === "select-lasso" || tool === "magnetic-lasso") setLassoPts([]);
             // polygon keeps points until double-click closes
           }
@@ -3894,7 +5174,7 @@ export default function CanvasArea() {
             const h = Math.abs(shapeDrag.y1 - shapeDrag.y0);
             if (w > 6 && h > 6) {
               const kind = shapeDrag.kind;
-              const map: Record<string, "rect" | "ellipse" | "polygon" | "triangle" | "line" | "star" | "arrow" | "custom" | "rounded" | "diamond" | "heart" | "hexagon" | "burst" | "donut" | "chevron" | "moon" | "cross" | "plus" | "trapezoid"> = {
+              const map: Record<string, "rect" | "ellipse" | "polygon" | "triangle" | "line" | "star" | "arrow" | "custom" | "rounded" | "diamond" | "heart" | "hexagon" | "burst" | "donut" | "chevron" | "moon" | "cross" | "plus" | "trapezoid" | "trapezoid-wide" | "parallelogram" | "pentagon" | "octagon" | "shield" | "badge" | "ribbon" | "cloud" | "speech" | "gear" | "drop" | "leaf" | "lightning" | "crown" | "pin" | "ticket"> = {
                 rect: "rect",
                 ellipse: "ellipse",
                 triangle: "triangle",
@@ -3914,6 +5194,22 @@ export default function CanvasArea() {
                 cross: "cross",
                 plus: "plus",
                 trapezoid: "trapezoid",
+                "trapezoid-wide": "trapezoid-wide",
+                parallelogram: "parallelogram",
+                pentagon: "pentagon",
+                octagon: "octagon",
+                shield: "shield",
+                badge: "badge",
+                ribbon: "ribbon",
+                cloud: "cloud",
+                speech: "speech",
+                gear: "gear",
+                drop: "drop",
+                leaf: "leaf",
+                lightning: "lightning",
+                crown: "crown",
+                pin: "pin",
+                ticket: "ticket",
                 frame: "rect",
                 artboard: "rect",
               };

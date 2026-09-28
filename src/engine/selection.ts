@@ -16,6 +16,40 @@ let selCanvas: HTMLCanvasElement | null = null;
 let selW = 0;
 let selH = 0;
 
+// Last-selection memory for the Reselect tool: keeps the previous mask so
+// users can bring it back after clearing.
+let lastCanvas: HTMLCanvasElement | null = null;
+
+function stashCurrent() {
+  if (!selCanvas || !hasSelection()) return;
+  try {
+    if (!lastCanvas || lastCanvas.width !== selCanvas.width || lastCanvas.height !== selCanvas.height) {
+      lastCanvas = document.createElement("canvas");
+      lastCanvas.width = selCanvas.width;
+      lastCanvas.height = selCanvas.height;
+    }
+    const g = lastCanvas.getContext("2d")!;
+    g.clearRect(0, 0, lastCanvas.width, lastCanvas.height);
+    g.drawImage(selCanvas, 0, 0);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function hasLastSelection(): boolean {
+  return !!lastCanvas;
+}
+
+export function restoreLastSelection(): boolean {
+  if (!lastCanvas) return false;
+  const c = ensureSel(lastCanvas.width, lastCanvas.height);
+  const ctx = c.getContext("2d")!;
+  ctx.clearRect(0, 0, c.width, c.height);
+  ctx.drawImage(lastCanvas, 0, 0);
+  markSelectionDirty();
+  return true;
+}
+
 // Fast path: cache the hasSelection result to avoid a full getImageData per frame.
 // A 1920x1080 getImageData is an 8MB copy on every call, hit several times per render.
 let selDirty = true;
@@ -84,6 +118,7 @@ export function hasSelection(): boolean {
 }
 
 export function drawRectSelection(w: number, h: number, r: RectSel) {
+  stashCurrent();
   const c = ensureSel(w, h);
   const ctx = c.getContext("2d")!;
   ctx.clearRect(0, 0, w, h);
@@ -95,6 +130,7 @@ export function drawRectSelection(w: number, h: number, r: RectSel) {
 }
 
 export function drawEllipseSelection(w: number, h: number, r: RectSel) {
+  stashCurrent();
   const c = ensureSel(w, h);
   const ctx = c.getContext("2d")!;
   ctx.clearRect(0, 0, w, h);
@@ -114,6 +150,7 @@ export function drawEllipseSelection(w: number, h: number, r: RectSel) {
 }
 
 export function drawRoundedRectSelection(w: number, h: number, r: RectSel, radius = 24) {
+  stashCurrent();
   const c = ensureSel(w, h);
   const ctx = c.getContext("2d")!;
   ctx.clearRect(0, 0, w, h);
@@ -139,6 +176,7 @@ export function drawRoundedRectSelection(w: number, h: number, r: RectSel, radiu
 }
 
 export function drawLassoSelection(w: number, h: number, points: { x: number; y: number }[]) {
+  stashCurrent();
   const c = ensureSel(w, h);
   const ctx = c.getContext("2d")!;
   ctx.clearRect(0, 0, w, h);
@@ -157,6 +195,7 @@ export function drawLassoSelection(w: number, h: number, points: { x: number; y:
 
 // Color Range: select ALL pixels similar to a hex color (global, not flood).
 export function colorRangeSelection(w: number, h: number, img: ImageData, hex: string, tolerance: number) {
+  stashCurrent();
   const c = ensureSel(w, h);
   const ctx = c.getContext("2d")!;
   ctx.clearRect(0, 0, w, h);
@@ -189,6 +228,7 @@ export function wandFromImage(
   sy: number,
   tolerance: number,
 ) {
+  stashCurrent();
   const c = ensureSel(w, h);
   const ctx = c.getContext("2d")!;
   ctx.clearRect(0, 0, w, h);

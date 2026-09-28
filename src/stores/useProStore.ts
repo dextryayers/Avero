@@ -105,6 +105,7 @@ export interface NotePin {
   x: number;
   y: number;
   text: string;
+  color?: string;
 }
 
 export interface CountPin {
@@ -128,6 +129,16 @@ export interface MeasureEntry {
   x1: number;
   y1: number;
   label: string;
+}
+
+export type CropOverlay = "none" | "thirds" | "diagonal" | "triangle" | "spiral" | "center";
+
+export interface PathEntry {
+  id: string;
+  name: string;
+  kind: "pen" | "line" | "curve";
+  points: { x: number; y: number }[];
+  time: number;
 }
 
 interface ProState {
@@ -193,7 +204,23 @@ interface ProState {
         | "moon"
         | "cross"
         | "plus"
-        | "trapezoid";
+        | "trapezoid"
+        | "trapezoid-wide"
+        | "parallelogram"
+        | "pentagon"
+        | "octagon"
+        | "shield"
+        | "badge"
+        | "ribbon"
+        | "cloud"
+        | "speech"
+        | "gear"
+        | "drop"
+        | "leaf"
+        | "lightning"
+        | "crown"
+        | "pin"
+        | "ticket";
       fill: string;
       stroke: string;
       strokeWidth: number;
@@ -205,6 +232,15 @@ interface ProState {
   setShapeSpec: (layerId: string, spec: ProState["shapeSpecs"][string]) => void;
   gradTo: "transparent" | "white" | "black";
   setGradTo: (v: ProState["gradTo"]) => void;
+  cropOverlay: CropOverlay;
+  setCropOverlay: (v: CropOverlay) => void;
+  paths: PathEntry[];
+  addPath: (p: Omit<PathEntry, "id" | "time">) => string;
+  removePath: (id: string) => void;
+  clearPaths: () => void;
+  customSwatches: string[];
+  addSwatch: (color: string) => void;
+  removeSwatch: (color: string) => void;
   guidesH: number[];
   guidesV: number[];
   showGuides: boolean;
@@ -389,6 +425,22 @@ export const useProStore = create<ProState>((set) => ({
   shapeSpecs: {},
   histogramTick: 0,
   gradTo: "transparent",
+  cropOverlay: "none",
+  paths: [],
+  customSwatches: [
+    "#c0392b",
+    "#e67e22",
+    "#f1c40f",
+    "#27ae60",
+    "#16a085",
+    "#2980b9",
+    "#8e44ad",
+    "#fd79a8",
+    "#d35400",
+    "#fdcb6e",
+    "#00cec9",
+    "#6c5ce7",
+  ],
   guidesH: [],
   guidesV: [],
   showGuides: true,
@@ -399,6 +451,22 @@ export const useProStore = create<ProState>((set) => ({
   setSelKind: (selKind) => set({ selKind }),
   setSelParams: (p) => set(p),
   setGradTo: (gradTo) => set({ gradTo }),
+  setCropOverlay: (cropOverlay) => set({ cropOverlay }),
+  addPath: (p) => {
+    const id = uid("path");
+    set((s) => ({ paths: [...s.paths.slice(-49), { ...p, id, time: Date.now() }] }));
+    return id;
+  },
+  removePath: (id) => set((s) => ({ paths: s.paths.filter((x) => x.id !== id) })),
+  clearPaths: () => set({ paths: [] }),
+  addSwatch: (color) =>
+    set((s) => {
+      const c = color.toLowerCase();
+      if (s.customSwatches.some((x) => x.toLowerCase() === c)) return s;
+      return { customSwatches: [...s.customSwatches.slice(-47), color] };
+    }),
+  removeSwatch: (color) =>
+    set((s) => ({ customSwatches: s.customSwatches.filter((x) => x.toLowerCase() !== color.toLowerCase()) })),
   addSlice: (s) => {
     const id = uid("slice");
     set((st) => ({

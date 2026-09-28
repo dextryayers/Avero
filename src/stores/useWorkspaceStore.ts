@@ -96,7 +96,6 @@ const DEFAULT_SHORTCUTS: ShortcutMap = {
   "clone-mirror": "Shift+S",
   "zoom-fit": "Shift+Z",
   "measure-angle": "Shift+I",
-  "ai-bg-remove": "Shift+A",
 };
 
 export function loadShortcuts(): ShortcutMap {

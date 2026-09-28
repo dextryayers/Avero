@@ -4,7 +4,7 @@ vi.mock("../components/CanvasArea", () => ({
   getCompositeCanvas: () => null,
 }));
 
-import { AVX_MAGIC, AVX_VERSION, parseAvxJson, encodeBmpDataUrl, verifyAvxChecksum, normalizeAvxFile, sanitizeProjectName, ensureAvxExtension, joinPath, parentDir, baseName, type AvxFile } from "./projectIo";
+import { AVX_MAGIC, AVX_VERSION, parseAvxJson, encodeBmpDataUrl, verifyAvxChecksum, normalizeAvxFile, sanitizeProjectName, ensureAvxExtension, joinPath, parentDir, baseName, previewPathFor, type AvxFile } from "./projectIo";
 
 function sampleProject(): AvxFile {
   return {
@@ -179,6 +179,11 @@ describe("word-like project helpers", () => {
     expect(parentDir("/home/u/Proyek/a.avx")).toBe("/home/u/Proyek");
     expect(baseName("/home/u/Proyek/a.avx")).toBe("a.avx");
     expect(parentDir(null)).toBeNull();
+  });
+
+  it("previewPathFor sits beside the project", () => {
+    expect(previewPathFor("D:\\kerja\\Proyek\\a.avx")).toBe("D:\\kerja\\Proyek\\a_preview.jpg");
+    expect(previewPathFor("/home/u/Proyek/a.avx")).toBe("/home/u/Proyek/a_preview.jpg");
   });
 });
 

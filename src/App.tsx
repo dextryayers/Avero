@@ -75,6 +75,20 @@ export default function App() {
       useProStore.getState().ensureTransform(s.layers[0].id);
     }
     setRecovery(loadRecovery());
+    // Double-clicked .avx at launch: open the project straight away.
+    import("./io/projectIo").then(({ fetchStartupFile, openAvxProject }) => {
+      fetchStartupFile().then((p) => {
+        if (p) {
+          openAvxProject(p)
+            .then((ok) => {
+              if (ok) {
+                import("./ui/notify").then(({ showMessage }) => showMessage(`Opened ${p.split(/[/\\]/).pop()}`));
+              }
+            })
+            .catch((err) => showError(`Failed to open project: ${String(err)}`));
+        }
+      });
+    });
   }, []);
 
   // Autosave recovery on the interval chosen in Settings (0 disables it).
@@ -462,6 +476,20 @@ export default function App() {
       if (settingsOpenRef.current) closeSettingsRef.current();
       else openSettingsRef.current();
     }
+    function onOpenAvxPathEvent(e: Event) {
+      // Single-instance forward: a double-clicked .avx while already running.
+      const path = (e as CustomEvent).detail as string;
+      if (!path) return;
+      openAvxProject(path)
+        .then((ok) => {
+          if (ok) {
+            import("./ui/notify").then(({ showMessage }) =>
+              showMessage(`Opened ${path.split(/[/\\]/).pop()}`),
+            );
+          }
+        })
+        .catch((err) => showError(`Failed to open project: ${String(err)}`));
+    }
     window.addEventListener("keydown", onKey);
     window.addEventListener("keyup", onKeyUp);
     window.addEventListener("avero:open-settings", onSettingsEvent);
@@ -470,6 +498,7 @@ export default function App() {
     window.addEventListener("avero:open-export", onExportEvent);
     window.addEventListener("avero:save-avx", onSaveEvent);
     window.addEventListener("avero:open-avx", onOpenAvxEvent);
+    window.addEventListener("avero:open-avx-path", onOpenAvxPathEvent);
     window.addEventListener("avero:select", onSelectEvent);
     window.addEventListener("avero:clip", onClipEvent);
     return () => {
@@ -481,6 +510,7 @@ export default function App() {
       window.removeEventListener("avero:open-export", onExportEvent);
       window.removeEventListener("avero:save-avx", onSaveEvent);
       window.removeEventListener("avero:open-avx", onOpenAvxEvent);
+      window.removeEventListener("avero:open-avx-path", onOpenAvxPathEvent);
       window.removeEventListener("avero:select", onSelectEvent);
       window.removeEventListener("avero:clip", onClipEvent);
     };

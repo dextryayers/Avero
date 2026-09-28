@@ -170,6 +170,23 @@ export function getProjectFolder(): string | null {
   return useEditorStore.getState().doc.projectFolder ?? null;
 }
 
+// File the app was launched with (double-clicked .avx). Null on web or plain launch.
+export async function fetchStartupFile(): Promise<string | null> {
+  if (!isTauri()) return null;
+  try {
+    return await invoke<string | null>("cmd_startup_file");
+  } catch {
+    return null;
+  }
+}
+
+/** Companion preview image beside the .avx so file managers show a visual result. */
+export function previewPathFor(avxPath: string): string {
+  const dot = avxPath.lastIndexOf(".");
+  const base = dot > 0 ? avxPath.slice(0, dot) : avxPath;
+  return `${base}_preview.jpg`;
+}
+
 // Best-effort startup registration so Explorer shows
 // "Avero Project Design" in the Type column for .avx files.
 export async function registerAvxAssociation(): Promise<void> {
@@ -501,6 +518,24 @@ export async function saveAvxProject(saveAs = false): Promise<string | null> {
       if (!head.includes(AVX_MAGIC)) throw new Error("header mismatch");
     } catch (e) {
       throw new Error(`Save verification failed: ${String(e)}`);
+    }
+    // Companion preview: a real JPG beside the .avx so file managers show
+    // the visual result. Encoded by the Rust image engine, best effort only.
+    try {
+      const comp = getCompositeCanvas();
+      if (comp && comp.width > 0 && comp.height > 0) {
+        const sc = Math.min(1, 1024 / Math.max(comp.width, comp.height));
+        const pw = Math.max(1, Math.round(comp.width * sc));
+        const ph = Math.max(1, Math.round(comp.height * sc));
+        const pc = document.createElement("canvas");
+        pc.width = pw;
+        pc.height = ph;
+        pc.getContext("2d")!.drawImage(comp, 0, 0, pw, ph);
+        const { rustSaveDataUrl } = await import("./tauriIo");
+        await rustSaveDataUrl(pc.toDataURL("image/jpeg", 0.82), previewPathFor(path));
+      }
+    } catch {
+      /* preview never fails the save */
     }
   } else {
     const blob = new Blob([json], { type: "application/x-avero" });

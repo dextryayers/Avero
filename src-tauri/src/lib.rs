@@ -11,6 +11,7 @@ mod ram;
 mod system;
 
 use commands::{app_ping, document_info, list_fonts_system};
+use tauri::Emitter;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -18,6 +19,12 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            // Second launch (double-click while running): forward the .avx path.
+            if let Some(path) = io::find_avx_arg(&argv) {
+                let _ = app.emit("avero:open-avx-path", path);
+            }
+        }))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             app_ping,
@@ -30,6 +37,7 @@ pub fn run() {
             io::cmd_write_text_file,
             io::cmd_write_text_atomic,
             io::cmd_register_avx_association,
+            io::cmd_startup_file,
             io::cmd_path_exists,
             io::cmd_ensure_dir,
             convert::cmd_probe_image,

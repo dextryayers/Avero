@@ -174,11 +174,13 @@ export default function HomeScreen() {
   const [pfolder, setPfolder] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [formInfo, setFormInfo] = useState<string | null>(null);
   const isDesktop = typeof window !== "undefined" && "__TAURI__" in window;
 
   async function chooseProjectFolder() {
     if (!isDesktop) {
-      setFormError("Folder picker needs the desktop app. On web, the project runs in memory and Save downloads Name.avx.");
+      setFormError(null);
+      setFormInfo("Folder picker needs the desktop app. On web, the project runs in memory and Save downloads Name.avx.");
       return;
     }
     try {
@@ -186,6 +188,7 @@ export default function HomeScreen() {
       if (dir) {
         setPfolder(dir);
         setFormError(null);
+        setFormInfo(null);
       } else {
         setFormError("No folder chosen. Pick a folder to hold the project and its images, then press Create.");
       }
@@ -878,6 +881,11 @@ export default function HomeScreen() {
               {formError && (
                 <div className="mt-3 rounded-md border border-[#e5534b]/50 bg-[#e5534b]/10 px-3 py-2 text-[11px] leading-relaxed text-[#f0883e]">
                   {formError}
+                </div>
+              )}
+              {formInfo && (
+                <div className="mt-3 rounded-md border border-[#2f7cf6]/50 bg-[#2f7cf6]/10 px-3 py-2 text-[11px] leading-relaxed text-[#8fb6f5]">
+                  {formInfo}
                 </div>
               )}
             </div>

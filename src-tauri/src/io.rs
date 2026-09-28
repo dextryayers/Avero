@@ -256,6 +256,24 @@ fn register_avx_windows() -> Result<(), String> {
     Ok(())
 }
 
+/// First existing .avx path in a CLI arg list (double-click / Open With).
+/// Pure helper so the rule is unit-tested; the command applies it to real args.
+pub fn find_avx_arg(args: &[String]) -> Option<String> {
+    for arg in args.iter().skip(1) {
+        let t = arg.trim().trim_matches('"').to_string();
+        if t.to_lowercase().ends_with(".avx") && std::path::Path::new(&t).exists() {
+            return Some(t);
+        }
+    }
+    None
+}
+
+/// File the app was launched with (double-clicked .avx), if any.
+#[tauri::command]
+pub fn cmd_startup_file() -> Option<String> {
+    find_avx_arg(&std::env::args().collect::<Vec<_>>())
+}
+
 #[derive(serde::Serialize)]
 pub struct HistoryBudget {
     pub width: u32,
@@ -319,7 +337,7 @@ pub fn cmd_ensure_dir(path: String) -> Result<String, String> {
         return Err("Folder path not allowed".into());
     }
     std::fs::create_dir_all(p).map_err(|e| format!("Failed to create folder: {e}"))?;
-    // Wadah khusus gambar seperti Word menyimpan aset di dalam folder proyek.
+    // Dedicated images folder, like Word keeps assets inside the project folder.
     let images = std::path::Path::new(p).join("images");
     std::fs::create_dir_all(&images).map_err(|e| format!("Failed to create images folder: {e}"))?;
     Ok(p.to_string())
@@ -376,7 +394,7 @@ mod tests {
     fn text_file_roundtrip_avx() {
         let dir = std::env::temp_dir().join("avero-avx-io-test");
         std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join("uji-roundtrip.avx");
+        let path = dir.join("roundtrip.avx");
         let payload = "{\"magic\":\"AVX1\",\"version\":1}";
         cmd_write_text_file(path.to_string_lossy().into(), payload.into()).unwrap();
         let back = cmd_read_text_file(path.to_string_lossy().into()).unwrap();
@@ -386,14 +404,39 @@ mod tests {
 
     #[test]
     fn text_file_rejects_unknown_extension() {
-        assert!(cmd_write_text_file("uji.exe".into(), "x".into()).is_err());
-        assert!(cmd_read_text_file("uji.exe".into()).is_err());
+        assert!(cmd_write_text_file("test.exe".into(), "x".into()).is_err());
+        assert!(cmd_read_text_file("test.exe".into()).is_err());
         assert!(cmd_write_text_file("".into(), "x".into()).is_err());
     }
 
     #[test]
     fn text_file_read_missing_file_fails() {
-        let path = std::env::temp_dir().join("avero-tidak-ada.avx");
+        let path = std::env::temp_dir().join("avero-missing.avx");
         assert!(cmd_read_text_file(path.to_string_lossy().into()).is_err());
+    }
+
+    #[test]
+    fn find_avx_arg_picks_existing_avx_only() {
+        let dir = std::env::temp_dir().join("avero-avx-arg-test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let good = dir.join("project.avx");
+        std::fs::write(&good, "x").unwrap();
+        let gs = good.to_string_lossy().to_string();
+        // skips exe itself, ignores non-avx and missing files
+        assert_eq!(
+            find_avx_arg(&["app".into(), "notes.txt".into(), gs.clone()]),
+            Some(gs.clone())
+        );
+        assert_eq!(find_avx_arg(&["app".into(), "notes.txt".into()]), None);
+        assert_eq!(
+            find_avx_arg(&["app".into(), "C:\\nope\\missing.avx".into()]),
+            None
+        );
+        // quoted paths from Windows shell
+        assert_eq!(
+            find_avx_arg(&["app".into(), format!("\"{gs}\"")]),
+            Some(gs)
+        );
+        let _ = std::fs::remove_file(&good);
     }
 }

@@ -95,6 +95,78 @@ export function formatBytes(n: number | null): string {
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
+export interface ResizeInput {
+  mode: string;
+  long_edge?: number;
+  width?: number;
+  height?: number;
+  fit?: string;
+  percent?: number;
+  preset?: number;
+}
+
+/** Mirror of the Rust target_size math so the web engine and UI agree. */
+export function computeTargetSize(
+  srcW: number,
+  srcH: number,
+  spec: ResizeInput,
+  noEnlarge: boolean,
+): { w: number; h: number } {
+  const sw = Math.max(1, Math.round(srcW));
+  const sh = Math.max(1, Math.round(srcH));
+  const clamp = (v: number) => Math.max(1, Math.min(16384, Math.round(v)));
+  const clampN = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+  let tw: number;
+  let th: number;
+  switch (spec.mode) {
+    case "long-edge": {
+      const edge = clampN(Math.round(spec.long_edge ?? 1920), 16, 16384);
+      const s = edge / Math.max(sw, sh);
+      tw = clamp(sw * s);
+      th = clamp(sh * s);
+      break;
+    }
+    case "exact": {
+      const w = clampN(spec.width ?? sw, 1, 16384);
+      const h = clampN(spec.height ?? sh, 1, 16384);
+      if (spec.fit === "stretch") {
+        tw = w;
+        th = h;
+      } else if (spec.fit === "fill") {
+        const s = Math.max(w / sw, h / sh);
+        tw = clamp(sw * s);
+        th = clamp(sh * s);
+      } else {
+        const s = Math.min(w / sw, h / sh);
+        tw = clamp(sw * s);
+        th = clamp(sh * s);
+      }
+      break;
+    }
+    case "percent": {
+      const p = clampN(spec.percent ?? 100, 1, 800) / 100;
+      tw = clamp(sw * p);
+      th = clamp(sh * p);
+      break;
+    }
+    case "preset": {
+      const edge = clampN(spec.preset ?? 1920, 16, 16384);
+      const s = edge / Math.max(sw, sh);
+      tw = clamp(sw * s);
+      th = clamp(sh * s);
+      break;
+    }
+    default:
+      tw = sw;
+      th = sh;
+  }
+  if (noEnlarge) {
+    tw = Math.min(tw, sw);
+    th = Math.min(th, sh);
+  }
+  return { w: Math.max(1, tw), h: Math.max(1, th) };
+}
+
 // ---------- backend calls ----------
 
 export interface ProbeResult {

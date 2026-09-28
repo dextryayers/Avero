@@ -27,6 +27,7 @@ export interface ConvertJob {
   output: string | null;
   outSize: number | null;
   error: string | null;
+  file: File | null; // set in web mode, where there is no file path
 }
 
 export type ResizeMode = "original" | "long-edge" | "exact" | "percent" | "preset";
@@ -63,9 +64,11 @@ interface ConvertState {
   finishedAt: number | null;
 
   addPaths: (paths: string[]) => Promise<void>;
+  addFiles: (files: File[]) => Promise<void>;
   removeJob: (id: string) => void;
   clearJobs: () => void;
   clearFinished: () => void;
+  retryFailed: () => void;
   setJobTarget: (id: string, t: OutputFormat) => void;
   setSettings: (p: Partial<ConvertSettings>) => void;
   markConverting: (input: string) => void;
@@ -82,6 +85,16 @@ let seq = 0;
 function uid(p: string) {
   seq += 1;
   return `${p}-${Date.now().toString(36)}-${seq}`;
+}
+
+function revokeThumb(t: string | null) {
+  if (t && t.startsWith("blob:")) {
+    try {
+      URL.revokeObjectURL(t);
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -136,6 +149,7 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
       output: null,
       outSize: null,
       error: null,
+      file: null,
     }));
     set((s) => ({ jobs: [...s.jobs, ...fresh] }));
     // Probe + thumbnail per file, failures mark the row (batch continues).
@@ -162,10 +176,74 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
     );
   },
 
-  removeJob: (id) => set((s) => ({ jobs: s.jobs.filter((j) => j.id !== id) })),
-  clearJobs: () => set({ jobs: [], done: 0, total: 0, startedAt: null, finishedAt: null }),
+  removeJob: (id) =>
+    set((s) => {
+      const gone = s.jobs.find((j) => j.id === id);
+      if (gone) revokeThumb(gone.thumb);
+      return { jobs: s.jobs.filter((j) => j.id !== id) };
+    }),
+  clearJobs: () =>
+    set((s) => {
+      s.jobs.forEach((j) => revokeThumb(j.thumb));
+      return { jobs: [], done: 0, total: 0, startedAt: null, finishedAt: null };
+    }),
   clearFinished: () =>
-    set((s) => ({ jobs: s.jobs.filter((j) => j.status === "queued" || j.status === "converting") })),
+    set((s) => {
+      const keep = s.jobs.filter((j) => j.status === "queued" || j.status === "converting");
+      s.jobs.forEach((j) => {
+        if (j.status !== "queued" && j.status !== "converting") revokeThumb(j.thumb);
+      });
+      return { jobs: keep };
+    }),
+  retryFailed: () =>
+    set((s) => ({
+      jobs: s.jobs.map((j) =>
+        j.status === "error" || j.status === "skipped"
+          ? { ...j, status: "queued" as JobStatus, error: null, output: null, outSize: null }
+          : j,
+      ),
+    })),
+
+  addFiles: async (files) => {
+    const { webProbe } = await import("../io/convertWeb");
+    const st = get();
+    const fresh: ConvertJob[] = files.map((f) => ({
+      id: uid("job"),
+      input: f.name,
+      name: f.name,
+      target: st.settings.target,
+      overridden: false,
+      status: "queued" as JobStatus,
+      w: null,
+      h: null,
+      size: f.size,
+      srcFormat: extOf(f.name),
+      thumb: null,
+      output: null,
+      outSize: null,
+      error: null,
+      file: f,
+    }));
+    set((s) => ({ jobs: [...s.jobs, ...fresh] }));
+    await Promise.all(
+      fresh.map(async (j) => {
+        if (!j.file) return;
+        try {
+          const info = await webProbe(j.file);
+          const thumb = URL.createObjectURL(j.file);
+          set((s) => ({
+            jobs: s.jobs.map((x) => (x.id === j.id ? { ...x, w: info.w, h: info.h, thumb } : x)),
+          }));
+        } catch (e) {
+          set((s) => ({
+            jobs: s.jobs.map((x) =>
+              x.id === j.id ? { ...x, status: "error" as JobStatus, error: String(e) } : x,
+            ),
+          }));
+        }
+      }),
+    );
+  },
 
   setJobTarget: (id, t) =>
     set((s) => ({

@@ -18,25 +18,30 @@ import clsx from "clsx";
 import { jobDisplayName, useConvertStore, type ConvertJob } from "../stores/useConvertStore";
 import {
   EDGE_PRESETS,
+  FORMAT_CARDS,
   OUTPUT_FORMATS,
   RESIZE_FILTERS,
   browseImages,
   buildOutputPath,
   cancelBatch,
+  computeTargetSize,
   defaultSuffix,
+  effTargetOf,
   extOf,
   formatBytes,
+  groupBy,
   isInputSupported,
   needsMatte,
   pathExists,
   pickOutputFolder,
   probeImage,
+  resizeInputFromSettings,
   revealInFolder,
   runBatch,
   type BatchProgress,
   type OutputFormat,
 } from "../io/convert";
-import { WEB_FORMATS, webConvertImage } from "../io/convertWeb";
+import { WEB_FORMATS, downloadBlob, isWebInputSupported, pickSaveDirectory, supportsSaveFolder, webConvertImage, writeBlobToDir } from "../io/convertWeb";
 import { useEditorStore } from "../stores/useEditorStore";
 import { useHomeStore } from "../stores/useHomeStore";
 import { useProStore } from "../stores/useProStore";
@@ -47,7 +52,7 @@ const desktop = typeof window !== "undefined" && "__TAURI__" in window;
 const FORMATS: readonly string[] = desktop ? OUTPUT_FORMATS : WEB_FORMATS;
 
 function effTarget(t: string): string {
-  return (FORMATS as readonly string[]).includes(t) ? t : "png";
+  return effTargetOf(t, FORMATS);
 }
 
 async function uniquePath(p: string): Promise<string> {
@@ -153,7 +158,7 @@ function Row({
           </option>
         ))}
       </select>
-      <div className="flex w-[86px] shrink-0 items-center justify-end gap-1">
+      <div className="flex w-[112px] shrink-0 items-center justify-end gap-1">
         {job.status === "queued" && <span className="font-mono text-[10px] text-[#6e6e78]">queued</span>}
         {job.status === "converting" && <Loader2 size={14} className="animate-spin text-[#8fb6f5]" />}
         {job.status === "done" && desktop && job.output && (
@@ -256,6 +261,9 @@ export default function ConverterPage() {
   const [webUrls, setWebUrls] = useState<Record<string, string>>({});
   const webBlobs = useRef(new Map<string, Blob>());
   const webCancel = useRef(false);
+  const webDir = useRef<FileSystemDirectoryHandle | null>(null);
+  const [webDirName, setWebDirName] = useState<string | null>(null);
+  const [webDirError, setWebDirError] = useState(false);
 
   const queued = useMemo(() => jobs.filter((j) => j.status === "queued"), [jobs]);
   const okCount = useMemo(() => jobs.filter((j) => j.status === "done").length, [jobs]);
@@ -274,6 +282,14 @@ export default function ConverterPage() {
   }, [queued, jobs, settings]);
   const showQuality = settings.target === "jpg" || (!desktop && settings.target === "webp");
   const showMatte = needsMatte(effTarget(settings.target));
+  const estimate = useMemo(() => {
+    const j = queued[0] ?? jobs[0];
+    if (!j || !j.w || !j.h) return null;
+    const t = effTarget(settings.target);
+    const out = computeTargetSize(j.w, j.h, resizeInputFromSettings(settings), settings.noEnlarge);
+    const q = t === "jpg" ? ` q${Math.max(1, Math.min(100, Math.round(settings.quality)))}` : "";
+    return `${j.w}x${j.h} to ${out.w}x${out.h} ${t.toUpperCase()}${q}`;
+  }, [queued, jobs, settings]);
 
   // Revoke web object URLs when their rows disappear.
   useEffect(() => {
@@ -323,13 +339,34 @@ export default function ConverterPage() {
   }, []);
 
   function onWebDrop(e: React.DragEvent) {
+    if (desktop) return;
     e.preventDefault();
+    e.stopPropagation();
     setDropActive(false);
-    const files = Array.from(e.dataTransfer.files).filter((f) => isInputSupported(f.name));
+    const files = Array.from(e.dataTransfer.files).filter((f) => isWebInputSupported(f.name));
     if (files.length > 0) void useConvertStore.getState().addFiles(files);
     const rejected = e.dataTransfer.files.length - files.length;
-    if (rejected > 0) void showError(`${rejected} file(s) skipped: format not supported.`);
+    if (rejected > 0) void showError(`${rejected} file(s) skipped: format not supported in web mode.`);
   }
+
+  // Web mode: guard the whole page so a missed drop never navigates away
+  // and loses the queue. Desktop uses native webview drop events instead.
+  useEffect(() => {
+    if (desktop) return;
+    const over = (e: DragEvent) => {
+      e.preventDefault();
+    };
+    const drop = (e: DragEvent) => {
+      e.preventDefault();
+      setDropActive(false);
+    };
+    window.addEventListener("dragover", over);
+    window.addEventListener("drop", drop);
+    return () => {
+      window.removeEventListener("dragover", over);
+      window.removeEventListener("drop", drop);
+    };
+  }, []);
 
   async function addViaDialog() {
     if (busy) return;
@@ -348,9 +385,9 @@ export default function ConverterPage() {
           inp.click();
         });
         if (picked && picked.length > 0) {
-          const files = picked.filter((f) => isInputSupported(f.name));
+          const files = picked.filter((f) => isWebInputSupported(f.name));
           if (files.length > 0) await useConvertStore.getState().addFiles(files);
-          if (files.length < picked.length) await showError(`${picked.length - files.length} file(s) skipped: format not supported.`);
+          if (files.length < picked.length) await showError(`${picked.length - files.length} file(s) skipped: format not supported in web mode.`);
         }
       }
     } catch (e) {
@@ -386,7 +423,7 @@ export default function ConverterPage() {
 
   async function startDesktopBatch(list: ConvertJob[]) {
     const st = useConvertStore.getState();
-    const options = st.buildOptions();
+    const baseOptions = st.buildOptions();
     const planned: { job: ConvertJob; output: string }[] = [];
     for (const j of list) {
       const t = effTarget(j.target);
@@ -417,15 +454,25 @@ export default function ConverterPage() {
     }));
     const unlisten = await listen<BatchProgress>("avero:convert-progress", (e) => {
       const p = e.payload;
-      if (p.batch_id !== batchId) return;
+      if (!p.batch_id.startsWith(batchId)) return;
       useConvertStore.getState().markProgress(p.current, p.ok, p.error, null);
     });
+    let okTotal = 0;
+    let failTotal = 0;
     try {
-      const summary = await runBatch(
-        batchId,
-        planned.map((p) => ({ input: p.job.input, output: p.output })),
-        options,
-      );
+      // One backend batch per target format so per-row overrides are honored.
+      const groups = groupBy(planned, (p) => effTarget(p.job.target));
+      let g = 0;
+      for (const [target, items] of groups) {
+        g += 1;
+        const summary = await runBatch(
+          `${batchId}-g${g}`,
+          items.map((p) => ({ input: p.job.input, output: p.output })),
+          { ...baseOptions, format: target },
+        );
+        okTotal += summary.ok;
+        failTotal += summary.failed;
+      }
       await Promise.all(
         planned.map(async ({ job }) => {
           const cur = useConvertStore.getState().jobs.find((x) => x.id === job.id);
@@ -439,16 +486,61 @@ export default function ConverterPage() {
           }
         }),
       );
-      if (summary.failed > 0) {
-        await showError(`Converted ${summary.ok}, failed ${summary.failed}. See rows for details.`);
+      // Safety net: if progress events were lost, reconcile rows still marked converting.
+      const leftovers = useConvertStore.getState().jobs.filter((x) => x.status === "converting");
+      for (const x of leftovers) {
+        if (x.output && (await pathExists(x.output))) {
+          try {
+            const info = await probeImage(x.output);
+            useConvertStore.setState((s) => ({
+              jobs: s.jobs.map((y) =>
+                y.id === x.id ? { ...y, status: "done" as const, outSize: info.file_size } : y,
+              ),
+              done: s.done + 1,
+            }));
+            okTotal += 1;
+          } catch {
+            useConvertStore.setState((s) => ({
+              jobs: s.jobs.map((y) =>
+                y.id === x.id ? { ...y, status: "error" as const, error: "No result reported" } : y,
+              ),
+              done: s.done + 1,
+            }));
+            failTotal += 1;
+          }
+        } else {
+          useConvertStore.setState((s) => ({
+            jobs: s.jobs.map((y) =>
+              y.id === x.id ? { ...y, status: "error" as const, error: "No result reported" } : y,
+            ),
+            done: s.done + 1,
+          }));
+          failTotal += 1;
+        }
+      }
+      if (failTotal > 0) {
+        await showError(`Converted ${okTotal}, failed ${failTotal}. See rows for details.`);
       } else {
-        await showMessage(`Converted ${summary.ok} file(s) successfully.`);
+        await showMessage(`Converted ${okTotal} file(s) successfully.`);
       }
     } catch (e) {
       await showError(`Batch failed: ${String(e)}`);
     } finally {
       unlisten();
       useConvertStore.getState().endBatch();
+    }
+  }
+
+  async function chooseWebDir() {
+    if (!supportsSaveFolder()) {
+      await showError("This browser cannot grant folder access. Results stay available as downloads.");
+      return;
+    }
+    const picked = await pickSaveDirectory();
+    if (picked) {
+      webDir.current = picked.handle;
+      setWebDirName(picked.name);
+      setWebDirError(false);
     }
   }
 
@@ -462,6 +554,8 @@ export default function ConverterPage() {
     webCancel.current = false;
     let ok = 0;
     let failed = 0;
+    let skipped = 0;
+    const dir = webDir.current;
     for (const j of list) {
       if (webCancel.current) {
         useConvertStore.setState((s) => ({
@@ -490,24 +584,37 @@ export default function ConverterPage() {
           format: t,
           quality: Math.max(1, Math.min(100, Math.round(st.settings.quality))),
           matte: hexToRgb(st.settings.matte),
-          resize: {
-            mode: st.settings.resizeMode,
-            long_edge: st.settings.longEdge,
-            width: parseInt(st.settings.exactW) || 1920,
-            height: parseInt(st.settings.exactH) || 1080,
-            fit: st.settings.fit,
-            percent: parseFloat(st.settings.percent) || 100,
-            preset: st.settings.preset,
-          },
+          resize: resizeInputFromSettings(st.settings),
           noEnlarge: st.settings.noEnlarge,
         });
         const url = URL.createObjectURL(blob);
         webBlobs.current.set(j.id, blob);
         setWebUrls((prev) => ({ ...prev, [j.id]: url }));
+        let output = name;
+        if (dir && !webDirError) {
+          try {
+            const written = await writeBlobToDir(dir, name, blob, st.settings.overwrite);
+            if (written === null) {
+              useConvertStore.setState((s) => ({
+                jobs: s.jobs.map((x) =>
+                  x.id === j.id ? { ...x, status: "skipped" as const, output: name, outSize: blob.size } : x,
+                ),
+                done: s.done + 1,
+              }));
+              skipped += 1;
+              continue;
+            }
+            output = written;
+          } catch (e) {
+            // Folder write failed (often revoked permission): keep the download fallback.
+            setWebDirError(true);
+            await showError(`Save folder unreachable, kept downloads instead: ${String(e)}`);
+          }
+        }
         useConvertStore.setState((s) => ({
           jobs: s.jobs.map((x) =>
             x.id === j.id
-              ? { ...x, status: "done" as const, error: null, output: name, outSize: blob.size }
+              ? { ...x, status: "done" as const, error: null, output, outSize: blob.size }
               : x,
           ),
           done: s.done + 1,
@@ -524,8 +631,11 @@ export default function ConverterPage() {
       }
     }
     useConvertStore.getState().endBatch();
-    if (failed > 0) await showError(`Converted ${ok}, failed ${failed}. See rows for details.`);
-    else await showMessage(`Converted ${ok} file(s). Use Download per row or Download all.`);
+    const parts = [`Converted ${ok}`];
+    if (skipped > 0) parts.push(`${skipped} skipped`);
+    if (failed > 0) parts.push(`${failed} failed`);
+    if (failed > 0) await showError(`${parts.join(", ")}. See rows for details.`);
+    else await showMessage(dir && !webDirError ? `${parts.join(", ")} into ${webDirName ?? "folder"}.` : `${parts.join(", ")}. Use Download per row or Download all.`);
   }
 
   async function cancel() {
@@ -538,18 +648,24 @@ export default function ConverterPage() {
     const url = webUrls[id];
     const j = useConvertStore.getState().jobs.find((x) => x.id === id);
     if (!url || !j || !j.output) return;
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = j.output;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    const blob = webBlobs.current.get(id);
+    if (blob) downloadBlob(blob, j.output);
+    else {
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = j.output;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
   }
 
   function downloadAll() {
+    // Stagger clicks: browsers throttle or block simultaneous downloads.
     const s = useConvertStore.getState();
-    s.jobs.forEach((j) => {
-      if (j.status === "done" && webUrls[j.id] && j.output) downloadOne(j.id);
+    const ready = s.jobs.filter((j) => j.status === "done" && webUrls[j.id] && j.output);
+    ready.forEach((j, i) => {
+      setTimeout(() => downloadOne(j.id), i * 450);
     });
   }
 
@@ -583,7 +699,21 @@ export default function ConverterPage() {
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
   return (
-    <div className="mx-auto w-full max-w-[1240px] p-5">
+    <div
+      className="mx-auto w-full max-w-[1240px] p-5"
+      onDragOver={
+        desktop
+          ? undefined
+          : (e) => {
+              e.preventDefault();
+              setDropActive(true);
+            }
+      }
+      onDragLeave={() => {
+        if (!desktop) setDropActive(false);
+      }}
+      onDrop={onWebDrop}
+    >
       <div className="flex flex-wrap items-center gap-3">
         <div>
           <div className="flex items-center gap-2">
@@ -621,17 +751,8 @@ export default function ConverterPage() {
         </div>
       </div>
 
-      {/* Dropzone */}
+      {/* Dropzone (visual; page-level handlers do the work so drops never miss) */}
       <div
-        onDragOver={(e) => {
-          if (desktop) return;
-          e.preventDefault();
-          setDropActive(true);
-        }}
-        onDragLeave={() => {
-          if (!desktop) setDropActive(false);
-        }}
-        onDrop={onWebDrop}
         className={clsx(
           "mt-4 rounded-lg border border-dashed p-6 text-center transition-colors",
           dropActive ? "border-[#2f7cf6] bg-[#2f7cf6]/10" : "border-[#2c2c31] bg-[#1c1c1f]",
@@ -640,7 +761,7 @@ export default function ConverterPage() {
         <div className="text-[13px] font-semibold text-white">Drop images anywhere on this page</div>
         <div className="mt-1 text-[11px] text-[#6e6e78]">
           {desktop
-            ? "or use Add files. PNG, JPG, WebP, BMP, TIFF, GIF, TGA, ICO, PNM, QOI."
+            ? "or use Add files. PNG, JPG, WebP, BMP, TIFF, GIF, PSD, TGA, ICO, PNM, QOI."
             : "or use Add files. PNG, JPG, WebP, BMP, TIFF, GIF, TGA, ICO, PNM, QOI accepted, converted to PNG, JPG or WebP."}
         </div>
       </div>
@@ -744,19 +865,36 @@ export default function ConverterPage() {
           <div className="space-y-4 rounded-lg border border-[#2c2c31] bg-[#1c1c1f] p-4">
             <div>
               <div className="avero-micro mb-1.5">Target format</div>
-              <div className="flex flex-wrap gap-1.5">
-                {OUTPUT_FORMATS.map((f) => {
-                  const available = (FORMATS as readonly string[]).includes(f);
+              <div className="grid grid-cols-2 gap-1.5">
+                {FORMAT_CARDS.map((c) => {
+                  const available = !c.desktopOnly || desktop;
+                  const active = settings.target === c.id;
                   return (
-                    <Pill
-                      key={f}
-                      active={settings.target === f}
+                    <button
+                      key={c.id}
                       disabled={!available}
-                      title={available ? `Convert to ${f.toUpperCase()}` : `${f.toUpperCase()} needs the desktop app`}
-                      onClick={() => useConvertStore.getState().setSettings({ target: f })}
+                      title={available ? `Convert to ${c.id.toUpperCase()}` : `${c.id.toUpperCase()} needs the desktop app`}
+                      onClick={() => useConvertStore.getState().setSettings({ target: c.id })}
+                      className={clsx(
+                        "rounded-md border px-2 py-1.5 disabled:opacity-40",
+                        active
+                          ? "border-[#2f7cf6] bg-[#2f7cf6] text-white"
+                          : "border-[#2c2c31] bg-[#101012] text-[#a7a7b0] hover:border-[#3a3a41] hover:text-white",
+                      )}
                     >
-                      {f.toUpperCase()}
-                    </Pill>
+                      <span className="flex items-center justify-between">
+                        <span className="font-mono text-[11px] font-bold">{c.id.toUpperCase()}</span>
+                        <span
+                          className={clsx(
+                            "rounded px-1 py-px font-mono text-[8px] font-bold",
+                            c.badge === "LOSSLESS" ? "bg-[#7ad69e]/15 text-[#7ad69e]" : "bg-[#d9a441]/15 text-[#d9a441]",
+                          )}
+                        >
+                          {c.badge}
+                        </span>
+                      </span>
+                      <span className="mt-0.5 block text-left text-[10px] leading-tight opacity-70">{c.note}</span>
+                    </button>
                   );
                 })}
               </div>
@@ -955,9 +1093,45 @@ export default function ConverterPage() {
                   )}
                 </>
               ) : (
-                <div className="rounded border border-[#2c2c31] bg-[#101012] px-2.5 py-2 font-mono text-[10px] text-[#a7a7b0]">
-                  Downloads folder (browser)
-                </div>
+                <>
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="min-w-0 flex-1 truncate rounded border border-[#2c2c31] bg-[#101012] px-2.5 py-2 font-mono text-[10px] text-[#a7a7b0]"
+                      title={webDirName ?? "Converted files download through the browser"}
+                    >
+                      {webDirName ?? "Browser downloads"}
+                    </div>
+                    <button
+                      onClick={chooseWebDir}
+                      disabled={!supportsSaveFolder()}
+                      title={supportsSaveFolder() ? "Save straight into a local folder" : "Folder access needs Chrome or Edge"}
+                      className="flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-[#2c2c31] bg-[#232327] px-3 text-[12px] text-white hover:border-[#3a3a41] disabled:opacity-40"
+                    >
+                      <FolderOpen size={13} /> Save folder
+                    </button>
+                  </div>
+                  {webDirName ? (
+                    <button
+                      onClick={() => {
+                        webDir.current = null;
+                        setWebDirName(null);
+                        setWebDirError(false);
+                      }}
+                      className="mt-1 font-mono text-[10px] text-[#6e6e78] hover:text-white"
+                    >
+                      Back to browser downloads
+                    </button>
+                  ) : (
+                    <div className="mt-1 text-[10.5px] text-[#6e6e78]">
+                      {supportsSaveFolder()
+                        ? "Pick a folder once and converted files land there for real."
+                        : "This browser cannot grant folder access, results stay as downloads."}
+                    </div>
+                  )}
+                  {webDirError && (
+                    <div className="mt-1 text-[10.5px] text-[#f0883e]">Save folder unreachable, using downloads instead.</div>
+                  )}
+                </>
               )}
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <label>
@@ -979,7 +1153,7 @@ export default function ConverterPage() {
                   />
                 </label>
               </div>
-              {desktop && (
+              {(desktop || webDirName) && (
                 <div className="mt-2">
                   <div className="avero-micro mb-1">If file exists</div>
                   <div className="flex gap-1.5">
@@ -994,6 +1168,11 @@ export default function ConverterPage() {
               {previewOut && (
                 <div className="mt-2 truncate rounded border border-[#2c2c31] bg-[#101012] px-2.5 py-2 font-mono text-[10px] text-[#6e6e78]" title={previewOut}>
                   e.g. {previewOut}
+                </div>
+              )}
+              {estimate && (
+                <div className="mt-2 rounded border border-[#2f7cf6]/40 bg-[#2f7cf6]/10 px-2.5 py-2 font-mono text-[10px] text-[#8fb6f5]">
+                  Output estimate: {estimate}
                 </div>
               )}
             </div>

@@ -1,16 +1,21 @@
 import { describe, it, expect } from "vitest";
 import {
+  FORMAT_CARDS,
   baseOf,
   buildOutputPath,
   computeTargetSize,
   defaultSuffix,
   extOf,
   formatBytes,
+  groupBy,
+  effTargetOf,
   isInputSupported,
   needsMatte,
   parentOf,
+  resizeInputFromSettings,
   usesQuality,
 } from "./convert";
+import { WEB_FORMATS, isWebInputSupported } from "./convertWeb";
 
 describe("convert path helpers", () => {
   it("reads extensions case-insensitively", () => {
@@ -87,5 +92,55 @@ describe("computeTargetSize (mirrors Rust)", () => {
 
   it("never enlarges when asked", () => {
     expect(computeTargetSize(100, 80, { mode: "percent", percent: 400 }, true)).toEqual({ w: 100, h: 80 });
+  });
+});
+
+describe("groupBy + effTargetOf", () => {
+  it("groups rows by effective target and falls back safely", () => {
+    const jobs = [
+      { target: "jpg" },
+      { target: "png" },
+      { target: "jpg" },
+      { target: "tiff" },
+    ];
+    const groups = groupBy(jobs, (j) => effTargetOf(j.target, ["png", "jpg", "webp"]));
+    expect(groups.get("jpg")).toHaveLength(2);
+    expect(groups.get("png")).toHaveLength(2);
+    expect(effTargetOf("tiff", ["png", "jpg", "webp"])).toBe("png");
+    expect(effTargetOf("tiff", ["png", "jpg", "webp", "tiff"])).toBe("tiff");
+  });
+});
+
+describe("converter coverage", () => {
+  it("accepts PSD input on desktop engines", () => {
+    expect(isInputSupported("design.psd")).toBe(true);
+  });
+
+  it("keeps PSD out of the web decoder list", () => {
+    expect(isWebInputSupported("design.psd")).toBe(false);
+    expect(isWebInputSupported("photo.jpg")).toBe(true);
+    expect(WEB_FORMATS).toEqual(["png", "jpg", "webp"]);
+  });
+
+  it("maps settings to a resize input", () => {
+    const r = resizeInputFromSettings({
+      resizeMode: "exact",
+      longEdge: 1920,
+      exactW: "800",
+      exactH: "600",
+      fit: "fill",
+      percent: "100",
+      preset: 1920,
+    });
+    expect(r).toMatchObject({ mode: "exact", width: 800, height: 600, fit: "fill" });
+  });
+
+  it("documents every output format with a card", () => {
+    expect(FORMAT_CARDS.map((c) => c.id).sort()).toEqual(
+      ["bmp", "jpg", "png", "qoi", "tga", "tiff", "webp"],
+    );
+    for (const c of FORMAT_CARDS) {
+      expect(c.note.length).toBeGreaterThan(0);
+    }
   });
 });

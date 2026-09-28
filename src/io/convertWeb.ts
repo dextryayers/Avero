@@ -1,11 +1,108 @@
 import { computeTargetSize, type ResizeInput } from "./convert";
 
+// File System Access folder picker is outside the TS DOM lib, declare it once.
+declare global {
+  interface Window {
+    showDirectoryPicker?: (opts?: { mode?: "read" | "readwrite" }) => Promise<FileSystemDirectoryHandle>;
+  }
+}
+
 // Browser-native converter engine for web preview mode (no Tauri backend).
 // Covers PNG/JPG/WebP through Canvas2D with high-quality smoothing.
 // Desktop mode keeps using the Rust engine with all 7 formats.
 
 export type WebFormat = "png" | "jpg" | "webp";
 export const WEB_FORMATS: WebFormat[] = ["png", "jpg", "webp"];
+
+/** Canvas decoders cannot read Photoshop files, so PSD stays desktop-only. */
+export const WEB_INPUT_EXTS = [
+  "png",
+  "jpg",
+  "jpeg",
+  "webp",
+  "bmp",
+  "tiff",
+  "tif",
+  "gif",
+  "tga",
+  "ico",
+  "pnm",
+  "pbm",
+  "pgm",
+  "ppm",
+  "pam",
+  "qoi",
+];
+
+export function isWebInputSupported(name: string): boolean {
+  const i = name.lastIndexOf(".");
+  const ext = i >= 0 ? name.slice(i + 1).toLowerCase() : "";
+  return WEB_INPUT_EXTS.includes(ext);
+}
+
+/** True when the browser can write real files into a chosen local folder. */
+export function supportsSaveFolder(): boolean {
+  return typeof window !== "undefined" && typeof window.showDirectoryPicker === "function";
+}
+
+export async function pickSaveDirectory(): Promise<{ handle: FileSystemDirectoryHandle; name: string } | null> {
+  const pick = window.showDirectoryPicker;
+  if (typeof pick !== "function") return null;
+  try {
+    const handle = await pick.call(window, { mode: "readwrite" });
+    return { handle, name: handle.name || "chosen folder" };
+  } catch {
+    return null; // dismissed or denied
+  }
+}
+
+/**
+ * Write a blob into a local folder handle.
+ * Returns the final filename, or null when skipped by policy.
+ */
+export async function writeBlobToDir(
+  dir: FileSystemDirectoryHandle,
+  filename: string,
+  blob: Blob,
+  overwrite: "overwrite" | "skip" | "rename",
+): Promise<string | null> {
+  const exists = async (name: string): Promise<boolean> => {
+    try {
+      await dir.getFileHandle(name, { create: false });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  let finalName = filename;
+  if (await exists(finalName)) {
+    if (overwrite === "skip") return null;
+    if (overwrite === "rename") {
+      const dot = filename.lastIndexOf(".");
+      const base = dot > 0 ? filename.slice(0, dot) : filename;
+      const ext = dot > 0 ? filename.slice(dot) : "";
+      let done = false;
+      for (let n = 2; n <= 99; n++) {
+        const c = `${base} - ${n}${ext}`;
+        if (!(await exists(c))) {
+          finalName = c;
+          done = true;
+          break;
+        }
+      }
+      if (!done) finalName = `${base} - ${Date.now().toString(36)}${ext}`;
+    }
+  }
+  try {
+    const fh = await dir.getFileHandle(finalName, { create: true });
+    const w = await fh.createWritable();
+    await w.write(blob);
+    await w.close();
+    return finalName;
+  } catch (e) {
+    throw new Error(`Could not write ${finalName}: ${String(e)}`);
+  }
+}
 
 export interface WebConvertOptions {
   format: WebFormat;

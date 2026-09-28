@@ -26,7 +26,7 @@ use tauri::{AppHandle, Emitter};
 /// Extensions accepted as converter input (lowercase, without dot).
 pub const INPUT_EXTS: &[&str] = &[
     "png", "jpg", "jpeg", "webp", "bmp", "tiff", "tif", "gif", "tga", "ico", "pnm", "pbm",
-    "pgm", "ppm", "pam", "qoi",
+    "pgm", "ppm", "pam", "qoi", "psd",
 ];
 
 /// Output formats offered by the converter UI.
@@ -64,6 +64,16 @@ pub fn cmd_probe_image(path: String) -> Result<ProbeResult, String> {
     let meta = std::fs::metadata(&path).map_err(|e| format!("Cannot read file: {e}"))?;
     if meta.len() > 512 * 1024 * 1024 {
         return Err("File exceeds 512MB probe limit".into());
+    }
+    if ext_of(&path) == "psd" {
+        let raw = std::fs::read(&path).map_err(|e| format!("Cannot read file: {e}"))?;
+        let psd = psd::Psd::from_bytes(&raw).map_err(|e| format!("PSD parse error: {e:?}"))?;
+        return Ok(ProbeResult {
+            width: psd.width(),
+            height: psd.height(),
+            format: "psd".into(),
+            file_size: meta.len(),
+        });
     }
     let reader = ImageReader::open(&path).map_err(|e| format!("Cannot open image: {e}"))?;
     let reader = reader
@@ -316,6 +326,26 @@ pub struct ConvertReport {
     pub bytes: u64,
 }
 
+/// Rasterize a PSD file to PNG bytes via the PSD engine (flattened composite).
+fn psd_to_png_bytes(raw: &[u8]) -> Result<Vec<u8>, String> {
+    if raw.is_empty() {
+        return Err("Empty PSD file".into());
+    }
+    let psd = psd::Psd::from_bytes(raw).map_err(|e| format!("PSD parse error: {e:?}"))?;
+    let (w, h) = (psd.width(), psd.height());
+    if w == 0 || h == 0 || w > 16384 || h > 16384 {
+        return Err("PSD dimensions out of range".into());
+    }
+    let rgba = psd
+        .flatten_layers_rgba(&|(_, _)| true)
+        .map_err(|e| format!("PSD rasterize error: {e:?}"))?;
+    let mut buf = Vec::new();
+    PngEncoder::new_with_quality(&mut buf, CompressionType::Fast, PngFilter::NoFilter)
+        .write_image(&rgba, w, h, ExtendedColorType::Rgba8)
+        .map_err(|e| format!("PSD raster encode failed: {e}"))?;
+    Ok(buf)
+}
+
 /// Convert one file with full options. Creates the output folder on demand.
 #[tauri::command]
 pub fn cmd_convert_image(
@@ -326,7 +356,12 @@ pub fn cmd_convert_image(
     if !input_supported(&input) {
         return Err(format!("Input format not supported: {input}"));
     }
-    let bytes = std::fs::read(&input).map_err(|e| format!("Cannot read input: {e}"))?;
+    let raw = std::fs::read(&input).map_err(|e| format!("Cannot read input: {e}"))?;
+    let bytes = if ext_of(&input) == "psd" {
+        psd_to_png_bytes(&raw)?
+    } else {
+        raw
+    };
     let (encoded, w, h) = convert_bytes(&bytes, &options)?;
     if let Some(parent) = std::path::Path::new(&output).parent() {
         if !parent.as_os_str().is_empty() {
@@ -389,7 +424,13 @@ fn convert_one_job(input: &str, output: &str, options: &ConvertOptions) -> Resul
     if !input_supported(input) {
         return Err(format!("Input format not supported: {input}"));
     }
-    let bytes = std::fs::read(input).map_err(|e| format!("Cannot read input: {e}"))?;
+    let raw = std::fs::read(input).map_err(|e| format!("Cannot read input: {e}"))?;
+    // Photoshop files rasterize through the PSD engine first, then convert.
+    let bytes = if ext_of(input) == "psd" {
+        psd_to_png_bytes(&raw)?
+    } else {
+        raw
+    };
     let (encoded, w, h) = convert_bytes(&bytes, options)?;
     if let Some(parent) = std::path::Path::new(output).parent() {
         if !parent.as_os_str().is_empty() {
@@ -561,6 +602,65 @@ mod tests {
             assert!(out.len() > 16, "empty output for {f}");
             assert_eq!((w, h), (16, 16));
         }
+    }
+
+    #[test]
+    fn every_format_decodes_back_with_same_dims() {
+        // Proves each encoder writes a real file in its own format.
+        // TGA carries no magic bytes, so it decodes with an explicit format.
+        use image::ImageFormat as F;
+        let src = test_rgba(48, 32);
+        for f in OUTPUT_FORMATS {
+            let (out, w, h) = convert_bytes(&src, &opts(f)).unwrap();
+            let back = if *f == "tga" {
+                image::load_from_memory_with_format(&out, F::Tga)
+            } else {
+                image::load_from_memory(&out)
+            }
+            .unwrap_or_else(|_| panic!("cannot decode our own {f} output"));
+            assert_eq!((back.width(), back.height()), (w, h), "dims drift for {f}");
+            assert_eq!((w, h), (48, 32));
+        }
+    }
+
+    #[test]
+    fn jpeg_quality_changes_file_size() {
+        // Gradient-heavy image so quality levels cannot tie.
+        let img = DynamicImage::ImageRgba8(image::RgbaImage::from_fn(128, 128, |x, y| {
+            image::Rgba([x as u8, y as u8, ((x + y) % 256) as u8, 255])
+        }));
+        let mut src = Vec::new();
+        PngEncoder::new_with_quality(&mut src, CompressionType::Fast, PngFilter::NoFilter)
+            .write_image(img.as_bytes(), 128, 128, ExtendedColorType::Rgba8)
+            .unwrap();
+        let mut low = opts("jpg");
+        low.quality = Some(10);
+        let mut high = opts("jpg");
+        high.quality = Some(95);
+        let (lo, _, _) = convert_bytes(&src, &low).unwrap();
+        let (hi, _, _) = convert_bytes(&src, &high).unwrap();
+        assert!(lo.len() < hi.len(), "quality 10 ({}) should beat quality 95 ({})", lo.len(), hi.len());
+    }
+
+    #[test]
+    fn fill_resize_crops_to_exact_box() {
+        let src = test_rgba(64, 64);
+        let mut o = opts("png");
+        o.resize = Some(ResizeSpec {
+            mode: "exact".into(),
+            width: Some(100),
+            height: Some(50),
+            fit: "fill".into(),
+            ..Default::default()
+        });
+        let (_, w, h) = convert_bytes(&src, &o).unwrap();
+        assert_eq!((w, h), (100, 50));
+    }
+
+    #[test]
+    fn psd_garbage_fails_cleanly() {
+        assert!(psd_to_png_bytes(&[]).is_err());
+        assert!(psd_to_png_bytes(b"not a photoshop file at all.............").is_err());
     }
 
     #[test]

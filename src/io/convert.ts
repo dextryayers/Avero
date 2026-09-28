@@ -19,10 +19,22 @@ export const INPUT_EXTS = [
   "ppm",
   "pam",
   "qoi",
+  "psd",
 ];
 
 export const OUTPUT_FORMATS = ["png", "jpg", "webp", "bmp", "tiff", "tga", "qoi"] as const;
 export type OutputFormat = (typeof OUTPUT_FORMATS)[number];
+
+/** Format cards for the settings panel: badge + one-line pro guidance. */
+export const FORMAT_CARDS: { id: OutputFormat; badge: "LOSSLESS" | "LOSSY"; note: string; desktopOnly: boolean }[] = [
+  { id: "png", badge: "LOSSLESS", note: "Graphics and transparency kept", desktopOnly: false },
+  { id: "jpg", badge: "LOSSY", note: "Photos, adjustable quality", desktopOnly: false },
+  { id: "webp", badge: "LOSSLESS", note: "Modern and compact", desktopOnly: false },
+  { id: "bmp", badge: "LOSSLESS", note: "Uncompressed, very large", desktopOnly: true },
+  { id: "tiff", badge: "LOSSLESS", note: "Print and archive", desktopOnly: true },
+  { id: "tga", badge: "LOSSLESS", note: "Game and video assets", desktopOnly: true },
+  { id: "qoi", badge: "LOSSLESS", note: "Fast and simple", desktopOnly: true },
+];
 
 export const RESIZE_FILTERS = ["lanczos", "catmull", "triangle", "gaussian", "nearest"] as const;
 
@@ -88,6 +100,23 @@ export function defaultSuffix(inputPath: string, target: string): string {
   return extOf(inputPath) === target.toLowerCase() ? "-converted" : "";
 }
 
+/** Group items by a derived key (used to run one backend batch per target format). */
+export function groupBy<T>(items: T[], key: (t: T) => string): Map<string, T[]> {
+  const groups = new Map<string, T[]>();
+  for (const item of items) {
+    const k = key(item);
+    const arr = groups.get(k);
+    if (arr) arr.push(item);
+    else groups.set(k, [item]);
+  }
+  return groups;
+}
+
+/** Effective target clamped to the formats available in this runtime. */
+export function effTargetOf(target: string, available: readonly string[]): string {
+  return available.includes(target) ? target : "png";
+}
+
 export function formatBytes(n: number | null): string {
   if (n === null || !Number.isFinite(n)) return "-";
   if (n < 1024) return `${n} B`;
@@ -103,6 +132,27 @@ export interface ResizeInput {
   fit?: string;
   percent?: number;
   preset?: number;
+}
+
+/** Build a ResizeInput from converter settings (single source of truth for previews). */
+export function resizeInputFromSettings(s: {
+  resizeMode: string;
+  longEdge: number;
+  exactW: string;
+  exactH: string;
+  fit: string;
+  percent: string;
+  preset: number;
+}): ResizeInput {
+  return {
+    mode: s.resizeMode,
+    long_edge: Math.max(16, Math.min(16384, Math.round(s.longEdge) || 1920)),
+    width: Math.max(1, Math.min(16384, parseInt(s.exactW) || 1920)),
+    height: Math.max(1, Math.min(16384, parseInt(s.exactH) || 1080)),
+    fit: s.fit,
+    percent: Math.max(1, Math.min(800, parseFloat(s.percent) || 100)),
+    preset: s.preset,
+  };
 }
 
 /** Mirror of the Rust target_size math so the web engine and UI agree. */
@@ -213,6 +263,12 @@ export interface BatchSummary {
 }
 
 export async function probeImage(path: string): Promise<ProbeResult> {
+  // Photoshop files rasterize through the Tauri image backend.
+  if (extOf(path) === "psd") {
+    const { rustImageInfo } = await import("./tauriIo");
+    const info = await rustImageInfo(path);
+    return { width: info.width, height: info.height, format: "psd", file_size: info.file_size };
+  }
   return invoke<ProbeResult>("cmd_probe_image", { path });
 }
 

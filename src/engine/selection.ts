@@ -117,106 +117,112 @@ export function hasSelection(): boolean {
   }
 }
 
-export function drawRectSelection(w: number, h: number, r: RectSel) {
-  stashCurrent();
-  const c = ensureSel(w, h);
-  const ctx = c.getContext("2d")!;
-  ctx.clearRect(0, 0, w, h);
-  ctx.fillStyle = "rgba(255,255,255,1)";
-  const x = Math.min(r.x, r.x + r.w);
-  const y = Math.min(r.y, r.y + r.h);
-  ctx.fillRect(x, y, Math.abs(r.w), Math.abs(r.h));
-  markSelectionDirty();
-}
+export type SelCombineMode = "new" | "add" | "subtract" | "intersect";
 
-export function drawEllipseSelection(w: number, h: number, r: RectSel) {
+function withMode(w: number, h: number, mode: SelCombineMode, paint: (g: CanvasRenderingContext2D) => void) {
   stashCurrent();
   const c = ensureSel(w, h);
-  const ctx = c.getContext("2d")!;
-  ctx.clearRect(0, 0, w, h);
-  ctx.fillStyle = "rgba(255,255,255,1)";
-  ctx.beginPath();
-  ctx.ellipse(
-    Math.min(r.x, r.x + r.w) + Math.abs(r.w) / 2,
-    Math.min(r.y, r.y + r.h) + Math.abs(r.h) / 2,
-    Math.abs(r.w) / 2,
-    Math.abs(r.h) / 2,
-    0,
-    0,
-    Math.PI * 2,
-  );
-  ctx.fill();
-  markSelectionDirty();
-}
-
-export function drawRoundedRectSelection(w: number, h: number, r: RectSel, radius = 24) {
-  stashCurrent();
-  const c = ensureSel(w, h);
-  const ctx = c.getContext("2d")!;
-  ctx.clearRect(0, 0, w, h);
-  const x = Math.min(r.x, r.x + r.w);
-  const y = Math.min(r.y, r.y + r.h);
-  const rw = Math.abs(r.w);
-  const rh = Math.abs(r.h);
-  const rr = Math.max(0, Math.min(radius, rw / 2, rh / 2));
-  ctx.fillStyle = "rgba(255,255,255,1)";
-  ctx.beginPath();
-  ctx.moveTo(x + rr, y);
-  ctx.lineTo(x + rw - rr, y);
-  ctx.quadraticCurveTo(x + rw, y, x + rw, y + rr);
-  ctx.lineTo(x + rw, y + rh - rr);
-  ctx.quadraticCurveTo(x + rw, y + rh, x + rw - rr, y + rh);
-  ctx.lineTo(x + rr, y + rh);
-  ctx.quadraticCurveTo(x, y + rh, x, y + rh - rr);
-  ctx.lineTo(x, y + rr);
-  ctx.quadraticCurveTo(x, y, x + rr, y);
-  ctx.closePath();
-  ctx.fill();
-  markSelectionDirty();
-}
-
-export function drawLassoSelection(w: number, h: number, points: { x: number; y: number }[]) {
-  stashCurrent();
-  const c = ensureSel(w, h);
-  const ctx = c.getContext("2d")!;
-  ctx.clearRect(0, 0, w, h);
-  if (points.length < 3) {
+  if (mode === "new") {
+    const ctx = c.getContext("2d")!;
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = "rgba(255,255,255,1)";
+    paint(ctx);
     markSelectionDirty();
     return;
   }
-  ctx.fillStyle = "rgba(255,255,255,1)";
-  ctx.beginPath();
-  ctx.moveTo(points[0].x, points[0].y);
-  for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
-  ctx.closePath();
-  ctx.fill();
+  const tmp = document.createElement("canvas");
+  tmp.width = w;
+  tmp.height = h;
+  const t = tmp.getContext("2d")!;
+  t.fillStyle = "rgba(255,255,255,1)";
+  paint(t);
+  const ctx = c.getContext("2d")!;
+  ctx.save();
+  ctx.globalCompositeOperation =
+    mode === "add" ? "source-over" : mode === "subtract" ? "destination-out" : "destination-in";
+  ctx.drawImage(tmp, 0, 0);
+  ctx.restore();
   markSelectionDirty();
 }
 
+export function drawRectSelection(w: number, h: number, r: RectSel, mode: SelCombineMode = "new") {
+  withMode(w, h, mode, (ctx) => {
+    const x = Math.min(r.x, r.x + r.w);
+    const y = Math.min(r.y, r.y + r.h);
+    ctx.fillRect(x, y, Math.abs(r.w), Math.abs(r.h));
+  });
+}
+
+export function drawEllipseSelection(w: number, h: number, r: RectSel, mode: SelCombineMode = "new") {
+  withMode(w, h, mode, (ctx) => {
+    ctx.beginPath();
+    ctx.ellipse(
+      Math.min(r.x, r.x + r.w) + Math.abs(r.w) / 2,
+      Math.min(r.y, r.y + r.h) + Math.abs(r.h) / 2,
+      Math.abs(r.w) / 2,
+      Math.abs(r.h) / 2,
+      0,
+      0,
+      Math.PI * 2,
+    );
+    ctx.fill();
+  });
+}
+
+export function drawRoundedRectSelection(w: number, h: number, r: RectSel, radius = 24, mode: SelCombineMode = "new") {
+  withMode(w, h, mode, (ctx) => {
+    const x = Math.min(r.x, r.x + r.w);
+    const y = Math.min(r.y, r.y + r.h);
+    const rw = Math.abs(r.w);
+    const rh = Math.abs(r.h);
+    const rr = Math.max(0, Math.min(radius, rw / 2, rh / 2));
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.lineTo(x + rw - rr, y);
+    ctx.quadraticCurveTo(x + rw, y, x + rw, y + rr);
+    ctx.lineTo(x + rw, y + rh - rr);
+    ctx.quadraticCurveTo(x + rw, y + rh, x + rw - rr, y + rh);
+    ctx.lineTo(x + rr, y + rh);
+    ctx.quadraticCurveTo(x, y + rh, x, y + rh - rr);
+    ctx.lineTo(x, y + rr);
+    ctx.quadraticCurveTo(x, y, x + rr, y);
+    ctx.closePath();
+    ctx.fill();
+  });
+}
+
+export function drawLassoSelection(w: number, h: number, points: { x: number; y: number }[], mode: SelCombineMode = "new") {
+  withMode(w, h, mode, (ctx) => {
+    if (points.length < 3) return;
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
+    ctx.closePath();
+    ctx.fill();
+  });
+}
+
 // Color Range: select ALL pixels similar to a hex color (global, not flood).
-export function colorRangeSelection(w: number, h: number, img: ImageData, hex: string, tolerance: number) {
-  stashCurrent();
-  const c = ensureSel(w, h);
-  const ctx = c.getContext("2d")!;
-  ctx.clearRect(0, 0, w, h);
+export function colorRangeSelection(w: number, h: number, img: ImageData, hex: string, tolerance: number, mode: SelCombineMode = "new") {
   const r0 = parseInt(hex.slice(1, 3), 16);
   const g0 = parseInt(hex.slice(3, 5), 16);
   const b0 = parseInt(hex.slice(5, 7), 16);
   const tol = Math.round((tolerance / 100) * 160);
   const data = img.data;
-  const out = ctx.createImageData(w, h);
-  for (let p = 0; p < w * h; p++) {
-    const idx = p * 4;
-    const dist = (Math.abs(data[idx] - r0) + Math.abs(data[idx + 1] - g0) + Math.abs(data[idx + 2] - b0)) / 3;
-    if (dist <= tol) {
-      out.data[idx] = 255;
-      out.data[idx + 1] = 255;
-      out.data[idx + 2] = 255;
-      out.data[idx + 3] = 255;
+  withMode(w, h, mode, (g) => {
+    const out = g.createImageData(w, h);
+    for (let p = 0; p < w * h; p++) {
+      const idx = p * 4;
+      const dist = (Math.abs(data[idx] - r0) + Math.abs(data[idx + 1] - g0) + Math.abs(data[idx + 2] - b0)) / 3;
+      if (dist <= tol) {
+        out.data[idx] = 255;
+        out.data[idx + 1] = 255;
+        out.data[idx + 2] = 255;
+        out.data[idx + 3] = 255;
+      }
     }
-  }
-  ctx.putImageData(out, 0, 0);
-  markSelectionDirty();
+    g.putImageData(out, 0, 0);
+  });
 }
 
 // Magic wand: flood fill on composite ImageData with tolerance.
@@ -227,11 +233,8 @@ export function wandFromImage(
   sx: number,
   sy: number,
   tolerance: number,
+  mode: SelCombineMode = "new",
 ) {
-  stashCurrent();
-  const c = ensureSel(w, h);
-  const ctx = c.getContext("2d")!;
-  ctx.clearRect(0, 0, w, h);
   const ix = Math.floor(sx);
   const iy = Math.floor(sy);
   if (ix < 0 || iy < 0 || ix >= w || iy >= h) return;
@@ -242,11 +245,11 @@ export function wandFromImage(
   const bb = data[baseIdx + 2];
   const tol = Math.round((tolerance / 100) * 120);
   const visited = new Uint8Array(w * h);
-  const out = ctx.createImageData(w, h);
   const stack: number[] = [iy * w + ix];
   visited[iy * w + ix] = 1;
   let count = 0;
   const maxVisit = 600000; // cap to avoid freezing on huge files
+  const alpha = new Uint8Array(w * h);
   while (stack.length > 0 && count < maxVisit) {
     const p = stack.pop()!;
     const px = p % w;
@@ -257,10 +260,7 @@ export function wandFromImage(
     const db = Math.abs(data[idx + 2] - bb);
     const dist = (dr + dg + db) / 3;
     if (dist <= tol) {
-      out.data[idx + 3] = 255;
-      out.data[idx] = 255;
-      out.data[idx + 1] = 255;
-      out.data[idx + 2] = 255;
+      alpha[p] = 255;
       count++;
       if (px > 0 && !visited[p - 1]) {
         visited[p - 1] = 1;
@@ -280,8 +280,18 @@ export function wandFromImage(
       }
     }
   }
-  ctx.putImageData(out, 0, 0);
-  markSelectionDirty();
+  withMode(w, h, mode, (g) => {
+    const out = g.createImageData(w, h);
+    for (let p = 0; p < w * h; p++) {
+      if (!alpha[p]) continue;
+      const idx = p * 4;
+      out.data[idx] = 255;
+      out.data[idx + 1] = 255;
+      out.data[idx + 2] = 255;
+      out.data[idx + 3] = 255;
+    }
+    g.putImageData(out, 0, 0);
+  });
 }
 
 export function featherSelection(feather: number) {

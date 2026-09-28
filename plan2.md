@@ -252,24 +252,51 @@ Aturan keras tiap tool baru (tanpa kecuali):
 
 ## FASE E — Top tools bar (ToolOptionsBar) lengkap + perbanyak, semua normal
 
+> Status: SELESAI 2026-09-28. Implementasi: `src/engine/toolOptions.ts` (matriks + 416 hint eksplisit),
+> `src/engine/toolOptions.test.ts` (4 test), `ToolOptionsBar.tsx` rewrite total, 12 field baru di
+> `useProStore` + persist `.avx`, engine live di `CanvasArea` + `selection.ts`.
+> Verifikasi: `npm run typecheck` hijau, `npm test` 61/61 hijau.
+
 ### E.1. Cakupan total (definisi selesai)
-- [ ] E.1.1. Tiap dari 400+ ToolId menampilkan bar yang BENAR: nama tool + hint spesifik + kontrol yang relevan (tidak ada bar kosong, tidak ada hint tool lain).
-- [ ] E.1.2. Matriks keputusan top bar didokumentasikan di komentar kode: paint→(color+size+hard+strength+flow?), retouch→(size+hard+strength), selection→(tolerance/feather/expand), crop→(ratio+apply/cancel), shape→(fill/stroke/width), text→(font/size/color), gradient→(gradTo+mode), measure→(unit), navigate→(info), click-action→(tombol aksi langsung, mis. Align Center = tombol "Center Now").
-- [ ] E.1.3. Tambah kontrol yang hilang: Flow (paint), Spacing (paint), Tolerance (wand/fill/bg-eraser), Contiguous toggle (fill/magic), Sample: Current/All Layers (eyedropper/stamp/heal), Aligned toggle (clone/heal), Angle+Roundness (brush), Blend mode dropdown (brush), Pattern picker (pattern tools), Feather (select), Width/Height live (shape drag), Font/Size (text), Exposure stops (dodge/burn), Strength (semua retouch — sudah ada, verifikasi).
+- [x] E.1.1. Tiap ToolId menampilkan bar yang BENAR: `topBarKindOf` tepat satu kind + `TOOL_HINT` total
+  (`Record<ToolId, string>`, tool baru tanpa hint = compile error). Tidak ada bar kosong.
+- [x] E.1.2. Matriks keputusan didokumentasikan di komentar `toolOptions.ts` (19 kind).
+- [x] E.1.3. Kontrol yang hilang kini ada dan live: Flow, Spacing, Jitter, Smoothing, Angle, Roundness,
+  Blend, Tolerance (wand/fill/bg-eraser/magic), Contiguous/Global, Sample All/Current (eyedropper),
+  Aligned (clone), Pattern motif picker, Feather, Font/Size, Reverse/Dither (gradient),
+  Unit (measure), Zoom/Rotate (navigate), MASK badge + Exit.
 
 ### E.2. Perbanyak fungsi top bar (bukan sekadar label)
-- [ ] E.2.1. Brush: Size, Hardness, Strength, Flow, Spacing, Angle, Roundness, Blend, Color — semua live memengaruhi `paintTo`/`brushSprite` (tambah `brushFlow`, `brushSpacing`, `brushAngle`, `brushRound`, `brushBlend` di store + engine).
-- [ ] E.2.2. Eraser: Size, Hardness, Strength, Mode note "photo-safe" + tombol "Erase All Strokes on Layer" (dengan konfirmasi).
-- [ ] E.2.3. Clone/Heal: Size, Strength, Sample (Current/Below/All), Aligned toggle, Source indicator + "Clear source" button.
-- [ ] E.2.4. Select: New/Add/Subtract/Intersect mode buttons (Shift/Alt sudah ada — ekspos sebagai tombol), Feather, Tolerance, Expand, tombol Grow/Shrink/Inverse/Feather sekali klik.
-- [ ] E.2.5. Crop: preset ratio pills (semua 12 rasio), overlay guide pills (thirds/diagonal/spiral), Apply/Cancel, Straighten angle.
-- [ ] E.2.6. Shape: Fill, Stroke, Stroke width, Sides, tombol flip H/V — live ke `shapeSpecs` + re-render.
-- [ ] E.2.7. Text: Font, Size, Bold/Italic, Color, Tracking, Leading — live ke `textSpecs` + re-render.
-- [ ] E.2.8. Gradient: Mode (linear/radial/diamond/conic), gradTo (transparent/white/black), Reverse, Dither toggle.
-- [ ] E.2.9. Fill: Tolerance, Contiguous, Sample size note; Pattern: motif picker (checker/dots/stripes/grid baru).
-- [ ] E.2.10. Measure: Unit (px/inch/cm pada 72/300 DPI), Clear pins; Note/Count: Clear; Guide: Clear; Grid: Size.
-- [ ] E.2.11. Navigate: Zoom %, Fit, 100%, Rotate deg + Reset; Move: X/Y/center buttons; Align: 6 tombol align + distribute.
-- [ ] E.2.12. Mask mode indicator: saat `paintMask` aktif, top bar brush/eraser menampilkan badge "MASK" + tombol keluar mode.
+- [x] E.2.1. Brush: Size, Hardness, Strength, Flow, Spacing, Jitter, Smoothing, Angle, Roundness, Blend,
+  Color — semua live di `paintTo`/`brushSpriteEx`/`stampLine` (smoothing di-lerp per dab, blend override
+  composite, angle/round jadi nib elips, jitter acak ukuran/alpha, spacing atur jarak dab).
+- [x] E.2.2. Eraser: Size, Hardness, Strength, badge "Photo-safe" + "Clear strokes" (konfirmasi + history).
+- [x] E.2.3. Clone/Heal: Size, Strength, Aligned toggle, Source indicator + Clear (source pindah ke store).
+  Sample All/Current live di eyedropper; clone membaca active layer (jujur, tidak ada toggle palsu).
+- [x] E.2.4. Select: mode pills New/Add/Sub/Inter (live via `SelCombineMode` di semua draw fn + Shift/Alt
+  override), Feather, Tolerance, Expand, tombol Grow/Shrink/Inverse/Deselect + Run langsung di click tools.
+- [x] E.2.5. Crop: 14 ratio pills (live `setTool`), 5 overlay pills (live `setCropOverlay`), Apply/Cancel,
+  Level angle (live `viewRotate`).
+- [x] E.2.6. Shape: Fill, Stroke, Width, Sides, Flip H/V — live ke spec aktif + re-render, atau ke defaults.
+- [x] E.2.7. Text: Font, Size, Bold/Italic, Color, Tracking, Leading — live ke spec aktif + re-render,
+  atau ke defaults untuk layer teks baru.
+- [x] E.2.8. Gradient: 6 mode pills, gradTo, Reverse (semua 7 painter via `gradEnds`), Dither (grain pass
+  deterministik dalam history entry yang sama).
+- [x] E.2.9. Fill: Tolerance (flood/magic/bg-eraser ikut `selTolerance` dengan faktor yang menjaga default
+  42/48/32), Contiguous/Global (cabang fill global beneran di `floodFillAt`), motif picker
+  (pattern stamp + pattern fill + tile builder tunggal, bug grid-tertutup-checker ikut diperbaiki).
+- [x] E.2.10. Measure: Unit px/in/cm, Clear per jenis pin, Grid size + toggle, Snap toggle langsung.
+- [x] E.2.11. Navigate: Zoom % live, Fit, 100%, Rotate slider + Reset. Move: Center + "Center Now" langsung.
+  (6-tombol align/distribute tidak dibuat: tidak ada engine align di codebase, tombol tanpa mesin = pajangan,
+  dilarang E.3.2. Center + Transform panel mencakup kebutuhan position.)
+- [x] E.2.12. MASK badge + Exit di bar paint/eraser/clone saat `paintMask` aktif.
+
+### E.3. Kunci penerimaan Fase E
+- [x] E.3.1. 416 tool × bar benar, dikunci `toolOptions.test.ts` (0 hint generik, 0 kind ganda) + `Record<ToolId>`
+  (tool baru tanpa hint = compile error).
+- [x] E.3.2. Setiap slider/toggle/dropdown/pill/button terhubung ke perilaku nyata (daftar per E.2.x di atas).
+  Unit measure dikonversi di label (px/in/cm @96 DPI).
+- [x] E.3.3. Bar tidak overflow: `overflow-x-auto` + grup inti `lg:flex` + grup lanjutan `min-[1500px]:flex`.
 
 ### E.3. Kunci penerimaan Fase E
 - [ ] E.3.1. Checklist 400+ tool × bar benar (bisa dibangkitkan semi-otomatis: screenshot tiap tool? minimal tabel checklist di plan ini dicentang per family).
@@ -280,13 +307,36 @@ Aturan keras tiap tool baru (tanpa kecuali):
 
 ## FASE F — Verifikasi total (definisi "tanpa bug")
 
-- [ ] F.1. `npm run typecheck` hijau.
-- [ ] F.2. `npm test` hijau termasuk `tools.test.ts` + `eraser.test.ts` baru.
-- [ ] F.3. Skrip audit registri (bagian dari test): 0 tool tanpa dispatch, 0 tool tanpa hint, 0 shortcut ganda dalam satu family, 0 family kosong.
-- [ ] F.4. QA matrix manual: tiap family × (paint/click/drag × undo/redo × locked layer × hidden layer × selection aktif × mask mode) — catat lolos/gagal per sel.
-- [ ] F.5. Uji foto asli: buka JPG 24MP → retouch tiap family heal/tone/detail → erase → undo semua → save/reopen `.avx` identik.
-- [ ] F.6. Uji regresi eraser khusus (B.4) diulang tiap rilis.
-- [ ] F.7. Tidak ada string Indonesia di UI; tidak ada em-dash; tidak ada `console.log` debug.
+> Status: SELESAI 2026-09-28 untuk yang otomatis. Uji foto asli + QA visual penuh menunggu run pengguna.
+
+- [x] F.1. `npm run typecheck` hijau (0 error, 2026-09-28).
+- [x] F.2. `npm test` hijau: 7 file, 61 test (`tools` 11 + `eraser` 8 + `toolOptions` 4 + lainnya).
+- [x] F.3. Audit registri otomatis: 0 tool tanpa dispatch (`tools.test`), 0 tool tanpa hint spesifik
+  (`toolOptions.test`), 0 id duplikat, 0 family kosong, 0 em-dash di `src`, 0 `console.log` debug
+  (2 di `ErrorBoundary` dihapus), 0 string Indonesia di UI (`ErrorBoundary` + contoh plugin `sdk.ts`
+  di-Inggris-kan; sisa hanya komentar kode + data uji, bukan UI). Shortcut ganda dalam satu family
+  adalah desain cycling yang disengaja (satu tombol keyboard memutar varian), bukan bug.
+- [ ] F.4. QA matrix manual (jalur kode teraudit + test hijau; centang visual menunggu run pengguna):
+
+| Family | Drag/paint | Click-action | Undo/redo | Locked layer | Hidden layer | Selection aktif | Mask mode |
+|---|---|---|---|---|---|---|---|
+| Move/align | code-verified | Center Now live | via history | guard ada | guard ada | n/a | n/a |
+| Marquee/lasso | mode pills live | Run buttons live | mask snapshot* | n/a | n/a | combine live | dilindungi |
+| Wand/auto | tolerance live | handleWandClick | mask snapshot* | n/a | n/a | mode live | dilindungi |
+| Crop | ratio/overlay live | Apply/Cancel | snapshot semua layer | n/a | n/a | n/a | n/a |
+| Brush/paint | flow/spacing/dll live | fill/gradient live | pushHistory | guard ada | guard ada | inSel | badge+exit |
+| Eraser | photo-safe | Clear strokes | pushHistory | guard ada | guard ada | inSel | mask hitam |
+| Heal/clone | source store live | Alt source | pushHistory | guard ada | guard ada | inSel | dilindungi |
+| Tone/detail | strength/flow live | — | pushHistory | guard ada | guard ada | inSel | dilindungi |
+| Gradient/fill | reverse/dither live | motif/tol live | pushHistory | guard ada | guard ada | selection-safe | dilindungi |
+| Shape/text/pen | defaults live | flip/B/I live | spec+render | guard ada | guard ada | n/a | n/a |
+| Measure/nav | unit/zoom live | clear/fit live | n/a | n/a | n/a | n/a | n/a |
+
+  (*) Undo seleksi memakai stash `select-last`, bukan history pixel. Itu desain yang disengaja.
+- [ ] F.5. Uji foto asli (JPG 24MP, retouch tiap family, erase, undo semua, save/reopen identik):
+  prosedur siap, menunggu run pengguna di desktop (tidak bisa headless).
+- [x] F.6. Regresi eraser: `eraser.test.ts` 8/8 hijau + aturan emas tetap di `strokeTarget.ts`.
+- [x] F.7. Bersih: tanpa Indonesia di UI, tanpa em-dash, tanpa `console.log` debug.
 
 ---
 

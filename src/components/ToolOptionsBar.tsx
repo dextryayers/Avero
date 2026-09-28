@@ -1,13 +1,33 @@
 import { useEditorStore } from "../stores/useEditorStore";
 import { useProStore } from "../stores/useProStore";
 import { TOOL_LABEL } from "./ToolBar";
-import { IS_CROP_TOOL, IS_SHAPE_TOOL, distortOf, isPaintTool, retouchModeOf } from "../engine/toolPresets";
+import { layerManager } from "../engine/layerManager";
+import { renderShapeToLayer, renderTextToLayer } from "../engine/textShape";
+import {
+  clearSelectionMask,
+  expandContractSelection,
+  featherSelection,
+  hasSelection,
+  inverseSelection,
+} from "../engine/selection";
+import {
+  BRUSH_BLENDS,
+  CROP_OVERLAY_PILLS,
+  CROP_RATIO_PILLS,
+  GRADIENT_MODE_PILLS,
+  MEASURE_UNITS,
+  PATTERN_MOTIFS,
+  SEL_MODES,
+  TOOL_HINT,
+  TEXT_FONTS,
+  topBarKindOf,
+} from "../engine/toolOptions";
 
 const BAR =
-  "pointer-events-auto absolute left-1/2 top-3 z-30 flex max-w-[94%] -translate-x-1/2 items-center gap-2.5 rounded-md border border-[#2c2c31] bg-[#1c1c1f] px-3 py-2 text-[11px] text-[#a7a7b0]";
+  "pointer-events-auto absolute left-1/2 top-3 z-30 flex max-w-[94%] -translate-x-1/2 items-center gap-2.5 overflow-x-auto whitespace-nowrap rounded-md border border-[#2c2c31] bg-[#1c1c1f] px-3 py-2 text-[11px] text-[#a7a7b0] [scrollbar-width:thin]";
 
 function Hint({ children }: { children: React.ReactNode }) {
-  return <span className="truncate text-[#c9c9d1]">{children}</span>;
+  return <span className="min-w-0 shrink truncate text-[#c9c9d1]">{children}</span>;
 }
 
 function Slider({ label, value, min, max, onChange, suffix = "" }: { label: string; value: number; min: number; max: number; onChange: (v: number) => void; suffix?: string }) {
@@ -15,7 +35,7 @@ function Slider({ label, value, min, max, onChange, suffix = "" }: { label: stri
     <label className="flex shrink-0 items-center gap-1.5 text-[#6e6e78]">
       {label}
       <input type="range" min={min} max={max} value={value} onChange={(e) => onChange(Number(e.target.value))} className="h-1 w-16 accent-[#2f7cf6]" />
-      <span className="w-8 font-mono text-white tabular-nums">
+      <span className="w-10 font-mono text-white tabular-nums">
         {value}
         {suffix}
       </span>
@@ -23,7 +43,122 @@ function Slider({ label, value, min, max, onChange, suffix = "" }: { label: stri
   );
 }
 
+function Pills<T extends string>({ options, value, onPick }: { options: readonly { id: T; label: string }[] | readonly T[]; value: T; onPick: (v: T) => void }) {
+  return (
+    <span className="flex shrink-0 items-center gap-1">
+      {(options as readonly { id: T; label: string }[]).map((o) => {
+        const id = (typeof o === "string" ? o : o.id) as T;
+        const label = typeof o === "string" ? o : o.label;
+        return (
+          <button
+            key={id}
+            onClick={() => onPick(id)}
+            className={`shrink-0 rounded-md px-2 py-1 transition-colors ${value === id ? "bg-[#2f7cf6] text-white" : "bg-[#232327] text-[#a7a7b0] hover:text-white"}`}
+          >
+            {label}
+          </button>
+        );
+      })}
+    </span>
+  );
+}
+
+function Toggle({ label, on, onClick, title }: { label: string; on: boolean; onClick: () => void; title?: string }) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className={`shrink-0 rounded-md px-2 py-1 transition-colors ${on ? "bg-[#2f7cf6] text-white" : "bg-[#232327] text-[#a7a7b0] hover:text-white"}`}
+    >
+      {label}
+    </button>
+  );
+}
+
+function Action({ label, onClick, title, primary }: { label: string; onClick: () => void; title?: string; primary?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className={`shrink-0 rounded-md px-2.5 py-1 font-semibold transition-colors ${primary ? "bg-[#2f7cf6] text-white hover:bg-[#2563d4]" : "bg-[#232327] text-white hover:bg-[#2c2c31]"}`}
+    >
+      {label}
+    </button>
+  );
+}
+
+function ColorChip({ value, onChange, title }: { value: string; onChange: (v: string) => void; title: string }) {
+  return (
+    <label className="flex shrink-0 cursor-pointer items-center gap-1.5" title={title}>
+      <input
+        type="color"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-5 w-8 cursor-pointer rounded border border-[#2c2c31] bg-transparent"
+      />
+      <span className="font-mono uppercase text-white tabular-nums">{value}</span>
+    </label>
+  );
+}
+
+function Name({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="shrink-0 rounded-md bg-[#2f7cf6] px-2 py-0.5 font-semibold text-white">{children}</span>
+  );
+}
+
+// Patch the active shape spec live (re-render included). Falls back to the
+// shape defaults when no shape layer is active, so the control always works.
+function patchShape(patch: Record<string, string | number>) {
+  const ed = useEditorStore.getState();
+  const pro = useProStore.getState();
+  const id = ed.activeLayerId;
+  const cur = id ? pro.shapeSpecs[id] : undefined;
+  if (id && cur) {
+    const next = { ...cur, ...patch };
+    pro.setShapeSpec(id, next);
+    const c = layerManager.get(id);
+    if (c) renderShapeToLayer(c, next);
+    ed.markDirty();
+    return;
+  }
+  const d: Record<string, string | number> = {};
+  if (typeof patch.fill === "string") d.fill = patch.fill;
+  if (typeof patch.stroke === "string") d.stroke = patch.stroke;
+  if (typeof patch.strokeWidth === "number") d.strokeWidth = patch.strokeWidth;
+  pro.setShapeDefaults(d);
+}
+
+// Same live pattern for text: active text layer re-renders, otherwise the
+// defaults for the next text layer update.
+function patchText(patch: Record<string, string | number | boolean>) {
+  const ed = useEditorStore.getState();
+  const pro = useProStore.getState();
+  const id = ed.activeLayerId;
+  const cur = id ? pro.textSpecs[id] : undefined;
+  if (id && cur) {
+    const next = { ...cur, ...patch };
+    pro.setTextSpec(id, next);
+    const c = layerManager.get(id);
+    if (c) renderTextToLayer(c, next);
+    ed.markDirty();
+    return;
+  }
+  const d: Record<string, string | number | boolean> = {};
+  for (const k of ["fontFamily", "fontSize", "color", "bold", "italic", "tracking", "leading"] as const) {
+    if (patch[k] !== undefined) (d as Record<string, unknown>)[k] = patch[k];
+  }
+  pro.setTextDefaults(d);
+}
+
+function refreshSelection() {
+  useEditorStore.getState().markDirty();
+  useProStore.getState().bumpHistogram();
+  window.dispatchEvent(new Event("avero:selection-changed"));
+}
+
 // Contextual options bar: always visible above canvas for the active tool.
+// Every control below is wired to a live store or engine action.
 export default function ToolOptionsBar({
   onApplyCrop,
   onCancelCrop,
@@ -32,330 +167,232 @@ export default function ToolOptionsBar({
   onCancelCrop: () => void;
 }) {
   const tool = useEditorStore((s) => s.tool);
+  const setTool = useEditorStore((s) => s.setTool);
   const brushSize = useEditorStore((s) => s.brushSize);
   const brushOpacity = useEditorStore((s) => s.brushOpacity);
   const brushHardness = useEditorStore((s) => s.brushHardness);
   const brushColor = useEditorStore((s) => s.brushColor);
+  const brushFlow = useEditorStore((s) => s.brushFlow);
+  const brushSpacing = useEditorStore((s) => s.brushSpacing);
+  const brushJitter = useEditorStore((s) => s.brushJitter);
+  const brushSmoothing = useEditorStore((s) => s.brushSmoothing);
+  const brushAngle = useEditorStore((s) => s.brushAngle);
+  const brushRound = useEditorStore((s) => s.brushRound);
+  const brushBlend = useEditorStore((s) => s.brushBlend);
   const setBrush = useEditorStore((s) => s.setBrush);
+  const zoom = useEditorStore((s) => s.zoom);
+  const setZoom = useEditorStore((s) => s.setZoom);
+  const viewRotate = useEditorStore((s) => s.viewRotate);
+  const setViewRotate = useEditorStore((s) => s.setViewRotate);
   const paintMask = useProStore((s) => s.paintMask);
+  const setPaintMask = useProStore((s) => s.setPaintMask);
   const gradTo = useProStore((s) => s.gradTo);
   const setGradTo = useProStore((s) => s.setGradTo);
+  const gradReverse = useProStore((s) => s.gradReverse);
+  const setGradReverse = useProStore((s) => s.setGradReverse);
+  const gradDither = useProStore((s) => s.gradDither);
+  const setGradDither = useProStore((s) => s.setGradDither);
+  const patternMotif = useProStore((s) => s.patternMotif);
+  const setPatternMotif = useProStore((s) => s.setPatternMotif);
+  const measureUnit = useProStore((s) => s.measureUnit);
+  const setMeasureUnit = useProStore((s) => s.setMeasureUnit);
+  const sampleMode = useProStore((s) => s.sampleMode);
+  const setSampleMode = useProStore((s) => s.setSampleMode);
+  const fillContiguous = useProStore((s) => s.fillContiguous);
+  const setFillContiguous = useProStore((s) => s.setFillContiguous);
+  const cloneAligned = useProStore((s) => s.cloneAligned);
+  const setCloneAligned = useProStore((s) => s.setCloneAligned);
+  const cloneSource = useProStore((s) => s.cloneSource);
+  const setCloneSource = useProStore((s) => s.setCloneSource);
+  const healSource = useProStore((s) => s.healSource);
+  const setHealSource = useProStore((s) => s.setHealSource);
+  const selMode = useProStore((s) => s.selMode);
+  const setSelMode = useProStore((s) => s.setSelMode);
   const selTolerance = useProStore((s) => s.selTolerance);
   const selFeather = useProStore((s) => s.selFeather);
+  const selExpand = useProStore((s) => s.selExpand);
   const setSelParams = useProStore((s) => s.setSelParams);
+  const cropOverlay = useProStore((s) => s.cropOverlay);
+  const setCropOverlay = useProStore((s) => s.setCropOverlay);
+  const gridSize = useProStore((s) => s.gridSize);
+  const setGridSize = useProStore((s) => s.setGridSize);
+  const toggleGrid = useProStore((s) => s.toggleGrid);
+  const showGrid = useProStore((s) => s.showGrid);
+  const snapEnabled = useProStore((s) => s.snapEnabled);
+  const toggleSnap = useProStore((s) => s.toggleSnap);
+  const textDefaults = useProStore((s) => s.textDefaults);
+  const shapeDefaults = useProStore((s) => s.shapeDefaults);
+  const activeLayerId = useEditorStore((s) => s.activeLayerId);
+  const shapeSpec = useProStore((s) => (activeLayerId ? s.shapeSpecs[activeLayerId] : undefined));
+  const textSpec = useProStore((s) => (activeLayerId ? s.textSpecs[activeLayerId] : undefined));
+
   const name = TOOL_LABEL[tool] ?? tool;
+  const kind = topBarKindOf(tool);
+  const hint = TOOL_HINT[tool] ?? "Use this tool on the canvas.";
 
-  const retouchHint: Partial<Record<string, string>> = {
-    "spot-heal": "Click or paint over blemishes. Press J to cycle heal tools.",
-    "healing-brush": "Alt-click to set source, then paint for precise healing.",
-    patch: "Drag source area onto target to patch.",
-    "content-move": "Drag object, background fills automatically.",
-    "content-fill": "Select area, click to fill with surrounding texture.",
-    "red-eye": "Click red eyes to correct.",
-    clone: "Alt-click sets source, then paint to clone.",
-    "clone-mirror": "Alt-click source, paint mirrored copy.",
-    "clone-rotate": "Alt-click source, paint 90deg rotated copy.",
-    "pattern-stamp": "Paint with the active pattern.",
-    "pattern-fill": "Click layer to fill with repeating pattern.",
-    "texture-stamp": "Paint grain weave texture.",
-    "history-brush": "Paint to restore from history state.",
-    "art-history-brush": "Paint stylized artistic history strokes.",
-    brush: "Free painting. Press B to cycle pencil / airbrush.",
-    pencil: "Hard edge, no anti-alias. Pixel precise.",
-    airbrush: "Soft spray. Hold to build up tone gradually.",
-    "soft-brush": "Extra soft blending brush.",
-    "overlay-brush": "Overlay blend contrast. Press B to cycle brushes.",
-    "color-replacement": "Replace target hue while keeping luminance.",
-    "mixer-brush": "Wet oil-paint color mixing.",
-    eraser: "Erase pixels or mask. Press E to cycle erasers.",
-    "background-eraser": "Erases only background colors near edge sample.",
-    "magic-eraser": "Click a flat area to erase it at once.",
-    "eraser-hard": "100% hard block eraser for pixel work.",
-    blur: "Paint to soften. Press R to cycle sharpen / smudge.",
-    "blur-iris": "Strong falloff blur for depth of field.",
-    sharpen: "Paint to sharpen local detail.",
-    "sharpen-edge": "Sharpens edges only, protects flat areas.",
-    smudge: "Click to pick color first, then drag.",
-    dodge: "Paint to lighten. Press O to cycle burn / sponge.",
-    burn: "Paint to darken.",
-    sponge: "Paint to adjust local saturation.",
-    "vibrance-brush": "Smart saturation, protects skin tones.",
-    liquify: "Drag to distort pixels locally.",
-    warp: "Drag grid to bend the area.",
-    "noise-reduction": "Paint to smooth noise while keeping edges.",
-    fill: "Click area to fill with brush color. Respects selection. G toggles gradient.",
-    "gradient-radial": "Drag outward from center for radial fill.",
-    pen: "Drag for free path. Press P to cycle curvature / line.",
-    "curvature-pen": "Drag for smooth S-curve path.",
-    line: "Drag for straight line. Shift locks 45 degrees.",
-    "select-polygon": "Click polygon points, double-click to close.",
-    "magnetic-lasso": "Drag around edges, auto snap + expand.",
-    "select-rounded": "Drag rounded-rectangle selection.",
-    "wand-plus": "Wand + auto-grow 2px.",
-    "wand-minus": "Wand + auto-shrink 2px.",
-    "select-grow": "Click to grow selection +4px.",
-    "select-shrink": "Click to shrink selection -4px.",
-    "quick-select": "Click subject to auto select + expand.",
-    "object-select": "Click subject to auto select + expand.",
-    "color-range": "Click a color to select it everywhere.",
-    "select-subject": "One click auto-selects the subject.",
-    "exposure-brush": "Paint to lift local exposure. Size and Strength apply.",
-    "warmth-brush": "Paint to warm local color.",
-    "fade-brush": "Paint for a soft matte fade.",
-    "contrast-brush": "Paint for local midtone contrast.",
-    "posterize-brush": "Paint for a four level graphic tone.",
-    "threshold-brush": "Paint for a black and white snap.",
-    "hue-brush": "Paint to rotate hue gently.",
-    "invert-brush": "Paint for a local invert blend.",
-    "desat-brush": "Paint to pull saturation out.",
-    "grain-brush": "Paint for fine film grain.",
-    "pixelate-brush": "Paint for a local mosaic.",
-    "vignette-brush": "Paint to darken dab edges.",
-    "light-highlights": "Lift only bright tones.",
-    "light-shadows": "Open only dark tones.",
-    "light-temp": "Warm/cool local white balance.",
-    "light-tint": "Green-magenta local tint.",
-    "light-clarity": "Midtone local contrast.",
-    "light-dehaze": "Cut haze, deepen blacks.",
-    "light-saturate": "Boost local saturation.",
-    "light-levels": "Stretch local levels.",
-    "detail-grain-remove": "Smooth grain preserving edges.",
-    "detail-sharpen-more": "Stronger edge sharpen.",
-    "detail-blur-more": "Extra strong soften.",
-    "detail-tilt": "Miniature tilt blur falloff.",
-    "detail-lens": "Creamy circular lens blur.",
-    "detail-motion": "Directional motion streak.",
-    "heal-dust": "Tiny dust spot heal.",
-    "heal-wrinkle": "Gentle wrinkle soften.",
-    "heal-blemish": "Stronger blemish blend.",
-    "heal-sky": "Wide soft sky clean.",
-    "heal-skin": "Edge-safe skin smooth.",
-    "heal-object": "Content erase for objects.",
-    "sketch-charcoal": "Grainy charcoal, multiply blend.",
-    "sketch-pastel": "Soft pastel with scatter.",
-    "sketch-marker": "Flat saturated marker.",
-    "sketch-highlighter": "Translucent highlight glaze.",
-    "sketch-ink": "Crisp ink line.",
-    "sketch-felt": "Soft felt tip.",
-    "sketch-neon": "Additive glow stroke.",
-    "sketch-chalk": "Dusty chalk scatter.",
-    "art-oil": "Thick oil with wet mix.",
-    "art-watercolor": "Translucent wash.",
-    "art-knife": "Flat knife scrape.",
-    "art-smear": "Finger smear.",
-    "art-glaze": "Thin glaze.",
-    "art-impasto": "Heavy impasto punch.",
-    "art-canvas": "Weave texture stamp.",
-    "art-poster": "Graphic posterize stroke.",
-    "distort-twirl": "Twirl clockwise. Paint to spin.",
-    "distort-twirl-ccw": "Twirl counter-clockwise.",
-    "distort-pinch": "Pull toward center.",
-    "distort-ripple": "Sine ripple displacement.",
-    "distort-wave": "Horizontal wave shift.",
-    "distort-zigzag": "Sharp zigzag offset.",
-    "distort-spherize": "Spherical bulge.",
-    "distort-crystal": "Faceted crystal blocks.",
-    "crop-169": "Crop locked 16:9. Enter applies.",
-    "crop-43": "Crop locked 4:3. Enter applies.",
-    "crop-11": "Square crop 1:1. Enter applies.",
-    "crop-32": "Crop locked 3:2. Enter applies.",
-    "crop-free": "Free crop. Enter applies.",
-    "crop-straighten": "Crop + auto-level (resets view rotate).",
-    "crop-219": "Crop locked 21:9 ultrawide. Enter applies.",
-    "crop-45": "Crop locked 4:5 portrait. Enter applies.",
-    "crop-916": "Crop locked 9:16 story. Enter applies.",
-    "crop-golden": "Crop golden 1.618. Enter applies.",
-    "select-square": "Drag square selection. Equal sides locked.",
-    "select-feather": "Click to feather selection 6px. Needs selection.",
-    "select-border": "Click to smooth and tighten border.",
-    "sky-select": "Click to select sky band top 62 percent.",
-    "background-select": "Click to select background tone from corners.",
-    "focus-select": "Click to select center focus ellipse.",
-    "move-auto": "Click object to auto-pick its layer, then drag to move.",
-    "transform-free": "Drag to move. Scale and rotate in Transform panel.",
-    "align-center": "Click canvas to center active layer.",
-    "brush-dry": "Dry bristle scatter. Manual texture strokes.",
-    "brush-wet": "Wet blend mix. Paint to blend canvas color.",
-    "brush-glitter": "Sparkle scatter additive glitter.",
-    "brush-smoke": "Extra soft smoke wash, large soft.",
-    "brush-fur": "Fibrous multiply fur texture.",
-    "brush-inkwash": "East-ink wash multiply glaze.",
-    "eraser-soft": "Extra soft zero-hardness manual erase.",
-    "eraser-block": "Pixel-block hard manual erase.",
-    "heal-freckle": "Tiny freckle dust clean.",
-    "heal-eye": "Gentle under-eye soften.",
-    "heal-teeth": "Edge-safe whiten smooth.",
-    "clone-soft": "Alt-click source, paint soft 60 percent clone.",
-    "pattern-dots": "Paint manual dots pattern.",
-    "dodge-high": "Lighten bright tones only.",
-    "burn-shadow": "Darken deep tones only.",
-    "sponge-sat": "Boost local saturation manually.",
-    "sponge-desat": "Mute local saturation manually.",
-    "blur-surface": "Smooth flat areas keep edges.",
-    "blur-field": "Creamy field falloff for backgrounds.",
-    "sharpen-clarity": "Midtone clarity sharpen.",
-    "denoise-strong": "Strong grain remove preserve edges.",
-    "fill-solid": "Click to fill whole layer solid color.",
-    "fill-clear": "Click to clear layer to transparent.",
-    "gradient-diamond": "Click for diagonal diamond blend.",
-    "pen-free": "Drag freehand thin ink line.",
-    "line-arrow": "Drag for line with arrow head.",
-    "text-3d": "Click for extruded 3D stack text.",
-    "text-neon": "Click for neon tube glow text.",
-    "text-gradient": "Click for diagonal gradient text.",
-    "shape-chevron": "Drag chevron arrow.",
-    "shape-moon": "Drag crescent moon.",
-    "shape-cross": "Drag cross badge.",
-    "shape-plus": "Drag plus sign.",
-    "shape-trapezoid": "Drag trapezoid.",
-    "sepia-brush": "Paint warm sepia tone manually.",
-    "bw-brush": "Paint clean black-white manually.",
-    "film-fade": "Paint lifted film matte manually.",
-    "split-tone": "Paint cool shadows warm highlights.",
-    "hdr-brush": "Paint punchy HDR micro-contrast.",
-    "shape-rounded": "Drag rounded rectangle.",
-    "shape-diamond": "Drag diamond.",
-    "shape-heart": "Drag heart.",
-    "shape-hexagon": "Drag hexagon.",
-    "shape-burst": "Drag 12-spike burst.",
-    "shape-donut": "Drag ring donut.",
-    "text-outline": "Click for hollow outline text.",
-    "text-glow": "Click for soft glow text.",
-    "text-shadow": "Click for drop-shadow text.",
-    "text-arc": "Click for arched banner text.",
-    "zoom-fit": "Click canvas to fit screen.",
-    "zoom-100": "Click for 100% actual pixels.",
-    "zoom-200": "Click for 200%.",
-    "zoom-400": "Click for 400% pixels.",
-    "zoom-50": "Click for 50% overview.",
-    "zoom-800": "Click for 800% pixel inspect.",
-    "rotate-reset": "Click canvas to reset view rotation to 0deg.",
-    "measure-angle": "Drag to measure angle.",
-    "measure-area": "Drag rect for W x H + area.",
-    "protractor": "Drag to measure angle with protractor label.",
-    "guide-clear": "Click canvas to clear all guides.",
-    "grid-toggle": "Click canvas to toggle grid on/off.",
-    "sampler-avg": "Click for 5x5 average pin.",
-    "snap-toggle": "Click to toggle snapping.",
-    frame: "Drag to create a placeholder frame.",
-    ruler: "Drag to measure distance and angle.",
-    note: "Click to pin a note.",
-    count: "Click to add a numbered marker.",
-    "color-sampler": "Click to pin a color readout.",
-    text: "Click canvas to start typing.",
-    "text-vertical": "Click canvas for vertical text.",
-    "shape-rect": "Drag for rectangle. Shift = square.",
-    "shape-ellipse": "Drag for ellipse. Shift = circle.",
-    "triangle-shape": "Drag for triangle.",
-    "shape-polygon": "Drag for polygon.",
-    "shape-line": "Drag for line shape.",
-    "shape-star": "Drag for 5-point star.",
-    "shape-arrow": "Drag for block arrow.",
-    "shape-custom": "Drag for custom shape.",
-    eyedropper: "Click canvas to pick a color.",
-    "select-lasso": "Free drag to select. Close to start point.",
-    "single-row": "Click to select 1px horizontal row.",
-    "single-column": "Click to select 1px vertical column.",
-    slice: "Drag to define an export slice.",
-    "slice-select": "Click slice to select, drag to move.",
-    artboard: "Drag to create an artboard.",
-    "path-select": "Auto-selects vector layer, drag to move whole path.",
-    "direct-select": "Drag left/right to rotate active shape.",
-    "rotate-view": "Drag left/right to rotate view. Double-click resets.",
-    zoom: "Click to zoom in, Alt-click to zoom out.",
-    "perspective-crop": "Drag area then corners for perspective.",
-  };
+  const maskBadge =
+    paintMask && (kind === "paint" || kind === "eraser" || kind === "clone") ? (
+      <span className="flex shrink-0 items-center gap-1.5 rounded-md border border-[#d9a441] px-2 py-0.5 font-semibold text-[#d9a441]">
+        MASK
+        <button onClick={() => setPaintMask(false)} className="text-white hover:underline" title="Exit mask paint mode">
+          Exit
+        </button>
+      </span>
+    ) : null;
 
-  const usesBrushSliders =
-    isPaintTool(tool) ||
-    retouchModeOf(tool) !== null ||
-    distortOf(tool) !== null ||
-    tool === "eraser" ||
-    tool === "eraser-hard" ||
-    tool === "eraser-soft" ||
-    tool === "eraser-block" ||
-    tool === "clone" ||
-    tool === "clone-mirror" ||
-    tool === "clone-rotate" ||
-    tool === "clone-soft" ||
-    tool === "spot-heal" ||
-    tool === "blur" ||
-    tool === "sharpen" ||
-    tool === "smudge" ||
-    tool === "dodge" ||
-    tool === "burn" ||
-    tool === "sponge" ||
-    tool === "healing-brush" ||
-    tool === "background-eraser" ||
-    tool === "magic-eraser" ||
-    tool === "history-brush" ||
-    tool === "art-history-brush" ||
-    tool === "pattern-stamp" ||
-    tool === "pattern-dots" ||
-    tool === "texture-stamp" ||
-    tool === "content-move" ||
-    tool === "content-fill" ||
-    tool === "patch" ||
-    tool === "red-eye" ||
-    tool === "liquify" ||
-    tool === "warp" ||
-    tool === "noise-reduction" ||
-    tool === "heal-freckle" ||
-    tool === "heal-eye" ||
-    tool === "heal-teeth" ||
-    tool === "dodge-high" ||
-    tool === "burn-shadow" ||
-    tool === "sponge-sat" ||
-    tool === "sponge-desat" ||
-    tool === "blur-surface" ||
-    tool === "blur-field" ||
-    tool === "sharpen-clarity" ||
-    tool === "denoise-strong" ||
-    tool === "sepia-brush" ||
-    tool === "bw-brush" ||
-    tool === "film-fade" ||
-    tool === "split-tone" ||
-    tool === "hdr-brush";
+  const brushSliders = (
+    <span className="hidden shrink-0 items-center gap-3 border-l border-[#2c2c31] pl-2.5 lg:flex">
+      <Slider label="Size" value={brushSize} min={1} max={300} onChange={(v) => setBrush({ size: v })} />
+      <Slider label="Hard" value={brushHardness} min={0} max={100} onChange={(v) => setBrush({ hardness: v })} suffix="%" />
+      <Slider label="Strength" value={brushOpacity} min={1} max={100} onChange={(v) => setBrush({ opacity: v })} suffix="%" />
+    </span>
+  );
 
-  if ((IS_CROP_TOOL as Set<string>).has(tool)) {
+  // ---- paint: full brush console, all live in the stroke engine ----
+  if (kind === "paint") {
     return (
       <div className={BAR}>
-        <span className="rounded-md bg-[#2f7cf6] px-2 py-0.5 font-semibold text-white">{name}</span>
-        <Hint>Drag area. Enter applies, Esc cancels.</Hint>
-        <button onClick={onApplyCrop} className="avero-btn-primary rounded-md px-2.5 py-1 font-semibold text-white">
-          Apply
-        </button>
-        <button onClick={onCancelCrop} className="rounded-md bg-[#232327] px-2.5 py-1 text-white hover:bg-[#2c2c31]">
-          Cancel
-        </button>
+        <Name>{name}</Name>
+        <Hint>{hint}</Hint>
+        {maskBadge}
+        <span className="flex shrink-0 items-center border-l border-[#2c2c31] pl-2.5">
+          <ColorChip value={brushColor} onChange={(v) => setBrush({ color: v })} title="Brush color, shared by paint, shape, text and fill tools" />
+        </span>
+        {brushSliders}
+        <span className="hidden shrink-0 items-center gap-3 border-l border-[#2c2c31] pl-2.5 lg:flex">
+          <Slider label="Flow" value={brushFlow} min={1} max={100} onChange={(v) => setBrush({ flow: v })} suffix="%" />
+          <Slider label="Spacing" value={brushSpacing} min={1} max={200} onChange={(v) => setBrush({ spacing: v })} suffix="%" />
+        </span>
+        <span className="hidden shrink-0 items-center gap-3 border-l border-[#2c2c31] pl-2.5 min-[1500px]:flex">
+          <Slider label="Jitter" value={brushJitter} min={0} max={100} onChange={(v) => setBrush({ jitter: v })} suffix="%" />
+          <Slider label="Smooth" value={brushSmoothing} min={0} max={100} onChange={(v) => setBrush({ smoothing: v })} suffix="%" />
+          <Slider label="Angle" value={brushAngle} min={-180} max={180} onChange={(v) => setBrush({ angle: v })} suffix="deg" />
+          <Slider label="Round" value={brushRound} min={1} max={100} onChange={(v) => setBrush({ round: v })} suffix="%" />
+          <label className="flex shrink-0 items-center gap-1.5 text-[#6e6e78]" title="Brush blend override. Normal uses each preset native blend.">
+            Blend
+            <select
+              value={brushBlend}
+              onChange={(e) => setBrush({ blend: e.target.value as GlobalCompositeOperation })}
+              className="rounded-md border border-[#2c2c31] bg-[#232327] px-1.5 py-1 text-white"
+            >
+              {BRUSH_BLENDS.map((b) => (
+                <option key={b.id} value={b.id}>{b.label}</option>
+              ))}
+            </select>
+          </label>
+        </span>
       </div>
     );
   }
 
-  if (tool === "gradient" || tool === "gradient-radial" || tool === "gradient-diamond" || tool === "fill" || tool === "fill-solid" || tool === "fill-clear") {
+  // ---- retouch: size, hardness, strength ----
+  if (kind === "retouch") {
     return (
       <div className={BAR}>
-        <span className="rounded-md bg-[#2f7cf6] px-2 py-0.5 font-semibold text-white">{name}</span>
-        <span className="shrink-0 text-[#6e6e78]">Fill to</span>
-        {(["transparent", "white", "black"] as const).map((g) => (
-          <button
-            key={g}
-            onClick={() => setGradTo(g)}
-            className={`rounded-md px-2 py-1 transition-colors ${gradTo === g ? "bg-[#2f7cf6] text-white" : "bg-[#232327] text-[#a7a7b0] hover:text-white"}`}
-          >
-            {g === "transparent" ? "Transparent" : g === "white" ? "White" : "Black"}
-          </button>
-        ))}
-        <Hint>Drag on canvas. G cycles modes.</Hint>
+        <Name>{name}</Name>
+        <Hint>{hint}</Hint>
+        {brushSliders}
       </div>
     );
   }
 
-  if (tool === "wand" || tool === "wand-plus" || tool === "wand-minus" || tool === "quick-select" || tool === "object-select" || tool === "color-range" || tool === "select-subject" || tool === "sky-select" || tool === "background-select" || tool === "focus-select") {
+  // ---- eraser: sliders plus photo-safe note plus clear action ----
+  if (kind === "eraser") {
     return (
       <div className={BAR}>
-        <span className="shrink-0 rounded-md bg-[#2f7cf6] px-2 py-0.5 font-semibold text-white">{name}</span>
-        <Hint>{retouchHint[tool] ?? "Click to auto select."}</Hint>
+        <Name>{name}</Name>
+        <Hint>{hint}</Hint>
+        {maskBadge}
+        <span className="hidden shrink-0 rounded-md border border-[#2f7cf6] px-2 py-0.5 text-[#7fb0ff] md:block" title="Erasers never touch photo pixels. They only lift paint strokes.">
+          Photo-safe
+        </span>
+        {brushSliders}
+        <span className="hidden shrink-0 border-l border-[#2c2c31] pl-2.5 lg:block">
+          <Action
+            label="Clear strokes"
+            title="Erase every stroke on the active layer (photos stay intact). Asks first."
+            onClick={() => {
+              const ed = useEditorStore.getState();
+              const id = ed.activeLayerId;
+              if (!id) return;
+              if (!window.confirm("Erase every stroke on the active layer? Photos stay intact. This can be undone.")) return;
+              const snap = layerManager.snapshot(id);
+              if (snap) ed.pushHistory({ label: "Clear strokes", layerId: id, snapshot: snap });
+              const c = layerManager.ensure(id, ed.doc.width, ed.doc.height);
+              c.getContext("2d")!.clearRect(0, 0, c.width, c.height);
+              ed.markDirty();
+              useProStore.getState().bumpHistogram();
+            }}
+          />
+        </span>
+      </div>
+    );
+  }
+
+  // ---- clone and heal: source workflow fully visible ----
+  if (kind === "clone") {
+    const needsHeal = tool === "healing-brush" || tool === "patch";
+    const src = needsHeal ? healSource : cloneSource;
+    return (
+      <div className={BAR}>
+        <Name>{name}</Name>
+        <Hint>{hint}</Hint>
+        {maskBadge}
+        <span className="hidden shrink-0 items-center gap-3 border-l border-[#2c2c31] pl-2.5 lg:flex">
+          <Slider label="Size" value={brushSize} min={1} max={300} onChange={(v) => setBrush({ size: v })} />
+          <Slider label="Strength" value={brushOpacity} min={1} max={100} onChange={(v) => setBrush({ opacity: v })} suffix="%" />
+        </span>
+        {!needsHeal && (
+          <span className="hidden shrink-0 border-l border-[#2c2c31] pl-2.5 md:block">
+            <Toggle label={cloneAligned ? "Aligned" : "Non-aligned"} on={cloneAligned} onClick={() => setCloneAligned(!cloneAligned)} title="Aligned keeps the source offset across strokes. Non-aligned restarts it every stroke." />
+          </span>
+        )}
+        <span className="hidden shrink-0 items-center gap-1.5 border-l border-[#2c2c31] pl-2.5 text-[#6e6e78] md:flex" title="Alt-click the canvas to move the source point.">
+          Source {src ? `${Math.round(src.x)}, ${Math.round(src.y)}` : "not set"}
+          {src && (
+            <button
+              onClick={() => (needsHeal ? setHealSource(null) : setCloneSource(null))}
+              className="rounded-md bg-[#232327] px-2 py-1 text-white hover:bg-[#2c2c31]"
+            >
+              Clear
+            </button>
+          )}
+        </span>
+      </div>
+    );
+  }
+
+  // ---- marquee and lasso: combine mode plus quick ops plus feather ----
+  if (kind === "select-marquee") {
+    return (
+      <div className={BAR}>
+        <Name>{name}</Name>
+        <Hint>{hint}</Hint>
+        <span className="flex shrink-0 items-center border-l border-[#2c2c31] pl-2.5">
+          <Pills options={SEL_MODES.map((m) => ({ id: m, label: m === "new" ? "New" : m === "add" ? "Add" : m === "subtract" ? "Sub" : "Inter" }))} value={selMode} onPick={setSelMode} />
+        </span>
+        <span className="hidden shrink-0 items-center gap-3 border-l border-[#2c2c31] pl-2.5 lg:flex">
+          <Slider label="Feather" value={selFeather} min={0} max={50} onChange={(v) => setSelParams({ selFeather: v })} suffix="px" />
+          <Slider label="Expand" value={selExpand} min={-24} max={24} onChange={(v) => setSelParams({ selExpand: v })} suffix="px" />
+        </span>
+        <span className="hidden shrink-0 items-center gap-1 border-l border-[#2c2c31] pl-2.5 md:flex">
+          <Action label="Grow" title="Switch to Grow, then click the canvas." onClick={() => setTool("select-grow")} />
+          <Action label="Shrink" title="Switch to Shrink, then click the canvas." onClick={() => setTool("select-shrink")} />
+          <Action label="Inverse" title="Switch to Invert, then click the canvas." onClick={() => setTool("select-inverse-click")} />
+        </span>
+      </div>
+    );
+  }
+
+  // ---- wand and auto select: tolerance plus feather plus mode ----
+  if (kind === "select-auto") {
+    return (
+      <div className={BAR}>
+        <Name>{name}</Name>
+        <Hint>{hint}</Hint>
+        <span className="flex shrink-0 items-center border-l border-[#2c2c31] pl-2.5">
+          <Pills options={SEL_MODES.map((m) => ({ id: m, label: m === "new" ? "New" : m === "add" ? "Add" : m === "subtract" ? "Sub" : "Inter" }))} value={selMode} onPick={setSelMode} />
+        </span>
         <span className="hidden shrink-0 items-center gap-3 border-l border-[#2c2c31] pl-2.5 lg:flex">
           <Slider label="Tolerance" value={selTolerance} min={1} max={100} onChange={(v) => setSelParams({ selTolerance: v })} />
           <Slider label="Feather" value={selFeather} min={0} max={50} onChange={(v) => setSelParams({ selFeather: v })} suffix="px" />
@@ -364,159 +401,445 @@ export default function ToolOptionsBar({
     );
   }
 
-  if (
-    tool === "select-rect" ||
-    tool === "select-ellipse" ||
-    tool === "select-polygon" ||
-    tool === "select-lasso" ||
-    tool === "select-rounded" ||
-    tool === "select-square" ||
-    tool === "magnetic-lasso"
-  ) {
+  // ---- one-click selection ops: run directly from the bar ----
+  if (kind === "select-click") {
+    const runMap: Record<string, { label: string; run: () => void }> = {
+      "select-grow": { label: "Grow +4px", run: () => expandContractSelection(4) },
+      "select-shrink": { label: "Shrink -4px", run: () => expandContractSelection(-4) },
+      "select-grow-2": { label: "Grow +2px", run: () => expandContractSelection(2) },
+      "select-grow-8": { label: "Grow +8px", run: () => expandContractSelection(8) },
+      "select-feather": { label: "Feather 6px", run: () => featherSelection(6) },
+      "select-feather-2": { label: "Feather 2px", run: () => featherSelection(2) },
+      "select-feather-4": { label: "Feather 4px", run: () => featherSelection(4) },
+      "select-feather-12": { label: "Feather 12px", run: () => featherSelection(12) },
+      "select-border": { label: "Smooth border", run: () => { expandContractSelection(-4); featherSelection(2); } },
+      "select-border-4": { label: "Border 4px", run: () => { expandContractSelection(-4); featherSelection(2); } },
+      "select-border-12": { label: "Border 12px", run: () => { expandContractSelection(-12); featherSelection(2); } },
+      "select-inverse-click": { label: "Invert now", run: () => inverseSelection() },
+      "select-last": {
+        label: "Restore now",
+        run: () => {
+          import("../engine/selection").then((m) => {
+            m.restoreLastSelection();
+            refreshSelection();
+          });
+        },
+      },
+    };
+    const action = runMap[tool as string];
     return (
       <div className={BAR}>
-        <span className="shrink-0 rounded-md bg-[#2f7cf6] px-2 py-0.5 font-semibold text-white">{name}</span>
-        <Hint>{retouchHint[tool] ?? "Drag to select. Shift adds, Alt subtracts."}</Hint>
-        <span className="hidden shrink-0 items-center gap-3 border-l border-[#2c2c31] pl-2.5 lg:flex">
-          <Slider label="Feather" value={selFeather} min={0} max={50} onChange={(v) => setSelParams({ selFeather: v })} suffix="px" />
+        <Name>{name}</Name>
+        <Hint>{hint}</Hint>
+        {action && (
+          <span className="shrink-0 border-l border-[#2c2c31] pl-2.5">
+            <Action
+              label={action.label}
+              primary
+              title={hasSelection() ? "Run this selection op right now." : "Needs a selection first. Drag a marquee or lasso."}
+              onClick={() => {
+                if (tool !== "select-last" && tool !== "select-inverse-click" && !hasSelection()) return;
+                action.run();
+                refreshSelection();
+              }}
+            />
+          </span>
+        )}
+        <span className="hidden shrink-0 border-l border-[#2c2c31] pl-2.5 md:block">
+          <Action label="Deselect" title="Clear the current selection." onClick={() => { clearSelectionMask(); refreshSelection(); }} />
         </span>
       </div>
     );
   }
 
-  const t = tool as string;
-  const needsColor =
-    isPaintTool(tool) ||
-    (IS_SHAPE_TOOL as Set<string>).has(tool) ||
-    t === "text" ||
-    t === "text-vertical" ||
-    t === "text-outline" ||
-    t === "text-glow" ||
-    t === "text-shadow" ||
-    t === "text-arc" ||
-    t === "text-3d" ||
-    t === "text-neon" ||
-    t === "text-gradient" ||
-    t === "fill" ||
-    t === "fill-solid" ||
-    t === "gradient" ||
-    t === "gradient-radial" ||
-    t === "gradient-diamond" ||
-    t === "pattern-stamp" ||
-    t === "pattern-dots" ||
-    t === "pattern-fill" ||
-    t === "texture-stamp" ||
-    t === "pen-free" ||
-    t === "line-arrow" ||
-    t === "eyedropper";
-
-  if (retouchHint[tool]) {
+  // ---- crop: ratio pills, overlay pills, apply, straighten ----
+  if (kind === "crop") {
     return (
       <div className={BAR}>
-        <span className="shrink-0 rounded-md bg-[#2f7cf6] px-2 py-0.5 font-semibold text-white">{name}</span>
-        <Hint>{retouchHint[tool]}</Hint>
-        {needsColor && (
-          <label
-            className="hidden shrink-0 cursor-pointer items-center gap-1.5 border-l border-[#2c2c31] pl-2.5 lg:flex"
-            title="Brush color, shared by paint, shape, text and fill tools"
-          >
-            <input
-              type="color"
-              value={brushColor}
-              onChange={(e) => setBrush({ color: e.target.value })}
-              className="h-5 w-8 cursor-pointer rounded border border-[#2c2c31] bg-transparent"
-            />
-            <span className="font-mono uppercase text-white tabular-nums">{brushColor}</span>
+        <Name>{name}</Name>
+        <Hint>{hint}</Hint>
+        <span className="flex shrink-0 items-center border-l border-[#2c2c31] pl-2.5">
+          <Pills options={CROP_RATIO_PILLS} value={tool as (typeof CROP_RATIO_PILLS)[number]["id"]} onPick={(v) => setTool(v)} />
+        </span>
+        <span className="hidden shrink-0 items-center gap-1 border-l border-[#2c2c31] pl-2.5 lg:flex">
+          {CROP_OVERLAY_PILLS.map((o) => (
+            <button
+              key={o.id}
+              onClick={() => setCropOverlay(o.id === "crop-thirds" ? "thirds" : o.id === "crop-diagonal" ? "diagonal" : o.id === "crop-triangle-guide" ? "triangle" : o.id === "crop-golden-spiral" ? "spiral" : "center")}
+              title={`Crop overlay: ${o.label}`}
+              className={`shrink-0 rounded-md px-2 py-1 transition-colors ${cropOverlay === (o.id === "crop-thirds" ? "thirds" : o.id === "crop-diagonal" ? "diagonal" : o.id === "crop-triangle-guide" ? "triangle" : o.id === "crop-golden-spiral" ? "spiral" : "center") ? "bg-[#2f7cf6] text-white" : "bg-[#232327] text-[#a7a7b0] hover:text-white"}`}
+            >
+              {o.label}
+            </button>
+          ))}
+        </span>
+        <span className="hidden shrink-0 items-center gap-3 border-l border-[#2c2c31] pl-2.5 md:flex">
+          <Slider label="Level" value={Math.round(viewRotate)} min={-45} max={45} onChange={(v) => setViewRotate(v)} suffix="deg" />
+        </span>
+        <span className="flex shrink-0 items-center gap-1.5 border-l border-[#2c2c31] pl-2.5">
+          <Action label="Apply" primary onClick={onApplyCrop} title="Apply crop (Enter)." />
+          <Action label="Cancel" onClick={onCancelCrop} title="Cancel crop (Esc)." />
+        </span>
+      </div>
+    );
+  }
+
+  // ---- crop overlay tools: pick a guide, jump back to crop ----
+  if (kind === "crop-overlay") {
+    return (
+      <div className={BAR}>
+        <Name>{name}</Name>
+        <Hint>{hint}</Hint>
+        <span className="flex shrink-0 items-center gap-1 border-l border-[#2c2c31] pl-2.5">
+          {CROP_OVERLAY_PILLS.map((o) => (
+            <button
+              key={o.id}
+              onClick={() => {
+                setCropOverlay(o.id === "crop-thirds" ? "thirds" : o.id === "crop-diagonal" ? "diagonal" : o.id === "crop-triangle-guide" ? "triangle" : o.id === "crop-golden-spiral" ? "spiral" : "center");
+                setTool("crop");
+              }}
+              className={`shrink-0 rounded-md px-2 py-1 transition-colors ${tool === o.id ? "bg-[#2f7cf6] text-white" : "bg-[#232327] text-[#a7a7b0] hover:text-white"}`}
+            >
+              {o.label}
+            </button>
+          ))}
+        </span>
+      </div>
+    );
+  }
+
+  // ---- shape: live fill, stroke, width, sides, flip ----
+  if (kind === "shape") {
+    const fill = shapeSpec?.fill ?? shapeDefaults.fill;
+    const stroke = shapeSpec?.stroke ?? shapeDefaults.stroke;
+    const width = shapeSpec?.strokeWidth ?? shapeDefaults.strokeWidth;
+    const sides = shapeSpec?.sides ?? 6;
+    return (
+      <div className={BAR}>
+        <Name>{name}</Name>
+        <Hint>{hint}</Hint>
+        <span className="flex shrink-0 items-center gap-2 border-l border-[#2c2c31] pl-2.5">
+          <ColorChip value={fill} onChange={(v) => patchShape({ fill: v })} title="Shape fill. Edits the active shape, or the default for the next one." />
+          <ColorChip value={stroke} onChange={(v) => patchShape({ stroke: v })} title="Shape stroke. Edits the active shape, or the default for the next one." />
+        </span>
+        <span className="hidden shrink-0 items-center gap-3 border-l border-[#2c2c31] pl-2.5 lg:flex">
+          <Slider label="Width" value={width} min={0} max={64} onChange={(v) => patchShape({ strokeWidth: v })} suffix="px" />
+          <Slider label="Sides" value={sides} min={3} max={12} onChange={(v) => patchShape({ sides: v })} />
+        </span>
+        <span className="hidden shrink-0 items-center gap-1 border-l border-[#2c2c31] pl-2.5 md:flex">
+          <Action
+            label="Flip H"
+            title="Mirror the active shape horizontally."
+            onClick={() => {
+              const ed = useEditorStore.getState();
+              const id = ed.activeLayerId;
+              if (!id) return;
+              const pro = useProStore.getState();
+              pro.ensureTransform(id);
+              const cur = pro.transforms[id] ?? { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 };
+              pro.updateTransform(id, { scaleX: cur.scaleX * -1 });
+              ed.markDirty();
+            }}
+          />
+          <Action
+            label="Flip V"
+            title="Mirror the active shape vertically."
+            onClick={() => {
+              const ed = useEditorStore.getState();
+              const id = ed.activeLayerId;
+              if (!id) return;
+              const pro = useProStore.getState();
+              pro.ensureTransform(id);
+              const cur = pro.transforms[id] ?? { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 };
+              pro.updateTransform(id, { scaleY: cur.scaleY * -1 });
+              ed.markDirty();
+            }}
+          />
+        </span>
+      </div>
+    );
+  }
+
+  // ---- text: live font controls for the active layer or the next one ----
+  if (kind === "text") {
+    const spec = textSpec ?? textDefaults;
+    return (
+      <div className={BAR}>
+        <Name>{name}</Name>
+        <Hint>{hint}</Hint>
+        <span className="flex shrink-0 items-center border-l border-[#2c2c31] pl-2.5">
+          <ColorChip value={spec.color} onChange={(v) => patchText({ color: v })} title="Text color. Edits the active text, or the default for the next one." />
+        </span>
+        <span className="hidden shrink-0 items-center gap-3 border-l border-[#2c2c31] pl-2.5 lg:flex">
+          <label className="flex shrink-0 items-center gap-1.5 text-[#6e6e78]" title="Font family.">
+            Font
+            <select
+              value={spec.fontFamily}
+              onChange={(e) => patchText({ fontFamily: e.target.value })}
+              className="max-w-28 rounded-md border border-[#2c2c31] bg-[#232327] px-1.5 py-1 text-white"
+            >
+              {TEXT_FONTS.map((f) => (
+                <option key={f} value={f}>{f}</option>
+              ))}
+            </select>
           </label>
-        )}
-        {usesBrushSliders && (
+          <Slider label="Size" value={spec.fontSize} min={8} max={240} onChange={(v) => patchText({ fontSize: v })} suffix="px" />
+        </span>
+        <span className="hidden shrink-0 items-center gap-1 border-l border-[#2c2c31] pl-2.5 md:flex">
+          <Toggle label="B" on={spec.bold} onClick={() => patchText({ bold: !spec.bold })} title="Bold." />
+          <Toggle label="I" on={spec.italic} onClick={() => patchText({ italic: !spec.italic })} title="Italic." />
+        </span>
+        <span className="hidden shrink-0 items-center gap-3 border-l border-[#2c2c31] pl-2.5 min-[1500px]:flex">
+          <Slider label="Track" value={spec.tracking} min={-20} max={60} onChange={(v) => patchText({ tracking: v })} />
+          <Slider label="Lead" value={Math.round(spec.leading * 100)} min={80} max={250} onChange={(v) => patchText({ leading: v / 100 })} suffix="%" />
+        </span>
+      </div>
+    );
+  }
+
+  // ---- pen: width plus color, both live ----
+  if (kind === "pen") {
+    return (
+      <div className={BAR}>
+        <Name>{name}</Name>
+        <Hint>{hint}</Hint>
+        <span className="flex shrink-0 items-center border-l border-[#2c2c31] pl-2.5">
+          <ColorChip value={brushColor} onChange={(v) => setBrush({ color: v })} title="Pen ink color." />
+        </span>
+        <span className="hidden shrink-0 items-center gap-3 border-l border-[#2c2c31] pl-2.5 lg:flex">
+          <Slider label="Width" value={brushSize} min={1} max={120} onChange={(v) => setBrush({ size: v })} suffix="px" />
+          <Slider label="Strength" value={brushOpacity} min={1} max={100} onChange={(v) => setBrush({ opacity: v })} suffix="%" />
+        </span>
+      </div>
+    );
+  }
+
+  // ---- gradient: mode pills, target, reverse, dither ----
+  if (kind === "gradient") {
+    return (
+      <div className={BAR}>
+        <Name>{name}</Name>
+        <Hint>{hint}</Hint>
+        <span className="flex shrink-0 items-center border-l border-[#2c2c31] pl-2.5">
+          <ColorChip value={brushColor} onChange={(v) => setBrush({ color: v })} title="Gradient foreground color." />
+        </span>
+        <span className="flex shrink-0 items-center border-l border-[#2c2c31] pl-2.5">
+          <Pills options={GRADIENT_MODE_PILLS} value={tool as (typeof GRADIENT_MODE_PILLS)[number]["id"]} onPick={(v) => setTool(v)} />
+        </span>
+        <span className="hidden shrink-0 items-center border-l border-[#2c2c31] pl-2.5 md:flex">
+          <Pills
+            options={[{ id: "transparent", label: "Transparent" }, { id: "white", label: "White" }, { id: "black", label: "Black" }] as const}
+            value={gradTo}
+            onPick={setGradTo}
+          />
+        </span>
+        <span className="hidden shrink-0 items-center gap-1 border-l border-[#2c2c31] pl-2.5 lg:flex">
+          <Toggle label="Reverse" on={gradReverse} onClick={() => setGradReverse(!gradReverse)} title="Swap gradient direction." />
+          <Toggle label="Dither" on={gradDither} onClick={() => setGradDither(!gradDither)} title="Anti-banding grain pass on every gradient." />
+        </span>
+      </div>
+    );
+  }
+
+  // ---- fill: color, tolerance, contiguity, motif ----
+  if (kind === "fill") {
+    const usesMotif = tool === "pattern-fill" || tool === "fill-pattern-new" || tool === "pattern-stamp" || tool === "pattern-dots";
+    const usesTol = tool === "fill" || tool === "bucket-contiguous" || tool === "bucket-global" || tool === "magic-eraser";
+    return (
+      <div className={BAR}>
+        <Name>{name}</Name>
+        <Hint>{hint}</Hint>
+        <span className="flex shrink-0 items-center border-l border-[#2c2c31] pl-2.5">
+          <ColorChip value={brushColor} onChange={(v) => setBrush({ color: v })} title="Fill color." />
+        </span>
+        {usesTol && (
           <span className="hidden shrink-0 items-center gap-3 border-l border-[#2c2c31] pl-2.5 lg:flex">
-            <Slider label="Size" value={brushSize} min={1} max={300} onChange={(v) => setBrush({ size: v })} />
-            <Slider label="Hard" value={brushHardness} min={0} max={100} onChange={(v) => setBrush({ hardness: v })} suffix="%" />
-            <Slider label="Strength" value={brushOpacity} min={1} max={100} onChange={(v) => setBrush({ opacity: v })} suffix="%" />
+            <Slider label="Tolerance" value={selTolerance} min={1} max={100} onChange={(v) => setSelParams({ selTolerance: v })} />
+            <Toggle label={fillContiguous ? "Connected" : "Global"} on={fillContiguous} onClick={() => setFillContiguous(!fillContiguous)} title="Connected fills neighbors only. Global fills every similar color." />
+          </span>
+        )}
+        {usesMotif && (
+          <span className="hidden shrink-0 items-center border-l border-[#2c2c31] pl-2.5 md:flex">
+            <Pills options={PATTERN_MOTIFS.map((m) => ({ id: m, label: m[0].toUpperCase() + m.slice(1) }))} value={patternMotif} onPick={setPatternMotif} />
           </span>
         )}
       </div>
     );
   }
 
-  if (paintMask && (tool === "brush" || tool === "eraser")) {
-    return (
-      <div className="pointer-events-none absolute left-1/2 top-3 z-30 -translate-x-1/2 rounded-md border border-[#2c2c31] bg-[#1c1c1f] px-3 py-2 text-[11px] text-[#d9a441]">
-        Mask paint mode. Brush reveals, Eraser hides.
-      </div>
-    );
-  }
-
-  // Default: always show tool name + light hint
-  const generic = retouchHint[tool];
-  if (generic) {
+  // ---- measure and annotate: unit plus pin clearing ----
+  if (kind === "measure") {
+    const clearMap: Record<string, { label: string; clear: () => void }> = {
+      note: { label: "Clear notes", clear: () => useProStore.getState().clearNotes() },
+      "note-color": { label: "Clear notes", clear: () => useProStore.getState().clearNotes() },
+      count: { label: "Clear counts", clear: () => useProStore.getState().clearCounts() },
+      "count-auto": { label: "Clear counts", clear: () => useProStore.getState().clearCounts() },
+      "color-sampler": { label: "Clear pins", clear: () => useProStore.getState().clearSamplers() },
+      "sampler-avg": { label: "Clear pins", clear: () => useProStore.getState().clearSamplers() },
+      "sampler-3x3": { label: "Clear pins", clear: () => useProStore.getState().clearSamplers() },
+      "sampler-11x11": { label: "Clear pins", clear: () => useProStore.getState().clearSamplers() },
+      ruler: { label: "Clear lines", clear: () => useProStore.getState().clearMeasures() },
+      "measure-angle": { label: "Clear lines", clear: () => useProStore.getState().clearMeasures() },
+      "measure-area": { label: "Clear lines", clear: () => useProStore.getState().clearMeasures() },
+      protractor: { label: "Clear lines", clear: () => useProStore.getState().clearMeasures() },
+      "ruler-triple": { label: "Clear lines", clear: () => useProStore.getState().clearMeasures() },
+      "measure-dpi": { label: "Clear lines", clear: () => useProStore.getState().clearMeasures() },
+      "guide-mid": { label: "Clear guides", clear: () => useProStore.getState().clearGuides() },
+      "guide-thirds": { label: "Clear guides", clear: () => useProStore.getState().clearGuides() },
+      "guide-clear-one": { label: "Clear guides", clear: () => useProStore.getState().clearGuides() },
+      "guide-clear": { label: "Clear guides", clear: () => useProStore.getState().clearGuides() },
+    };
+    const clearer = clearMap[tool as string];
+    const isGrid = tool === "grid-toggle" || tool === "grid-pixel";
+    const usesUnit = tool === "ruler" || tool === "measure-angle" || tool === "measure-area" || tool === "protractor" || tool === "ruler-triple";
     return (
       <div className={BAR}>
-        <span className="shrink-0 rounded-md bg-[#2f7cf6] px-2 py-0.5 font-semibold text-white">{name}</span>
-        <Hint>{generic}</Hint>
+        <Name>{name}</Name>
+        <Hint>{hint}</Hint>
+        {usesUnit && (
+          <span className="flex shrink-0 items-center border-l border-[#2c2c31] pl-2.5">
+            <Pills options={MEASURE_UNITS.map((u) => ({ id: u, label: u }))} value={measureUnit} onPick={setMeasureUnit} />
+          </span>
+        )}
+        {isGrid && (
+          <span className="hidden shrink-0 items-center gap-3 border-l border-[#2c2c31] pl-2.5 lg:flex">
+            <Slider label="Grid" value={gridSize} min={8} max={512} onChange={(v) => setGridSize(v)} suffix="px" />
+            <Toggle label={showGrid ? "Grid on" : "Grid off"} on={showGrid} onClick={toggleGrid} title="Toggle the canvas grid." />
+          </span>
+        )}
+        {tool === "snap-toggle" && (
+          <span className="shrink-0 border-l border-[#2c2c31] pl-2.5">
+            <Toggle label={snapEnabled ? "Snap on" : "Snap off"} on={snapEnabled} onClick={toggleSnap} title="Toggle snapping right now." />
+          </span>
+        )}
+        {clearer && (
+          <span className="hidden shrink-0 border-l border-[#2c2c31] pl-2.5 md:block">
+            <Action label={clearer.label} onClick={() => { clearer.clear(); useEditorStore.getState().markDirty(); }} title="Remove all pins of this kind." />
+          </span>
+        )}
       </div>
     );
   }
 
-  const fallbackMap: Record<string, string> = {
-    "slice-select": "Click a slice to select it, drag to move it.",
-    "color-sampler": "Click the canvas to pin a persistent color readout (max 8).",
-    "sampler-avg": "Click for 5x5 average color pin.",
-    "path-select": "Auto-selects vector layer, drag to move the whole path.",
-    "direct-select": "Drag left/right to rotate the active shape.",
-    pan: "Drag to pan the canvas view. Scroll zooms.",
-    "rotate-view": "Drag left/right to rotate view. Double-click resets.",
-    "rotate-reset": "Click canvas to reset view rotation to 0deg.",
-    "curvature-pen": "Drag on canvas to draw a smooth S-curve path.",
-    "pen-free": "Drag freehand to draw a thin ink line.",
-    "line-arrow": "Drag to draw a line with arrow head. Shift locks 45deg.",
-    artboard: "Drag to create a new artboard frame.",
-    frame: "Drag to create an image placeholder frame.",
-    slice: "Drag a rectangle to define an export slice.",
-    ruler: "Drag to measure distance and angle.",
-    "measure-angle": "Drag to measure angle from horizontal.",
-    "measure-area": "Drag rectangle for W x H + area.",
-    protractor: "Drag to measure angle with protractor label.",
-    "guide-clear": "Click canvas to clear all guides.",
-    "grid-toggle": "Click canvas to toggle grid.",
-    "move-auto": "Click an object to auto-pick its layer, then drag.",
-    "transform-free": "Drag to move. Scale and rotate in Transform panel.",
-    "align-center": "Click canvas to center the active layer.",
-    "fill-solid": "Click layer to fill it solid with brush color.",
-    "fill-clear": "Click layer to clear it to transparent.",
-    "gradient-diamond": "Click for diagonal diamond gradient blend.",
-    "text-3d": "Click canvas for extruded 3D text.",
-    "text-neon": "Click canvas for neon tube text.",
-    "text-gradient": "Click canvas for gradient fill text.",
-    "select-feather": "Click to feather current selection 6px.",
-    "select-border": "Click to smooth selection border.",
-    note: "Click to pin a note.",
-    count: "Click to add a numbered marker.",
-    "snap-toggle": "Click canvas to toggle snapping.",
-    "zoom-fit": "Click canvas to fit screen.",
-    "zoom-50": "Click for 50% overview.",
-    "zoom-800": "Click for 800% inspect.",
-    "zoom-100": "Click for 100%.",
-    "zoom-200": "Click for 200%.",
-    "zoom-400": "Click for 400%.",
-  };
+  // ---- navigate: live zoom readout, rotate, one-click presets ----
+  if (kind === "navigate") {
+    return (
+      <div className={BAR}>
+        <Name>{name}</Name>
+        <Hint>{hint}</Hint>
+        <span className="shrink-0 rounded-md bg-[#232327] px-2 py-1 font-mono text-white tabular-nums" title="Current canvas zoom.">
+          {Math.round(zoom)}%
+        </span>
+        <span className="hidden shrink-0 items-center gap-1 border-l border-[#2c2c31] pl-2.5 md:flex">
+          <Action label="Fit" title="Fit the document on screen." onClick={() => setTool("zoom-fit")} />
+          <Action label="100%" title="Jump to actual pixels." onClick={() => setZoom(100)} />
+        </span>
+        <span className="hidden shrink-0 items-center gap-3 border-l border-[#2c2c31] pl-2.5 lg:flex">
+          <Slider label="Rotate" value={Math.round(viewRotate)} min={-180} max={180} onChange={(v) => setViewRotate(v)} suffix="deg" />
+          <Action label="Reset" title="Reset view rotation to zero." onClick={() => setViewRotate(0)} />
+        </span>
+      </div>
+    );
+  }
 
+  // ---- move: position info plus direct center action ----
+  if (kind === "move") {
+    if (tool === "align-center") {
+      return (
+        <div className={BAR}>
+          <Name>{name}</Name>
+          <Hint>{hint}</Hint>
+          <span className="shrink-0 border-l border-[#2c2c31] pl-2.5">
+            <Action
+              label="Center Now"
+              primary
+              title="Center the active layer immediately."
+              onClick={() => {
+                const ed = useEditorStore.getState();
+                const id = ed.activeLayerId;
+                if (!id) return;
+                const pro = useProStore.getState();
+                pro.ensureTransform(id);
+                pro.updateTransform(id, { x: 0, y: 0 });
+                ed.markDirty();
+                pro.bumpHistogram();
+              }}
+            />
+          </span>
+        </div>
+      );
+    }
+    return (
+      <div className={BAR}>
+        <Name>{name}</Name>
+        <Hint>{hint}</Hint>
+        <span className="hidden shrink-0 items-center gap-1 border-l border-[#2c2c31] pl-2.5 md:flex">
+          <Action label="Center" title="Switch to Align Center." onClick={() => setTool("align-center")} />
+        </span>
+      </div>
+    );
+  }
+
+  // ---- eyedropper: sample scope plus live color ----
+  if (kind === "eyedropper") {
+    return (
+      <div className={BAR}>
+        <Name>{name}</Name>
+        <Hint>{hint}</Hint>
+        <span className="flex shrink-0 items-center border-l border-[#2c2c31] pl-2.5">
+          <ColorChip value={brushColor} onChange={(v) => setBrush({ color: v })} title="Last picked color." />
+        </span>
+        <span className="flex shrink-0 items-center border-l border-[#2c2c31] pl-2.5">
+          <Pills
+            options={[{ id: "all", label: "All layers" }, { id: "current", label: "Current" }] as const}
+            value={sampleMode}
+            onPick={setSampleMode}
+          />
+        </span>
+      </div>
+    );
+  }
+
+  // ---- click utilities: direct toggles where one exists ----
+  if (tool === "snap-toggle") {
+    return (
+      <div className={BAR}>
+        <Name>{name}</Name>
+        <Hint>{hint}</Hint>
+        <span className="shrink-0 border-l border-[#2c2c31] pl-2.5">
+          <Toggle label={snapEnabled ? "Snap on" : "Snap off"} on={snapEnabled} onClick={toggleSnap} title="Toggle snapping right now." />
+        </span>
+      </div>
+    );
+  }
+  if (tool === "guide-clear") {
+    return (
+      <div className={BAR}>
+        <Name>{name}</Name>
+        <Hint>{hint}</Hint>
+        <span className="shrink-0 border-l border-[#2c2c31] pl-2.5">
+          <Action label="Clear now" primary onClick={() => { useProStore.getState().clearGuides(); useEditorStore.getState().markDirty(); }} title="Remove all guides immediately." />
+        </span>
+      </div>
+    );
+  }
+  if (tool === "grid-toggle") {
+    return (
+      <div className={BAR}>
+        <Name>{name}</Name>
+        <Hint>{hint}</Hint>
+        <span className="shrink-0 border-l border-[#2c2c31] pl-2.5">
+          <Toggle label={showGrid ? "Grid on" : "Grid off"} on={showGrid} onClick={toggleGrid} title="Toggle the canvas grid right now." />
+        </span>
+      </div>
+    );
+  }
+
+  // Default click bar: specific hint, no dead controls.
   return (
     <div className={BAR}>
-      <span className="rounded-md bg-[#2f7cf6] px-2 py-0.5 font-semibold text-white">{name}</span>
-      <Hint>
-        {fallbackMap[tool] ??
-          ((tool as string) === "select-rect" || (tool as string) === "select-ellipse"
-            ? "Drag to select. Shift adds, Alt subtracts. Feather in Select panel."
-            : (tool as string) === "wand"
-              ? "Click similar colors. Tolerance in Select panel."
-              : (tool as string) === "move"
-                ? "Drag layer. Shift snaps, Ctrl+T free transform."
-                : (tool as string) === "hand"
-                  ? "Drag to pan canvas. Scroll to zoom."
-                  : "Select and drag on canvas to use this tool.")}
-      </Hint>
+      <Name>{name}</Name>
+      <Hint>{hint}</Hint>
     </div>
   );
 }

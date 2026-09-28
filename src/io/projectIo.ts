@@ -248,11 +248,34 @@ export interface AvxFile {
     selFeather?: number;
     selTolerance?: number;
     selExpand?: number;
+    selMode?: string;
     savedSelections?: unknown[];
     paintMask?: boolean;
     gradTo?: string;
+    gradReverse?: boolean;
+    gradDither?: boolean;
+    patternMotif?: string;
+    measureUnit?: string;
+    sampleMode?: string;
+    fillContiguous?: boolean;
+    cloneAligned?: boolean;
     snapEnabled?: boolean;
-    brush?: { size?: number; opacity?: number; hardness?: number; color?: string };
+    textDefaults?: unknown;
+    shapeDefaults?: unknown;
+    brush?: {
+      size?: number;
+      opacity?: number;
+      hardness?: number;
+      color?: string;
+      bgColor?: string;
+      flow?: number;
+      spacing?: number;
+      jitter?: number;
+      smoothing?: number;
+      angle?: number;
+      round?: number;
+      blend?: string;
+    };
   };
 }
 
@@ -480,15 +503,33 @@ export async function saveAvxProject(saveAs = false): Promise<string | null> {
       selFeather: pro.selFeather,
       selTolerance: pro.selTolerance,
       selExpand: pro.selExpand,
+      selMode: pro.selMode,
       savedSelections: pro.savedSelections,
       paintMask: pro.paintMask,
       gradTo: pro.gradTo,
+      gradReverse: pro.gradReverse,
+      gradDither: pro.gradDither,
+      patternMotif: pro.patternMotif,
+      measureUnit: pro.measureUnit,
+      sampleMode: pro.sampleMode,
+      fillContiguous: pro.fillContiguous,
+      cloneAligned: pro.cloneAligned,
       snapEnabled: pro.snapEnabled,
+      textDefaults: pro.textDefaults,
+      shapeDefaults: pro.shapeDefaults,
       brush: {
         size: ed.brushSize,
         opacity: ed.brushOpacity,
         hardness: ed.brushHardness,
         color: ed.brushColor,
+        bgColor: ed.bgColor,
+        flow: ed.brushFlow,
+        spacing: ed.brushSpacing,
+        jitter: ed.brushJitter,
+        smoothing: ed.brushSmoothing,
+        angle: ed.brushAngle,
+        round: ed.brushRound,
+        blend: ed.brushBlend,
       },
     },
   };
@@ -736,15 +777,29 @@ export async function openAvxProject(fromPath?: string): Promise<boolean> {
   const ui = file.ui ?? {};
   const selKinds = ["none", "rect", "ellipse", "lasso", "wand"];
   const gradTos = ["transparent", "white", "black"];
+  const selModes = ["new", "add", "subtract", "intersect"];
+  const motifs = ["checker", "dots", "stripes", "grid"];
+  const units = ["px", "in", "cm"];
+  const sampleModes = ["all", "current"];
   useProStore.setState({
     selKind: ui.selKind && selKinds.includes(ui.selKind) ? (ui.selKind as typeof pro.selKind) : pro.selKind,
     selFeather: clampNum(ui.selFeather, 0, 250, pro.selFeather),
     selTolerance: clampNum(ui.selTolerance, 0, 255, pro.selTolerance),
     selExpand: clampNum(ui.selExpand, -100, 100, pro.selExpand),
+    selMode: ui.selMode && selModes.includes(ui.selMode) ? (ui.selMode as typeof pro.selMode) : pro.selMode,
     savedSelections: Array.isArray(ui.savedSelections) ? (ui.savedSelections as typeof pro.savedSelections) : pro.savedSelections,
     paintMask: typeof ui.paintMask === "boolean" ? ui.paintMask : false,
     gradTo: ui.gradTo && gradTos.includes(ui.gradTo) ? (ui.gradTo as typeof pro.gradTo) : pro.gradTo,
+    gradReverse: typeof ui.gradReverse === "boolean" ? ui.gradReverse : pro.gradReverse,
+    gradDither: typeof ui.gradDither === "boolean" ? ui.gradDither : pro.gradDither,
+    patternMotif: ui.patternMotif && motifs.includes(ui.patternMotif) ? (ui.patternMotif as typeof pro.patternMotif) : pro.patternMotif,
+    measureUnit: ui.measureUnit && units.includes(ui.measureUnit) ? (ui.measureUnit as typeof pro.measureUnit) : pro.measureUnit,
+    sampleMode: ui.sampleMode && sampleModes.includes(ui.sampleMode) ? (ui.sampleMode as typeof pro.sampleMode) : pro.sampleMode,
+    fillContiguous: typeof ui.fillContiguous === "boolean" ? ui.fillContiguous : pro.fillContiguous,
+    cloneAligned: typeof ui.cloneAligned === "boolean" ? ui.cloneAligned : pro.cloneAligned,
     snapEnabled: typeof ui.snapEnabled === "boolean" ? ui.snapEnabled : pro.snapEnabled,
+    textDefaults: ui.textDefaults && typeof ui.textDefaults === "object" ? { ...pro.textDefaults, ...(ui.textDefaults as object) } : pro.textDefaults,
+    shapeDefaults: ui.shapeDefaults && typeof ui.shapeDefaults === "object" ? { ...pro.shapeDefaults, ...(ui.shapeDefaults as object) } : pro.shapeDefaults,
   });
   if (ui.brush) {
     useEditorStore.setState({
@@ -752,6 +807,14 @@ export async function openAvxProject(fromPath?: string): Promise<boolean> {
       brushOpacity: clampNum(ui.brush.opacity, 1, 100, ed.brushOpacity),
       brushHardness: clampNum(ui.brush.hardness, 0, 100, ed.brushHardness),
       brushColor: typeof ui.brush.color === "string" ? ui.brush.color : ed.brushColor,
+      bgColor: typeof ui.brush.bgColor === "string" ? ui.brush.bgColor : ed.bgColor,
+      brushFlow: clampNum(ui.brush.flow, 1, 100, ed.brushFlow),
+      brushSpacing: clampNum(ui.brush.spacing, 1, 200, ed.brushSpacing),
+      brushJitter: clampNum(ui.brush.jitter, 0, 100, ed.brushJitter),
+      brushSmoothing: clampNum(ui.brush.smoothing, 0, 100, ed.brushSmoothing),
+      brushAngle: clampNum(ui.brush.angle, -180, 180, ed.brushAngle),
+      brushRound: clampNum(ui.brush.round, 1, 100, ed.brushRound),
+      brushBlend: typeof ui.brush.blend === "string" ? (ui.brush.blend as typeof ed.brushBlend) : ed.brushBlend,
     });
   }
 

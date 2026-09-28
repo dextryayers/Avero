@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { MeasureUnit, PatternMotif, SampleMode, SelMode } from "../engine/toolOptions";
 
 let lastHistBump = 0;
 
@@ -259,6 +260,44 @@ interface ProState {
 
   setSelKind: (k: ProState["selKind"]) => void;
   setSelParams: (p: Partial<Pick<ProState, "selFeather" | "selTolerance" | "selExpand">>) => void;
+  // Fase E top bar: selection combine mode for marquee/lasso/wand draws
+  selMode: SelMode;
+  setSelMode: (m: SelMode) => void;
+  // Fase E top bar: clone/heal sources live in the store so the bar can
+  // show the indicator and offer a working Clear button
+  cloneSource: { x: number; y: number } | null;
+  setCloneSource: (p: { x: number; y: number } | null) => void;
+  cloneAligned: boolean;
+  setCloneAligned: (v: boolean) => void;
+  healSource: { x: number; y: number } | null;
+  setHealSource: (p: { x: number; y: number } | null) => void;
+  // Fase E top bar: eyedropper sample scope, bucket contiguity,
+  // gradient direction/dither, pattern motif, measure unit
+  sampleMode: SampleMode;
+  setSampleMode: (m: SampleMode) => void;
+  fillContiguous: boolean;
+  setFillContiguous: (v: boolean) => void;
+  gradReverse: boolean;
+  setGradReverse: (v: boolean) => void;
+  gradDither: boolean;
+  setGradDither: (v: boolean) => void;
+  patternMotif: PatternMotif;
+  setPatternMotif: (m: PatternMotif) => void;
+  measureUnit: MeasureUnit;
+  setMeasureUnit: (u: MeasureUnit) => void;
+  // Fase E top bar: live defaults for new text and shape layers
+  textDefaults: {
+    fontFamily: string;
+    fontSize: number;
+    color: string;
+    bold: boolean;
+    italic: boolean;
+    tracking: number;
+    leading: number;
+  };
+  setTextDefaults: (p: Partial<ProState["textDefaults"]>) => void;
+  shapeDefaults: { fill: string; stroke: string; strokeWidth: number };
+  setShapeDefaults: (p: Partial<ProState["shapeDefaults"]>) => void;
   addSlice: (s: Omit<SliceRect, "id">) => string;
   updateSlice: (id: string, p: Partial<SliceRect>) => void;
   removeSlice: (id: string) => void;
@@ -390,6 +429,26 @@ export const useProStore = create<ProState>((set) => ({
   selFeather: 0,
   selTolerance: 24,
   selExpand: 0,
+  selMode: "new",
+  cloneSource: null,
+  cloneAligned: true,
+  healSource: null,
+  sampleMode: "all",
+  fillContiguous: true,
+  gradReverse: false,
+  gradDither: false,
+  patternMotif: "checker",
+  measureUnit: "px",
+  textDefaults: {
+    fontFamily: "Inter",
+    fontSize: 48,
+    color: "#ffffff",
+    bold: true,
+    italic: false,
+    tracking: 0,
+    leading: 1.25,
+  },
+  shapeDefaults: { fill: "#2f7cf6", stroke: "#ffffff", strokeWidth: 4 },
   savedSelections: [],
   slices: [],
   activeSliceId: null,
@@ -450,6 +509,18 @@ export const useProStore = create<ProState>((set) => ({
 
   setSelKind: (selKind) => set({ selKind }),
   setSelParams: (p) => set(p),
+  setSelMode: (selMode) => set({ selMode }),
+  setCloneSource: (cloneSource) => set({ cloneSource }),
+  setCloneAligned: (cloneAligned) => set({ cloneAligned }),
+  setHealSource: (healSource) => set({ healSource }),
+  setSampleMode: (sampleMode) => set({ sampleMode }),
+  setFillContiguous: (fillContiguous) => set({ fillContiguous }),
+  setGradReverse: (gradReverse) => set({ gradReverse }),
+  setGradDither: (gradDither) => set({ gradDither }),
+  setPatternMotif: (patternMotif) => set({ patternMotif }),
+  setMeasureUnit: (measureUnit) => set({ measureUnit }),
+  setTextDefaults: (p) => set((s) => ({ textDefaults: { ...s.textDefaults, ...p } })),
+  setShapeDefaults: (p) => set((s) => ({ shapeDefaults: { ...s.shapeDefaults, ...p } })),
   setGradTo: (gradTo) => set({ gradTo }),
   setCropOverlay: (cropOverlay) => set({ cropOverlay }),
   addPath: (p) => {

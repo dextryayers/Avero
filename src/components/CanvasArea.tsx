@@ -127,9 +127,9 @@ export default function CanvasArea() {
   const panning = useRef<{ sx: number; sy: number; px: number; py: number } | null>(null);
   const moveDrag = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null);
   const spriteCache = useRef(new Map<string, HTMLCanvasElement>());
-  const cloneRef = useRef<{ x: number; y: number } | null>(null);
+  // Clone offset origin stays a local ref (per-stroke math), but the source
+  // point lives in the pro store so the top bar can show and clear it.
   const cloneOrigin = useRef<{ x: number; y: number } | null>(null);
-  const healRef = useRef<{ x: number; y: number } | null>(null);
   const historySource = useRef<ImageData | null>(null);
   const paintLayerToastShown = useRef(false);
   const cloneHintShown = useRef(false);
@@ -234,7 +234,6 @@ export default function CanvasArea() {
   const bumpHistogram = useProStore((s) => s.bumpHistogram);
   const historyLen = useEditorStore((s) => s.history.length);
   const isFresh = !doc.filePath && historyLen === 0;
-  const gradTo = useProStore((s) => s.gradTo);
   const guidesH = useProStore((s) => s.guidesH);
   const guidesV = useProStore((s) => s.guidesV);
   const showGuides = useProStore((s) => s.showGuides);
@@ -1111,8 +1110,18 @@ export default function CanvasArea() {
 
   // Brush engine: radial sprite per hardness, stamped along the stroke.
   // Hardness 100 = solid disc, 0 = soft gaussian.
-  function brushSprite(size: number, hardness: number, color: string): HTMLCanvasElement {
-    const key = `${Math.round(size)}|${Math.round(hardness)}|${color}`;
+  // Ex variant adds nib angle (degrees) and roundness (1-100 percent) for
+  // calligraphy pens and chisel markers. Angle 0 + round 100 = classic disc.
+  function brushSpriteEx(
+    size: number,
+    hardness: number,
+    color: string,
+    angleDeg = 0,
+    roundPct = 100,
+  ): HTMLCanvasElement {
+    const round = Math.max(1, Math.min(100, Math.round(roundPct)));
+    const ang = Math.round(((angleDeg % 180) + 180) % 180);
+    const key = `${Math.round(size)}|${Math.round(hardness)}|${color}|${ang}|${round}`;
     let sp = spriteCache.current.get(key);
     if (sp) return sp;
     const s = Math.max(1, Math.round(size));
@@ -1132,9 +1141,31 @@ export default function CanvasArea() {
     ctx.fillStyle = color;
     ctx.fillRect(0, 0, s, s);
     ctx.globalCompositeOperation = "source-over";
-    if (spriteCache.current.size > 40) spriteCache.current.clear();
+    if (round < 100 || ang !== 0) {
+      // Squash vertically then rotate: cheap elliptical nib.
+      const flat = document.createElement("canvas");
+      flat.width = s;
+      flat.height = s;
+      const f = flat.getContext("2d")!;
+      f.translate(s / 2, s / 2);
+      f.rotate((ang * Math.PI) / 180);
+      f.scale(1, round / 100);
+      f.drawImage(sp, -s / 2, -s / 2, s, s);
+      sp = flat;
+    }
+    if (spriteCache.current.size > 60) spriteCache.current.clear();
     spriteCache.current.set(key, sp);
     return sp;
+  }
+
+  function brushSprite(size: number, hardness: number, color: string): HTMLCanvasElement {
+    return brushSpriteEx(size, hardness, color, 0, 100);
+  }
+
+  interface StampOpts {
+    spacingPct?: number; // percent of size between dabs, 1-200
+    jitter?: number; // 0-100 random size/alpha wobble per dab
+    rotDeg?: number; // per-dab rotation for textured stamps
   }
 
   function stampLine(
@@ -1146,17 +1177,39 @@ export default function CanvasArea() {
     x1: number,
     y1: number,
     checkSel: boolean,
+    opts?: StampOpts,
   ) {
     const dx = x1 - x0;
     const dy = y1 - y0;
     const dist = Math.hypot(dx, dy);
-    const spacing = Math.max(1, size * 0.18);
+    const spacingPct = Math.max(1, Math.min(200, opts?.spacingPct ?? 18));
+    const spacing = Math.max(1, size * (spacingPct / 100));
+    const jitter = Math.max(0, Math.min(100, opts?.jitter ?? 0)) / 100;
+    const rot = ((opts?.rotDeg ?? 0) * Math.PI) / 180;
     const steps = Math.max(1, Math.floor(dist / spacing));
     for (let i = 0; i <= steps; i++) {
       const px = x0 + (dx * i) / steps;
       const py = y0 + (dy * i) / steps;
       if (checkSel && !inSel(px, py)) continue;
-      ctx.drawImage(sprite, px - size / 2, py - size / 2, size, size);
+      let ds = size;
+      if (jitter > 0) ds = size * (1 - jitter * 0.6 + Math.random() * jitter * 0.9);
+      if (rot !== 0) {
+        ctx.save();
+        ctx.translate(px, py);
+        ctx.rotate(rot);
+        if (jitter > 0) ctx.globalAlpha *= 1 - jitter * 0.4 * Math.random();
+        ctx.drawImage(sprite, -ds / 2, -ds / 2, ds, ds);
+        ctx.restore();
+      } else {
+        if (jitter > 0) {
+          ctx.save();
+          ctx.globalAlpha *= 1 - jitter * 0.4 * Math.random();
+          ctx.drawImage(sprite, px - ds / 2, py - ds / 2, ds, ds);
+          ctx.restore();
+        } else {
+          ctx.drawImage(sprite, px - ds / 2, py - ds / 2, ds, ds);
+        }
+      }
     }
   }
 
@@ -1168,9 +1221,25 @@ export default function CanvasArea() {
     if (!aid) return;
     const meta = stFresh.layers.find((l) => l.id === aid);
     if (!meta || meta.locked || !meta.visible) return;
+    // Stroke smoothing (Fase E top bar): ease the live point toward the raw
+    // input. 0 = raw input exactly like the old code.
+    const smoothAmt = Math.max(0, Math.min(100, stFresh.brushSmoothing ?? 0)) / 100;
+    let tx = x;
+    let ty = y;
+    const last0 = lastPos.current;
+    if (smoothAmt > 0 && last0) {
+      const k = 1 - smoothAmt * 0.85;
+      tx = last0.x + (x - last0.x) * k;
+      ty = last0.y + (y - last0.y) * k;
+    }
+    x = tx;
+    y = ty;
     const last = lastPos.current ?? { x, y };
     const st = stFresh;
     const curTool = st.tool as ToolId;
+    const flowMul = Math.max(1, Math.min(100, st.brushFlow ?? 100)) / 100;
+    const spacingPct = Math.max(1, Math.min(200, st.brushSpacing ?? 18));
+    const jitterPct = Math.max(0, Math.min(100, st.brushJitter ?? 0));
 
     // Mode paint mask
     const m = (useProStore.getState().masks as Record<string, { hasMask?: boolean }>)[aid];
@@ -1178,9 +1247,9 @@ export default function CanvasArea() {
       const mc = layerManager.ensureMask(aid, doc.width, doc.height);
       const ctx = mc.getContext("2d")!;
       ctx.save();
-      ctx.globalAlpha = brushOpacity / 100;
-      const sp = brushSprite(brushSize, brushHardness, erase ? "#000000" : "#ffffff");
-      stampLine(ctx, sp, brushSize, last.x, last.y, x, y, true);
+      ctx.globalAlpha = (brushOpacity / 100) * flowMul;
+      const sp = brushSpriteEx(brushSize, brushHardness, erase ? "#000000" : "#ffffff", st.brushAngle ?? 0, st.brushRound ?? 100);
+      stampLine(ctx, sp, brushSize, last.x, last.y, x, y, true, { spacingPct, jitter: jitterPct });
       ctx.restore();
       lastPos.current = { x, y };
       markDirty();
@@ -1218,7 +1287,9 @@ export default function CanvasArea() {
     }
     if (curTool === "pattern-stamp" || curTool === "texture-stamp" || curTool === "art-canvas" || curTool === "pattern-dots") {
       ctx.restore();
-      patternStampTo(x, y, curTool === "pattern-dots" ? "dots" : "checker");
+      if (curTool === "pattern-dots") patternStampTo(x, y, "dots");
+      else if (curTool === "pattern-stamp") patternStampTo(x, y, useProStore.getState().patternMotif);
+      else patternStampTo(x, y, "checker");
       return;
     }
     if (
@@ -1250,17 +1321,19 @@ export default function CanvasArea() {
     const effAlpha =
       curTool === "pencil" || curTool === "sketch-ink" || isHardErase
         ? 1
-        : (brushOpacity / 100) * preset.alphaMul * (erase ? 1 : 1);
+        : (brushOpacity / 100) * preset.alphaMul * flowMul;
     const effSize = Math.max(1, brushSize * preset.sizeMul);
-    ctx.globalCompositeOperation = erase || isHardErase ? "destination-out" : preset.composite;
+    // Fase E brush blend override: a non-normal blend wins over the preset composite.
+    const blendOverride = st.brushBlend && st.brushBlend !== "source-over" ? st.brushBlend : null;
+    ctx.globalCompositeOperation = erase || isHardErase ? "destination-out" : (blendOverride ?? preset.composite);
     ctx.globalAlpha = erase ? 1 : effAlpha;
     // scatter for chalk/pastel: jitter second stamp
-    const sp = brushSprite(effSize, effHard, erase || isHardErase ? "#000000" : brushColor);
-    stampLine(ctx, sp, effSize, last.x, last.y, x, y, true);
+    const sp = brushSpriteEx(effSize, effHard, erase || isHardErase ? "#000000" : brushColor, st.brushAngle ?? 0, st.brushRound ?? 100);
+    stampLine(ctx, sp, effSize, last.x, last.y, x, y, true, { spacingPct, jitter: jitterPct });
     if (preset.scatter) {
       ctx.globalAlpha = (erase ? 1 : effAlpha) * 0.5;
       const off = effSize * 0.35;
-      stampLine(ctx, sp, effSize * 0.6, last.x + off, last.y - off, x + off, y - off, true);
+      stampLine(ctx, sp, effSize * 0.6, last.x + off, last.y - off, x + off, y - off, true, { spacingPct, jitter: jitterPct });
     }
     ctx.restore();
     lastPos.current = { x, y };
@@ -1287,7 +1360,8 @@ export default function CanvasArea() {
         const edge = ctx.getImageData(Math.max(0, Math.min(c.width - 1, Math.floor(px))), Math.max(0, Math.min(c.height - 1, Math.floor(py))), 1, 1).data;
         const id = ctx.getImageData(Math.max(0, sx), Math.max(0, sy), Math.min(s, c.width), Math.min(s, c.height));
         const d = id.data;
-        const tol = 48;
+        // Fase E: tolerance follows the options bar (default 24 * 2 = 48, same as before).
+        const tol = Math.max(4, Math.min(160, useProStore.getState().selTolerance * 2));
         for (let i = 0; i < d.length; i += 4) {
           const dr = Math.abs(d[i] - edge[0]);
           const dg = Math.abs(d[i + 1] - edge[1]);
@@ -1320,15 +1394,15 @@ export default function CanvasArea() {
     try {
       const W = c.width;
       const H = c.height;
-      const ix = Math.max(0, Math.min(W - 1, Math.floor(x)));
-      const iy = Math.max(0, Math.min(H - 1, Math.floor(y)));
+      const ix = Math.max(0, Math.min(W - 1, Math.floor(x)));      const iy = Math.max(0, Math.min(H - 1, Math.floor(y)));
       const img = ctx.getImageData(0, 0, W, H);
       const d = img.data;
       const start = (iy * W + ix) * 4;
       const sr = d[start];
       const sg = d[start + 1];
       const sb = d[start + 2];
-      const tol = 32;
+      // Fase E: tolerance follows the options bar (default 24 * 4/3 = 32, same as before).
+      const tol = Math.max(4, Math.min(160, (useProStore.getState().selTolerance * 4) / 3));
       const selActive = hasSelection();
       const visited = new Uint8Array(Math.min(W * H, 2000000));
       const stack = [iy * W + ix];
@@ -1483,76 +1557,23 @@ export default function CanvasArea() {
     markDirty();
   }
 
-  // Pattern Stamp: neutral checker weave stamped with brush color tint.
-  // Manual 2026: dots variant draws polka dots for textile/poster work.
-  // Optimized: the tile is cached per (size, color, kind) instead of rebuilt per dab.
+  // Pattern Stamp: weave stamped with brush color tint.
+  // Manual 2026: dots/stripes/grid variants for textile/poster work.
+  // Tile cache is keyed per (size, color, kind) instead of rebuilt per dab.
   const patternCache = useRef(new Map<string, HTMLCanvasElement>());
-  function patternTile(kind: "checker" | "dots" | "stripes" | "grid"): HTMLCanvasElement {
-    const s = Math.max(8, Math.round(brushSize));
-    const key = `${s}|${brushColor}|${kind}`;
-    const hit = patternCache.current.get(key);
-    if (hit) return hit;
-    const pat = document.createElement("canvas");
-    pat.width = s;
-    pat.height = s;
-    const pctx = pat.getContext("2d")!;
-    if (kind === "dots") {
-      pctx.fillStyle = "#ffffff";
-      pctx.fillRect(0, 0, s, s);
-      pctx.fillStyle = brushColor;
-      const cell = Math.max(4, Math.round(s / 4));
-      for (let yy = cell / 2; yy < s; yy += cell) {
-        for (let xx = cell / 2; xx < s; xx += cell) {
-          pctx.beginPath();
-          pctx.arc(xx, yy, Math.max(1, cell * 0.28), 0, Math.PI * 2);
-          pctx.fill();
-        }
-      }
-    } else if (kind === "stripes") {
-      pctx.fillStyle = "#ffffff";
-      pctx.fillRect(0, 0, s, s);
-      pctx.fillStyle = brushColor;
-      const stripeCell = Math.max(3, Math.round(s / 6));
-      for (let xx = 0; xx < s; xx += stripeCell * 2) {
-        pctx.globalAlpha = 0.9;
-        pctx.fillRect(xx, 0, stripeCell, s);
-      }
-    } else if (kind === "grid") {
-      pctx.fillStyle = "#ffffff";
-      pctx.fillRect(0, 0, s, s);
-      pctx.strokeStyle = brushColor;
-      pctx.globalAlpha = 0.9;
-      pctx.lineWidth = Math.max(1, Math.round(s / 24));
-      const gridCell = Math.max(4, Math.round(s / 4));
-      pctx.beginPath();
-      for (let v = 0; v <= s; v += gridCell) {
-        pctx.moveTo(v + 0.5, 0);
-        pctx.lineTo(v + 0.5, s);
-        pctx.moveTo(0, v + 0.5);
-        pctx.lineTo(s, v + 0.5);
-      }
-      pctx.stroke();
-      const cell = Math.max(2, Math.round(s / 8));
-      for (let yy = 0; yy < s; yy += cell) {
-        for (let xx = 0; xx < s; xx += cell) {
-          pctx.fillStyle = ((xx + yy) / cell) % 2 === 0 ? brushColor : "#ffffff";
-          pctx.globalAlpha = 0.85;
-          pctx.fillRect(xx, yy, cell, cell);
-        }
-      }
-    }
-    pctx.globalAlpha = 1;
-    if (patternCache.current.size > 12) patternCache.current.clear();
-    patternCache.current.set(key, pat);
-    return pat;
-  }
   function patternStampTo(x: number, y: number, kind: "checker" | "dots" | "stripes" | "grid" = "checker") {
     if (!activeLayerId) return;
     const c = layerManager.ensure(activeLayerId, doc.width, doc.height);
     const ctx = c.getContext("2d")!;
     const last = lastPos.current ?? { x, y };
     const s = Math.max(8, Math.round(brushSize));
-    const pat = patternTile(kind);
+    const key = `${s}|${brushColor}|${kind}`;
+    let pat = patternCache.current.get(key);
+    if (!pat) {
+      pat = patternTile(kind, s, brushColor);
+      if (patternCache.current.size > 12) patternCache.current.clear();
+      patternCache.current.set(key, pat);
+    }
     ctx.save();
     ctx.globalAlpha = brushOpacity / 100;
     const dx = x - last.x;
@@ -1596,7 +1617,7 @@ export default function CanvasArea() {
     if (!activeLayerId) return;
     const meta = layers.find((l) => l.id === activeLayerId);
     if (!meta || meta.locked || !meta.visible) return;
-    const src = cloneRef.current;
+    const src = useProStore.getState().cloneSource;
     if (!src) {
       setCursor("Alt-click to set source");
       return;
@@ -1635,11 +1656,12 @@ export default function CanvasArea() {
   }
 
   // ===== Retouch pro engine (dodge/burn/sponge/blur/sharpen/smudge/heal) =====
-  function dabPath(x0: number, y0: number, x1: number, y1: number): { px: number; py: number }[] {
+  function dabPath(x0: number, y0: number, x1: number, y1: number, spacingPct = 22): { px: number; py: number }[] {
     const dx = x1 - x0;
     const dy = y1 - y0;
     const dist = Math.hypot(dx, dy);
-    const steps = Math.max(1, Math.floor(dist / Math.max(1, brushSize * 0.22)));
+    const sp = Math.max(1, Math.min(200, spacingPct));
+    const steps = Math.max(1, Math.floor(dist / Math.max(1, brushSize * (sp / 100))));
     const pts: { px: number; py: number }[] = [];
     for (let i = 0; i <= steps; i++) pts.push({ px: x0 + (dx * i) / steps, py: y0 + (dy * i) / steps });
     return pts;
@@ -1652,9 +1674,11 @@ export default function CanvasArea() {
     const last = lastPos.current ?? { x, y };
     const c = layerManager.ensure(activeLayerId, doc.width, doc.height);
     const ctx = c.getContext("2d", { willReadFrequently: true })!;
-    const strength = brushOpacity / 100;
+    const edSt = useEditorStore.getState();
+    const flowMul = Math.max(1, Math.min(100, edSt.brushFlow ?? 100)) / 100;
+    const strength = (brushOpacity / 100) * flowMul;
     const r = Math.max(1, brushSize / 2);
-    for (const { px, py } of dabPath(last.x, last.y, x, y)) {
+    for (const { px, py } of dabPath(last.x, last.y, x, y, edSt.brushSpacing ?? 22)) {
       if (!inSel(px, py)) continue;
       const sx = Math.round(px - r);
       const sy = Math.round(py - r);
@@ -1670,7 +1694,7 @@ export default function CanvasArea() {
           ctx.fill();
           ctx.restore();
         } else if (mode === "blur" || mode === "blur-iris" || mode === "heal" || mode === "heal-source") {
-          const hs = healRef.current;
+          const hs = useProStore.getState().healSource;
           const ox = mode === "heal-source" && hs ? px - hs.x : 0;
           const oy = mode === "heal-source" && hs ? py - hs.y : 0;
           const tmp = getScratch(s, s);
@@ -2579,7 +2603,9 @@ export default function CanvasArea() {
       if (Math.abs(sr - fr) < 4 && Math.abs(sg - fg) < 4 && Math.abs(sb - fb) < 4 && sa === 255) {
         return;
       }
-      const tol = 42;
+      // Fase E: tolerance follows the options bar (default 24 * 1.75 = 42, same as before).
+      const tol = Math.max(4, Math.min(160, useProStore.getState().selTolerance * 1.75));
+      const contiguous = useProStore.getState().fillContiguous;
       // Snapshot the selection mask once: per-pixel isPointInSelection() would
       // cost a 1x1 getImageData for every visited pixel.
       let selData: Uint8ClampedArray | null = null;
@@ -2602,6 +2628,29 @@ export default function CanvasArea() {
       const stack: number[] = [iy * W + ix];
       visited[iy * W + ix] = 1;
       let filled = 0;
+      if (!contiguous) {
+        // Global fill (Fase E toggle): every similar color in the whole
+        // layer, still selection-aware and capped like the flood path.
+        for (let yy = 0; yy < H && filled < 900000; yy++) {
+          for (let xx = 0; xx < W && filled < 900000; xx++) {
+            const o = (yy * W + xx) * 4;
+            if (Math.abs(d[o] - sr) + Math.abs(d[o + 1] - sg) + Math.abs(d[o + 2] - sb) > tol * 3) continue;
+            if (selData) {
+              if (xx >= selW || yy >= selH || selData[(yy * selW + xx) * 4 + 3] <= 10) continue;
+            }
+            d[o] = fr;
+            d[o + 1] = fg;
+            d[o + 2] = fb;
+            d[o + 3] = 255;
+            filled++;
+          }
+        }
+        ctx.putImageData(img, 0, 0);
+        st.markDirty();
+        useProStore.getState().bumpHistogram();
+        setCursor(`Filled ${filled} px`);
+        return;
+      }
       while (stack.length && filled < 900000) {
         const cur = stack.pop()!;
         const cx = cur % W;
@@ -2773,20 +2822,11 @@ export default function CanvasArea() {
     if (snap) st.pushHistory({ label: "Radial gradient", layerId: id, snapshot: snap });
     const c = layerManager.ensure(id, st.doc.width, st.doc.height);
     const ctx = c.getContext("2d")!;
-    const to = gradTo === "white" ? "#ffffff" : gradTo === "black" ? "#000000" : "rgba(0,0,0,0)";
-    const from = st.brushColor;
+    const [stop0, stop1] = gradEnds();
     const rad = Math.max(c.width, c.height) * 0.5;
     const g = ctx.createRadialGradient(x, y, 0, x, y, rad);
-    if (gradTo === "transparent") {
-      g.addColorStop(0, from);
-      const r = parseInt(from.slice(1, 3), 16);
-      const gg = parseInt(from.slice(3, 5), 16);
-      const b = parseInt(from.slice(5, 7), 16);
-      g.addColorStop(1, `rgba(${r},${gg},${b},0)`);
-    } else {
-      g.addColorStop(0, from);
-      g.addColorStop(1, to);
-    }
+    g.addColorStop(0, stop0);
+    g.addColorStop(1, stop1);
     // Bug fix: paint via temp so selection never erases outside pixels.
     const sel = selectionMaskCanvas();
     const hasSel = sel && hasSelection();
@@ -2812,6 +2852,7 @@ export default function CanvasArea() {
       ctx.drawImage(tmp, 0, 0);
       ctx.restore();
     }
+    if (gradDitherOn()) applyDitherToLayer(id);
     st.markDirty();
     useProStore.getState().bumpHistogram();
   }
@@ -2897,19 +2938,10 @@ export default function CanvasArea() {
     // Diamond = linear diagonal from click to bottom-right, fixed 45deg manual look.
     const x1 = Math.min(c.width, x + Math.max(c.width, c.height) * 0.5);
     const y1 = Math.min(c.height, y + Math.max(c.width, c.height) * 0.5);
-    const to = gradTo === "white" ? "#ffffff" : gradTo === "black" ? "#000000" : "rgba(0,0,0,0)";
-    const from = st.brushColor;
+    const [stop0, stop1] = gradEnds();
     const g = ctx.createLinearGradient(x, y, x1, y1);
-    if (gradTo === "transparent") {
-      g.addColorStop(0, from);
-      const r = parseInt(from.slice(1, 3), 16);
-      const gg = parseInt(from.slice(3, 5), 16);
-      const b = parseInt(from.slice(5, 7), 16);
-      g.addColorStop(1, `rgba(${r},${gg},${b},0)`);
-    } else {
-      g.addColorStop(0, from);
-      g.addColorStop(1, to);
-    }
+    g.addColorStop(0, stop0);
+    g.addColorStop(1, stop1);
     const sel = selectionMaskCanvas();
     if (sel && hasSelection()) {
       const tmp = document.createElement("canvas");
@@ -2932,13 +2964,15 @@ export default function CanvasArea() {
       ctx.fillRect(0, 0, c.width, c.height);
       ctx.restore();
     }
+    if (gradDitherOn()) applyDitherToLayer(id);
     st.markDirty();
     useProStore.getState().bumpHistogram();
     setCursor("Diamond gradient");
   }
 
   // Shared selection-safe painter: draws a full-layer paint fn, clipped to selection.
-  function paintFullLayer(label: string, paint: (g: CanvasRenderingContext2D, W: number, H: number) => void) {
+  // dither: run the anti-banding grain pass inside the same history entry.
+  function paintFullLayer(label: string, paint: (g: CanvasRenderingContext2D, W: number, H: number) => void, dither = false) {
     const st = useEditorStore.getState();
     const id = st.activeLayerId;
     if (!id) return;
@@ -2973,33 +3007,64 @@ export default function CanvasArea() {
       paint(ctx, c.width, c.height);
       ctx.restore();
     }
+    if (dither && gradDitherOn()) applyDitherToLayer(id);
     st.markDirty();
     useProStore.getState().bumpHistogram();
     setCursor(label);
   }
 
-  function gradStops(g: CanvasGradient, from: string, to: string) {
-    if (to === "transparent") {
-      g.addColorStop(0, from);
-      const r = parseInt(from.slice(1, 3), 16);
-      const gg = parseInt(from.slice(3, 5), 16);
-      const b = parseInt(from.slice(5, 7), 16);
-      g.addColorStop(1, `rgba(${r},${gg},${b},0)`);
-    } else {
-      g.addColorStop(0, from);
-      g.addColorStop(1, to);
+  // Final stop pair writer. The pair already encodes transparency and
+  // direction (see gradEnds), so both ends are painted verbatim.
+  function gradStops(g: CanvasGradient, stop0: string, stop1: string) {
+    g.addColorStop(0, stop0);
+    g.addColorStop(1, stop1);
+  }
+
+  // Stop pair for CanvasGradient ends. stop0 goes at offset 0, stop1 at
+  // offset 1. Never parsed as hex downstream, safe to be rgba.
+  function gradEnds(): [string, string] {
+    const st = useEditorStore.getState();
+    const pro = useProStore.getState();
+    const base = st.brushColor;
+    const tgt = pro.gradTo === "white" ? "#ffffff" : pro.gradTo === "black" ? "#000000" : "transparent";
+    if (tgt === "transparent") {
+      return pro.gradReverse ? [withAlpha(base, 0), base] : [base, withAlpha(base, 0)];
+    }
+    return pro.gradReverse ? [tgt, base] : [base, tgt];
+  }
+
+  // Deterministic grain pass that kills gradient banding (Fase E dither toggle).
+  // Runs inside the same history entry as the gradient, so undo stays single-step.
+  function applyDitherToLayer(id: string) {
+    try {
+      const c = layerManager.ensure(id, doc.width, doc.height);
+      const ctx = c.getContext("2d", { willReadFrequently: true })!;
+      const img = ctx.getImageData(0, 0, c.width, c.height);
+      const d = img.data;
+      let s = 1234567;
+      for (let i = 0; i < d.length; i += 4) {
+        if (d[i + 3] === 0) continue;
+        s = (s * 1103515245 + 12345) & 0x7fffffff;
+        const n = (s % 11) - 5;
+        d[i] = Math.max(0, Math.min(255, d[i] + n));
+        d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + n));
+        d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + n));
+      }
+      ctx.putImageData(img, 0, 0);
+    } catch {
+      /* ignore */
     }
   }
 
-  function gradToColor(): string {
-    const gt = useProStore.getState().gradTo;
-    return gt === "white" ? "#ffffff" : gt === "black" ? "#000000" : "transparent";
+  function gradDitherOn(): boolean {
+    return useProStore.getState().gradDither;
   }
 
   function applyConicGradient(x: number, y: number) {
     const st = useEditorStore.getState();
-    const from = st.brushColor;
-    const to = gradToColor();
+    const base = st.brushColor;
+    const [stop0, stop1] = gradEnds();
+    const clearEnd = stop0.startsWith("rgba") ? 0 : stop1.startsWith("rgba") ? 1 : -1;
     paintFullLayer("Conic gradient", (g, W, H) => {
       // Angular sweep approximation: 72 wedges around the click point.
       const steps = 72;
@@ -3007,14 +3072,15 @@ export default function CanvasArea() {
         const a0 = (k / steps) * Math.PI * 2;
         const a1 = ((k + 1) / steps) * Math.PI * 2;
         const t = k / (steps - 1);
-        g.fillStyle = to === "transparent" ? withAlpha(from, 1 - t) : mixHex(from, to, t);
+        g.fillStyle =
+          clearEnd === 1 ? withAlpha(base, 1 - t) : clearEnd === 0 ? withAlpha(base, t) : mixHex(stop0, stop1, t);
         g.beginPath();
         g.moveTo(x, y);
         g.arc(x, y, Math.max(W, H), a0, a1 + 0.02);
         g.closePath();
         g.fill();
       }
-    });
+    }, true);
   }
 
   function withAlpha(hex: string, a: number): string {
@@ -3033,32 +3099,31 @@ export default function CanvasArea() {
 
   function applyReflectedGradient(x: number, y: number) {
     const st = useEditorStore.getState();
-    const from = st.brushColor;
-    const to = gradToColor();
+    const base = st.brushColor;
+    const [stop0, stop1] = gradEnds();
+    const clearEnd = stop0.startsWith("rgba") ? 0 : stop1.startsWith("rgba") ? 1 : -1;
     paintFullLayer("Reflected gradient", (g, W, H) => {
       const half = Math.max(W, H) * 0.5;
       const lg = g.createLinearGradient(x - half, y, x + half, y);
-      if (to === "transparent") {
-        lg.addColorStop(0, withAlpha(from, 0));
-        lg.addColorStop(0.5, from);
-        lg.addColorStop(1, withAlpha(from, 0));
+      if (clearEnd >= 0) {
+        lg.addColorStop(0, withAlpha(base, 0));
+        lg.addColorStop(0.5, base);
+        lg.addColorStop(1, withAlpha(base, 0));
       } else {
-        lg.addColorStop(0, to);
-        lg.addColorStop(0.5, from);
-        lg.addColorStop(1, to);
+        lg.addColorStop(0, stop1);
+        lg.addColorStop(0.5, stop0);
+        lg.addColorStop(1, stop1);
       }
       g.fillStyle = lg;
       g.fillRect(0, 0, W, H);
-    });
+    }, true);
   }
 
   function applyNoiseGradient(x: number, y: number) {
-    const st = useEditorStore.getState();
-    const from = st.brushColor;
-    const to = gradToColor();
+    const [stop0, stop1] = gradEnds();
     paintFullLayer("Noise gradient", (g, W, H) => {
       const lg = g.createLinearGradient(x, y, x + Math.max(W, H) * 0.6, y);
-      gradStops(lg, from, to);
+      gradStops(lg, stop0, stop1);
       g.fillStyle = lg;
       g.fillRect(0, 0, W, H);
       // Deterministic dither kills banding.
@@ -3071,13 +3136,19 @@ export default function CanvasArea() {
         d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + n));
       }
       g.putImageData(id, 0, 0);
-    });
+    }, true);
   }
 
   function applyDiamondSoftGradient(x: number, y: number) {
     const st = useEditorStore.getState();
-    const from = st.brushColor;
-    const to = gradToColor();
+    const base = st.brushColor;
+    const [stop0, stop1] = gradEnds();
+    const clearEnd = stop0.startsWith("rgba") ? 0 : stop1.startsWith("rgba") ? 1 : -1;
+    const br = parseInt(base.slice(1, 3), 16);
+    const bg = parseInt(base.slice(3, 5), 16);
+    const bb = parseInt(base.slice(5, 7), 16);
+    const s0 = clearEnd < 0 ? [parseInt(stop0.slice(1, 3), 16), parseInt(stop0.slice(3, 5), 16), parseInt(stop0.slice(5, 7), 16)] : [br, bg, bb];
+    const s1 = clearEnd < 0 ? [parseInt(stop1.slice(1, 3), 16), parseInt(stop1.slice(3, 5), 16), parseInt(stop1.slice(5, 7), 16)] : [br, bg, bb];
     paintFullLayer("Soft diamond gradient", (g, W, H) => {
       const img = g.createImageData(W, H);
       const d = img.data;
@@ -3087,24 +3158,15 @@ export default function CanvasArea() {
           const t = Math.min(1, (Math.abs(xx - x) + Math.abs(yy - y)) / maxD);
           const e = t * t * (3 - 2 * t);
           const i = (yy * W + xx) * 4;
-          if (to === "transparent") {
-            const r = parseInt(from.slice(1, 3), 16);
-            const gg = parseInt(from.slice(3, 5), 16);
-            const b = parseInt(from.slice(5, 7), 16);
-            d[i] = r;
-            d[i + 1] = gg;
-            d[i + 2] = b;
-            d[i + 3] = Math.round(255 * (1 - e) * (st.brushOpacity / 100));
-          } else {
-            d[i] = Math.round(parseInt(from.slice(1, 3), 16) + (parseInt(to.slice(1, 3), 16) - parseInt(from.slice(1, 3), 16)) * e);
-            d[i + 1] = Math.round(parseInt(from.slice(3, 5), 16) + (parseInt(to.slice(3, 5), 16) - parseInt(from.slice(3, 5), 16)) * e);
-            d[i + 2] = Math.round(parseInt(from.slice(5, 7), 16) + (parseInt(to.slice(5, 7), 16) - parseInt(from.slice(5, 7), 16)) * e);
-            d[i + 3] = 255;
-          }
+          d[i] = Math.round(s0[0] + (s1[0] - s0[0]) * e);
+          d[i + 1] = Math.round(s0[1] + (s1[1] - s0[1]) * e);
+          d[i + 2] = Math.round(s0[2] + (s1[2] - s0[2]) * e);
+          const a = clearEnd === 1 ? 1 - e : clearEnd === 0 ? e : 1;
+          d[i + 3] = Math.round(255 * a * (st.brushOpacity / 100));
         }
       }
       g.putImageData(img, 0, 0);
-    });
+    }, true);
   }
 
   function fillBackgroundLayer() {
@@ -3119,27 +3181,76 @@ export default function CanvasArea() {
 
   function fillPatternNewLayer() {
     const st = useEditorStore.getState();
+    const motif = useProStore.getState().patternMotif;
     const s = Math.max(16, Math.round(st.brushSize * 2));
-    paintFullLayer("Pattern fill (stripes)", (g, W, H) => {
-      const tile = document.createElement("canvas");
-      tile.width = s;
-      tile.height = s;
-      const t = tile.getContext("2d")!;
-      t.fillStyle = "#ffffff";
-      t.fillRect(0, 0, s, s);
-      t.fillStyle = st.brushColor;
-      const cell = Math.max(3, Math.round(s / 6));
-      for (let xx = 0; xx < s; xx += cell * 2) {
-        t.globalAlpha = 0.9;
-        t.fillRect(xx, 0, cell, s);
-      }
-      t.globalAlpha = 1;
+    paintFullLayer(`Pattern fill (${motif})`, (g, W, H) => {
+      const tile = patternTile(motif, s, st.brushColor);
       const pat = g.createPattern(tile, "repeat");
       if (pat) {
         g.fillStyle = pat;
         g.fillRect(0, 0, W, H);
       }
     });
+  }
+
+  // Shared motif tile builder used by the stamp engine and pattern fills.
+  function patternTile(motif: "checker" | "dots" | "stripes" | "grid", s: number, color: string): HTMLCanvasElement {
+    const tile = document.createElement("canvas");
+    tile.width = s;
+    tile.height = s;
+    const t = tile.getContext("2d")!;
+    if (motif === "dots") {
+      t.fillStyle = "#ffffff";
+      t.fillRect(0, 0, s, s);
+      t.fillStyle = color;
+      const cell = Math.max(4, Math.round(s / 4));
+      for (let yy = cell / 2; yy < s; yy += cell) {
+        for (let xx = cell / 2; xx < s; xx += cell) {
+          t.beginPath();
+          t.arc(xx, yy, Math.max(1, cell * 0.28), 0, Math.PI * 2);
+          t.fill();
+        }
+      }
+    } else if (motif === "stripes") {
+      t.fillStyle = "#ffffff";
+      t.fillRect(0, 0, s, s);
+      t.fillStyle = color;
+      const cell = Math.max(3, Math.round(s / 6));
+      for (let xx = 0; xx < s; xx += cell * 2) {
+        t.globalAlpha = 0.9;
+        t.fillRect(xx, 0, cell, s);
+      }
+      t.globalAlpha = 1;
+    } else if (motif === "grid") {
+      t.fillStyle = "#ffffff";
+      t.fillRect(0, 0, s, s);
+      t.strokeStyle = color;
+      t.globalAlpha = 0.9;
+      t.lineWidth = Math.max(1, Math.round(s / 24));
+      const cell = Math.max(4, Math.round(s / 4));
+      t.beginPath();
+      for (let v = 0; v <= s; v += cell) {
+        t.moveTo(v + 0.5, 0);
+        t.lineTo(v + 0.5, s);
+        t.moveTo(0, v + 0.5);
+        t.lineTo(s, v + 0.5);
+      }
+      t.stroke();
+      t.globalAlpha = 1;
+    } else {
+      t.fillStyle = "#ffffff";
+      t.fillRect(0, 0, s, s);
+      t.fillStyle = color;
+      const cell = Math.max(3, Math.round(s / 6));
+      for (let yy = 0; yy < s; yy += cell) {
+        for (let xx = 0; xx < s; xx += cell) {
+          t.globalAlpha = 0.85;
+          if (((xx + yy) / cell) % 2 === 0) t.fillRect(xx, yy, cell, cell);
+        }
+      }
+      t.globalAlpha = 1;
+    }
+    return tile;
   }
 
   function fillContentClick(x: number, y: number) {
@@ -3257,20 +3368,10 @@ export default function CanvasArea() {
     if (snap) st.pushHistory({ label: "Gradient", layerId: id, snapshot: snap });
     const c = layerManager.ensure(id, st.doc.width, st.doc.height);
     const ctx = c.getContext("2d")!;
-    const to =
-      gradTo === "white" ? "#ffffff" : gradTo === "black" ? "#000000" : "rgba(0,0,0,0)";
-    const from = st.brushColor;
+    const [stop0, stop1] = gradEnds();
     const g = ctx.createLinearGradient(x0, y0, x1, y1);
-    if (gradTo === "transparent") {
-      g.addColorStop(0, from);
-      const r = parseInt(from.slice(1, 3), 16);
-      const gg = parseInt(from.slice(3, 5), 16);
-      const b = parseInt(from.slice(5, 7), 16);
-      g.addColorStop(1, `rgba(${r},${gg},${b},0)`);
-    } else {
-      g.addColorStop(0, from);
-      g.addColorStop(1, to);
-    }
+    g.addColorStop(0, stop0);
+    g.addColorStop(1, stop1);
     // Bug fix: selection-safe via temp (was destination-in on live layer = erased outside).
     const sel = selectionMaskCanvas();
     if (sel && hasSelection()) {
@@ -3294,6 +3395,7 @@ export default function CanvasArea() {
       ctx.fillRect(0, 0, c.width, c.height);
       ctx.restore();
     }
+    if (gradDitherOn()) applyDitherToLayer(id);
     st.markDirty();
     useProStore.getState().bumpHistogram();
   }
@@ -3312,12 +3414,26 @@ export default function CanvasArea() {
 
   // Eyedropper: pick color from the composite then return to brush.
   function pickColor(p: { x: number; y: number }) {
-    const comp = getCompositeCanvas();
-    if (!comp) return;
-    const ix = Math.max(0, Math.min(comp.width - 1, Math.floor(p.x)));
-    const iy = Math.max(0, Math.min(comp.height - 1, Math.floor(p.y)));
+    const pro = useProStore.getState();
+    const ix = Math.max(0, Math.floor(p.x));
+    const iy = Math.max(0, Math.floor(p.y));
     try {
-      const d = comp.getContext("2d", { willReadFrequently: true })!.getImageData(ix, iy, 1, 1).data;
+      let d: Uint8ClampedArray | null = null;
+      // Fase E sample mode: current layer only, or the full composite.
+      if (pro.sampleMode === "current") {
+        const aid = useEditorStore.getState().activeLayerId;
+        const c = aid ? layerManager.get(aid) : null;
+        if (c && ix < c.width && iy < c.height) {
+          d = c.getContext("2d", { willReadFrequently: true })!.getImageData(ix, iy, 1, 1).data;
+        }
+      }
+      if (!d) {
+        const comp = getCompositeCanvas();
+        if (!comp) return;
+        const cx = Math.max(0, Math.min(comp.width - 1, ix));
+        const cy = Math.max(0, Math.min(comp.height - 1, iy));
+        d = comp.getContext("2d", { willReadFrequently: true })!.getImageData(cx, cy, 1, 1).data;
+      }
       const hex = `#${[d[0], d[1], d[2]].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
       const st = useEditorStore.getState();
       st.setBrush({ color: hex });
@@ -3335,9 +3451,10 @@ export default function CanvasArea() {
       const id = comp
         .getContext("2d", { willReadFrequently: true })!
         .getImageData(0, 0, comp.width, comp.height);
-      const tol = useProStore.getState().selTolerance;
-      wandFromImage(comp.width, comp.height, id, p.x, p.y, tol);
-      const feather = useProStore.getState().selFeather;
+      const pro = useProStore.getState();
+      const tol = pro.selTolerance;
+      wandFromImage(comp.width, comp.height, id, p.x, p.y, tol, pro.selMode);
+      const feather = pro.selFeather;
       if (feather > 0) featherSelection(feather);
       setAnts((a) => a + 1);
     } catch {
@@ -3375,15 +3492,17 @@ export default function CanvasArea() {
     const l = makeLayer(`${fxName} ${st.layers.length + 1}`);
     (l as unknown as { kind: string }).kind = "text";
     layerManager.ensure(l.id, doc.width, doc.height);
+    // Fase E: new text layers inherit the top bar text defaults.
+    const td = pro.textDefaults;
     const spec = {
       text: presetText ?? "Edit text in panel",
-      fontFamily: fx === "typewriter" ? "monospace" : "Inter",
-      fontSize: Math.max(24, Math.round(doc.width / 24)),
-      color: fx === "outline" ? "#2f7cf6" : "#ffffff",
-      bold: true,
-      italic: false,
-      tracking: fx === "blocky" ? 6 : 0,
-      leading: 1.25,
+      fontFamily: fx === "typewriter" ? "monospace" : td.fontFamily,
+      fontSize: td.fontSize,
+      color: fx === "outline" ? "#2f7cf6" : td.color,
+      bold: td.bold,
+      italic: td.italic,
+      tracking: fx === "blocky" ? 6 : td.tracking,
+      leading: td.leading,
     };
     if (vertical && !presetText) spec.text = spec.text.split("").join("\n");
     if (fx === "arc" && !presetText) spec.text = "ARC TEXT";
@@ -3621,11 +3740,13 @@ export default function CanvasArea() {
     layerManager.ensure(l.id, doc.width, doc.height);
     const isFrame = namePrefix === "Frame";
     const isArtboard = namePrefix === "Artboard";
+    // Fase E: new shapes inherit the top bar shape defaults.
+    const sd = pro.shapeDefaults;
     const spec = {
       kind,
-      fill: isFrame ? "rgba(47,124,246,0.08)" : isArtboard ? "#ffffff" : "#2f7cf6",
-      stroke: isFrame ? "#2f7cf6" : "#ffffff",
-      strokeWidth: isFrame || isArtboard ? 2 : 3,
+      fill: isFrame ? "rgba(47,124,246,0.08)" : isArtboard ? "#ffffff" : sd.fill,
+      stroke: isFrame ? "#2f7cf6" : sd.stroke,
+      strokeWidth: isFrame || isArtboard ? 2 : sd.strokeWidth,
       sides: kind === "triangle" ? 3 : kind === "hexagon" ? 6 : kind === "star" ? 5 : sides,
       rotation: 0,
     };
@@ -3644,7 +3765,7 @@ export default function CanvasArea() {
     if (!activeLayerId) return;
     const meta = layers.find((l) => l.id === activeLayerId);
     if (!meta || meta.locked || !meta.visible) return;
-    const src = cloneRef.current;
+    const src = useProStore.getState().cloneSource;
     if (!src) {
       setCursor("Alt-click to set source");
       return;
@@ -3738,7 +3859,7 @@ export default function CanvasArea() {
       try {
         const id = comp.getContext("2d", { willReadFrequently: true })!.getImageData(0, 0, comp.width, comp.height);
         const tol = Math.max(pro.selTolerance, 30);
-        wandFromImage(comp.width, comp.height, id, p.x, p.y, tol);
+        wandFromImage(comp.width, comp.height, id, p.x, p.y, tol, pro.selMode);
         expandContractSelection(3);
         if (pro.selFeather > 0) featherSelection(pro.selFeather);
         setAnts((a) => a + 1);
@@ -4143,13 +4264,13 @@ export default function CanvasArea() {
           if (tool === "sky-select" || tool === "background-select" || tool === "focus-select") {
             try {
               if (tool === "sky-select") {
-                drawRectSelection(doc.width, doc.height, { x: 0, y: 0, w: doc.width, h: Math.round(doc.height * 0.62) });
+                drawRectSelection(doc.width, doc.height, { x: 0, y: 0, w: doc.width, h: Math.round(doc.height * 0.62) }, useProStore.getState().selMode);
                 featherSelection(8);
                 setCursor("Sky selected");
               } else if (tool === "focus-select") {
                 const w = doc.width * 0.7;
                 const h = doc.height * 0.7;
-                drawEllipseSelection(doc.width, doc.height, { x: (doc.width - w) / 2, y: (doc.height - h) / 2, w, h });
+                drawEllipseSelection(doc.width, doc.height, { x: (doc.width - w) / 2, y: (doc.height - h) / 2, w, h }, useProStore.getState().selMode);
                 featherSelection(6);
                 setCursor("Focus selected");
               } else {
@@ -4157,8 +4278,8 @@ export default function CanvasArea() {
                 const comp = getCompositeCanvas();
                 if (comp) {
                   const id = comp.getContext("2d", { willReadFrequently: true })!.getImageData(0, 0, comp.width, comp.height);
-                  const tol = useProStore.getState().selTolerance;
-                  wandFromImage(comp.width, comp.height, id, 5, 5, tol);
+                  const pro2 = useProStore.getState();
+                  wandFromImage(comp.width, comp.height, id, 5, 5, pro2.selTolerance, pro2.selMode);
                   expandContractSelection(2);
                   setCursor("Background selected");
                 }
@@ -4400,10 +4521,10 @@ export default function CanvasArea() {
             if (comp) {
               try {
                 const id = comp.getContext("2d", { willReadFrequently: true })!.getImageData(0, 0, comp.width, comp.height);
-                const tol = useProStore.getState().selTolerance;
+                const pro3 = useProStore.getState();
                 const seed = tool === "range-skin" ? "#c8966e" : tool === "range-sky" ? "#5a8fd0" : "#4d8a3f";
-                colorRangeSelection(comp.width, comp.height, id, seed, Math.max(tol, 34));
-                const feather = useProStore.getState().selFeather;
+                colorRangeSelection(comp.width, comp.height, id, seed, Math.max(pro3.selTolerance, 34), pro3.selMode);
+                const feather = pro3.selFeather;
                 if (feather > 0) featherSelection(feather);
                 setCursor(tool === "range-skin" ? "Skin tones selected" : tool === "range-sky" ? "Sky tones selected" : "Greens selected");
                 setAnts((a) => a + 1);
@@ -4459,12 +4580,12 @@ export default function CanvasArea() {
           }
           if (isClone) {
             if (e.altKey) {
-              cloneRef.current = { x: p.x, y: p.y };
+              useProStore.getState().setCloneSource({ x: p.x, y: p.y });
               cloneOrigin.current = null;
               setCursor(`Source ${Math.round(p.x)}, ${Math.round(p.y)}`);
               return;
             }
-            if (!cloneRef.current && !cloneHintShown.current) {
+            if (!useProStore.getState().cloneSource && !cloneHintShown.current) {
               cloneHintShown.current = true;
               notify("Clone: Alt-click the photo first to set the source, then paint.");
             }
@@ -4568,8 +4689,8 @@ export default function CanvasArea() {
                 const d = comp.getContext("2d", { willReadFrequently: true })!.getImageData(ix, iy, 1, 1).data;
                 const hex = `#${[d[0], d[1], d[2]].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
                 const id = comp.getContext("2d", { willReadFrequently: true })!.getImageData(0, 0, comp.width, comp.height);
-                const tol = useProStore.getState().selTolerance;
-                colorRangeSelection(comp.width, comp.height, id, hex, tol);
+                const pro4 = useProStore.getState();
+                colorRangeSelection(comp.width, comp.height, id, hex, pro4.selTolerance, pro4.selMode);
                 setCursor(`Range ${hex}`);
                 window.dispatchEvent(new Event("avero:selection-changed"));
               } catch { /* ignore */ }
@@ -4587,10 +4708,10 @@ export default function CanvasArea() {
             if (comp) {
               try {
                 const id = comp.getContext("2d", { willReadFrequently: true })!.getImageData(0, 0, comp.width, comp.height);
-                const tol = useProStore.getState().selTolerance;
-                wandFromImage(comp.width, comp.height, id, p.x, p.y, Math.max(tol, 30));
+                const pro5 = useProStore.getState();
+                wandFromImage(comp.width, comp.height, id, p.x, p.y, Math.max(pro5.selTolerance, 30), pro5.selMode);
                 expandContractSelection(3);
-                const feather = useProStore.getState().selFeather;
+                const feather = pro5.selFeather;
                 if (feather > 0) featherSelection(feather);
                 setAnts((a) => a + 1);
                 window.dispatchEvent(new Event("avero:selection-changed"));
@@ -4764,7 +4885,7 @@ export default function CanvasArea() {
               }
             }
             // One-time hint for heal tools (cursor text alone is missed).
-            if (needsHealSource && !healRef.current && !healHintShown.current && !e.altKey) {
+            if (needsHealSource && !useProStore.getState().healSource && !healHintShown.current && !e.altKey) {
               healHintShown.current = true;
               notify("Healing: Alt-click a clean area first to set the source, then paint over the spot.");
             }
@@ -4807,7 +4928,7 @@ export default function CanvasArea() {
             if (tool === "smudge" || distortLegacy || dk !== null) pickSmudgeColor(p);
             // Alt sets heal source for healing-brush / patch (does not paint)
             if (needsHealSource && e.altKey) {
-              healRef.current = { x: p.x, y: p.y };
+              useProStore.getState().setHealSource({ x: p.x, y: p.y });
               setCursor(`Heal source ${Math.round(p.x)}, ${Math.round(p.y)}`);
               setIsPainting(false);
               return;
@@ -5045,7 +5166,7 @@ export default function CanvasArea() {
             }
           }
         }}
-        onMouseUp={() => {
+        onMouseUp={(e) => {
           if (penDrag) {
             const dx = penDrag.x1 - penDrag.x0;
             const dy = penDrag.y1 - penDrag.y0;
@@ -5066,13 +5187,19 @@ export default function CanvasArea() {
             const dy = measureDrag.y1 - measureDrag.y0;
             const dist = Math.hypot(dx, dy);
             const ang = (Math.atan2(-dy, dx) * 180) / Math.PI;
+            // Fase E unit: px mentah, in/cm pada 96 DPI. Live dari top bar.
+            const unit = useProStore.getState().measureUnit;
+            const fmt = (px: number) =>
+              unit === "in" ? `${(px / 96).toFixed(2)} in` : unit === "cm" ? `${((px / 96) * 2.54).toFixed(2)} cm` : `${px.toFixed(1)} px`;
+            const fmtArea = (px2: number) =>
+              unit === "in" ? `${(px2 / (96 * 96)).toFixed(2)} sq in` : unit === "cm" ? `${((px2 / (96 * 96)) * 6.4516).toFixed(2)} sq cm` : `${(px2 / 1000).toFixed(1)}k px`;
             if (dist > 1) {
               const label =
                 tool === "measure-area"
-                  ? `${Math.abs(dx).toFixed(0)}x${Math.abs(dy).toFixed(0)} area ${(Math.abs(dx * dy) / 1000).toFixed(1)}k px`
+                  ? `${fmt(Math.abs(dx))}x${fmt(Math.abs(dy))} area ${fmtArea(Math.abs(dx * dy))}`
                   : tool === "measure-angle" || tool === "protractor" || tool === "ruler-triple"
-                    ? `Angle ${ang.toFixed(1)} deg (${Math.abs(dx).toFixed(0)} x ${Math.abs(dy).toFixed(0)})`
-                    : `${dist.toFixed(1)} px | ${ang.toFixed(1)} deg`;
+                    ? `Angle ${ang.toFixed(1)} deg (${fmt(Math.abs(dx))} x ${fmt(Math.abs(dy))})`
+                    : `${fmt(dist)} | ${ang.toFixed(1)} deg`;
               setCursor(tool === "measure-area" ? `Area ${label}` : tool === "measure-angle" || tool === "protractor" || tool === "ruler-triple" ? label : `Distance ${label}`);
               useProStore.getState().addMeasure({ x0: Math.round(measureDrag.x0), y0: Math.round(measureDrag.y0), x1: Math.round(measureDrag.x1), y1: Math.round(measureDrag.y1), label });
               // Triple ruler chains: next segment starts where this one ended.
@@ -5109,6 +5236,8 @@ export default function CanvasArea() {
               h: selDrag.y1 - selDrag.y0,
             };
             const pro = useProStore.getState();
+            // Fase E combine mode: bar buttons set selMode, Shift/Alt override per stroke.
+            const combineMode = e.shiftKey ? "add" : e.altKey ? "subtract" : pro.selMode;
             if (tool === "zoom-marquee") {
               // Zoom the viewport to fit the dragged rect.
               const rw = Math.abs(r.w);
@@ -5132,22 +5261,22 @@ export default function CanvasArea() {
               return;
             }
             if (tool === "single-row") {
-              drawRectSelection(doc.width, doc.height, { x: 0, y: Math.round(r.y), w: doc.width, h: 1 });
+              drawRectSelection(doc.width, doc.height, { x: 0, y: Math.round(r.y), w: doc.width, h: 1 }, combineMode);
             } else if (tool === "single-column") {
-              drawRectSelection(doc.width, doc.height, { x: Math.round(r.x), y: 0, w: 1, h: doc.height });
+              drawRectSelection(doc.width, doc.height, { x: Math.round(r.x), y: 0, w: 1, h: doc.height }, combineMode);
             } else if (tool === "select-crosshair") {
               // Symmetric about the start point: mirror the drag vector.
               const w = selDrag.x1 - selDrag.x0;
               const h = selDrag.y1 - selDrag.y0;
               if (Math.abs(w) > 4 && Math.abs(h) > 4) {
-                drawRectSelection(doc.width, doc.height, { x: selDrag.x0 - w, y: selDrag.y0 - h, w: w * 2, h: h * 2 });
+                drawRectSelection(doc.width, doc.height, { x: selDrag.x0 - w, y: selDrag.y0 - h, w: w * 2, h: h * 2 }, combineMode);
                 if (pro.selFeather > 0) featherSelection(pro.selFeather);
               }
             } else if (Math.abs(r.w) > 4 && Math.abs(r.h) > 4) {
-              if (tool === "select-ellipse" || tool === "select-circle") drawEllipseSelection(doc.width, doc.height, r);
-              else if (tool === "select-rounded") drawRoundedRectSelection(doc.width, doc.height, r, 24);
-              else if (tool === "select-stadium") drawRoundedRectSelection(doc.width, doc.height, r, 9999);
-              else drawRectSelection(doc.width, doc.height, r);
+              if (tool === "select-ellipse" || tool === "select-circle") drawEllipseSelection(doc.width, doc.height, r, combineMode);
+              else if (tool === "select-rounded") drawRoundedRectSelection(doc.width, doc.height, r, 24, combineMode);
+              else if (tool === "select-stadium") drawRoundedRectSelection(doc.width, doc.height, r, 9999, combineMode);
+              else drawRectSelection(doc.width, doc.height, r, combineMode);
               if (pro.selFeather > 0) featherSelection(pro.selFeather);
             }
             setSelDrag(null);
@@ -5157,7 +5286,8 @@ export default function CanvasArea() {
             lassoPts.length > 2 &&
             (tool === "select-lasso" || tool === "select-polygon" || tool === "magnetic-lasso" || tool === "lasso-straight")
           ) {
-            drawLassoSelection(doc.width, doc.height, lassoPts);
+            const lassoMode = e.shiftKey ? "add" : e.altKey ? "subtract" : useProStore.getState().selMode;
+            drawLassoSelection(doc.width, doc.height, lassoPts, lassoMode);
             if (tool === "magnetic-lasso") {
               expandContractSelection(2);
               const f = useProStore.getState().selFeather;
@@ -5248,7 +5378,9 @@ export default function CanvasArea() {
           setIsPainting(false);
           lastPos.current = null;
           panning.current = null;
-          cloneOrigin.current = null;
+          // Fase E Aligned toggle: aligned keeps the clone offset across
+          // strokes, non-aligned restarts it every stroke like the old code.
+          if (!useProStore.getState().cloneAligned) cloneOrigin.current = null;
           // clear per-stroke clone snapshot so next stroke re-captures fresh pixels
           try {
             (cloneToVariant as unknown as { _src?: HTMLCanvasElement | null; _id?: string | null })._src = null;
@@ -5264,7 +5396,7 @@ export default function CanvasArea() {
           lastPos.current = null;
           panning.current = null;
           moveDrag.current = null;
-          cloneOrigin.current = null;
+          if (!useProStore.getState().cloneAligned) cloneOrigin.current = null;
           smudgeColor.current = null;
           rotateStart.current = null;
           directStart.current = null;

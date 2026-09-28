@@ -19,9 +19,7 @@ export default class ErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    console.log(`[DIAG] render crash: ${error.message}`);
-    console.log(`[DIAG] component stack:${info.componentStack}`);
-    this.setState({ stack: info.componentStack ?? "" });
+    this.setState({ stack: info.componentStack ?? String(error.stack ?? "") });
   }
 
   render() {
@@ -29,7 +27,7 @@ export default class ErrorBoundary extends React.Component<Props, State> {
       return (
         <div className="grid h-full place-items-center bg-[#161618] p-8 text-[#c9c9d1]">
           <div className="w-[560px] max-w-full rounded-lg border border-red-800 bg-[#2a1f1f] p-5">
-            <h2 className="text-[15px] font-bold text-red-200">AVERO STUDIO menemui error render</h2>
+            <h2 className="text-[15px] font-bold text-red-200">AVERO STUDIO hit a render error</h2>
             <p className="mt-1 font-mono text-[11px] text-red-100/80">{this.state.error.message}</p>
             <pre className="mt-2 max-h-44 overflow-auto rounded bg-black/50 p-2 font-mono text-[10px] text-[#c9c9d1]">
               {this.state.stack}
@@ -39,14 +37,14 @@ export default class ErrorBoundary extends React.Component<Props, State> {
                 onClick={() => window.location.reload()}
                 className="rounded bg-[#2f7cf6] px-3 py-1.5 text-[12px] text-white"
               >
-                Muat ulang
+                Reload
               </button>
               <button
                 onClick={() => {
                   try {
                     localStorage.clear();
                   } catch {
-                    /* abaikan */
+                    /* ignore */
                   }
                   window.location.reload();
                 }}

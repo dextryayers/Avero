@@ -78,8 +78,8 @@ export const EXAMPLE_PLUGINS: PluginDef[] = [
     id: "plug-grain",
     name: "Film Grain",
     version: "1.0.0",
-    author: "Komunitas",
-    description: "Tambah grain acak. Contoh 9 baris.",
+    author: "Community",
+    description: "Add random film grain. Nine-line example.",
     params: [{ key: "grain", label: "Grain", min: 0, max: 40, def: 12 }],
     code: `
       const g = params.grain ?? 12;

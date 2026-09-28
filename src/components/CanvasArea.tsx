@@ -197,7 +197,7 @@ export default function CanvasArea() {
     tool === "clone" || tool === "pattern-stamp" || tool === "texture-stamp" ||
     tool === "clone-mirror" || tool === "clone-rotate" || tool === "pattern-fill" ||
     tool === "clone-soft" || tool === "pattern-dots";
-  const isEyedropper = tool === "eyedropper" || tool === "color-sampler" || tool === "sampler-avg";
+  const isEyedropper = tool === "eyedropper" || tool === "color-sampler" || tool === "sampler-avg" || tool === "sampler-3x3" || tool === "sampler-11x11";
   const isCrop = (IS_CROP_TOOL as Set<string>).has(tool);
   const retouchMode = retouchModeOf(tool);
   const distortKind = distortOf(tool);
@@ -1825,7 +1825,28 @@ export default function CanvasArea() {
           mode === "dust" || mode === "wrinkle" || mode === "blemish" ||
           mode === "sky" || mode === "skin" || mode === "object" ||
           mode === "sepia" || mode === "bw" || mode === "filmfade" ||
-          mode === "splittone" || mode === "hdr"
+          mode === "splittone" || mode === "hdr" ||
+          mode === "mole" || mode === "acne" || mode === "scarfade" ||
+          mode === "shine" || mode === "pores" || mode === "tanline" ||
+          mode === "veins" || mode === "chapped" || mode === "strayhair" ||
+          mode === "flyaway" || mode === "pricetag" || mode === "tourist" ||
+          mode === "wire" || mode === "trash" || mode === "reflection" ||
+          mode === "glare" || mode === "shadowlift" || mode === "fogcut" ||
+          mode === "grainmatch" || mode === "texturecopy" || mode === "fabric" ||
+          mode === "glass" || mode === "chrome" || mode === "rustspot" ||
+          mode === "dodgemid" || mode === "dodgedetail" || mode === "burnedge" ||
+          mode === "burndepth" || mode === "spongewarm" || mode === "spongecool" ||
+          mode === "vibrskin" || mode === "vibrfoliage" || mode === "tempsunset" ||
+          mode === "temparctic" || mode === "tintcinema" || mode === "clarityskin" ||
+          mode === "claritydetail" || mode === "dehazesky" || mode === "dehazeportrait" ||
+          mode === "grainpush" || mode === "grainpull" || mode === "fadeblacks" ||
+          mode === "fadewhites" || mode === "splitgold" ||
+          mode === "tiltstrong" || mode === "blurzoom" || mode === "blurspin" ||
+          mode === "blurfrosted" || mode === "blurmosaic" || mode === "halofix" ||
+          mode === "sharpenprint" || mode === "sharpenscreen" || mode === "claritystruct" ||
+          mode === "denoiseluma" || mode === "denoisechroma" || mode === "grain35" ||
+          mode === "grain120" || mode === "grainpush2" || mode === "lensswirl" ||
+          mode === "lensbubble" || mode === "motionzoom" || mode === "motionspin"
         ) {
           const id = ctx.getImageData(sx, sy, s, s);
           const d = id.data;
@@ -4442,8 +4463,9 @@ export default function CanvasArea() {
           }
           if (tool === "rotate-15") {
             const cur = useEditorStore.getState().viewRotate;
-            setViewRotate(cur + 15);
-            setCursor(`Rotate ${useEditorStore.getState().viewRotate}deg`);
+            const snapped = Math.round((cur + 15) / 15) * 15;
+            setViewRotate(snapped);
+            setCursor(`Rotate ${snapped}deg`);
             return;
           }
           if (tool === "fill-solid" || tool === "fill-clear" || tool === "gradient-diamond" ||
@@ -4590,7 +4612,7 @@ export default function CanvasArea() {
               notify("Clone: Alt-click the photo first to set the source, then paint.");
             }
             if (tool === "pattern-fill") {
-              // fill active layer with checker pattern tinted by brush color
+              // fill active layer with the motif picker pattern tinted by brush color
               const st = useEditorStore.getState();
               const id = st.activeLayerId;
               if (!id) return;
@@ -4599,23 +4621,13 @@ export default function CanvasArea() {
                 notify("Active layer is locked or hidden. Unlock it first.");
                 return;
               }
+              const motif = useProStore.getState().patternMotif;
               const snap = layerManager.snapshot(id);
-              if (snap) st.pushHistory({ label: "Pattern fill", layerId: id, snapshot: snap });
+              if (snap) st.pushHistory({ label: `Pattern fill (${motif})`, layerId: id, snapshot: snap });
               const c = layerManager.ensure(id, st.doc.width, st.doc.height);
               const g = c.getContext("2d")!;
               const s = Math.max(8, Math.round(brushSize));
-              const pat = document.createElement("canvas");
-              pat.width = s;
-              pat.height = s;
-              const pctx = pat.getContext("2d")!;
-              const cell = Math.max(2, Math.round(s / 8));
-              for (let yy = 0; yy < s; yy += cell) {
-                for (let xx = 0; xx < s; xx += cell) {
-                  pctx.fillStyle = ((xx + yy) / cell) % 2 === 0 ? brushColor : "#ffffff";
-                  pctx.globalAlpha = 0.9;
-                  pctx.fillRect(xx, yy, cell, cell);
-                }
-              }
+              const pat = patternTile(motif, s, brushColor);
               g.save();
               g.globalAlpha = brushOpacity / 100;
               const pattern = g.createPattern(pat, "repeat");
@@ -4773,6 +4785,7 @@ export default function CanvasArea() {
             if (tool === "zoom-fit") window.dispatchEvent(new Event("avero:fit-zoom"));
             else if (tool === "zoom-100") setZoom(100);
             else if (tool === "zoom-200") setZoom(200);
+            else if (tool === "zoom-400") setZoom(400);
             else if (tool === "zoom-50") setZoom(50);
             else if (tool === "zoom-800") setZoom(800);
             else if (tool === "rotate-reset") {
@@ -5033,7 +5046,13 @@ export default function CanvasArea() {
             const dx = e.clientX - directStart.current.x;
             const pro = useProStore.getState();
             const cur = pro.shapeSpecs[directStart.current.layerId];
-            if (cur) pro.setShapeSpec(directStart.current.layerId, { ...cur, rotation: directStart.current.rotation + dx * 0.5 });
+            if (cur) {
+              const next = { ...cur, rotation: directStart.current.rotation + dx * 0.5 };
+              pro.setShapeSpec(directStart.current.layerId, next);
+              const c = layerManager.get(directStart.current.layerId);
+              if (c) renderShapeToLayer(c, next);
+              markDirty();
+            }
             return;
           }
           if (sliceMove.current && (tool === "slice-select" || tool === "slice")) {
@@ -5054,7 +5073,7 @@ export default function CanvasArea() {
             // enforce aspect lock for preset crops
             const ratio = (CROP_RATIOS as Record<string, number | null>)[tool] ?? null;
             if (ratio) {
-              let w = p.x - cropDrag.x0;
+              const w = p.x - cropDrag.x0;
               let h = p.y - cropDrag.y0;
               const ah = Math.abs(w) / ratio;
               h = Math.sign(h || 1) * ah;
@@ -5132,7 +5151,7 @@ export default function CanvasArea() {
             // shift locks square for rect/ellipse-like shapes
             let x1 = p.x;
             let y1 = p.y;
-            if (e.shiftKey && (shapeDrag.kind === "rect" || shapeDrag.kind === "ellipse" || shapeDrag.kind === "rounded" || shapeDrag.kind === "donut")) {
+            if (e.shiftKey && (shapeDrag.kind === "rect" || shapeDrag.kind === "ellipse" || shapeDrag.kind === "rounded" || shapeDrag.kind === "donut" || shapeDrag.kind === "star" || shapeDrag.kind === "polygon" || shapeDrag.kind === "pentagon" || shapeDrag.kind === "octagon" || shapeDrag.kind === "plus" || shapeDrag.kind === "cross" || shapeDrag.kind === "badge" || shapeDrag.kind === "chevron")) {
               const w = Math.abs(x1 - shapeDrag.x0);
               const h = Math.abs(y1 - shapeDrag.y0);
               const m = Math.max(w, h);
@@ -5149,7 +5168,7 @@ export default function CanvasArea() {
               if (tool === "clone-mirror") cloneToVariant(p.x, p.y, "mirror");
               else if (tool === "clone-rotate") cloneToVariant(p.x, p.y, "rotate");
               else if (tool === "clone-soft") cloneToVariant(p.x, p.y, "soft");
-              else if (tool === "texture-stamp" || tool === "pattern-stamp") patternStampTo(p.x, p.y);
+              else if (tool === "texture-stamp" || tool === "pattern-stamp") patternStampTo(p.x, p.y, tool === "pattern-stamp" ? useProStore.getState().patternMotif : "checker");
               else if (tool === "pattern-dots") patternStampTo(p.x, p.y, "dots");
               else if (tool === "pattern-fill") { /* click-only, ignore drag */ }
               else cloneTo(p.x, p.y);
@@ -5276,7 +5295,17 @@ export default function CanvasArea() {
               if (tool === "select-ellipse" || tool === "select-circle") drawEllipseSelection(doc.width, doc.height, r, combineMode);
               else if (tool === "select-rounded") drawRoundedRectSelection(doc.width, doc.height, r, 24, combineMode);
               else if (tool === "select-stadium") drawRoundedRectSelection(doc.width, doc.height, r, 9999, combineMode);
-              else drawRectSelection(doc.width, doc.height, r, combineMode);
+              else if (tool === "select-square") {
+                // Square lock: equal sides keep the drag direction.
+                const side = Math.max(Math.abs(r.w), Math.abs(r.h));
+                const sq = {
+                  x: r.x,
+                  y: r.y,
+                  w: (r.w < 0 ? -1 : 1) * side,
+                  h: (r.h < 0 ? -1 : 1) * side,
+                };
+                drawRectSelection(doc.width, doc.height, sq, combineMode);
+              } else drawRectSelection(doc.width, doc.height, r, combineMode);
               if (pro.selFeather > 0) featherSelection(pro.selFeather);
             }
             setSelDrag(null);
@@ -5344,7 +5373,7 @@ export default function CanvasArea() {
                 artboard: "rect",
               };
               const sk = map[kind] ?? "rect";
-              const sides = kind === "triangle" ? 3 : kind === "star" ? 5 : kind === "hexagon" ? 6 : 6;
+              const sides = kind === "triangle" ? 3 : kind === "star" ? 5 : kind === "pentagon" ? 5 : kind === "hexagon" ? 6 : kind === "octagon" ? 8 : 6;
               if (kind === "frame") createShapeLayer("rect", 4, "Frame");
               else if (kind === "artboard") createShapeLayer("rect", 4, "Artboard");
               else if (sk === "triangle") createShapeLayer("triangle", 3);

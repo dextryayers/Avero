@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useEditorStore, makeLayer } from "../stores/useEditorStore";
+import { TOOLS } from "./ToolBar";
 import { useProStore } from "../stores/useProStore";
 import { useHomeStore } from "../stores/useHomeStore";
 import { layerManager } from "../engine/layerManager";
@@ -156,22 +157,13 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
           useProStore.getState().addGuide("v", Math.round(useEditorStore.getState().doc.width / 2)),
       },
       { id: "guides-clear", title: "Clear all guides", run: () => useProStore.getState().clearGuides() },
-      { id: "brush", title: "Tool brush (B)", run: () => s.setTool("brush") },
-      { id: "heal", title: "Tool spot heal (J)", run: () => s.setTool("spot-heal") },
-      { id: "eraser", title: "Tool eraser (E)", run: () => s.setTool("eraser") },
-      { id: "clone", title: "Tool clone stamp (S)", run: () => s.setTool("clone") },
-      { id: "blur", title: "Tool blur (R)", run: () => s.setTool("blur") },
-      { id: "sharpen-t", title: "Tool sharpen (R)", run: () => s.setTool("sharpen") },
-      { id: "smudge", title: "Tool smudge (R)", run: () => s.setTool("smudge") },
-      { id: "dodge", title: "Tool dodge (O)", run: () => s.setTool("dodge") },
-      { id: "burn", title: "Tool burn (O)", run: () => s.setTool("burn") },
-      { id: "sponge", title: "Tool sponge (O)", run: () => s.setTool("sponge") },
-      { id: "fill", title: "Tool paint bucket fill (G)", run: () => s.setTool("fill") },
-      { id: "pen", title: "Tool pen (P)", run: () => s.setTool("pen") },
-      { id: "line", title: "Tool line (P)", run: () => s.setTool("line") },
-      { id: "crop", title: "Tool crop (C)", run: () => s.setTool("crop") },
-      { id: "gradient", title: "Tool gradient (G)", run: () => s.setTool("gradient") },
-      { id: "move", title: "Tool move / transform (V)", run: () => s.setTool("move") },
+      // Every toolbar tool is searchable here, generated from the single
+      // source of truth so new tools never go missing from the palette.
+      ...TOOLS.map((t) => ({
+        id: `tool-${t.id}`,
+        title: `Tool ${t.label} (${t.shortcut}) [${t.group}]`,
+        run: () => useEditorStore.getState().setTool(t.id as never),
+      })),
       { id: "grid", title: "Toggle grid Photoshop", run: () => useProStore.getState().toggleGrid() },
       { id: "snap", title: "Toggle snap guides/grid", run: () => useProStore.getState().toggleSnap() },
       {
@@ -242,7 +234,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
           useProStore.getState().setSelKind("wand");
         },
       },
-      { id: "text", title: "Tool text", run: () => s.setTool("text") },
+      { id: "text", title: "Tool text (also searchable as Tool Horizontal Type)", run: () => s.setTool("text") },
       {
         id: "add-adjust-bc",
         title: "Add adjustment brightness/contrast",
@@ -382,9 +374,6 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
         title: "Inverse selection",
         run: () => window.dispatchEvent(new CustomEvent("avero:select", { detail: "sel-inverse" })),
       },
-      { id: "crop-tool", title: "Tool crop (C)", run: () => s.setTool("crop") },
-      { id: "eyedropper", title: "Tool eyedropper (I)", run: () => s.setTool("eyedropper") },
-      { id: "shape-rect", title: "Tool rectangle shape (U)", run: () => s.setTool("shape-rect") },
       { id: "about", title: "About AVERO STUDIO", run: () => { void showMessage("AVERO STUDIO v2.0.0. Offline, non-destructive, open source."); } },
       {
         id: "native-info",

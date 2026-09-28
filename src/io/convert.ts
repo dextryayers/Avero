@@ -20,9 +20,28 @@ export const INPUT_EXTS = [
   "pam",
   "qoi",
   "psd",
+  "dds",
+  "exr",
+  "hdr",
+  "rgbe",
+  "ff",
 ];
 
-export const OUTPUT_FORMATS = ["png", "jpg", "webp", "bmp", "tiff", "tga", "qoi"] as const;
+export const OUTPUT_FORMATS = [
+  "png",
+  "jpg",
+  "webp",
+  "gif",
+  "bmp",
+  "tiff",
+  "tga",
+  "ico",
+  "pnm",
+  "qoi",
+  "hdr",
+  "ff",
+  "exr",
+] as const;
 export type OutputFormat = (typeof OUTPUT_FORMATS)[number];
 
 /** Format cards for the settings panel: badge + one-line pro guidance. */
@@ -30,10 +49,16 @@ export const FORMAT_CARDS: { id: OutputFormat; badge: "LOSSLESS" | "LOSSY"; note
   { id: "png", badge: "LOSSLESS", note: "Graphics and transparency kept", desktopOnly: false },
   { id: "jpg", badge: "LOSSY", note: "Photos, adjustable quality", desktopOnly: false },
   { id: "webp", badge: "LOSSLESS", note: "Modern and compact", desktopOnly: false },
+  { id: "gif", badge: "LOSSY", note: "256 colors, universal support", desktopOnly: true },
   { id: "bmp", badge: "LOSSLESS", note: "Uncompressed, very large", desktopOnly: true },
   { id: "tiff", badge: "LOSSLESS", note: "Print and archive", desktopOnly: true },
   { id: "tga", badge: "LOSSLESS", note: "Game and video assets", desktopOnly: true },
-  { id: "qoi", badge: "LOSSLESS", note: "Fast and simple", desktopOnly: true },
+  { id: "ico", badge: "LOSSLESS", note: "App icons, auto-sized to 256px", desktopOnly: true },
+  { id: "pnm", badge: "LOSSLESS", note: "Simple portable bitmaps", desktopOnly: true },
+  { id: "qoi", badge: "LOSSLESS", note: "Fast, simple format", desktopOnly: true },
+  { id: "hdr", badge: "LOSSLESS", note: "Radiance HDR float map", desktopOnly: true },
+  { id: "ff", badge: "LOSSLESS", note: "Farbfeld 16-bit lossless", desktopOnly: true },
+  { id: "exr", badge: "LOSSLESS", note: "OpenEXR film VFX", desktopOnly: true },
 ];
 
 export const RESIZE_FILTERS = ["lanczos", "catmull", "triangle", "gaussian", "nearest"] as const;

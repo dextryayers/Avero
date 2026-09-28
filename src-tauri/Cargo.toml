@@ -30,7 +30,7 @@ tauri-plugin-dialog = "2"
 tauri-plugin-updater = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-image = { version = "0.25", features = ["png", "jpeg", "webp", "bmp", "tiff", "gif", "tga", "ico", "pnm", "qoi"] }
+image = { version = "0.25", features = ["png", "jpeg", "webp", "bmp", "tiff", "gif", "tga", "ico", "pnm", "qoi", "dds", "exr", "ff", "hdr"] }
 psd = "0.3"
 base64 = "0.22"
 tokio = { version = "1", features = ["full"] }
@@ -38,6 +38,7 @@ uuid = { version = "1", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 rayon = "1"
 sysinfo = "0.30"
+bytemuck = "1"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.52"

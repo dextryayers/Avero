@@ -5,8 +5,14 @@
 // (upstream limitation of image 0.25), JPEG carries the quality control.
 
 use image::codecs::bmp::BmpEncoder;
+use image::codecs::farbfeld::FarbfeldEncoder;
+use image::codecs::gif::GifEncoder;
+use image::codecs::hdr::HdrEncoder;
+use image::codecs::ico::{IcoEncoder, IcoFrame};
 use image::codecs::jpeg::JpegEncoder;
+use image::codecs::openexr::OpenExrEncoder;
 use image::codecs::png::{CompressionType, FilterType as PngFilter, PngEncoder};
+use image::codecs::pnm::PnmEncoder;
 use image::codecs::qoi::QoiEncoder;
 use image::codecs::tga::TgaEncoder;
 use image::codecs::tiff::TiffEncoder;
@@ -26,11 +32,13 @@ use tauri::{AppHandle, Emitter};
 /// Extensions accepted as converter input (lowercase, without dot).
 pub const INPUT_EXTS: &[&str] = &[
     "png", "jpg", "jpeg", "webp", "bmp", "tiff", "tif", "gif", "tga", "ico", "pnm", "pbm",
-    "pgm", "ppm", "pam", "qoi", "psd",
+    "pgm", "ppm", "pam", "qoi", "psd", "dds", "exr", "hdr", "rgbe", "ff",
 ];
 
 /// Output formats offered by the converter UI.
-pub const OUTPUT_FORMATS: &[&str] = &["png", "jpg", "webp", "bmp", "tiff", "tga", "qoi"];
+pub const OUTPUT_FORMATS: &[&str] = &[
+    "png", "jpg", "webp", "gif", "bmp", "tiff", "tga", "ico", "pnm", "qoi", "hdr", "ff", "exr",
+];
 
 /// Opaque-output formats that need alpha flattened onto a matte color.
 fn needs_flatten(fmt: &str) -> bool {
@@ -130,6 +138,27 @@ fn parse_filter(s: &str) -> ResizeFilter {
     }
 }
 
+/// Tone-map float HDR images (EXR/RGBE) to LDR with a Reinhard curve.
+/// Also used by the generic image opener so HDR thumbnails look right.
+pub fn tone_map_ldr(img: DynamicImage) -> DynamicImage {
+    match img {
+        DynamicImage::ImageRgba32F(_) | DynamicImage::ImageRgb32F(_) => {
+            let rgba = img.to_rgba32f();
+            let (w, h) = (rgba.width(), rgba.height());
+            let mut out = image::RgbaImage::new(w, h);
+            for (dst, src) in out.pixels_mut().zip(rgba.pixels()) {
+                let m = |v: f32| ((v.max(0.0) / (1.0 + v.max(0.0))) * 255.0).round().clamp(0.0, 255.0) as u8;
+                dst[0] = m(src[0]);
+                dst[1] = m(src[1]);
+                dst[2] = m(src[2]);
+                dst[3] = (src[3].clamp(0.0, 1.0) * 255.0).round() as u8;
+            }
+            DynamicImage::ImageRgba8(out)
+        }
+        other => other,
+    }
+}
+
 /// Compute the target size. Never returns a zero dimension.
 fn target_size(src_w: u32, src_h: u32, spec: &ResizeSpec, no_enlarge: bool) -> (u32, u32) {
     let sw = src_w.max(1) as f32;
@@ -190,8 +219,7 @@ fn target_size(src_w: u32, src_h: u32, spec: &ResizeSpec, no_enlarge: bool) -> (
 }
 
 /// Blend RGBA over an opaque matte. No-op when fully opaque.
-fn flatten_over(img: DynamicImage, matte: [u8; 3]) -> DynamicImage {
-    let mut rgba = img.to_rgba8();
+fn flatten_over(img: DynamicImage, matte: [u8; 3]) -> DynamicImage {    let mut rgba = img.to_rgba8();
     let (mr, mg, mb) = (matte[0] as f32, matte[1] as f32, matte[2] as f32);
     for px in rgba.pixels_mut() {
         let a = px[3] as f32 / 255.0;
@@ -232,6 +260,8 @@ pub fn convert_bytes(input: &[u8], opts: &ConvertOptions) -> Result<(Vec<u8>, u3
     }
     let mut img = image::load_from_memory(input)
         .map_err(|e| format!("Unsupported or corrupt image: {e}"))?;
+    // HDR sources (EXR/RGBE) arrive as float buffers; tone-map to LDR first.
+    img = tone_map_ldr(img);
     let (sw, sh) = (img.width().max(1), img.height().max(1));
 
     // Resize (strong quality path, adjustable filter, default Lanczos3).
@@ -258,6 +288,18 @@ pub fn convert_bytes(input: &[u8], opts: &ConvertOptions) -> Result<(Vec<u8>, u3
     // Flatten transparency for opaque formats.
     if needs_flatten(&fmt) {
         img = flatten_over(img, opts.matte.unwrap_or([255, 255, 255]));
+    }
+
+    // Icons are capped at 256px by spec; fit the longest edge down.
+    if fmt == "ico" {
+        let (iw, ih) = (img.width().max(1), img.height().max(1));
+        let edge = iw.max(ih);
+        if edge > 256 {
+            let s = 256.0 / edge as f32;
+            let tw = ((iw as f32 * s).round() as u32).clamp(1, 256);
+            let th = ((ih as f32 * s).round() as u32).clamp(1, 256);
+            img = img.resize_exact(tw, th, parse_filter(opts.filter.as_deref().unwrap_or("lanczos")));
+        }
     }
 
     let (w, h) = (img.width(), img.height());
@@ -312,6 +354,66 @@ pub fn convert_bytes(input: &[u8], opts: &ConvertOptions) -> Result<(Vec<u8>, u3
             QoiEncoder::new(&mut out)
                 .write_image(rgba.as_raw(), w, h, ExtendedColorType::Rgba8)
                 .map_err(|e| format!("QOI encode failed: {e}"))?;
+        }
+        "gif" => {
+            // Static GIF (first frame); the encoder quantizes to 256 colors.
+            let rgba = img.to_rgba8();
+            GifEncoder::new(&mut out)
+                .encode(rgba.as_raw(), w, h, ExtendedColorType::Rgba8)
+                .map_err(|e| format!("GIF encode failed: {e}"))?;
+        }
+        "ico" => {
+            let rgba = img.to_rgba8();
+            let frame = IcoFrame::as_png(rgba.as_raw(), w, h, ExtendedColorType::Rgba8)
+                .map_err(|e| format!("ICO frame failed: {e}"))?;
+            IcoEncoder::new(&mut out)
+                .encode_images(&[frame])
+                .map_err(|e| format!("ICO encode failed: {e}"))?;
+        }
+        "pnm" => {
+            let rgba = img.to_rgba8();
+            PnmEncoder::new(&mut out)
+                .encode(rgba.as_raw().as_slice(), w, h, ExtendedColorType::Rgba8)
+                .map_err(|e| format!("PNM encode failed: {e}"))?;
+        }
+        "hdr" => {
+            // Radiance RGBE carries no alpha; composite over the matte first.
+            let flat = flatten_over(img, opts.matte.unwrap_or([255, 255, 255])).to_rgb8();
+            let f: Vec<image::Rgb<f32>> = flat
+                .pixels()
+                .map(|p| image::Rgb([p[0] as f32 / 255.0, p[1] as f32 / 255.0, p[2] as f32 / 255.0]))
+                .collect();
+            HdrEncoder::new(&mut out)
+                .encode(&f, w as usize, h as usize)
+                .map_err(|e| format!("HDR encode failed: {e}"))?;
+        }
+        "ff" => {
+            // Farbfeld is 16-bit big-endian RGBA; upscale 8-bit samples.
+            let rgba = img.to_rgba8();
+            let mut be = Vec::with_capacity((w as usize) * (h as usize) * 8);
+            for px in rgba.pixels() {
+                for ch in px.0 {
+                    be.extend_from_slice(&((ch as u16 * 257).to_be_bytes()));
+                }
+            }
+            FarbfeldEncoder::new(&mut out)
+                .encode(&be, w, h)
+                .map_err(|e| format!("Farbfeld encode failed: {e}"))?;
+        }
+        "exr" => {
+            // OpenEXR stores float samples; expand LDR bytes to native-endian f32.
+            let rgba = img.to_rgba8();
+            let mut fimg = image::Rgba32FImage::new(w, h);
+            for (dst, src) in fimg.pixels_mut().zip(rgba.pixels()) {
+                dst[0] = src[0] as f32 / 255.0;
+                dst[1] = src[1] as f32 / 255.0;
+                dst[2] = src[2] as f32 / 255.0;
+                dst[3] = src[3] as f32 / 255.0;
+            }
+            let mut cur = Cursor::new(&mut out);
+            OpenExrEncoder::new(&mut cur)
+                .write_image(bytemuck::cast_slice(fimg.as_raw()), w, h, ExtendedColorType::Rgba32F)
+                .map_err(|e| format!("EXR encode failed: {e}"))?;
         }
         _ => return Err(format!("Unsupported output format: {fmt}")),
     }

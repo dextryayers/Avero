@@ -91,6 +91,8 @@ pub fn cmd_decode_image_to_dataurl(path: String, max_side: Option<u32>) -> Resul
         .map_err(|e| e.to_string())?
         .decode()
         .map_err(|e| e.to_string())?;
+    // HDR sources arrive as float buffers; tone-map so previews look right.
+    img = crate::convert::tone_map_ldr(img);
     img = downscale_if_needed(img, max_side);
     let mut buf = Cursor::new(Vec::new());
     img.write_to(&mut buf, image::ImageFormat::Png)

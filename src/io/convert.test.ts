@@ -137,7 +137,7 @@ describe("converter coverage", () => {
 
   it("documents every output format with a card", () => {
     expect(FORMAT_CARDS.map((c) => c.id).sort()).toEqual(
-      ["bmp", "jpg", "png", "qoi", "tga", "tiff", "webp"],
+      ["bmp", "exr", "ff", "gif", "hdr", "ico", "jpg", "png", "pnm", "qoi", "tga", "tiff", "webp"],
     );
     for (const c of FORMAT_CARDS) {
       expect(c.note.length).toBeGreaterThan(0);

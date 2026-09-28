@@ -12,6 +12,7 @@ import {
   Plus,
   RotateCcw,
   Trash2,
+  Upload,
   X,
 } from "lucide-react";
 import clsx from "clsx";
@@ -19,6 +20,7 @@ import { jobDisplayName, useConvertStore, type ConvertJob } from "../stores/useC
 import {
   EDGE_PRESETS,
   FORMAT_CARDS,
+  INPUT_EXTS,
   OUTPUT_FORMATS,
   RESIZE_FILTERS,
   browseImages,
@@ -97,6 +99,19 @@ function Pill({
   );
 }
 
+function Step({ n, label, done }: { n: number; label: string; done: boolean }) {
+  return (
+    <span
+      className={clsx(
+        "rounded border px-1.5 py-px",
+        done ? "border-[#2f7cf6] bg-[#2f7cf6]/15 text-[#8fb6f5]" : "border-[#2c2c31] bg-[#101012]",
+      )}
+    >
+      {n} {label}
+    </span>
+  );
+}
+
 function Row({
   job,
   running,
@@ -112,20 +127,49 @@ function Row({
 }) {
   const setJobTarget = useConvertStore((s) => s.setJobTarget);
   const removeJob = useConvertStore((s) => s.removeJob);
+  const statusStyle: Record<string, string> = {
+    queued: "border-[#2c2c31] bg-[#101012] text-[#6e6e78]",
+    converting: "border-[#2f7cf6] bg-[#2f7cf6] text-white",
+    done: "border-[#7ad69e]/40 bg-[#7ad69e]/15 text-[#7ad69e]",
+    error: "border-[#e5534b]/50 bg-[#e5534b]/15 text-[#f0883e]",
+    skipped: "border-[#d9a441]/40 bg-[#d9a441]/10 text-[#d9a441]",
+  };
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-[#2c2c31] bg-[#1c1c1f] px-3 py-2">
-      <div className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-md border border-[#2c2c31] bg-[#0a0a0c]">
+    <div className="group flex flex-col overflow-hidden rounded-xl border border-[#2c2c31] bg-[#1c1c1f] transition-colors hover:border-[#3a3a41]">
+      <div className="relative grid h-32 shrink-0 place-items-center overflow-hidden bg-[#0a0a0c]">
         {job.thumb ? (
           <img src={job.thumb} alt={job.name} className="h-full w-full object-cover" loading="lazy" />
         ) : (
-          <ImageIcon size={16} className="text-[#3a3a41]" />
+          <ImageIcon size={22} className="text-[#3a3a41]" />
+        )}
+        <span
+          className={clsx(
+            "absolute left-2 top-2 rounded border px-1.5 py-px font-mono text-[9px] font-bold uppercase",
+            statusStyle[job.status],
+          )}
+        >
+          {job.status === "converting" ? "working" : job.status}
+        </span>
+        {!running && job.status !== "converting" && (
+          <button
+            onClick={() => removeJob(job.id)}
+            title="Remove"
+            className="absolute right-2 top-2 rounded-md border border-[#2c2c31] bg-black/60 p-1.5 text-[#a7a7b0] opacity-0 backdrop-blur-sm hover:border-[#e5534b] hover:text-white group-hover:opacity-100"
+          >
+            <X size={12} />
+          </button>
+        )}
+        {job.status === "converting" && (
+          <span className="absolute bottom-2 right-2 rounded-md bg-black/60 p-1.5 backdrop-blur-sm">
+            <Loader2 size={13} className="animate-spin text-[#8fb6f5]" />
+          </span>
         )}
       </div>
-      <div className="min-w-0 flex-1">
+      <div className="flex min-w-0 flex-1 flex-col p-3">
         <div className="truncate text-[12px] font-semibold text-white" title={job.input}>
           {jobDisplayName(job)}
         </div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 font-mono text-[10px] text-[#6e6e78]">
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 font-mono text-[10px] text-[#6e6e78]">
           <span className="rounded border border-[#2c2c31] bg-[#101012] px-1 py-px uppercase">{job.srcFormat || extOf(job.input)}</span>
           <span>{job.w && job.h ? `${job.w}x${job.h}` : "probing"}</span>
           <span>{formatBytes(job.size)}</span>
@@ -134,79 +178,66 @@ function Row({
           )}
         </div>
         {job.status === "error" && job.error && (
-          <div className="mt-1 flex items-start gap-1 text-[11px] leading-snug text-[#f0883e]">
+          <div className="mt-1.5 flex items-start gap-1 text-[11px] leading-snug text-[#f0883e]">
             <AlertCircle size={12} className="mt-0.5 shrink-0" /> <span className="break-words">{job.error}</span>
           </div>
         )}
         {job.status === "done" && job.output && (
-          <div className="mt-1 truncate font-mono text-[10px] text-[#6e6e78]" title={job.output}>
+          <div className="mt-1.5 truncate font-mono text-[10px] text-[#6e6e78]" title={job.output}>
             {job.output}
           </div>
         )}
-      </div>
-      <span className="hidden font-mono text-[11px] text-[#4a4a52] sm:block">to</span>
-      <select
-        value={effTarget(job.target)}
-        disabled={running || job.status === "converting"}
-        onChange={(e) => setJobTarget(job.id, e.target.value as OutputFormat)}
-        title="Target format for this file"
-        className="h-8 shrink-0 rounded-md border border-[#2c2c31] bg-[#101012] px-2 font-mono text-[11px] uppercase text-white outline-none disabled:opacity-40"
-      >
-        {FORMATS.map((f) => (
-          <option key={f} value={f}>
-            {f}
-          </option>
-        ))}
-      </select>
-      <div className="flex w-[112px] shrink-0 items-center justify-end gap-1">
-        {job.status === "queued" && <span className="font-mono text-[10px] text-[#6e6e78]">queued</span>}
-        {job.status === "converting" && <Loader2 size={14} className="animate-spin text-[#8fb6f5]" />}
-        {job.status === "done" && desktop && job.output && (
-          <span className="flex items-center gap-1">
-            <button
-              onClick={() => void revealInFolder(job.output!).catch((e) => showError(String(e)))}
-              title="Show in folder"
-              className="rounded-md border border-[#2c2c31] bg-[#101012] p-1.5 text-[#a7a7b0] hover:border-[#3a3a41] hover:text-white"
-            >
-              <FolderOpen size={13} />
-            </button>
-            <button
-              onClick={() => void sendToEditor(job.output!)}
-              title="Open result in editor"
-              className="rounded-md bg-[#2f7cf6] p-1.5 text-white hover:bg-[#3b8bff]"
-            >
-              <Check size={13} />
-            </button>
-          </span>
-        )}
-        {job.status === "done" && !desktop && webUrl && (
-          <span className="flex items-center gap-1">
-            <button
-              onClick={onDownload}
-              title="Download result"
-              className="rounded-md border border-[#2c2c31] bg-[#101012] p-1.5 text-[#a7a7b0] hover:border-[#3a3a41] hover:text-white"
-            >
-              <Download size={13} />
-            </button>
-            <button
-              onClick={onSendWeb}
-              title="Open result in editor"
-              className="rounded-md bg-[#2f7cf6] p-1.5 text-white hover:bg-[#3b8bff]"
-            >
-              <Check size={13} />
-            </button>
-          </span>
-        )}
-        {job.status === "skipped" && <span className="font-mono text-[10px] text-[#d9a441]">skipped</span>}
-        {!running && job.status !== "converting" && (
-          <button
-            onClick={() => removeJob(job.id)}
-            title="Remove"
-            className="rounded-md border border-[#2c2c31] bg-[#101012] p-1.5 text-[#a7a7b0] hover:border-[#e5534b] hover:text-white"
+        <div className="mt-auto flex items-center gap-2 pt-2.5">
+          <select
+            value={effTarget(job.target)}
+            disabled={running || job.status === "converting"}
+            onChange={(e) => setJobTarget(job.id, e.target.value as OutputFormat)}
+            title="Target format for this file"
+            className="h-8 min-w-0 flex-1 rounded-md border border-[#2c2c31] bg-[#101012] px-2 font-mono text-[11px] uppercase text-white outline-none disabled:opacity-40"
           >
-            <X size={13} />
-          </button>
-        )}
+            {FORMATS.map((f) => (
+              <option key={f} value={f}>
+                {f}
+              </option>
+            ))}
+          </select>
+          {job.status === "done" && desktop && job.output && (
+            <span className="flex shrink-0 items-center gap-1">
+              <button
+                onClick={() => void revealInFolder(job.output!).catch((e) => showError(String(e)))}
+                title="Show in folder"
+                className="rounded-md border border-[#2c2c31] bg-[#101012] p-1.5 text-[#a7a7b0] hover:border-[#3a3a41] hover:text-white"
+              >
+                <FolderOpen size={13} />
+              </button>
+              <button
+                onClick={() => void sendToEditor(job.output!)}
+                title="Open result in editor"
+                className="rounded-md bg-[#2f7cf6] p-1.5 text-white hover:bg-[#3b8bff]"
+              >
+                <Check size={13} />
+              </button>
+            </span>
+          )}
+          {job.status === "done" && !desktop && webUrl && (
+            <span className="flex shrink-0 items-center gap-1">
+              <button
+                onClick={onDownload}
+                title="Download result"
+                className="rounded-md border border-[#2c2c31] bg-[#101012] p-1.5 text-[#a7a7b0] hover:border-[#3a3a41] hover:text-white"
+              >
+                <Download size={13} />
+              </button>
+              <button
+                onClick={onSendWeb}
+                title="Open result in editor"
+                className="rounded-md bg-[#2f7cf6] p-1.5 text-white hover:bg-[#3b8bff]"
+              >
+                <Check size={13} />
+              </button>
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -729,11 +760,18 @@ export default function ConverterPage() {
           </div>
           <div className="mt-1 text-[12px] text-[#a7a7b0]">
             {desktop
-              ? "Batch convert between PNG, JPG, WebP, BMP, TIFF, TGA and QOI with adjustable resolution and quality."
-              : "Convert between PNG, JPG and WebP right in the browser. The desktop app unlocks BMP, TIFF, TGA and QOI."}
+              ? "Batch convert photos, scans, PSD projects, game textures and HDR maps with adjustable resolution and quality."
+              : "Convert between PNG, JPG and WebP right in the browser. The desktop app unlocks 10 more formats."}
           </div>
         </div>
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex items-center gap-1.5 font-mono text-[10px] text-[#6e6e78]">
+          <Step n={1} label="Add" done={jobs.length > 0} />
+          <span className="text-[#3a3a41]">/</span>
+          <Step n={2} label="Tune" done={jobs.length > 0} />
+          <span className="text-[#3a3a41]">/</span>
+          <Step n={3} label="Convert" done={okCount > 0} />
+        </div>
+        <div className="flex gap-2">
           <button
             onClick={addViaDialog}
             disabled={busy || running}
@@ -751,18 +789,35 @@ export default function ConverterPage() {
         </div>
       </div>
 
-      {/* Dropzone (visual; page-level handlers do the work so drops never miss) */}
+      {/* Hero dropzone */}
       <div
         className={clsx(
-          "mt-4 rounded-lg border border-dashed p-6 text-center transition-colors",
+          "relative mt-4 overflow-hidden rounded-2xl border-2 border-dashed p-8 text-center transition-colors",
           dropActive ? "border-[#2f7cf6] bg-[#2f7cf6]/10" : "border-[#2c2c31] bg-[#1c1c1f]",
         )}
       >
-        <div className="text-[13px] font-semibold text-white">Drop images anywhere on this page</div>
-        <div className="mt-1 text-[11px] text-[#6e6e78]">
+        <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[#2f7cf6] text-white shadow-[0_8px_24px_rgba(47,124,246,0.35)]">
+          <Upload size={24} />
+        </div>
+        <div className="mt-3 text-[15px] font-bold text-white">Drop images to convert</div>
+        <div className="mx-auto mt-1 max-w-[520px] text-[12px] leading-relaxed text-[#a7a7b0]">
           {desktop
-            ? "or use Add files. PNG, JPG, WebP, BMP, TIFF, GIF, PSD, TGA, ICO, PNM, QOI."
-            : "or use Add files. PNG, JPG, WebP, BMP, TIFF, GIF, TGA, ICO, PNM, QOI accepted, converted to PNG, JPG or WebP."}
+            ? "Photos, scans, PSD projects, game textures, even HDR maps. Everything converts locally on your machine."
+            : "Files never leave your browser. PNG, JPG and WebP in, PNG, JPG or WebP out."}
+        </div>
+        <button
+          onClick={addViaDialog}
+          disabled={busy || running}
+          className="avero-btn-primary avero-lift mx-auto mt-4 flex h-9 items-center gap-1.5 rounded-md px-5 text-[13px] font-semibold text-white disabled:opacity-40"
+        >
+          <Plus size={15} /> Browse files
+        </button>
+        <div className="mx-auto mt-4 flex max-w-[640px] flex-wrap justify-center gap-1">
+          {(desktop ? INPUT_EXTS : ["png", "jpg", "jpeg", "webp", "bmp", "gif"]).map((e) => (
+            <span key={e} className="rounded border border-[#2c2c31] bg-[#101012] px-1.5 py-px font-mono text-[9px] uppercase text-[#6e6e78]">
+              {e}
+            </span>
+          ))}
         </div>
       </div>
 
@@ -825,18 +880,18 @@ export default function ConverterPage() {
         </div>
       )}
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_300px]">
-        {/* Queue */}
+      <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_320px]">
+        {/* Files */}
         <div className="min-w-0">
-          <h3 className="mb-2 text-[13px] font-bold text-white">Queue</h3>
+          <h3 className="mb-2 text-[13px] font-bold text-white">Files</h3>
           {jobs.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-[#2c2c31] bg-[#1c1c1f] p-8 text-center">
+            <div className="rounded-2xl border border-dashed border-[#2c2c31] bg-[#1c1c1f] p-8 text-center">
               <ImageIcon size={20} className="mx-auto text-[#3a3a41]" />
               <div className="mt-2 text-[12px] font-semibold text-white">No files yet</div>
-              <div className="mt-1 text-[11px] text-[#6e6e78]">Drop images here or press Add files to build a batch.</div>
+              <div className="mt-1 text-[11px] text-[#6e6e78]">Drop images onto the hero above or press Browse files.</div>
             </div>
           ) : (
-            <div className="max-h-[480px] space-y-2 overflow-y-auto pr-1">
+            <div className="grid max-h-[560px] gap-3 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3">
               {jobs.map((j) => (
                 <Row
                   key={j.id}

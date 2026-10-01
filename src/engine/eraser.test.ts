@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveEraserTarget, isPaintEraser, isPhotoEraser, type EraserLayerInfo } from "./strokeTarget";
+import { resolveEraserTarget, isPaintEraser, isPhotoEraser, needsFreshPaintLayer, type EraserLayerInfo } from "./strokeTarget";
 import { ERASER_TOOLS } from "./toolPresets";
 
 const L = (id: string, extra: Partial<EraserLayerInfo> = {}): EraserLayerInfo => ({
@@ -96,8 +96,7 @@ describe("eraser targeting (plan2 Fase B: never touch BG/canvas photos)", () => 
     ).toBeNull();
   });
 
-  it("classifies all six erasers, four paint-safe and two photo tools", () => {
-    expect([...ERASER_TOOLS].sort()).toEqual(
+  it("classifies all six erasers, four paint-safe and two photo tools", () => {    expect([...ERASER_TOOLS].sort()).toEqual(
       ["background-eraser", "eraser", "eraser-block", "eraser-hard", "eraser-soft", "magic-eraser"].sort(),
     );
     for (const t of ["eraser", "eraser-hard", "eraser-soft", "eraser-block"] as const) {
@@ -108,5 +107,73 @@ describe("eraser targeting (plan2 Fase B: never touch BG/canvas photos)", () => 
       expect(isPhotoEraser(t)).toBe(true);
       expect(isPaintEraser(t)).toBe(false);
     }
+  });
+});
+
+describe("paper protection (plan3 Fase 0: eraser never eats the canvas paper)", () => {
+  const P = (id: string, extra: Partial<EraserLayerInfo> = {}): EraserLayerInfo => ({
+    id,
+    visible: true,
+    locked: false,
+    kind: "background",
+    ...extra,
+  });
+
+  it("never returns the background paper, even with no strokes anywhere", () => {
+    expect(
+      resolveEraserTarget({
+        activeId: "paper",
+        layers: [P("paper")],
+        lastPaintId: null,
+        isPhoto: () => false,
+        hasCanvas: () => true,
+      }),
+    ).toBeNull();
+  });
+
+  it("retargets from paper to the auto-created paint layer", () => {
+    expect(
+      resolveEraserTarget({
+        activeId: "paper",
+        layers: [P("paper"), L("Paint 1")],
+        lastPaintId: "Paint 1",
+        isPhoto: () => false,
+        hasCanvas: () => true,
+      }),
+    ).toBe("Paint 1");
+  });
+
+  it("skips background layers when falling back to topmost", () => {
+    expect(
+      resolveEraserTarget({
+        activeId: "paper",
+        layers: [P("paper"), L("strokes")],
+        lastPaintId: null,
+        isPhoto: () => false,
+        hasCanvas: () => true,
+      }),
+    ).toBe("strokes");
+  });
+
+  it("ignores a stale lastPaintId that points at the paper", () => {
+    expect(
+      resolveEraserTarget({
+        activeId: "paper",
+        layers: [P("paper")],
+        lastPaintId: "paper",
+        isPhoto: () => false,
+        hasCanvas: () => true,
+      }),
+    ).toBeNull();
+  });
+
+  it("needsFreshPaintLayer: paper and photos redirect, plain raster paints direct", () => {
+    expect(needsFreshPaintLayer("background", false)).toBe(true);
+    expect(needsFreshPaintLayer("raster", true)).toBe(true);
+    expect(needsFreshPaintLayer("background", true)).toBe(true);
+    expect(needsFreshPaintLayer("raster", false)).toBe(false);
+    expect(needsFreshPaintLayer("text", false)).toBe(false);
+    expect(needsFreshPaintLayer("shape", false)).toBe(false);
+    expect(needsFreshPaintLayer(undefined, false)).toBe(false);
   });
 });

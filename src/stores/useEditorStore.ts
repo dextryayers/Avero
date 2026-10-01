@@ -706,6 +706,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   newDocument: (name, width, height, projectFolder = null) => {
     const l = defaultLayer();
     l.name = "Background";
+    // plan3 Fase 0: the fresh-document paper is kind "background" so brush
+    // strokes auto-create transparent paint layers and no eraser can ever
+    // punch transparency holes into the paper itself.
+    l.kind = "background";
     set({
       doc: { name, width, height, filePath: null, projectPath: null, projectFolder, dirty: false, fileSize: null },
       layers: [l],

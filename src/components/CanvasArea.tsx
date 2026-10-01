@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useEditorStore, makeLayer, type ToolId } from "../stores/useEditorStore";
 import { useProStore } from "../stores/useProStore";
+import { useArtboardStore } from "../stores/useArtboardStore";
 import { useHomeStore } from "../stores/useHomeStore";
 import { layerManager } from "../engine/layerManager";
 import { fitZoom } from "../engine/canvasMath";
@@ -19,6 +20,7 @@ import {
   restoreLastSelection,
   selectionMaskCanvas,
   wandFromImage,
+  type SelCombineMode,
 } from "../engine/selection";
 import { applyAdjustmentToImageData, applyRawDevelop } from "../engine/adjustments";
 import { fitThumb, panForCenter, viewportRect } from "../engine/viewport";
@@ -41,7 +43,7 @@ import {
   type DistortKind,
   type RetouchMode,
 } from "../engine/toolPresets";
-import { isPaintEraser, resolveEraserTarget } from "../engine/strokeTarget";
+import { isPaintEraser, needsFreshPaintLayer, resolveEraserTarget } from "../engine/strokeTarget";
 import {
   blendToComposite,
   clearRenderCaches,
@@ -244,6 +246,9 @@ export default function CanvasArea() {
   const directStart = useRef<{ x: number; rotation: number; layerId: string } | null>(null);
   const sliceMove = useRef<{ id: string; dx: number; dy: number; sx: number; sy: number } | null>(null);
   const tripleChain = useRef<{ x: number; y: number } | null>(null);
+  // plan3 Fase 3.5: last wand dab for quick/object-select brush painting,
+  // throttles full-image floods while dragging.
+  const quickLast = useRef<{ x: number; y: number } | null>(null);
   // Per-stroke selection snapshot: isPointInSelection() costs a 1x1 getImageData
   // per dab, so brush strokes snapshot the mask once at stroke start and read
   // from RAM via inSel(). Captured at every setIsPainting(true) site.
@@ -332,6 +337,7 @@ export default function CanvasArea() {
   const color = useProStore((s) => s.color);
   const raw = useProStore((s) => s.raw);
   const bumpHistogram = useProStore((s) => s.bumpHistogram);
+  const cropOverlay = useProStore((s) => s.cropOverlay);
   const historyLen = useEditorStore((s) => s.history.length);
   const isFresh = !doc.filePath && historyLen === 0;
   const guidesH = useProStore((s) => s.guidesH);
@@ -947,6 +953,57 @@ export default function CanvasArea() {
         [x, y + hpx],
         [x + wpx, y + hpx],
       ].forEach(([hx, hy]) => ctx.fillRect(hx - hs / 2, hy - hs / 2, hs, hs));
+      // plan3 Fase 4.6: composition overlay guides inside the crop rect.
+      if (cropOverlay !== "none" && wpx > 4 && hpx > 4) {
+        ctx.strokeStyle = "rgba(255,255,255,0.75)";
+        ctx.fillStyle = "rgba(255,255,255,0.9)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        if (cropOverlay === "thirds") {
+          for (const f of [1 / 3, 2 / 3]) {
+            ctx.moveTo(x + wpx * f, y);
+            ctx.lineTo(x + wpx * f, y + hpx);
+            ctx.moveTo(x, y + hpx * f);
+            ctx.lineTo(x + wpx, y + hpx * f);
+          }
+        } else if (cropOverlay === "diagonal") {
+          ctx.moveTo(x, y);
+          ctx.lineTo(x + wpx, y + hpx);
+          ctx.moveTo(x + wpx, y);
+          ctx.lineTo(x, y + hpx);
+        } else if (cropOverlay === "triangle") {
+          ctx.moveTo(x, y);
+          ctx.lineTo(x + wpx, y + hpx);
+          ctx.moveTo(x + wpx, y);
+          ctx.lineTo(x + wpx / 2, y + hpx);
+          ctx.moveTo(x, y + hpx);
+          ctx.lineTo(x + wpx / 2, y);
+        } else if (cropOverlay === "spiral") {
+          const cx = x + wpx / 2;
+          const cy = y + hpx / 2;
+          const maxR = Math.min(wpx, hpx) / 2;
+          for (let i = 0; i <= 64; i++) {
+            const t = i / 64;
+            const r = maxR * t * t;
+            const a = t * Math.PI * 3;
+            const px2 = cx + Math.cos(a) * r;
+            const py2 = cy + Math.sin(a) * r;
+            if (i === 0) ctx.moveTo(px2, py2);
+            else ctx.lineTo(px2, py2);
+          }
+        } else if (cropOverlay === "center") {
+          ctx.moveTo(x + wpx / 2, y);
+          ctx.lineTo(x + wpx / 2, y + hpx);
+          ctx.moveTo(x, y + hpx / 2);
+          ctx.lineTo(x + wpx, y + hpx / 2);
+        }
+        ctx.stroke();
+        if (cropOverlay === "center") {
+          ctx.beginPath();
+          ctx.arc(x + wpx / 2, y + hpx / 2, 4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
       ctx.restore();
     }
 
@@ -1193,6 +1250,7 @@ export default function CanvasArea() {
     samplers,
     measures,
     tool,
+    cropOverlay,
   ]);
 
   function toDocCoords(e: React.MouseEvent) {
@@ -1447,6 +1505,11 @@ export default function CanvasArea() {
     if (!aid) return;
     const meta = useEditorStore.getState().layers.find((l) => l.id === aid);
     if (!meta || meta.locked || !meta.visible) return;
+    // plan3 Fase 0: the paper is never editable, not even by photo erasers.
+    if (meta.kind === "background") {
+      notify("Background paper is protected. Paint on a new layer to edit it.");
+      return;
+    }
     const c = layerManager.ensure(aid, doc.width, doc.height);
     const ctx = c.getContext("2d", { willReadFrequently: true })!;
     const r = Math.max(1, brushSize / 2);
@@ -1486,6 +1549,11 @@ export default function CanvasArea() {
     const meta = st.layers.find((l) => l.id === aid);
     if (!meta || meta.locked || !meta.visible) {
       notify("Active layer is locked or hidden. Unlock it first.");
+      return;
+    }
+    // plan3 Fase 0: the paper is never editable, not even by photo erasers.
+    if (meta.kind === "background") {
+      notify("Background paper is protected. Paint on a new layer to edit it.");
       return;
     }
     const c = layerManager.ensure(aid, doc.width, doc.height);
@@ -3565,7 +3633,7 @@ export default function CanvasArea() {
     }
   }
 
-  function handleWandClick(p: { x: number; y: number }) {
+  function handleWandClick(p: { x: number; y: number }, forceMode?: SelCombineMode) {
     const comp = getCompositeCanvas();
     if (!comp) return;
     try {
@@ -3574,7 +3642,7 @@ export default function CanvasArea() {
         .getImageData(0, 0, comp.width, comp.height);
       const pro = useProStore.getState();
       const tol = pro.selTolerance;
-      wandFromImage(comp.width, comp.height, id, p.x, p.y, tol, pro.selMode);
+      wandFromImage(comp.width, comp.height, id, p.x, p.y, tol, forceMode ?? pro.selMode);
       const feather = pro.selFeather;
       if (feather > 0) featherSelection(feather);
       setAnts((a) => a + 1);
@@ -4221,6 +4289,10 @@ export default function CanvasArea() {
               notify("Direct Selection: select a Shape or Text layer first, then drag to rotate it.");
               return;
             }
+            if (meta.locked || !meta.visible) {
+              notify("Active layer is locked or hidden. Unlock it first.");
+              return;
+            }
             directStart.current = { x: e.clientX, rotation: spec.rotation, layerId: id };
             return;
           }
@@ -4232,7 +4304,14 @@ export default function CanvasArea() {
                 notify("Align Center: no active layer.");
                 return;
               }
+              const meta = st.layers.find((l) => l.id === id);
+              if (!meta || meta.locked || !meta.visible) {
+                notify("Active layer is locked or hidden. Unlock it first.");
+                return;
+              }
+              const snap = layerManager.snapshot(id);
               useProStore.getState().ensureTransform(id);
+              if (snap) st.pushHistory({ label: "Align center", layerId: id, snapshot: snap });
               useProStore.getState().updateTransform(id, { x: 0, y: 0 });
               setCursor("Centered 0,0");
               markDirty();
@@ -4279,6 +4358,22 @@ export default function CanvasArea() {
               if (vec && vec.id !== st.activeLayerId) st.setActiveLayer(vec.id);
               else if (!vec) {
                 notify("Path Selection: no vector/text layer yet. Draw a shape or add text first.");
+                return;
+              }
+            }
+            // Fase 3 (plan3): move-family tools refuse locked/hidden layers here,
+            // single choke point covering move, path-select, move-auto and
+            // transform-free (guide dragging above needs no layer).
+            {
+              const st = useEditorStore.getState();
+              const aid2 = st.activeLayerId;
+              const meta2 = aid2 ? st.layers.find((l) => l.id === aid2) : undefined;
+              if (!aid2 || !meta2) {
+                notify("Move: no active layer.");
+                return;
+              }
+              if (meta2.locked || !meta2.visible) {
+                notify("Active layer is locked or hidden. Unlock it first.");
                 return;
               }
             }
@@ -4462,9 +4557,11 @@ export default function CanvasArea() {
               const d = Math.abs(p.y - g);
               if (d < bd) { bd = d; bi = i; bk = "h"; }
             });
-            if (bi >= 0) {
+            if (bi >= 0 && bd < 25) {
               pro.removeGuide(bk, bi);
               setCursor("Guide removed");
+            } else if (bi >= 0) {
+              notify("Click closer to a guide to remove it.");
             } else {
               notify("No guides to remove.");
             }
@@ -4657,6 +4754,7 @@ export default function CanvasArea() {
           }
           if (tool === "quick-select" || tool === "object-select") {
             handleWandClick(p);
+            quickLast.current = { x: p.x, y: p.y };
             try {
               const { expandContractSelection } = await import("../engine/selection");
               expandContractSelection(tool === "object-select" ? Math.max(2, Math.round(brushSize / 6)) : Math.max(1, Math.round(brushSize / 8)));
@@ -4958,9 +5056,18 @@ export default function CanvasArea() {
           ) {
             // Keep scribbles erasable: paint-family strokes on a photo layer go
             // to a fresh transparent paint layer above it, so the eraser removes
-            // only strokes, never the photo underneath.
+            // only strokes, never the photo underneath. plan3 Fase 0 extends the
+            // same rule to background paper: strokes must never fuse with the
+            // paper or the eraser would punch holes into the canvas itself.
             let strokeLayerId = activeLayerId;
-            if (isBrush && strokeLayerId && layerManager.isPhotoLayer(strokeLayerId)) {
+            const strokeMeta = strokeLayerId
+              ? useEditorStore.getState().layers.find((l) => l.id === strokeLayerId)
+              : undefined;
+            if (
+              isBrush &&
+              strokeLayerId &&
+              needsFreshPaintLayer(strokeMeta?.kind, layerManager.isPhotoLayer(strokeLayerId))
+            ) {
               const st = useEditorStore.getState();
               const l = makeLayer(`Paint ${st.layers.length}`);
               layerManager.ensure(l.id, st.doc.width, st.doc.height);
@@ -4971,7 +5078,7 @@ export default function CanvasArea() {
               lastPaintRef.current = l.id;
               if (!paintLayerToastShown.current) {
                 paintLayerToastShown.current = true;
-                notify("Painting on a new transparent layer. The eraser only removes your strokes, not the photo.");
+                notify("Painting on a new transparent layer. The paper and photos stay protected.");
               }
             }
             // Eraser targets the created item, never the background photo.
@@ -5202,7 +5309,8 @@ export default function CanvasArea() {
             // Bug fix: single-row/col are click tools, ignore drag updates so preview stays 1px.
             if (tool === "single-row" || tool === "single-column") return;
             // Manual 2026: square lock for select-square.
-            if (tool === "select-square" || tool === "select-circle") {
+            // plan3 Fase 2.2: Shift locks ellipse to a circle, as usage promises.
+            if (tool === "select-square" || tool === "select-circle" || (tool === "select-ellipse" && e.shiftKey)) {
               const w = p.x - selDrag.x0;
               const h = p.y - selDrag.y0;
               const m = Math.max(Math.abs(w), Math.abs(h));
@@ -5222,6 +5330,25 @@ export default function CanvasArea() {
           if (tool === "select-lasso" || tool === "magnetic-lasso") {
             if (lassoPts.length > 0 && e.buttons === 1) {
               setLassoPts((pts) => [...pts.slice(-800), { x: p.x, y: p.y }]);
+            }
+            return;
+          }
+          // plan3 Fase 3.5: quick/object-select paints while dragging (brush
+          // behavior per usage text). Drag dabs force-add so the stroke
+          // accumulates instead of replacing; throttled by distance.
+          if (tool === "quick-select" || tool === "object-select") {
+            if (e.buttons === 1) {
+              const last = quickLast.current;
+              const step = Math.max(8, brushSize / 4);
+              if (!last || Math.hypot(p.x - last.x, p.y - last.y) >= step) {
+                quickLast.current = { x: p.x, y: p.y };
+                handleWandClick(p, "add");
+                try {
+                  expandContractSelection(tool === "object-select" ? Math.max(2, Math.round(brushSize / 6)) : Math.max(1, Math.round(brushSize / 8)));
+                  window.dispatchEvent(new Event("avero:selection-changed"));
+                  setCursor(tool === "object-select" ? "Object painted" : "Subject painted");
+                } catch { /* ignore */ }
+              }
             }
             return;
           }
@@ -5475,7 +5602,23 @@ export default function CanvasArea() {
               const sk = map[kind] ?? "rect";
               const sides = kind === "triangle" ? 3 : kind === "star" ? 5 : kind === "pentagon" ? 5 : kind === "hexagon" ? 6 : kind === "octagon" ? 8 : 6;
               if (kind === "frame") createShapeLayer("rect", 4, "Frame");
-              else if (kind === "artboard") createShapeLayer("rect", 4, "Artboard");
+              else if (kind === "artboard") {
+                createShapeLayer("rect", 4, "Artboard");
+                // plan3 Fase 1.2: canvas-drawn artboards register in the
+                // ArtboardPanel store with the actual drag rect.
+                try {
+                  const ax = Math.round(Math.min(shapeDrag.x0, shapeDrag.x1));
+                  const ay = Math.round(Math.min(shapeDrag.y0, shapeDrag.y1));
+                  const aw = Math.max(1, Math.round(Math.abs(shapeDrag.x1 - shapeDrag.x0)));
+                  const ah = Math.max(1, Math.round(Math.abs(shapeDrag.y1 - shapeDrag.y0)));
+                  const absStore = useArtboardStore.getState();
+                  absStore.add("Custom");
+                  const last = absStore.boards[absStore.boards.length - 1];
+                  if (last) absStore.update(last.id, { x: ax, y: ay, w: aw, h: ah, preset: "Custom" });
+                } catch {
+                  /* artboard registration is best-effort */
+                }
+              }
               else if (sk === "triangle") createShapeLayer("triangle", 3);
               else createShapeLayer(sk, sides);
               // Bug fix: precise size + center. Base shape in renderShapeToLayer is
@@ -5507,6 +5650,7 @@ export default function CanvasArea() {
           setIsPainting(false);
           lastPos.current = null;
           panning.current = null;
+          quickLast.current = null;
           // Fase E Aligned toggle: aligned keeps the clone offset across
           // strokes, non-aligned restarts it every stroke like the old code.
           if (!useProStore.getState().cloneAligned) cloneOrigin.current = null;
@@ -5524,6 +5668,7 @@ export default function CanvasArea() {
           setIsPainting(false);
           lastPos.current = null;
           panning.current = null;
+          quickLast.current = null;
           moveDrag.current = null;
           if (!useProStore.getState().cloneAligned) cloneOrigin.current = null;
           smudgeColor.current = null;

@@ -2,6 +2,7 @@ import { useEditorStore } from "../stores/useEditorStore";
 import { useProStore } from "../stores/useProStore";
 import { TOOL_LABEL } from "./ToolBar";
 import { layerManager } from "../engine/layerManager";
+import { notify } from "../ui/notify";
 import { renderShapeToLayer, renderTextToLayer } from "../engine/textShape";
 import {
   clearSelectionMask,
@@ -757,9 +758,19 @@ export default function ToolOptionsBar({
               onClick={() => {
                 const ed = useEditorStore.getState();
                 const id = ed.activeLayerId;
-                if (!id) return;
+                if (!id) {
+                  notify("Align Center: no active layer.");
+                  return;
+                }
+                const meta = ed.layers.find((l) => l.id === id);
+                if (!meta || meta.locked || !meta.visible) {
+                  notify("Active layer is locked or hidden. Unlock it first.");
+                  return;
+                }
                 const pro = useProStore.getState();
+                const snap = layerManager.snapshot(id);
                 pro.ensureTransform(id);
+                if (snap) ed.pushHistory({ label: "Align center", layerId: id, snapshot: snap });
                 pro.updateTransform(id, { x: 0, y: 0 });
                 ed.markDirty();
                 pro.bumpHistogram();

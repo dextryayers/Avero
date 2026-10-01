@@ -72,7 +72,7 @@ export default function FilterPanel() {
     box: 4, sigma: 2.0, median: 2, amount: 1.2, unsharpAmt: 1.5, unsharpRad: 2,
     motionR: 12, motionA: 0, vignette: 0.45, chroma: 4, grain: 16, halftone: 6,
     tiltBlur: 8, focusY: 540, focusH: 240, oilR: 3, oilI: 16, pixel: 8,
-    morph: 2, swirlR: 320, swirlS: 180,
+    morph: 2, swirlR: 320, swirlS: 180, highPassR: 2,
   });
 
   useEffect(() => {
@@ -118,9 +118,9 @@ export default function FilterPanel() {
           <span className="grid h-7 w-7 place-items-center rounded-md bg-[#2f7cf6] text-white"><Cpu size={14} /></span>
           <div className="min-w-0">
             <div className="text-[11.5px] font-bold leading-none text-white">Filter Gallery v2</div>
-            <div className="truncate font-mono text-[10px] text-[#6e6e78]">{nat ? "23 ready-to-use filters · precise two-way processing" : isTauri() ? "loading filters..." : "web preview"}</div>
+            <div className="truncate font-mono text-[10px] text-[#6e6e78]">{nat ? "24 ready-to-use filters · precise two-way processing" : isTauri() ? "loading filters..." : "web preview"}</div>
           </div>
-          <span className={`ml-auto rounded px-1.5 py-0.5 font-mono text-[10px] ${nat?.ready ? "bg-[#232327] text-[#8fb6f5]" : "bg-[#2c2c31] text-[#6e6e78]"}`}>{nat?.ready ? "23 filter" : "offline"}</span>
+          <span className={`ml-auto rounded px-1.5 py-0.5 font-mono text-[10px] ${nat?.ready ? "bg-[#232327] text-[#8fb6f5]" : "bg-[#2c2c31] text-[#6e6e78]"}`}>{nat?.ready ? "24 filter" : "offline"}</span>
         </div>
         <div className="px-3 py-2 text-[10px] leading-relaxed text-[#6e6e78]">Processed two-way from source to destination, separable blur and kernel convolution. Use the queue for multiple filters at once.</div>
       </div>
@@ -158,6 +158,9 @@ export default function FilterPanel() {
           <NativeFRow label="Unsharp Mask" desc="blur + mask" busy={busy === "unsharp"} onApply={() => runFilter({ op: "unsharp", amount: p.unsharpAmt, radius: p.unsharpRad }, "unsharp")}>
             <Row label="Amount" value={p.unsharpAmt} min={0} max={8} step={0.1} onChange={(v) => setP({ ...p, unsharpAmt: v })} />
             <Row label="Radius" value={p.unsharpRad} min={1} max={10} onChange={(v) => setP({ ...p, unsharpRad: v })} />
+          </NativeFRow>
+          <NativeFRow label="High Pass" desc="pro detail isolate" busy={busy === "highpass"} onApply={() => runFilter({ op: "highPass", radius: p.highPassR }, "highpass")}>
+            <Row label="Radius" value={p.highPassR} min={1} max={16} onChange={(v) => setP({ ...p, highPassR: v })} />
           </NativeFRow>
         </div>
       </div>
@@ -242,6 +245,7 @@ export default function FilterPanel() {
           {[
             { k: "gaussian", op: { op: "gaussian" as const, sigma: p.sigma } },
             { k: "sharpen", op: { op: "sharpen" as const, amount: p.amount } },
+            { k: "highpass", op: { op: "highPass" as const, radius: p.highPassR } },
             { k: "vignette", op: { op: "vignette" as const, amount: p.vignette } },
             { k: "grain", op: { op: "grain" as const, amount: 12 } },
           ].map((x) => (

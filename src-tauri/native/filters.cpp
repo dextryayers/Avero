@@ -329,6 +329,13 @@ void high_pass(const uint8_t *src, uint8_t *dst, int w, int h, int radius) {
 }
 
 
+// Tiled-safe high pass: small radius keeps edge bleed under 2px like the
+// other light variants, so big documents stitch without visible seams.
+void high_pass_light(const uint8_t *src, uint8_t *dst, int w, int h, int radius) {
+    if (radius<1) radius=1; if (radius>6) radius=6;
+    high_pass(src, dst, w, h, radius);
+}
+
 // Pixel morphology: erode (shrinks bright areas) and dilate (expands them)
 void minimize(const uint8_t *src, uint8_t *dst, int w, int h, int radius) {
     if (w<=0||h<=0) return;
@@ -433,6 +440,7 @@ void avero_cpp_gaussian_light(const uint8_t *src, uint8_t *dst, int w, int h, fl
 void avero_cpp_bilateral_light(const uint8_t *src, uint8_t *dst, int w, int h, int radius, float sigma_color){ avero::bilateral_light(src,dst,w,h,radius,sigma_color);}
 void avero_cpp_unsharp_light(const uint8_t *src, uint8_t *dst, int w, int h, float amount, int radius){ avero::unsharp_light(src,dst,w,h,amount,radius);}
 void avero_cpp_high_pass(const uint8_t *src, uint8_t *dst, int w, int h, int radius){ avero::high_pass(src,dst,w,h,radius);}
+void avero_cpp_high_pass_light(const uint8_t *src, uint8_t *dst, int w, int h, int radius){ avero::high_pass_light(src,dst,w,h,radius);}
 void avero_cpp_minimize(const uint8_t *src, uint8_t *dst, int w, int h, int radius){ avero::minimize(src,dst,w,h,radius);}
 void avero_cpp_maximize(const uint8_t *src, uint8_t *dst, int w, int h, int radius){ avero::maximize(src,dst,w,h,radius);}
 void avero_cpp_swirl(const uint8_t *src, uint8_t *dst, int w, int h, float radius, float strength){ avero::swirl(src,dst,w,h,radius,strength);}

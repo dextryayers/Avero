@@ -15,6 +15,7 @@ fn main() {
         .flag_if_supported("-O3")
         .flag_if_supported("-ffast-math")
         .flag_if_supported("-funroll-loops")
+        .flag_if_supported("-march=native")
         .cargo_metadata(true);
     if cfg!(target_os = "windows") {
         c.define("NOMINMAX", None)
@@ -30,6 +31,7 @@ fn main() {
         .flag_if_supported("-O3")
         .flag_if_supported("-ffast-math")
         .flag_if_supported("-funroll-loops")
+        .flag_if_supported("-march=native")
         .cargo_metadata(true);
     if cfg!(target_os = "windows") {
         avx.define("NOMINMAX", None)

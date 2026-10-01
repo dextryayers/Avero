@@ -394,6 +394,26 @@ void avero_c_levels(uint8_t *rgba, size_t len, int32_t in_lo, int32_t in_hi, int
     }
 }
 
+/* Two-way white balance: temp -100 (cool) .. +100 (warm) shifts red-blue,
+   tint -100..+100 shifts green-magenta. Neutral (0,0) is an exact no-op. */
+void avero_c_white_balance(uint8_t *rgba, size_t len, int32_t temp, int32_t tint) {
+    if (!rgba || len < 4) return;
+    if (temp < -100) temp = -100; if (temp > 100) temp = 100;
+    if (tint < -100) tint = -100; if (tint > 100) tint = 100;
+    if (temp == 0 && tint == 0) return;
+    float tf = temp / 100.0f;
+    float mf = tint / 100.0f;
+    float r_gain = 1.0f + 0.35f * tf;
+    float b_gain = 1.0f - 0.35f * tf;
+    float g_gain = 1.0f + 0.20f * mf;
+    size_t n = len / 4;
+    uint8_t * AVERO_RESTRICT p = rgba;
+    for (size_t px = 0; px < n; ++px, p += 4) {
+        p[0] = clamp_f(p[0] * r_gain);
+        p[1] = clamp_f(p[1] * g_gain);
+        p[2] = clamp_f(p[2] * b_gain);
+    }
+}
 /* Two-way saturation: -100 = gray, +100 = double chroma. Gray pixels are exact no-ops. */
 void avero_c_saturate(uint8_t *rgba, size_t len, int32_t amount) {
     if (!rgba || len < 4) return;

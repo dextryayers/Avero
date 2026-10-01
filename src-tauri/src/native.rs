@@ -39,6 +39,7 @@ extern "C" {
         out_hi: i32,
     );
     fn avero_c_saturate(rgba: *mut u8, len: usize, amount: i32);
+    fn avero_c_white_balance(rgba: *mut u8, len: usize, temp: i32, tint: i32);
     fn avero_c_engine_name() -> *const core::ffi::c_char;
     fn avero_c_version() -> *const core::ffi::c_char;
 
@@ -100,6 +101,7 @@ extern "C" {
         radius: i32,
     );
     fn avero_cpp_high_pass(src: *const u8, dst: *mut u8, w: i32, h: i32, radius: i32);
+    fn avero_cpp_high_pass_light(src: *const u8, dst: *mut u8, w: i32, h: i32, radius: i32);
     fn avero_cpp_minimize(src: *const u8, dst: *mut u8, w: i32, h: i32, radius: i32);
     fn avero_cpp_maximize(src: *const u8, dst: *mut u8, w: i32, h: i32, radius: i32);
     fn avero_cpp_swirl(src: *const u8, dst: *mut u8, w: i32, h: i32, radius: f32, strength: f32);
@@ -200,6 +202,7 @@ pub enum NativeOp {
         out_hi: i32,
     },
     Saturate { amount: i32 },
+    WhiteBalance { temp: i32, tint: i32 },
 }
 
 /// Operasi C++ dua-pass (src -> dst).
@@ -231,6 +234,7 @@ pub enum NativeFilterOp {
     Maximize { radius: i32 },
     Swirl { radius: f32, strength: f32 },
     HighPass { radius: i32 },
+    HighPassLight { radius: i32 },
 }
 
 #[derive(Serialize)]
@@ -260,8 +264,8 @@ pub fn cmd_native_info() -> NativeInfo {
             "Queue".into(),
         ],
         features: vec![
-            "25 fast in-place adjustment ops with zero image copy (Levels LUT, two-way Saturate)".into(),
-            "24 studio filters with morphology and distortion plus tiled light variants (true High Pass)".into(),
+            "26 fast in-place adjustment ops with zero image copy (Levels LUT, two-way Saturate, White Balance)".into(),
+            "25 studio filters with morphology and distortion plus tiled light variants (true High Pass)".into(),
             "OpenMP multicore row loops for gaussian, box, motion and oil paint on desktop builds".into(),
             "Histogram, color stats, benchmark, and memory budget".into(),
             "Batched pipeline plus per-tile canvas renderer for large documents".into(),
@@ -338,6 +342,9 @@ fn apply_op_inplace(buf: &mut Vec<u8>, op: NativeOp) {
                 out_hi.clamp(0, 255),
             ),
             NativeOp::Saturate { amount } => avero_c_saturate(ptr, len, amount.clamp(-100, 100)),
+            NativeOp::WhiteBalance { temp, tint } => {
+                avero_c_white_balance(ptr, len, temp.clamp(-100, 100), tint.clamp(-100, 100))
+            }
         }
     }
 }
@@ -417,6 +424,9 @@ fn apply_filter_to_buf(src_buf: &[u8], w: i32, h: i32, op: NativeFilterOp) -> Ve
             ),
             NativeFilterOp::HighPass { radius } => {
                 avero_cpp_high_pass(src, dst, w, h, radius.clamp(1, 32))
+            }
+            NativeFilterOp::HighPassLight { radius } => {
+                avero_cpp_high_pass_light(src, dst, w, h, radius.clamp(1, 6))
             }
             NativeFilterOp::BoxBlurLight { radius } => {
                 avero_cpp_box_blur_light(src, dst, w, h, radius.clamp(0, 16))
@@ -749,6 +759,9 @@ pub fn cmd_native_pipeline_light(req: PipelineRequest) -> Result<Vec<u8>, String
                 amount,
                 radius: radius.clamp(1, 6),
             },
+            NativeFilterOp::HighPass { radius } => NativeFilterOp::HighPassLight {
+                radius: radius.clamp(1, 6),
+            },
             other => other,
         })
         .collect();
@@ -871,6 +884,9 @@ pub fn cmd_native_pipeline_tiled(req: TiledPipelineRequest) -> Result<Vec<u8>, S
                     },
                     NativeFilterOp::Unsharp { amount, radius } => NativeFilterOp::UnsharpLight {
                         amount,
+                        radius: radius.clamp(1, 6),
+                    },
+                    NativeFilterOp::HighPass { radius } => NativeFilterOp::HighPassLight {
                         radius: radius.clamp(1, 6),
                     },
                     other => other,
@@ -1206,6 +1222,44 @@ mod tests {
         // flat input minus its own blur is zero, plus 128 gray.
         assert!(out.chunks_exact(4).all(|p| p[0] == 128 && p[1] == 128 && p[2] == 128));
         assert!(out.chunks_exact(4).all(|p| p[3] == 90));
+    }
+
+    #[test]
+    fn white_balance_neutral_is_noop_and_warm_shifts_red_up() {
+        let mut px = vec![100u8, 120, 140, 255];
+        let len = px.len();
+        unsafe {
+            avero_c_white_balance(px.as_mut_ptr(), len, 0, 0);
+        }
+        assert_eq!(px, vec![100u8, 120, 140, 255]);
+        let mut warm = vec![100u8, 120, 140, 255];
+        let len = warm.len();
+        unsafe {
+            avero_c_white_balance(warm.as_mut_ptr(), len, 100, 0);
+        }
+        assert!(warm[0] > 100, "warm red rises");
+        assert!(warm[2] < 140, "warm blue falls");
+        assert_eq!(warm[1], 120, "tint zero keeps green");
+        assert_eq!(warm[3], 255);
+    }
+
+    #[test]
+    fn high_pass_light_matches_capped_full() {
+        let mut rgba = vec![0u8; 12 * 12 * 4];
+        for y in 0..12 {
+            for x in 0..12 {
+                let i = (y * 12 + x) * 4;
+                let v = if x < 6 { 40u8 } else { 200u8 };
+                rgba[i] = v;
+                rgba[i + 1] = v;
+                rgba[i + 2] = v;
+                rgba[i + 3] = 255;
+            }
+        }
+        let full = cmd_native_apply_filter(rgba.clone(), 12, 12, NativeFilterOp::HighPass { radius: 4 }).unwrap();
+        let light = cmd_native_apply_filter(rgba, 12, 12, NativeFilterOp::HighPassLight { radius: 4 }).unwrap();
+        assert_eq!(full.len(), light.len());
+        assert_eq!(full, light);
     }
 
     #[test]

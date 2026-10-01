@@ -42,6 +42,7 @@ void avero_c_alpha_premultiply(uint8_t *rgba, size_t len);
 /* Pro grading (v2.1): single-pass LUT ops */
 void avero_c_levels(uint8_t *rgba, size_t len, int32_t in_lo, int32_t in_hi, int32_t gamma_q, int32_t out_lo, int32_t out_hi);
 void avero_c_saturate(uint8_t *rgba, size_t len, int32_t amount);
+void avero_c_white_balance(uint8_t *rgba, size_t len, int32_t temp, int32_t tint);
 
 const char *avero_c_engine_name(void);
 const char *avero_c_version(void);

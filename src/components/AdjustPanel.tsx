@@ -124,6 +124,14 @@ export default function AdjustPanel() {
     opacity: 100,
     noise: 16,
     channelMode: 1,
+    saturate: 0,
+    wbTemp: 0,
+    wbTint: 0,
+    lvlInLo: 0,
+    lvlInHi: 255,
+    lvlGamma: 1.0,
+    lvlOutLo: 0,
+    lvlOutHi: 255,
   });
   const [light, setLight] = useState(false);
 
@@ -179,9 +187,9 @@ export default function AdjustPanel() {
           <span className="grid h-7 w-7 place-items-center rounded-md bg-[#2f7cf6] text-white"><Cpu size={14} /></span>
           <div className="min-w-0">
             <div className="text-[11.5px] font-bold leading-none text-white">Quick Adjustments v2</div>
-            <div className="truncate font-mono text-[10px] text-[#6e6e78]">{nat ? "23 ready-to-use ops · processes directly on layer" : isTauri() ? "loading operations..." : "web preview (fallback)"}</div>
+            <div className="truncate font-mono text-[10px] text-[#6e6e78]">{nat ? "26 ready-to-use ops · processes directly on layer" : isTauri() ? "loading operations..." : "web preview (fallback)"}</div>
           </div>
-          <span className={`ml-auto rounded px-1.5 py-0.5 font-mono text-[10px] ${nat?.ready ? "bg-[#232327] text-[#8fb6f5]" : "bg-[#2c2c31] text-[#6e6e78]"}`}>{nat?.ready ? "23 ops ready" : "offline"}</span>
+          <span className={`ml-auto rounded px-1.5 py-0.5 font-mono text-[10px] ${nat?.ready ? "bg-[#232327] text-[#8fb6f5]" : "bg-[#2c2c31] text-[#6e6e78]"}`}>{nat?.ready ? "26 ops ready" : "offline"}</span>
         </div>
         <div className="px-3 py-2 text-[10px] leading-relaxed text-[#6e6e78]">
           Applies directly to the active layer with no image copy. To run several operations at once use the queue below, separate from the non-destructive adjustment stack.
@@ -219,6 +227,13 @@ export default function AdjustPanel() {
           <NativeRow label="Gamma" desc="correction 0.1..4" busy={busy === "gamma"} onApply={() => runOp({ op: "gamma", gamma: p.gamma }, "gamma")}>
             <Slider label="Gamma" value={p.gamma} min={0.1} max={4} step={0.05} onChange={(v) => setP({ ...p, gamma: v })} />
           </NativeRow>
+          <NativeRow label="Levels Pro" desc="in range, gamma, out range (LUT)" busy={busy === "levels"} onApply={() => runOp({ op: "levels", inLo: p.lvlInLo, inHi: p.lvlInHi, gamma: p.lvlGamma, outLo: p.lvlOutLo, outHi: p.lvlOutHi }, "levels")}>
+            <Slider label="In black" value={p.lvlInLo} min={0} max={255} onChange={(v) => setP({ ...p, lvlInLo: v })} />
+            <Slider label="In white" value={p.lvlInHi} min={0} max={255} onChange={(v) => setP({ ...p, lvlInHi: v })} />
+            <Slider label="Gamma" value={p.lvlGamma} min={0.1} max={4} step={0.05} onChange={(v) => setP({ ...p, lvlGamma: v })} />
+            <Slider label="Out black" value={p.lvlOutLo} min={0} max={255} onChange={(v) => setP({ ...p, lvlOutLo: v })} />
+            <Slider label="Out white" value={p.lvlOutHi} min={0} max={255} onChange={(v) => setP({ ...p, lvlOutHi: v })} />
+          </NativeRow>
           <NativeRow label="Shadows / Highlights" desc="lift shadows, tame highlights" busy={busy === "shhi"} onApply={() => runOp({ op: "shadowsHighlights", shadows: p.shadows, highlights: p.highlights }, "shhi")}>
             <Slider label="Shadows" value={p.shadows} min={-100} max={100} onChange={(v) => setP({ ...p, shadows: v })} />
             <Slider label="Highlights" value={p.highlights} min={-100} max={100} onChange={(v) => setP({ ...p, highlights: v })} />
@@ -239,6 +254,13 @@ export default function AdjustPanel() {
           </NativeRow>
           <NativeRow label="Warmth" desc="warm -100 cool +100" busy={busy === "warmth"} onApply={() => runOp({ op: "warmth", warmth: p.warmth }, "warmth")}>
             <Slider label="Warmth" value={p.warmth} min={-100} max={100} onChange={(v) => setP({ ...p, warmth: v })} />
+          </NativeRow>
+          <NativeRow label="Saturate" desc="two-way -100..100" busy={busy === "saturate"} onApply={() => runOp({ op: "saturate", amount: p.saturate }, "saturate")}>
+            <Slider label="Amount" value={p.saturate} min={-100} max={100} onChange={(v) => setP({ ...p, saturate: v })} />
+          </NativeRow>
+          <NativeRow label="White Balance" desc="temp warm/cool, tint green/magenta" busy={busy === "whitebalance"} onApply={() => runOp({ op: "whiteBalance", temp: p.wbTemp, tint: p.wbTint }, "whitebalance")}>
+            <Slider label="Temp" value={p.wbTemp} min={-100} max={100} onChange={(v) => setP({ ...p, wbTemp: v })} />
+            <Slider label="Tint" value={p.wbTint} min={-100} max={100} onChange={(v) => setP({ ...p, wbTint: v })} />
           </NativeRow>
           <NativeRow label="Color Balance" desc="Cyan-Red, Magenta-Green, Yellow-Blue" busy={busy === "balance"} onApply={() => runOp({ op: "colorBalance", cr: p.cr, mg: p.mg, yb: p.yb }, "balance")}>
             <Slider label="Cyan - Red" value={p.cr} min={-100} max={100} onChange={(v) => setP({ ...p, cr: v })} />
@@ -295,6 +317,9 @@ export default function AdjustPanel() {
             { k: "contrast", op: { op: "contrast" as const, amount: p.contrast } },
             { k: "vibrance", op: { op: "vibrance" as const, amount: p.vibrance } },
             { k: "warmth", op: { op: "warmth" as const, warmth: p.warmth } },
+            { k: "saturate", op: { op: "saturate" as const, amount: p.saturate } },
+            { k: "whitebalance", op: { op: "whiteBalance" as const, temp: p.wbTemp, tint: p.wbTint } },
+            { k: "levels", op: { op: "levels" as const, inLo: p.lvlInLo, inHi: p.lvlInHi, gamma: p.lvlGamma, outLo: p.lvlOutLo, outHi: p.lvlOutHi } },
             { k: "sepia", op: { op: "sepia" as const, amount: 30 } },
           ].map((x) => (
             <button key={x.k} disabled={!!busy} onClick={() => setQueue([...queue, x.op as NativeOp])} className="rounded bg-[#232327] px-2 py-1 text-[10px] text-white hover:bg-[#2c2c31] disabled:opacity-40">+ {x.k}</button>

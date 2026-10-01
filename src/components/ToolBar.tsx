@@ -916,7 +916,7 @@ export default function ToolBar() {
                 setExpanded(true);
               }}
               className={clsx(
-                "relative grid h-9 w-9 shrink-0 place-items-center rounded-md border",
+                "avero-press relative grid h-9 w-9 shrink-0 place-items-center rounded-md border",
                 active ? "border-[#2f7cf6] bg-[#2f7cf6] text-white" : "border-transparent text-[#a7a7b0] hover:bg-[#232327] hover:text-white",
               )}
             >
@@ -925,7 +925,7 @@ export default function ToolBar() {
                 {f.shortcut}
               </span>
               {variantCount > 1 && (
-                <span className="absolute bottom-[3px] right-[3px] h-1 w-1 rounded-full bg-current opacity-60" />
+                <span className={`absolute bottom-[3px] right-[3px] h-1 w-1 rounded-full bg-current opacity-60 ${active ? "avero-ring-pulse" : ""}`} />
               )}
             </button>
           );
@@ -1039,7 +1039,7 @@ export default function ToolBar() {
                       key={t.id}
                       onClick={() => setTool(t.id)}
                       className={clsx(
-                        "mb-1 w-full rounded-md px-2 py-1.5 text-left",
+                        "avero-press mb-1 w-full rounded-md px-2 py-1.5 text-left",
                         active ? "bg-[#2f7cf6] text-white" : "text-[#c9c9d1] hover:bg-[#232327]",
                       )}
                       title={`${t.label} (${t.shortcut}) - ${t.usage}`}

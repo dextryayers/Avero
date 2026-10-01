@@ -944,7 +944,7 @@ export default function ToolBar() {
 
       {/* Expandable sidebar with descriptions, search, collapsible groups */}
       {expanded && (
-        <div className="flex w-[264px] flex-col border-r border-[#2c2c31] bg-[#161618]">
+        <div className="avero-slide-in flex w-[264px] flex-col border-r border-[#2c2c31] bg-[#161618]">
           <div className="flex items-center gap-2 border-b border-[#2c2c31] p-2">
             <Search size={13} className="shrink-0 text-[#6e6e78]" />
             <input
@@ -1019,7 +1019,7 @@ export default function ToolBar() {
 
       {/* Flyout for current family when sidebar closed */}
       {!expanded && openFamily && (
-        <div className="w-[220px] border-r border-[#2c2c31] bg-[#161618] p-1.5">
+        <div key={openFamily} className="avero-slide-in w-[220px] border-r border-[#2c2c31] bg-[#161618] p-1.5">
           {(() => {
             const f = TOOL_FAMILIES.find((x) => x.id === openFamily);
             if (!f) return null;

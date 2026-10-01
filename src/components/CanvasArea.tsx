@@ -21,6 +21,7 @@ import {
   wandFromImage,
 } from "../engine/selection";
 import { applyAdjustmentToImageData, applyRawDevelop } from "../engine/adjustments";
+import { fitThumb, panForCenter, viewportRect } from "../engine/viewport";
 import { applyFilterToCanvas } from "../engine/filters";
 import { applySoftProof, convertWorkingSpace } from "../engine/color";
 import { renderShapeToLayer, renderTextToLayer } from "../engine/textShape";
@@ -100,9 +101,94 @@ function releaseScratch(c: HTMLCanvasElement) {
   if (scratchPool.length < 8) scratchPool.push(c);
 }
 
+// Navigator minimap (Photoshop Navigator / Figma minimap): live thumbnail,
+// viewport rectangle, click/drag to pan. Tool-independent, store-driven.
+function Navigator({ wrapW, wrapH }: { wrapW: number; wrapH: number }) {
+  const doc = useEditorStore((s) => s.doc);
+  const zoom = useEditorStore((s) => s.zoom);
+  const panX = useEditorStore((s) => s.panX);
+  const panY = useEditorStore((s) => s.panY);
+  const layers = useEditorStore((s) => s.layers);
+  const tick = useProStore((s) => s.histogramTick);
+  const thumbRef = useRef<HTMLCanvasElement>(null);
+  const [open, setOpen] = useState(true);
+  const { w: tw, h: th } = fitThumb(doc.width, doc.height, 168, 112);
+  useEffect(() => {
+    const c = thumbRef.current;
+    if (!c) return;
+    c.width = tw;
+    c.height = th;
+    const g = c.getContext("2d");
+    if (!g) return;
+    g.fillStyle = "#101012";
+    g.fillRect(0, 0, tw, th);
+    try {
+      const comp = getCompositeCanvas();
+      if (comp && comp.width > 0 && comp.height > 0) g.drawImage(comp, 0, 0, tw, th);
+    } catch {
+      /* fresh document, keep empty backdrop */
+    }
+  }, [tick, layers.length, doc.width, doc.height, tw, th]);
+  if (wrapW < 10 || wrapH < 10) return null;
+  const vr = viewportRect(wrapW, wrapH, doc.width, doc.height, zoom, panX, panY);
+  const kx = tw / Math.max(1, doc.width);
+  const ky = th / Math.max(1, doc.height);
+  const panTo = (clientX: number, clientY: number, el: HTMLCanvasElement) => {
+    const r = el.getBoundingClientRect();
+    const dx = ((clientX - r.left) / Math.max(1, r.width)) * doc.width;
+    const dy = ((clientY - r.top) / Math.max(1, r.height)) * doc.height;
+    const np = panForCenter(wrapW, wrapH, doc.width, doc.height, zoom, dx, dy);
+    useEditorStore.getState().setPan(np.panX, np.panY);
+  };
+  return (
+    <div className="avero-fade-in absolute bottom-16 right-3 z-20 overflow-hidden rounded-md border border-[#2c2c31] bg-[#1c1c1f]">
+      <div className="flex items-center justify-between px-2 py-1">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-[#6e6e78]">Navigator</span>
+        <button
+          onClick={() => setOpen((v) => !v)}
+          className="rounded px-1.5 font-mono text-[11px] text-[#a7a7b0] hover:bg-[#232327] hover:text-white"
+          title={open ? "Collapse navigator" : "Expand navigator"}
+        >
+          {open ? "-" : "+"}
+        </button>
+      </div>
+      {open && (
+        <div className="relative" style={{ width: tw, height: th }}>
+          <canvas
+            ref={thumbRef}
+            style={{ width: tw, height: th }}
+            className="block cursor-move"
+            title="Drag to pan the canvas"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              const el = e.currentTarget;
+              panTo(e.clientX, e.clientY, el);
+              const onMove = (ev: MouseEvent) => panTo(ev.clientX, ev.clientY, el);
+              const onUp = () => {
+                window.removeEventListener("mousemove", onMove);
+                window.removeEventListener("mouseup", onUp);
+              };
+              window.addEventListener("mousemove", onMove);
+              window.addEventListener("mouseup", onUp);
+            }}
+          />
+          <div
+            className="pointer-events-none absolute rounded-[1px] border border-red-500/90 shadow-[0_0_0_1px_rgba(0,0,0,0.5)]"
+            style={{
+              left: Math.max(0, vr.x * kx),
+              top: Math.max(0, vr.y * ky),
+              width: Math.max(4, Math.min(tw, vr.w * kx)),
+              height: Math.max(4, Math.min(th, vr.h * ky)),
+            }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CanvasArea() {
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [cursor, setCursor] = useState("0, 0");
   const [isPainting, setIsPainting] = useState(false);
   const [selDrag, setSelDrag] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(
@@ -119,6 +205,20 @@ export default function CanvasArea() {
   const vRulerRef = useRef<HTMLCanvasElement>(null);
   const [rulerDrag, setRulerDrag] = useState<{ kind: "h" | "v"; pos: number } | null>(null);
   const [countN, setCountN] = useState(0);
+  // Viewport size for the Navigator minimap (ResizeObserver, cheap single subscription).
+  const [viewSize, setViewSize] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const measure = () => {
+      const r = el.getBoundingClientRect();
+      setViewSize((v) => (v.w === Math.round(r.width) && v.h === Math.round(r.height) ? v : { w: Math.round(r.width), h: Math.round(r.height) }));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const [measureDrag, setMeasureDrag] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
   const [lassoPts, setLassoPts] = useState<{ x: number; y: number }[]>([]);
   const [ants, setAnts] = useState(0);
@@ -5499,6 +5599,18 @@ export default function CanvasArea() {
               <span className="rounded border border-[#2c2c31] bg-[#101012] px-1.5 py-0.5 text-[#8fb6f5]">Mask</span>
             </>
           )}
+          {Math.round(viewRotate) !== 0 && (
+            <>
+              <span className="text-[#3a3a41]">|</span>
+              <button
+                onClick={() => setViewRotate(0)}
+                className="pointer-events-auto shrink-0 rounded border border-[#2c2c31] bg-[#101012] px-1.5 py-0.5 tabular-nums text-[#d9a441] hover:text-white"
+                title="View rotated. Click to reset to 0deg."
+              >
+                {Math.round(viewRotate)}deg reset
+              </button>
+            </>
+          )}
         </div>
 
         {/* Bottom-right zoom controls */}
@@ -5533,6 +5645,7 @@ export default function CanvasArea() {
             Fit
           </button>
         </div>
+        <Navigator wrapW={viewSize.w} wrapH={viewSize.h} />
         {dragging && (
           <div className="pointer-events-none absolute inset-4 grid place-items-center rounded-lg border border-dashed border-[#2f7cf6] bg-[#101012]">
             <div className="rounded-md border border-[#2c2c31] bg-[#1c1c1f] px-4 py-2 text-[12px] text-white">

@@ -17,7 +17,7 @@ function assertFullSize(width: number, height: number) {
   }
 }
 
-// --- 23 adjustment ops ---
+// --- 25 adjustment ops (v2.1 adds Levels LUT + two-way Saturate) ---
 export type NativeOp =
   | { op: "gray" }
   | { op: "invert" }
@@ -41,9 +41,11 @@ export type NativeOp =
   | { op: "dither"; width: number; height: number }
   | { op: "noiseMono"; amount: number; seed?: number }
   | { op: "channelSwap"; mode: number }
-  | { op: "alphaPremultiply" };
+  | { op: "alphaPremultiply" }
+  | { op: "levels"; inLo: number; inHi: number; gamma: number; outLo: number; outHi: number }
+  | { op: "saturate"; amount: number };
 
-  // --- 23 filter studio ---
+  // --- 24 filter studio (v2.1 adds true High Pass) ---
 export type NativeFilterOp =
   | { op: "boxBlur"; radius: number }
   | { op: "sharpen"; amount: number }
@@ -67,7 +69,8 @@ export type NativeFilterOp =
   | { op: "unsharpLight"; amount: number; radius: number }
   | { op: "minimize"; radius: number }
   | { op: "maximize"; radius: number }
-  | { op: "swirl"; radius: number; strength: number };
+  | { op: "swirl"; radius: number; strength: number }
+  | { op: "highPass"; radius: number };
 
 export interface NativeInfo {
   c_engine: string;

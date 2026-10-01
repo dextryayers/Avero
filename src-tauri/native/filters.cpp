@@ -20,6 +20,9 @@ void box_blur(const uint8_t *src, uint8_t *dst, int w, int h, int radius) {
     if (radius <= 0) { std::memcpy(dst, src, static_cast<size_t>(w)*h*4); return; }
     std::vector<uint8_t> tmp(static_cast<size_t>(w)*h*4);
     const int r = radius; const int win = 2*r+1;
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static)
+#endif
     for (int y=0;y<h;++y) for (int c=0;c<3;++c){
         int sum=0; for (int x=-r;x<=r;++x){ int xx=std::min(w-1,std::max(0,x)); sum+=src[idx(xx,y,w)+c];}
         for (int x=0;x<w;++x){ tmp[idx(x,y,w)+c]=static_cast<uint8_t>(sum/win);
@@ -27,6 +30,9 @@ void box_blur(const uint8_t *src, uint8_t *dst, int w, int h, int radius) {
             sum+=src[idx(xIn,y,w)+c]-src[idx(xOut,y,w)+c];}
         for (int x=0;x<w;++x) tmp[idx(x,y,w)+3]=src[idx(x,y,w)+3];
     }
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static)
+#endif
     for (int x=0;x<w;++x) for (int c=0;c<3;++c){
         int sum=0; for (int y=-r;y<=r;++y){ int yy=std::min(h-1,std::max(0,y)); sum+=tmp[idx(x,yy,w)+c];}
         for (int y=0;y<h;++y){ dst[idx(x,y,w)+c]=static_cast<uint8_t>(sum/win);
@@ -71,6 +77,9 @@ void emboss(const uint8_t *src, uint8_t *dst, int w, int h) {
 void motion_blur(const uint8_t *src, uint8_t *dst, int w, int h, int radius, float angle_deg) {
     if (!src || !dst || w<=0||h<=0) return; if (radius<1) radius=1;
     float rad=angle_deg*3.14159265f/180, dx=std::cos(rad), dy=std::sin(rad), inv=1.0f/radius;
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static)
+#endif
     for (int y=0;y<h;++y) for (int x=0;x<w;++x){
         float r=0,g=0,b=0; for (int k=0;k<radius;++k){ float off=k-radius*0.5f;
             int sx=int(std::lround(x+dx*off)), sy=int(std::lround(y+dy*off));
@@ -88,10 +97,16 @@ void gaussian(const uint8_t *src, uint8_t *dst, int w, int h, float sigma) {
     float sum=0; for (int i=-radius;i<=radius;++i){ float v=std::exp(-(i*i)/(2*sigma*sigma)); kernel[i+radius]=v; sum+=v; }
     for (float &v: kernel) v/=sum;
     std::vector<uint8_t> tmp(static_cast<size_t>(w)*h*4);
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static)
+#endif
     for (int y=0;y<h;++y) for (int x=0;x<w;++x) for (int c=0;c<4;++c){
         float acc=0; for (int k=-radius;k<=radius;++k){ int xx=std::min(w-1,std::max(0,x+k)); acc+=src[idx(xx,y,w)+c]*kernel[k+radius];}
         tmp[idx(x,y,w)+c]=clamp_u8(int(acc+0.5f));
     }
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static)
+#endif
     for (int y=0;y<h;++y) for (int x=0;x<w;++x) for (int c=0;c<4;++c){
         float acc=0; for (int k=-radius;k<=radius;++k){ int yy=std::min(h-1,std::max(0,y+k)); acc+=tmp[idx(x,yy,w)+c]*kernel[k+radius];}
         dst[idx(x,y,w)+c]=clamp_u8(int(acc+0.5f));
@@ -209,9 +224,13 @@ void oil_paint(const uint8_t *src, uint8_t *dst, int w, int h, int radius, int i
     if (!src || !dst || w <= 0 || h <= 0) return;
     if (radius<1) radius=1; if (radius>12) radius=12;
     if (intensity<2) intensity=2; if (intensity>64) intensity=64;
-    // Single memset per pixel instead of a 768-iteration zero loop.
-    int histR[256], histG[256], histB[256];
+    // Histograms are iteration-local (declared inside the row loop) so rows
+    // can run on multiple threads without sharing state.
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static)
+#endif
     for (int y=0;y<h;++y) for (int x=0;x<w;++x){
+        int histR[256], histG[256], histB[256];
         memset(histR, 0, sizeof(histR));
         memset(histG, 0, sizeof(histG));
         memset(histB, 0, sizeof(histB));
@@ -294,6 +313,19 @@ void unsharp_light(const uint8_t *src, uint8_t *dst, int w, int h, float amount,
     std::vector<uint8_t> bl(static_cast<size_t>(w)*h*4);
     box_blur_light(src, bl.data(), w, h, radius);
     for (int y=0;y<h;++y) for (int x=0;x<w;++x){ int i=idx(x,y,w); for (int c=0;c<3;++c){ int v=int(src[i+c]+amount*(src[i+c]-bl[i+c])+0.5f); dst[i+c]=clamp_u8(v);} dst[i+3]=src[i+3];}
+}
+
+// True high pass for pro sharpening workflows: detail = src - gaussian + 128 gray.
+void high_pass(const uint8_t *src, uint8_t *dst, int w, int h, int radius) {
+    if (!src || !dst || w<=0||h<=0) return;
+    if (radius<1) radius=1; if (radius>32) radius=32;
+    std::vector<uint8_t> bl(static_cast<size_t>(w)*h*4);
+    gaussian(src, bl.data(), w, h, radius * 0.5f + 0.5f);
+    for (int y=0;y<h;++y) for (int x=0;x<w;++x){
+        int i=idx(x,y,w);
+        for (int c=0;c<3;++c) dst[i+c]=clamp_u8(int(src[i+c])-int(bl[i+c])+128);
+        dst[i+3]=src[i+3];
+    }
 }
 
 
@@ -400,6 +432,7 @@ void avero_cpp_box_blur_light(const uint8_t *src, uint8_t *dst, int w, int h, in
 void avero_cpp_gaussian_light(const uint8_t *src, uint8_t *dst, int w, int h, float sigma){ avero::gaussian_light(src,dst,w,h,sigma);}
 void avero_cpp_bilateral_light(const uint8_t *src, uint8_t *dst, int w, int h, int radius, float sigma_color){ avero::bilateral_light(src,dst,w,h,radius,sigma_color);}
 void avero_cpp_unsharp_light(const uint8_t *src, uint8_t *dst, int w, int h, float amount, int radius){ avero::unsharp_light(src,dst,w,h,amount,radius);}
+void avero_cpp_high_pass(const uint8_t *src, uint8_t *dst, int w, int h, int radius){ avero::high_pass(src,dst,w,h,radius);}
 void avero_cpp_minimize(const uint8_t *src, uint8_t *dst, int w, int h, int radius){ avero::minimize(src,dst,w,h,radius);}
 void avero_cpp_maximize(const uint8_t *src, uint8_t *dst, int w, int h, int radius){ avero::maximize(src,dst,w,h,radius);}
 void avero_cpp_swirl(const uint8_t *src, uint8_t *dst, int w, int h, float radius, float strength){ avero::swirl(src,dst,w,h,radius,strength);}
@@ -417,6 +450,6 @@ void avero_cpp_lut_map(const uint8_t *src, uint8_t *dst, int w, int h, const uin
     }
 }
 const char *avero_cpp_engine_name(void){ return "AVERO C++ filters v2";}
-const char *avero_cpp_version(void){ return "2.0.0";}
+const char *avero_cpp_version(void){ return "2.1.0";}
 
 } // extern "C"

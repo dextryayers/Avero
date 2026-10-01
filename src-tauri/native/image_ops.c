@@ -365,5 +365,50 @@ void avero_c_alpha_premultiply(uint8_t *rgba, size_t len) {
     for (size_t i = 0; i + 3 < len; i += 4) { float a = rgba[i + 3] / 255.0f; rgba[i] = clamp_f(rgba[i] * a); rgba[i + 1] = clamp_f(rgba[i + 1] * a); rgba[i + 2] = clamp_f(rgba[i + 2] * a); }
 }
 
+/* --- Pro grading (v2.1): single-pass LUT ops, zero extra allocs --- */
+
+/* Photoshop-style Levels: normalize input range, gamma midtones, map to output range. */
+void avero_c_levels(uint8_t *rgba, size_t len, int32_t in_lo, int32_t in_hi, int32_t gamma_q, int32_t out_lo, int32_t out_hi) {
+    if (!rgba || len < 4) return;
+    if (in_lo < 0) in_lo = 0; if (in_lo > 255) in_lo = 255;
+    if (in_hi < 0) in_hi = 0; if (in_hi > 255) in_hi = 255;
+    if (in_hi <= in_lo) in_hi = in_lo + 1;
+    if (out_lo < 0) out_lo = 0; if (out_lo > 255) out_lo = 255;
+    if (out_hi < 0) out_hi = 0; if (out_hi > 255) out_hi = 255;
+    float gamma = gamma_q / 100.0f;
+    if (gamma < 0.1f) gamma = 0.1f; if (gamma > 4.0f) gamma = 4.0f;
+    float inv = 1.0f / gamma;
+    float span_in = (float)(in_hi - in_lo);
+    float span_out = (float)(out_hi - out_lo);
+    uint8_t lut[256];
+    for (int i = 0; i < 256; ++i) {
+        float t = (i - in_lo) / span_in;
+        if (t < 0.0f) t = 0.0f; if (t > 1.0f) t = 1.0f;
+        t = powf(t, inv);
+        lut[i] = clamp_u8((int32_t)(out_lo + t * span_out + 0.5f));
+    }
+    for (size_t i = 0; i + 3 < len; i += 4) {
+        rgba[i] = lut[rgba[i]];
+        rgba[i + 1] = lut[rgba[i + 1]];
+        rgba[i + 2] = lut[rgba[i + 2]];
+    }
+}
+
+/* Two-way saturation: -100 = gray, +100 = double chroma. Gray pixels are exact no-ops. */
+void avero_c_saturate(uint8_t *rgba, size_t len, int32_t amount) {
+    if (!rgba || len < 4) return;
+    if (amount < -100) amount = -100; if (amount > 100) amount = 100;
+    if (amount == 0) return;
+    float k = 1.0f + amount / 100.0f;
+    size_t n = len / 4;
+    uint8_t * AVERO_RESTRICT p = rgba;
+    for (size_t px = 0; px < n; ++px, p += 4) {
+        float y = 0.299f * p[0] + 0.587f * p[1] + 0.114f * p[2];
+        p[0] = clamp_f(y + (p[0] - y) * k);
+        p[1] = clamp_f(y + (p[1] - y) * k);
+        p[2] = clamp_f(y + (p[2] - y) * k);
+    }
+}
+
 const char *avero_c_engine_name(void) { return "AVERO C core v2"; }
-const char *avero_c_version(void) { return "2.0.0"; }
+const char *avero_c_version(void) { return "2.1.0"; }

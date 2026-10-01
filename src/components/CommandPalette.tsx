@@ -453,8 +453,8 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
 
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 grid place-items-start justify-center bg-black/60 p-10 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-[560px] overflow-hidden rounded-xl border border-white/10 bg-[#1c1c1f]/95 shadow-[0_20px_60px_rgba(0,0,0,0.6)] backdrop-blur-xl" onClick={(e) => e.stopPropagation()}>
+    <div className="avero-fade-in fixed inset-0 z-50 grid place-items-start justify-center bg-black/60 p-10 backdrop-blur-sm" onClick={onClose}>
+      <div className="avero-pop w-[560px] overflow-hidden rounded-xl border border-white/10 bg-[#1c1c1f]/95 shadow-[0_20px_60px_rgba(0,0,0,0.6)] backdrop-blur-xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2 border-b border-[#2c2c31] px-4 py-2.5">
           <span className="grid h-7 w-7 place-items-center rounded-full bg-[#2f7cf6] text-white">⌘</span>
           <input

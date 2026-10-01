@@ -39,6 +39,9 @@ void avero_c_dither_floyd(uint8_t *rgba, size_t w, size_t h);
 void avero_c_noise_mono(uint8_t *rgba, size_t len, int32_t amount, uint32_t seed);
 void avero_c_channel_swap(uint8_t *rgba, size_t len, int32_t mode);
 void avero_c_alpha_premultiply(uint8_t *rgba, size_t len);
+/* Pro grading (v2.1): single-pass LUT ops */
+void avero_c_levels(uint8_t *rgba, size_t len, int32_t in_lo, int32_t in_hi, int32_t gamma_q, int32_t out_lo, int32_t out_hi);
+void avero_c_saturate(uint8_t *rgba, size_t len, int32_t amount);
 
 const char *avero_c_engine_name(void);
 const char *avero_c_version(void);

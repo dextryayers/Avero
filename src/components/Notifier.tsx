@@ -29,7 +29,7 @@ export default function Notifier() {
       {toasts.map((t) => (
         <div
           key={t.id}
-          className={`pointer-events-auto rounded-xl border px-3 py-2 text-[12px] shadow-2xl backdrop-blur-xl ${
+          className={`avero-slide-in pointer-events-auto rounded-xl border px-3 py-2 text-[12px] shadow-2xl backdrop-blur-xl ${
             t.kind === "error"
               ? "border-red-500/40 bg-[#2a1414]/95 text-red-100"
               : t.kind === "success"

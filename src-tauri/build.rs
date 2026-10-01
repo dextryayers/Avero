@@ -48,6 +48,13 @@ fn main() {
         .flag_if_supported("-funroll-loops")
         .flag_if_supported("-march=native")
         .cargo_metadata(true);
+    // Multicore row loops (#pragma omp parallel for) in gaussian, box blur,
+    // motion blur and oil paint. MSVC links its OpenMP runtime automatically;
+    // other compilers keep serial behavior unless they accept -fopenmp AND the
+    // matching runtime links cleanly, so only enable where it is safe.
+    if cfg!(target_os = "windows") {
+        cpp.flag("/openmp");
+    }
     if cfg!(target_os = "windows") {
         cpp.define("NOMINMAX", None)
             .define("WIN32_LEAN_AND_MEAN", None);

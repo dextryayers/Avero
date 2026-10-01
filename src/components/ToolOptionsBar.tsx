@@ -251,7 +251,7 @@ export default function ToolOptionsBar({
   // ---- paint: full brush console, all live in the stroke engine ----
   if (kind === "paint") {
     return (
-      <div className={BAR}>
+      <div key={tool} className={`${BAR} avero-slide-in`}>
         <Name>{name}</Name>
         <Hint>{hint}</Hint>
         {maskBadge}
@@ -288,7 +288,7 @@ export default function ToolOptionsBar({
   // ---- retouch: size, hardness, strength ----
   if (kind === "retouch") {
     return (
-      <div className={BAR}>
+      <div key={tool} className={`${BAR} avero-slide-in`}>
         <Name>{name}</Name>
         <Hint>{hint}</Hint>
         {brushSliders}
@@ -299,7 +299,7 @@ export default function ToolOptionsBar({
   // ---- eraser: sliders plus photo-safe note plus clear action ----
   if (kind === "eraser") {
     return (
-      <div className={BAR}>
+      <div key={tool} className={`${BAR} avero-slide-in`}>
         <Name>{name}</Name>
         <Hint>{hint}</Hint>
         {maskBadge}
@@ -334,7 +334,7 @@ export default function ToolOptionsBar({
     const needsHeal = tool === "healing-brush" || tool === "patch";
     const src = needsHeal ? healSource : cloneSource;
     return (
-      <div className={BAR}>
+      <div key={tool} className={`${BAR} avero-slide-in`}>
         <Name>{name}</Name>
         <Hint>{hint}</Hint>
         {maskBadge}
@@ -365,7 +365,7 @@ export default function ToolOptionsBar({
   // ---- marquee and lasso: combine mode plus quick ops plus feather ----
   if (kind === "select-marquee") {
     return (
-      <div className={BAR}>
+      <div key={tool} className={`${BAR} avero-slide-in`}>
         <Name>{name}</Name>
         <Hint>{hint}</Hint>
         <span className="flex shrink-0 items-center border-l border-[#2c2c31] pl-2.5">
@@ -387,7 +387,7 @@ export default function ToolOptionsBar({
   // ---- wand and auto select: tolerance plus feather plus mode ----
   if (kind === "select-auto") {
     return (
-      <div className={BAR}>
+      <div key={tool} className={`${BAR} avero-slide-in`}>
         <Name>{name}</Name>
         <Hint>{hint}</Hint>
         <span className="flex shrink-0 items-center border-l border-[#2c2c31] pl-2.5">
@@ -428,7 +428,7 @@ export default function ToolOptionsBar({
     };
     const action = runMap[tool as string];
     return (
-      <div className={BAR}>
+      <div key={tool} className={`${BAR} avero-slide-in`}>
         <Name>{name}</Name>
         <Hint>{hint}</Hint>
         {action && (
@@ -455,7 +455,7 @@ export default function ToolOptionsBar({
   // ---- crop: ratio pills, overlay pills, apply, straighten ----
   if (kind === "crop") {
     return (
-      <div className={BAR}>
+      <div key={tool} className={`${BAR} avero-slide-in`}>
         <Name>{name}</Name>
         <Hint>{hint}</Hint>
         <span className="flex shrink-0 items-center border-l border-[#2c2c31] pl-2.5">
@@ -487,7 +487,7 @@ export default function ToolOptionsBar({
   // ---- crop overlay tools: pick a guide, jump back to crop ----
   if (kind === "crop-overlay") {
     return (
-      <div className={BAR}>
+      <div key={tool} className={`${BAR} avero-slide-in`}>
         <Name>{name}</Name>
         <Hint>{hint}</Hint>
         <span className="flex shrink-0 items-center gap-1 border-l border-[#2c2c31] pl-2.5">
@@ -515,7 +515,7 @@ export default function ToolOptionsBar({
     const width = shapeSpec?.strokeWidth ?? shapeDefaults.strokeWidth;
     const sides = shapeSpec?.sides ?? 6;
     return (
-      <div className={BAR}>
+      <div key={tool} className={`${BAR} avero-slide-in`}>
         <Name>{name}</Name>
         <Hint>{hint}</Hint>
         <span className="flex shrink-0 items-center gap-2 border-l border-[#2c2c31] pl-2.5">
@@ -564,7 +564,7 @@ export default function ToolOptionsBar({
   if (kind === "text") {
     const spec = textSpec ?? textDefaults;
     return (
-      <div className={BAR}>
+      <div key={tool} className={`${BAR} avero-slide-in`}>
         <Name>{name}</Name>
         <Hint>{hint}</Hint>
         <span className="flex shrink-0 items-center border-l border-[#2c2c31] pl-2.5">
@@ -600,7 +600,7 @@ export default function ToolOptionsBar({
   // ---- pen: width plus color, both live ----
   if (kind === "pen") {
     return (
-      <div className={BAR}>
+      <div key={tool} className={`${BAR} avero-slide-in`}>
         <Name>{name}</Name>
         <Hint>{hint}</Hint>
         <span className="flex shrink-0 items-center border-l border-[#2c2c31] pl-2.5">
@@ -617,7 +617,7 @@ export default function ToolOptionsBar({
   // ---- gradient: mode pills, target, reverse, dither ----
   if (kind === "gradient") {
     return (
-      <div className={BAR}>
+      <div key={tool} className={`${BAR} avero-slide-in`}>
         <Name>{name}</Name>
         <Hint>{hint}</Hint>
         <span className="flex shrink-0 items-center border-l border-[#2c2c31] pl-2.5">
@@ -646,7 +646,7 @@ export default function ToolOptionsBar({
     const usesMotif = tool === "pattern-fill" || tool === "fill-pattern-new" || tool === "pattern-stamp" || tool === "pattern-dots";
     const usesTol = tool === "fill" || tool === "bucket-contiguous" || tool === "bucket-global" || tool === "magic-eraser";
     return (
-      <div className={BAR}>
+      <div key={tool} className={`${BAR} avero-slide-in`}>
         <Name>{name}</Name>
         <Hint>{hint}</Hint>
         <span className="flex shrink-0 items-center border-l border-[#2c2c31] pl-2.5">
@@ -693,7 +693,7 @@ export default function ToolOptionsBar({
     const isGrid = tool === "grid-toggle" || tool === "grid-pixel";
     const usesUnit = tool === "ruler" || tool === "measure-angle" || tool === "measure-area" || tool === "protractor" || tool === "ruler-triple";
     return (
-      <div className={BAR}>
+      <div key={tool} className={`${BAR} avero-slide-in`}>
         <Name>{name}</Name>
         <Hint>{hint}</Hint>
         {usesUnit && (
@@ -724,7 +724,7 @@ export default function ToolOptionsBar({
   // ---- navigate: live zoom readout, rotate, one-click presets ----
   if (kind === "navigate") {
     return (
-      <div className={BAR}>
+      <div key={tool} className={`${BAR} avero-slide-in`}>
         <Name>{name}</Name>
         <Hint>{hint}</Hint>
         <span className="shrink-0 rounded-md bg-[#232327] px-2 py-1 font-mono text-white tabular-nums" title="Current canvas zoom.">
@@ -746,7 +746,7 @@ export default function ToolOptionsBar({
   if (kind === "move") {
     if (tool === "align-center") {
       return (
-        <div className={BAR}>
+        <div key={tool} className={`${BAR} avero-slide-in`}>
           <Name>{name}</Name>
           <Hint>{hint}</Hint>
           <span className="shrink-0 border-l border-[#2c2c31] pl-2.5">
@@ -770,7 +770,7 @@ export default function ToolOptionsBar({
       );
     }
     return (
-      <div className={BAR}>
+      <div key={tool} className={`${BAR} avero-slide-in`}>
         <Name>{name}</Name>
         <Hint>{hint}</Hint>
         <span className="hidden shrink-0 items-center gap-1 border-l border-[#2c2c31] pl-2.5 md:flex">
@@ -783,7 +783,7 @@ export default function ToolOptionsBar({
   // ---- eyedropper: sample scope plus live color ----
   if (kind === "eyedropper") {
     return (
-      <div className={BAR}>
+      <div key={tool} className={`${BAR} avero-slide-in`}>
         <Name>{name}</Name>
         <Hint>{hint}</Hint>
         <span className="flex shrink-0 items-center border-l border-[#2c2c31] pl-2.5">
@@ -803,7 +803,7 @@ export default function ToolOptionsBar({
   // ---- click utilities: direct toggles where one exists ----
   if (tool === "snap-toggle") {
     return (
-      <div className={BAR}>
+      <div key={tool} className={`${BAR} avero-slide-in`}>
         <Name>{name}</Name>
         <Hint>{hint}</Hint>
         <span className="shrink-0 border-l border-[#2c2c31] pl-2.5">
@@ -814,7 +814,7 @@ export default function ToolOptionsBar({
   }
   if (tool === "guide-clear") {
     return (
-      <div className={BAR}>
+      <div key={tool} className={`${BAR} avero-slide-in`}>
         <Name>{name}</Name>
         <Hint>{hint}</Hint>
         <span className="shrink-0 border-l border-[#2c2c31] pl-2.5">
@@ -825,7 +825,7 @@ export default function ToolOptionsBar({
   }
   if (tool === "grid-toggle") {
     return (
-      <div className={BAR}>
+      <div key={tool} className={`${BAR} avero-slide-in`}>
         <Name>{name}</Name>
         <Hint>{hint}</Hint>
         <span className="shrink-0 border-l border-[#2c2c31] pl-2.5">
@@ -837,7 +837,7 @@ export default function ToolOptionsBar({
 
   // Default click bar: specific hint, no dead controls.
   return (
-    <div className={BAR}>
+    <div key={tool} className={`${BAR} avero-slide-in`}>
       <Name>{name}</Name>
       <Hint>{hint}</Hint>
     </div>

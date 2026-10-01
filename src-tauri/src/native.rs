@@ -29,6 +29,16 @@ extern "C" {
     fn avero_c_noise_mono(rgba: *mut u8, len: usize, amount: i32, seed: u32);
     fn avero_c_channel_swap(rgba: *mut u8, len: usize, mode: i32);
     fn avero_c_alpha_premultiply(rgba: *mut u8, len: usize);
+    fn avero_c_levels(
+        rgba: *mut u8,
+        len: usize,
+        in_lo: i32,
+        in_hi: i32,
+        gamma_q: i32,
+        out_lo: i32,
+        out_hi: i32,
+    );
+    fn avero_c_saturate(rgba: *mut u8, len: usize, amount: i32);
     fn avero_c_engine_name() -> *const core::ffi::c_char;
     fn avero_c_version() -> *const core::ffi::c_char;
 
@@ -89,6 +99,7 @@ extern "C" {
         amount: f32,
         radius: i32,
     );
+    fn avero_cpp_high_pass(src: *const u8, dst: *mut u8, w: i32, h: i32, radius: i32);
     fn avero_cpp_minimize(src: *const u8, dst: *mut u8, w: i32, h: i32, radius: i32);
     fn avero_cpp_maximize(src: *const u8, dst: *mut u8, w: i32, h: i32, radius: i32);
     fn avero_cpp_swirl(src: *const u8, dst: *mut u8, w: i32, h: i32, radius: f32, strength: f32);
@@ -181,6 +192,14 @@ pub enum NativeOp {
     NoiseMono { amount: i32, seed: Option<u32> },
     ChannelSwap { mode: i32 },
     AlphaPremultiply,
+    Levels {
+        in_lo: i32,
+        in_hi: i32,
+        gamma: f32,
+        out_lo: i32,
+        out_hi: i32,
+    },
+    Saturate { amount: i32 },
 }
 
 /// Operasi C++ dua-pass (src -> dst).
@@ -211,6 +230,7 @@ pub enum NativeFilterOp {
     Minimize { radius: i32 },
     Maximize { radius: i32 },
     Swirl { radius: f32, strength: f32 },
+    HighPass { radius: i32 },
 }
 
 #[derive(Serialize)]
@@ -240,8 +260,9 @@ pub fn cmd_native_info() -> NativeInfo {
             "Queue".into(),
         ],
         features: vec![
-            "23 fast in-place adjustment ops with zero image copy".into(),
-            "23 studio filters with morphology and distortion plus tiled light variants".into(),
+            "25 fast in-place adjustment ops with zero image copy (Levels LUT, two-way Saturate)".into(),
+            "24 studio filters with morphology and distortion plus tiled light variants (true High Pass)".into(),
+            "OpenMP multicore row loops for gaussian, box, motion and oil paint on desktop builds".into(),
             "Histogram, color stats, benchmark, and memory budget".into(),
             "Batched pipeline plus per-tile canvas renderer for large documents".into(),
         ],
@@ -301,6 +322,22 @@ fn apply_op_inplace(buf: &mut Vec<u8>, op: NativeOp) {
             }
             NativeOp::ChannelSwap { mode } => avero_c_channel_swap(ptr, len, mode.clamp(0, 5)),
             NativeOp::AlphaPremultiply => avero_c_alpha_premultiply(ptr, len),
+            NativeOp::Levels {
+                in_lo,
+                in_hi,
+                gamma,
+                out_lo,
+                out_hi,
+            } => avero_c_levels(
+                ptr,
+                len,
+                in_lo.clamp(0, 255),
+                in_hi.clamp(0, 255),
+                (gamma.clamp(0.1, 4.0) * 100.0).round() as i32,
+                out_lo.clamp(0, 255),
+                out_hi.clamp(0, 255),
+            ),
+            NativeOp::Saturate { amount } => avero_c_saturate(ptr, len, amount.clamp(-100, 100)),
         }
     }
 }
@@ -378,6 +415,9 @@ fn apply_filter_to_buf(src_buf: &[u8], w: i32, h: i32, op: NativeFilterOp) -> Ve
                 radius.clamp(8.0, 4096.0),
                 strength.clamp(-720.0, 720.0),
             ),
+            NativeFilterOp::HighPass { radius } => {
+                avero_cpp_high_pass(src, dst, w, h, radius.clamp(1, 32))
+            }
             NativeFilterOp::BoxBlurLight { radius } => {
                 avero_cpp_box_blur_light(src, dst, w, h, radius.clamp(0, 16))
             }
@@ -1067,5 +1107,124 @@ mod tests {
     #[test]
     fn guards_reject_huge_ipc() {
         assert!(check_rgba(&vec![0u8; MAX_IPC_RGBA_BYTES + 4]).is_err());
+    }
+
+    #[test]
+    fn levels_identity_is_noop() {
+        let mut px = vec![0u8, 64, 128, 255, 200, 30, 90, 255];
+        let len = px.len();
+        unsafe {
+            avero_c_levels(
+                px.as_mut_ptr(),
+                len,
+                0,
+                255,
+                100,
+                0,
+                255,
+            );
+        }
+        assert_eq!(px, vec![0u8, 64, 128, 255, 200, 30, 90, 255]);
+    }
+
+    #[test]
+    fn levels_crushes_shadows_to_output_black() {
+        // input below 128 maps to 0, 255 stays 255.
+        let mut px = vec![0u8, 100, 127, 255, 255, 255, 255, 255];
+        let len = px.len();
+        unsafe {
+            avero_c_levels(px.as_mut_ptr(), len, 128, 255, 100, 0, 255);
+        }
+        assert_eq!(px[0], 0);
+        assert_eq!(px[1], 0);
+        assert_eq!(px[2], 0);
+        assert_eq!(px[4], 255);
+    }
+
+    #[test]
+    fn levels_pipeline_variant() {
+        let rgba = vec![10u8, 20, 30, 255, 250, 240, 230, 255];
+        let out = cmd_native_pipeline(PipelineRequest {
+            rgba,
+            width: 2,
+            height: 1,
+            ops: vec![NativeOp::Levels {
+                in_lo: 0,
+                in_hi: 255,
+                gamma: 1.0,
+                out_lo: 0,
+                out_hi: 255,
+            }],
+            filters: vec![],
+        })
+        .unwrap();
+        assert_eq!(out, vec![10u8, 20, 30, 255, 250, 240, 230, 255]);
+    }
+
+    #[test]
+    fn saturate_zero_and_gray_are_noops() {
+        let gray = vec![120u8, 120, 120, 255];
+        for amount in [-100, -50, 0, 50, 100] {
+            let mut px = gray.clone();
+            let len = px.len();
+            unsafe {
+                avero_c_saturate(px.as_mut_ptr(), len, amount);
+            }
+            assert_eq!(px, gray, "amount {amount}");
+        }
+        let mut color = vec![200u8, 50, 50, 255];
+        let len = color.len();
+        unsafe {
+            avero_c_saturate(color.as_mut_ptr(), len, 0);
+        }
+        assert_eq!(color, vec![200u8, 50, 50, 255]);
+    }
+
+    #[test]
+    fn saturate_minus_100_grays_the_pixel() {
+        let mut px = vec![200u8, 50, 50, 255];
+        let len = px.len();
+        unsafe {
+            avero_c_saturate(px.as_mut_ptr(), len, -100);
+        }
+        assert_eq!(px[0], px[1]);
+        assert_eq!(px[1], px[2]);
+        assert_eq!(px[3], 255);
+    }
+
+    #[test]
+    fn high_pass_flat_image_is_mid_gray() {
+        let rgba = vec![90u8; 8 * 8 * 4];
+        let out = cmd_native_apply_filter(
+            rgba,
+            8,
+            8,
+            NativeFilterOp::HighPass { radius: 2 },
+        )
+        .unwrap();
+        assert_eq!(out.len(), 8 * 8 * 4);
+        // flat input minus its own blur is zero, plus 128 gray.
+        assert!(out.chunks_exact(4).all(|p| p[0] == 128 && p[1] == 128 && p[2] == 128));
+        assert!(out.chunks_exact(4).all(|p| p[3] == 90));
+    }
+
+    #[test]
+    fn high_pass_finds_an_edge() {
+        // left half black, right half white: edge column must deviate from 128.
+        let mut rgba = vec![0u8; 16 * 4 * 4];
+        for y in 0..4 {
+            for x in 8..16 {
+                let i = (y * 16 + x) * 4;
+                rgba[i] = 255;
+                rgba[i + 1] = 255;
+                rgba[i + 2] = 255;
+                rgba[i + 3] = 255;
+            }
+        }
+        let out = cmd_native_apply_filter(rgba, 16, 4, NativeFilterOp::HighPass { radius: 2 }).unwrap();
+        let edge_lit = out
+            .chunks_exact(4)
+            .any(|p| p[0] > 160 || p[0] < 96);
+        assert!(edge_lit, "edge should deviate from mid gray");
     }
 }

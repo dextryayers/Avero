@@ -20,6 +20,9 @@ export default function StatusBar() {
   const snapEnabled = useProStore((s) => s.snapEnabled);
   const showGuides = useProStore((s) => s.showGuides);
   const layers = useEditorStore((s) => s.layers);
+  const activeLayerId = useEditorStore((s) => s.activeLayerId);
+  const brushSize = useEditorStore((s) => s.brushSize);
+  const brushOpacity = useEditorStore((s) => s.brushOpacity);
   const [mem, setMem] = useState<string>("");
   const [nat, setNat] = useState<NativeInfo | null>(null);
   const [bench, setBench] = useState<string>("");
@@ -162,6 +165,17 @@ export default function StatusBar() {
       <span className="hidden font-mono lg:block">
         {doc.width}x{doc.height} {mp} MB {tiles} tiles {color.workingSpace}{" "}
         {color.bitDepth}-bit {tool}
+      </span>
+      {(() => {
+        const al = layers.find((l) => l.id === activeLayerId);
+        return al ? (
+          <span className="hidden max-w-[220px] truncate font-mono text-[#c9c9d1] xl:block" title={`Active layer: ${al.name} (${al.kind}, opacity ${al.opacity}%, ${al.blendMode})`}>
+            {al.name} · {al.kind} · {al.opacity}%
+          </span>
+        ) : null;
+      })()}
+      <span className="hidden font-mono tabular-nums xl:block" title="Brush size and strength">
+        B{brushSize}/{brushOpacity}%
       </span>
       <button
         onClick={toggleRulers}

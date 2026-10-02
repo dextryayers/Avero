@@ -57,10 +57,7 @@ import { gpuBackend, gpuBackendSyncFallback } from "../io/gpuBackend";
 import ToolOptionsBar from "./ToolOptionsBar";
 import { TOOL_LABEL } from "./ToolBar";
 import { askText, notify } from "../ui/notify";
-
-export function getCompositeCanvas(): HTMLCanvasElement | null {
-  return (window as any).__avero_comp ?? null;
-}
+import { getCompositeCanvas, setCompositeCanvas } from "../engine/compositeRef";
 
 // Pooled doc-size composite canvas: reuses one canvas across renders
 // instead of allocating a full doc-size canvas per frame (8MB+ for HD).
@@ -103,6 +100,57 @@ function getScratch(w: number, h: number): HTMLCanvasElement {
 }
 function releaseScratch(c: HTMLCanvasElement) {
   if (scratchPool.length < 8) scratchPool.push(c);
+}
+
+// Snapshot of everything the compositor reads. Captured every render into
+// frameRef so the rAF scheduler always paints the latest state with at most
+// one composite per animation frame.
+type EditorSnap = ReturnType<typeof useEditorStore.getState>;
+type ProSnap = ReturnType<typeof useProStore.getState>;
+interface DragRect {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+interface FrameState {
+  layers: EditorSnap["layers"];
+  activeLayerId: EditorSnap["activeLayerId"];
+  doc: EditorSnap["doc"];
+  zoom: number;
+  panX: number;
+  panY: number;
+  viewRotate: number;
+  tool: EditorSnap["tool"];
+  isPainting: boolean;
+  ants: number;
+  selDrag: DragRect | null;
+  lassoPts: { x: number; y: number }[];
+  cropDrag: DragRect | null;
+  gradDrag: DragRect | null;
+  penDrag: DragRect | null;
+  shapeDrag: (DragRect & { kind: string }) | null;
+  sliceDrag: DragRect | null;
+  measureDrag: DragRect | null;
+  guidesH: ProSnap["guidesH"];
+  guidesV: ProSnap["guidesV"];
+  showGuides: ProSnap["showGuides"];
+  showGrid: ProSnap["showGrid"];
+  gridSize: ProSnap["gridSize"];
+  adjustments: ProSnap["adjustments"];
+  filters: ProSnap["filters"];
+  masks: ProSnap["masks"];
+  transforms: ProSnap["transforms"];
+  color: ProSnap["color"];
+  raw: ProSnap["raw"];
+  slices: ProSnap["slices"];
+  activeSliceId: ProSnap["activeSliceId"];
+  notes: ProSnap["notes"];
+  counts: ProSnap["counts"];
+  samplers: ProSnap["samplers"];
+  measures: ProSnap["measures"];
+  paths: ProSnap["paths"];
+  cropOverlay: ProSnap["cropOverlay"];
 }
 
 // Navigator minimap (Photoshop Navigator / Figma minimap): live thumbnail,
@@ -193,6 +241,9 @@ function Navigator({ wrapW, wrapH }: { wrapW: number; wrapH: number }) {
 
 export default function CanvasArea() {
   const wrapRef = useRef<HTMLDivElement>(null);  const canvasRef = useRef<HTMLCanvasElement>(null);
+  // rAF compositor: latest snapshot + at most one scheduled frame.
+  const frameRef = useRef<FrameState | null>(null);
+  const rafRender = useRef(0);
   const [cursor, setCursor] = useState("0, 0");
   const [isPainting, setIsPainting] = useState(false);
   const [selDrag, setSelDrag] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(
@@ -602,8 +653,25 @@ export default function CanvasArea() {
   // - canvas backing only resized when size changes (no per-frame realloc)
   // - workspace backdrop cached offscreen; checkerboard via pattern
   // - no per-frame shadowBlur (cached strokes instead)
-  // - rAF-coalesced via React effect (one composite per commit)
-  useEffect(() => {
+  // - rAF-coalesced: bursts of markDirty commits (brush dabs, drag previews)
+  //   collapse into a single composite per animation frame. The snapshot below
+  //   always carries the latest values, so live painting stays live while idle
+  //   commits never render twice.
+  frameRef.current = {
+    layers, activeLayerId, doc, zoom, panX, panY, viewRotate, tool, isPainting,
+    ants, selDrag, lassoPts, cropDrag, gradDrag, penDrag, shapeDrag, sliceDrag,
+    measureDrag, guidesH, guidesV, showGuides, showGrid, gridSize, adjustments,
+    filters, masks, transforms, color, raw, slices, activeSliceId,
+    notes, counts, samplers, measures, paths, cropOverlay,
+  };
+  function renderComposite(f: FrameState) {
+    const {
+      layers, activeLayerId, doc, zoom, panX, panY, viewRotate, tool, isPainting,
+      ants, selDrag, lassoPts, cropDrag, gradDrag, penDrag, shapeDrag, sliceDrag,
+      measureDrag, guidesH, guidesV, showGuides, showGrid, gridSize, adjustments,
+      filters, masks, transforms, color, raw, slices, activeSliceId,
+      notes, counts, samplers, measures, paths, cropOverlay,
+    } = f;
     const canvas = canvasRef.current;
     const wrap = wrapRef.current;
     if (!canvas || !wrap) return;
@@ -639,18 +707,10 @@ export default function CanvasArea() {
     const cctx = comp.getContext("2d", { willReadFrequently: true })!;
     cctx.clearRect(0, 0, comp.width, comp.height);
     // Real clipping-mask: clipped layer is cut by the composited alpha below it.
-    let belowAlpha: HTMLCanvasElement | null = null;
-    const clipScratch = getPooledComp(Math.max(1, doc.width), Math.max(1, doc.height));
-    // NOTE: getPooledComp returns a shared canvas; use a second pool slot via
-    // width+1 trick? Instead reuse layerManager pool by drawing through temp.
-    // Simplest correct: track below via offscreen copy only when clipping used.
+    // belowAlpha + per-layer temps come from the scratch pool: zero allocations
+    // per frame even when clipping is active.
     const needsClip = layers.some((l) => l.visible && l.clipped);
-    if (needsClip) {
-      belowAlpha = document.createElement("canvas");
-      belowAlpha.width = comp.width;
-      belowAlpha.height = comp.height;
-    }
-    void clipScratch;
+    const belowAlpha = needsClip ? getScratch(comp.width, comp.height) : null;
     layers.forEach((l) => {
       if (!l.visible) return;
       const m = masks[l.id];
@@ -680,14 +740,13 @@ export default function CanvasArea() {
       if (l.clipped && belowAlpha) {
         // draw src to temp, cut by below alpha, then draw to comp
         const bctx = belowAlpha.getContext("2d")!;
-        const tmp = document.createElement("canvas");
-        tmp.width = comp.width;
-        tmp.height = comp.height;
+        const tmp = getScratch(comp.width, comp.height);
         const tctx = tmp.getContext("2d")!;
         tctx.drawImage(src, 0, 0);
         tctx.globalCompositeOperation = "destination-in";
         tctx.drawImage(belowAlpha, 0, 0);
         cctx.drawImage(tmp, 0, 0);
+        releaseScratch(tmp);
         bctx.clearRect(0, 0, belowAlpha.width, belowAlpha.height);
         bctx.drawImage(comp, 0, 0);
       } else {
@@ -700,6 +759,7 @@ export default function CanvasArea() {
       }
       cctx.restore();
     });
+    if (belowAlpha) releaseScratch(belowAlpha);
 
     // Fast preview while painting: layers+mask+transform only (no per-frame
     // full-doc getImageData passes). Full quality (RAW/adjust/filter/color)
@@ -739,14 +799,13 @@ export default function CanvasArea() {
         } else {
           const copy = new ImageData(new Uint8ClampedArray(id.data), id.width, id.height);
           applyAdjustmentToImageData(copy, adj);
-          const tmp = document.createElement("canvas");
-          tmp.width = comp.width;
-          tmp.height = comp.height;
+          const tmp = getScratch(comp.width, comp.height);
           tmp.getContext("2d")!.putImageData(copy, 0, 0);
           cctx.save();
           cctx.globalAlpha = alpha;
           cctx.drawImage(tmp, 0, 0);
           cctx.restore();
+          releaseScratch(tmp);
         }
       } catch {
         /* ignore */
@@ -774,7 +833,7 @@ export default function CanvasArea() {
     }
     }
 
-    (window as any).__avero_comp = filtered;
+    setCompositeCanvas(filtered);
 
     // 6. Draw to screen (with non-destructive view rotation)
     ctx.save();
@@ -1237,51 +1296,20 @@ export default function CanvasArea() {
       ctx.stroke();
       ctx.restore();
     }
-    // composite render deps intentional.
-    // NOTE: `doc` (whole object) is a dep on purpose: paintTo/retouchTo call
-    // markDirty() which creates a new doc object per dab, so the composite
-    // refreshes live during strokes. Using only doc.width/height left the
-    // canvas frozen while painting (tools looked dead).
-  }, [
-    layers,
-    activeLayerId,
-    doc,
-    zoom,
-    panX,
-    panY,
-    viewRotate,
-    isPainting,
-    ants,
-    selDrag,
-    lassoPts,
-    cropDrag,
-    gradDrag,
-    penDrag,
-    shapeDrag,
-    sliceDrag,
-    measureDrag,
-    guidesH,
-    guidesV,
-    showGuides,
-    showGrid,
-    gridSize,
-    adjustments,
-    filters,
-    masks,
-    paintMask,
-    transforms,
-    color,
-    raw,
-    slices,
-    activeSliceId,
-    notes,
-    counts,
-    samplers,
-    measures,
-    paths,
-    tool,
-    cropOverlay,
-  ]);
+  }
+  // rAF scheduler: runs after every commit (no dep array on purpose) but the
+  // guard guarantees at most one composite per animation frame.
+  useEffect(() => {
+    if (rafRender.current) return;
+    rafRender.current = requestAnimationFrame(() => {
+      rafRender.current = 0;
+      const f = frameRef.current;
+      if (f) renderComposite(f);
+    });
+  });
+  useEffect(() => () => {
+    if (rafRender.current) cancelAnimationFrame(rafRender.current);
+  }, []);
 
   function toDocCoords(e: React.MouseEvent) {
     const canvas = canvasRef.current!;
@@ -5395,7 +5423,7 @@ export default function CanvasArea() {
             const dy = measureDrag.y1 - measureDrag.y0;
             const dist = Math.hypot(dx, dy);
             const ang = (Math.atan2(-dy, dx) * 180) / Math.PI;
-            // Fase E unit: px mentah, in/cm pada 96 DPI. Live dari top bar.
+            // Phase E units: raw px, in/cm at 96 DPI. Live from the top bar.
             const unit = useProStore.getState().measureUnit;
             const fmt = (px: number) =>
               unit === "in" ? `${(px / 96).toFixed(2)} in` : unit === "cm" ? `${((px / 96) * 2.54).toFixed(2)} cm` : `${px.toFixed(1)} px`;

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useEditorStore, makeLayer } from "../stores/useEditorStore";
 import { layerManager } from "../engine/layerManager";
 import { autoQuad, warpToQuad, type Quad } from "../engine/mockup";
-import { getCompositeCanvas } from "./CanvasArea";
+import { getCompositeCanvas } from "../engine/compositeRef";
 
 export default function MockupPanel() {
   const doc = useEditorStore((s) => s.doc);

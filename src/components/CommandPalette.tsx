@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useEditorStore, makeLayer } from "../stores/useEditorStore";
+import { EmptyState } from "../ui/atoms";
 import { TOOLS } from "./ToolBar";
 import { useProStore } from "../stores/useProStore";
 import { useHomeStore } from "../stores/useHomeStore";
 import { layerManager } from "../engine/layerManager";
-import { getCompositeCanvas } from "./CanvasArea";
+import { getCompositeCanvas } from "../engine/compositeRef";
 import {
   pickImageToOpen,
   pickSavePath,
@@ -15,12 +16,34 @@ import {
 import { isTauri, nativeBenchmark, nativeInfo, nativeProcessCanvas, nativeStats } from "../io/nativeEngine";
 import { showError, showMessage } from "../ui/notify";
 
+const RECENT_KEY = "avero-palette-recents";
+
+function loadRecents(): string[] {
+  try {
+    const raw = localStorage.getItem(RECENT_KEY);
+    const arr = JSON.parse(raw ?? "[]") as unknown;
+    return Array.isArray(arr) ? arr.filter((x): x is string => typeof x === "string").slice(0, 6) : [];
+  } catch {
+    return [];
+  }
+}
+
 export default function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [q, setQ] = useState("");
+  const [index, setIndex] = useState(0);
+  const [recentIds, setRecentIds] = useState<string[]>(() => loadRecents());
+  const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (open) setQ("");
+    if (open) {
+      setQ("");
+      setIndex(0);
+    }
   }, [open]);
+
+  useEffect(() => {
+    setIndex(0);
+  }, [q]);
 
   const actions = useMemo(() => {
     const s = useEditorStore.getState();
@@ -445,49 +468,138 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
     ];
   }, []);
 
-  const filtered = actions.filter((a) => a.title.toLowerCase().includes(q.toLowerCase()));
+  const byId = useMemo(() => new Map(actions.map((a) => [a.id, a])), [actions]);
+  const trimmed = q.trim().toLowerCase();
+  const filtered = useMemo(
+    () => (trimmed ? actions.filter((a) => a.title.toLowerCase().includes(trimmed)) : actions),
+    [actions, trimmed],
+  );
+  const recents = useMemo(
+    () => recentIds.map((id) => byId.get(id)).filter((a): a is (typeof actions)[number] => !!a),
+    [recentIds, byId],
+  );
+  // Flat visible list with group headers: Recent → Tools → Studio.
+  const visible = useMemo(() => {
+    type Row = { kind: "head"; label: string } | { kind: "item"; id: string };
+    const rows: Row[] = [];
+    const pushGroup = (label: string, list: typeof actions) => {
+      if (list.length === 0) return;
+      rows.push({ kind: "head", label });
+      list.forEach((a) => rows.push({ kind: "item", id: a.id }));
+    };
+    if (!trimmed && recents.length > 0) pushGroup("Recent", recents);
+    if (trimmed) {
+      pushGroup("Results", filtered);
+    } else {
+      const recentSet = new Set(recents.map((a) => a.id));
+      pushGroup(
+        "Tools",
+        actions.filter((a) => a.id.startsWith("tool-") && !recentSet.has(a.id)),
+      );
+      pushGroup(
+        "Studio",
+        actions.filter((a) => !a.id.startsWith("tool-") && !recentSet.has(a.id)),
+      );
+    }
+    return rows;
+  }, [trimmed, recents, filtered, actions]);
+  const itemIds = useMemo(() => visible.filter((r): r is { kind: "item"; id: string } => r.kind === "item").map((r) => r.id), [visible]);
+  const safeIndex = itemIds.length === 0 ? 0 : Math.min(index, itemIds.length - 1);
+
+  useEffect(() => {
+    listRef.current
+      ?.querySelector('[data-active="true"]')
+      ?.scrollIntoView({ block: "nearest" });
+  }, [safeIndex, open]);
+
+  function runById(id: string) {
+    const a = byId.get(id);
+    if (!a) return;
+    a.run();
+    setRecentIds((prev) => {
+      const next = [id, ...prev.filter((x) => x !== id)].slice(0, 6);
+      try {
+        localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+    onClose();
+  }
 
   if (!open) return null;
   return (
     <div className="avero-fade-in fixed inset-0 z-50 grid place-items-start justify-center bg-black/60 p-10 backdrop-blur-sm" onClick={onClose}>
-      <div className="avero-pop w-[560px] overflow-hidden rounded-xl border border-white/10 bg-[#1c1c1f]/95 shadow-[0_20px_60px_rgba(0,0,0,0.6)] backdrop-blur-xl" onClick={(e) => e.stopPropagation()}>
+      <div className="avero-pop w-[560px] max-w-[92vw] overflow-hidden rounded-2xl border border-white/10 bg-[#1c1c1f]/95 shadow-[0_20px_60px_rgba(0,0,0,0.6)] backdrop-blur-xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2 border-b border-[#2c2c31] px-4 py-2.5">
-          <span className="grid h-7 w-7 place-items-center rounded-full bg-[#2f7cf6] text-white">⌘</span>
+          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#2f7cf6] text-[13px] text-white">⌘</span>
           <input
             autoFocus
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Type a command: avx, export, blur, layer, native..."
+            aria-label="Search actions"
             className="flex-1 bg-transparent text-[13px] text-white outline-none placeholder:text-[#6e6e78]"
             onKeyDown={(e) => {
-              if (e.key === "Enter" && filtered[0]) {
-                filtered[0].run();
+              if (e.key === "ArrowDown") {
+                e.preventDefault();
+                setIndex((i) => (itemIds.length === 0 ? 0 : (i + 1) % itemIds.length));
+              } else if (e.key === "ArrowUp") {
+                e.preventDefault();
+                setIndex((i) => (itemIds.length === 0 ? 0 : (i - 1 + itemIds.length) % itemIds.length));
+              } else if (e.key === "Enter" && itemIds[safeIndex]) {
+                runById(itemIds[safeIndex]);
+              } else if (e.key === "Escape") {
                 onClose();
               }
-              if (e.key === "Escape") onClose();
             }}
           />
-          <span className="rounded-full bg-[#232327] px-2 py-0.5 font-mono text-[10px] text-[#a7a7b0]">Ctrl+K</span>
+          <span className="shrink-0 rounded-full bg-[#232327] px-2 py-0.5 font-mono text-[10px] text-[#a7a7b0]">Ctrl+K</span>
         </div>
-        <div className="max-h-[360px] overflow-y-auto p-1.5">
-          {filtered.map((a) => (
-            <button
-              key={a.id}
-              onClick={() => {
-                a.run();
-                onClose();
-              }}
-              className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-[12px] text-[#c9c9d1] hover:bg-[#2f7cf6] hover:text-white transition-colors"
-            >
-              <span className="truncate pr-2">{a.title}</span>
-              <span className="shrink-0 rounded-full bg-white/10 px-1.5 py-0.5 font-mono text-[10px] opacity-60 group-hover:bg-white/20">Enter</span>
-            </button>
-          ))}
-          {filtered.length === 0 && <div className="p-6 text-center text-[12px] text-[#a7a7b0]">No matching actions for "{q}"</div>}
+        <div ref={listRef} className="max-h-[360px] overflow-y-auto p-1.5" role="listbox" aria-label="Actions">
+          {visible.map((r, i) =>
+            r.kind === "head" ? (
+              <div key={`head-${r.label}-${i}`} className="avero-micro px-3 pb-1 pt-2">
+                {r.label}
+              </div>
+            ) : (
+              (() => {
+                const a = byId.get(r.id)!;
+                const itemIndex = itemIds.indexOf(r.id);
+                const active = itemIndex === safeIndex;
+                return (
+                  <button
+                    key={a.id}
+                    role="option"
+                    aria-selected={active}
+                    data-active={active || undefined}
+                    onMouseEnter={() => setIndex(itemIndex)}
+                    onClick={() => runById(a.id)}
+                    className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-[12px] transition-colors ${
+                      active ? "bg-[#2f7cf6] text-white" : "text-[#c9c9d1] hover:bg-white/5 hover:text-white"
+                    }`}
+                  >
+                    <span className="truncate pr-2">{a.title}</span>
+                    <span
+                      className={`shrink-0 rounded-full px-1.5 py-0.5 font-mono text-[10px] ${
+                        active ? "bg-white/20 text-white" : "bg-white/10 text-[#a7a7b0] opacity-60"
+                      }`}
+                    >
+                      Enter
+                    </span>
+                  </button>
+                );
+              })()
+            ),
+          )}
+          {itemIds.length === 0 && (
+            <EmptyState title="No matching actions" hint={`Nothing matches "${q}". Try "export", "blur", "layer" or "brush".`} />
+          )}
         </div>
         <div className="flex items-center justify-between border-t border-[#2c2c31] bg-[#161618] px-3 py-2 font-mono text-[10px] text-[#6e6e78]">
           <span>↑↓ navigate • Enter run • Esc close</span>
-          <span>{filtered.length} actions</span>
+          <span>{itemIds.length} actions</span>
         </div>
       </div>
     </div>

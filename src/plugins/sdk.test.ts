@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { runPlugin, EXAMPLE_PLUGINS } from "./sdk";
 
 describe("plugin SDK", () => {
-  it("3 contoh plugin tersedia", () => {
+  it("3 example plugins are available", () => {
     expect(EXAMPLE_PLUGINS.length).toBe(3);
   });
   it("duotone runs without errors", () => {

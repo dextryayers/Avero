@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { checkBackend, pickImageToOpen, pickSavePath, rustDecodeToDataUrl, rustImageInfo, rustSaveDataUrl } from "../io/tauriIo";
-import { getCompositeCanvas } from "./CanvasArea";
+import { getCompositeCanvas } from "../engine/compositeRef";
 import { openAvxProject, registerAvxAssociation, saveAvxProject } from "../io/projectIo";
 import { layerManager } from "../engine/layerManager";
 import { useEditorStore, makeLayer } from "../stores/useEditorStore";
@@ -13,6 +13,9 @@ import { House, Search, Settings2 } from "lucide-react";
 import clsx from "clsx";
 import { MENUS } from "../app/menus";
 import { showError, showMessage } from "../ui/notify";
+import { Kbd } from "../ui/atoms";
+import { doUndo, doRedo } from "../engine/historyOps";
+import { copyActiveLayerShim } from "../app/shortcuts-shim";
 
 
 export default function TitleBar({
@@ -222,7 +225,7 @@ export default function TitleBar({
             s.duplicateActiveLayer();
             return;
           }
-          // Layer via Copy: salin seleksi ke layer baru, aslinya tetap.
+          // Layer via Copy: copy the selection to a new layer, keep the original.
           try {
             const st = useEditorStore.getState();
             const id = st.activeLayerId;
@@ -248,7 +251,7 @@ export default function TitleBar({
             st.setActiveLayer(l.id);
             st.markDirty();
           } catch {
-            /* abaikan */
+            /* ignore */
           }
         })();
         break;
@@ -371,7 +374,7 @@ export default function TitleBar({
               : null;
             g.save();
             if (sel) {
-              // Isi hanya dalam seleksi: potong via mask sementara.
+              // Fill inside the selection only: clip via a temporary mask.
               const tmp = document.createElement("canvas");
               tmp.width = c.width;
               tmp.height = c.height;
@@ -396,7 +399,7 @@ export default function TitleBar({
         break;
       }
       case "content-aware":
-        // Arahkan ke tool Content Fill agar klik berikutnya mengisi seleksi.
+        // Point at the Content Fill tool so the next click fills the selection.
         ed.setTool("content-fill");
         void (async () => {
           const { hasSelection } = await import("../engine/selection");
@@ -725,15 +728,19 @@ export default function TitleBar({
               {m}
             </button>
             {openMenu === m && (
-              <div className="absolute left-0 top-full z-50 mt-1 max-h-[70vh] w-[240px] overflow-y-auto rounded-lg border border-[#2c2c31] bg-[#1c1c1f] p-1">
+              <div className="avero-pop absolute left-0 top-full z-50 mt-1.5 max-h-[70vh] w-[248px] overflow-y-auto rounded-xl border border-white/10 bg-[#1b1b1f]/95 p-1.5 shadow-[0_16px_48px_rgba(0,0,0,0.6)] backdrop-blur-xl">
                 {MENUS[m].map((it) => (
                   <button
                     key={it.label}
                     onClick={() => runAction(it.action)}
-                    className="flex w-full items-center justify-between rounded-md px-3 py-1.5 text-left text-[12px] text-[#c9c9d1] hover:bg-[#2f7cf6] hover:text-white"
+                    className="group flex w-full items-center justify-between gap-3 rounded-lg px-3 py-1.5 text-left text-[12px] text-[#c9c9d1] transition-colors hover:bg-[#2f7cf6] hover:text-white"
                   >
-                    <span>{it.label}</span>
-                    {it.hint && <span className="font-mono text-[10px] opacity-60">{it.hint}</span>}
+                    <span className="truncate">{it.label}</span>
+                    {it.hint && (
+                      <Kbd className="group-hover:border-white/30 group-hover:bg-white/10 group-hover:text-white/90">
+                        {it.hint}
+                      </Kbd>
+                    )}
                   </button>
                 ))}
               </div>

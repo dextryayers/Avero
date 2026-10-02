@@ -8,6 +8,22 @@ const host = process.env.TAURI_DEV_HOST;
 // https://vite.dev/config/
 export default defineConfig(() => ({
   plugins: [react(), tailwindcss()],
+  build: {
+    target: "esnext",
+    // Keep framework + state runtime in shared chunks so lazy routes
+    // (editor, settings, export) reuse them instead of duplicating.
+    // Note: rolldown requires the function form of manualChunks.
+    chunkSizeWarningLimit: 1500,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules/react-dom/") || id.includes("node_modules/react/") || id.includes("node_modules/scheduler/")) return "vendor";
+          if (id.includes("node_modules/zustand") || id.includes("node_modules/clsx")) return "state";
+          return undefined;
+        },
+      },
+    },
+  },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //

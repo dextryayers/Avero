@@ -7,7 +7,7 @@ import { layerManager } from "../engine/layerManager";
 import { clearSelectionMask, hasSelection, selectionMaskCanvas, restoreSelectionMask } from "../engine/selection";
 import { rustSaveDataUrl } from "./tauriIo";
 import { exportPlan } from "./memoryManager";
-import { getCompositeCanvas } from "../components/CanvasArea";
+import { getCompositeCanvas } from "../engine/compositeRef";
 
 export const AVX_MAGIC = "AVX1";
 export const AVX_VERSION = 1;
@@ -709,7 +709,7 @@ export async function openAvxProject(fromPath?: string): Promise<boolean> {
     if (l.pixels) {
       try {
         const img = await loadWithTimeout(l.pixels);
-        // Gambar corrupt berdimensi aneh: gambar apa adanya, jangan stretch merusak.
+        // Corrupt images with odd dimensions: draw as-is, never stretch destructively.
         try {
           ctx.drawImage(img, 0, 0, W, H);
         } catch {
@@ -927,7 +927,7 @@ export function renderExportCanvas(opts: ExportOptions): { canvas: HTMLCanvasEle
       ctx.restore();
     });
   }
-  // TIFF dirender dulu sebagai PNG lossless, lalu dikodekan ulang ke TIFF oleh mesin inti.
+  // TIFF is first rendered as lossless PNG, then re-encoded to TIFF by the core engine.
   const mime =
     opts.format === "png" || opts.format === "tiff"
       ? "image/png"

@@ -36,7 +36,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     try {
       localStorage.setItem("avero-workspace", active);
     } catch {
-      /* abaikan */
+      /* ignore */
     }
     // preset per workspace
     const map: Record<WorkspaceId, { tab: string; node: boolean }> = {
@@ -54,7 +54,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     try {
       localStorage.setItem("avero-onboarding", onboardingDone ? "done" : "");
     } catch {
-      /* abaikan */
+      /* ignore */
     }
     set({ onboardingDone });
   },

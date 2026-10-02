@@ -909,6 +909,8 @@ export default function ToolBar() {
             <button
               key={f.id}
               title={`${f.label} (${f.shortcut}) - ${variantCount} sub-tools. Active: ${activeVariant}. ${f.description} Click again to cycle variants.`}
+              aria-label={`${f.label}, shortcut ${f.shortcut}`}
+              aria-pressed={active}
               onClick={() => pickFamily(f)}
               onContextMenu={(e) => {
                 e.preventDefault();
@@ -932,6 +934,8 @@ export default function ToolBar() {
         })}
         <button
           title={expanded ? "Collapse tool panel" : "Expand tool panel with descriptions"}
+          aria-label={expanded ? "Collapse tool panel" : "Expand tool panel"}
+          aria-expanded={expanded}
           onClick={() => setExpanded((v) => !v)}
           className="mt-2 grid h-8 w-9 place-items-center rounded-md text-[#a7a7b0] hover:bg-[#232327] hover:text-white"
         >

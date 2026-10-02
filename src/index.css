@@ -49,7 +49,7 @@ body {
   user-select: none;
 }
 
-/* Focus ring global untuk navigasi keyboard: satu gaya di seluruh app */
+/* Global focus ring for keyboard navigation: one style across the app */
 button:focus-visible,
 input:focus-visible,
 select:focus-visible,
@@ -59,14 +59,14 @@ select:focus-visible,
   outline-offset: 1px;
 }
 
-/* Kartu panel datar: border 1px, tanpa shadow warna, tanpa gradien */
+/* Flat panel card: 1px border, no color shadow, no gradient */
 .avero-card {
   background: #1c1c1f;
   border: 1px solid #2c2c31;
   border-radius: 8px;
 }
 
-/* Tombol primer: solid satu warna, tanpa gradien dan glow */
+/* Primary button: solid single color, no gradient or glow */
 .avero-btn-primary {
   background: #2f7cf6;
   transition: background 0.12s ease;
@@ -74,7 +74,7 @@ select:focus-visible,
 .avero-btn-primary:hover { background: #3b8bff; }
 .avero-btn-primary:active { background: #2568d8; }
 
-/* Label mikro ala Photoshop: uppercase, spasi lebar, abu netral */
+/* Photoshop-style micro label: uppercase, wide tracking, neutral gray */
 .avero-micro {
   font-size: 10px;
   font-weight: 600;
@@ -83,7 +83,7 @@ select:focus-visible,
   color: #6e6e78;
 }
 
-/* Slim scrollbars netral */
+/* Slim neutral scrollbars */
 *::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -120,7 +120,7 @@ input[type="range"] {
   accent-color: var(--color-accent-500);
 }
 
-/* ---- Modern top-options-bar sliders: elegant, bukan bawaan tua ---- */
+/* ---- Modern top-options-bar sliders: elegant, not the stock look ---- */
 input[type="range"].avero-slider {
   -webkit-appearance: none;
   appearance: none;
@@ -178,8 +178,8 @@ input[type="range"].avero-slider::-moz-range-thumb {
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.55);
 }
 
-/* ---- Top bar drop-in + popover (transform hanya di inner, tidak tabrakan
-      dengan -translate-x-1/2 milik wrapper) ---- */
+/* ---- Top bar drop-in + popover (transform only on inner, no clash
+      with the wrapper's -translate-x-1/2) ---- */
 .avero-drop-in {
   animation: avero-drop-in 0.22s cubic-bezier(0.32, 0.9, 0.35, 1) both;
 }
@@ -202,7 +202,7 @@ input[type="range"].avero-slider::-moz-range-thumb {
   from { opacity: 0; transform: translateY(-4px) scale(0.97); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
-/* Fade mask di tepi bar agar konten panjang terpotong elegan tanpa scrollbar */
+/* Edge fade mask so long bar content truncates elegantly without a scrollbar */
 .avero-fade-x {
   mask-image: linear-gradient(90deg, transparent, black 12px, black calc(100% - 12px), transparent);
 }

@@ -50,7 +50,7 @@ export function computeHistogram(img: ImageData): Histogram {
   return { r, g, b, lum };
 }
 
-// Soft proofing CMYK: desaturasi warna sangat jenuh sebagai simulasi gamut.
+// Soft proofing CMYK: desaturate highly saturated colors as a gamut simulation.
 export function applySoftProof(img: ImageData, gamutWarning: boolean) {
   const d = img.data;
   for (let i = 0; i < d.length; i += 4) {
@@ -61,7 +61,7 @@ export function applySoftProof(img: ImageData, gamutWarning: boolean) {
     const min = Math.min(r, g, b);
     const sat = (max - min) / Math.max(1, max);
     if (sat > 0.75 && max > 150) {
-      // warna out-of-gamut CMYK
+      // out-of-gamut CMYK color
       const gray = (r + g + b) / 3;
       const k = 0.55;
       d[i] = r * (1 - k) + gray * k;

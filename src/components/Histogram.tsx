@@ -1,10 +1,12 @@
 import { useEffect, useRef } from "react";
 import { useProStore } from "../stores/useProStore";
 import { computeHistogram } from "../engine/color";
-import { getCompositeCanvas } from "./CanvasArea";
+import { getCompositeCanvas } from "../engine/compositeRef";
 
 export default function Histogram() {
   const ref = useRef<HTMLCanvasElement>(null);
+  // Persistent downscale surface: reused across ticks, zero allocs per update.
+  const tmpRef = useRef<HTMLCanvasElement | null>(null);
   const tick = useProStore((s) => s.histogramTick);
 
   useEffect(() => {
@@ -25,7 +27,11 @@ export default function Histogram() {
     }
     try {
       // downscale to 256px for fast histogram
-      const tmp = document.createElement("canvas");
+      let tmp = tmpRef.current;
+      if (!tmp) {
+        tmp = document.createElement("canvas");
+        tmpRef.current = tmp;
+      }
       tmp.width = 256;
       tmp.height = Math.max(1, Math.round((256 * comp.height) / Math.max(1, comp.width)));
       tmp.getContext("2d")!.drawImage(comp, 0, 0, tmp.width, tmp.height);

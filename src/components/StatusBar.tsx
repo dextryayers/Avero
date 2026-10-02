@@ -135,8 +135,8 @@ export default function StatusBar() {
   const tiles = Math.ceil(doc.width / 256) * Math.ceil(doc.height / 256);
 
   const chip =
-    "rounded px-1.5 py-0.5 text-[#a7a7b0] hover:bg-[#2c2c31] hover:text-white";
-  const chipOn = "rounded px-1.5 py-0.5 bg-[#2f7cf6] text-white";
+    "rounded-md px-1.5 py-0.5 text-[#a7a7b0] transition-colors hover:bg-[#2c2c31] hover:text-white";
+  const chipOn = "rounded-md px-1.5 py-0.5 bg-[#2f7cf6] text-white shadow-[0_2px_8px_rgba(47,124,246,0.4)]";
 
   return (
     <div className="flex h-7 shrink-0 items-center gap-0 divide-x divide-[#232327] border-t border-[#2c2c31] bg-[#1c1c1f] px-3 text-[11px] text-[#6e6e78] [&>*:nth-child(n+2)]:pl-3">
@@ -147,14 +147,15 @@ export default function StatusBar() {
           max={400}
           value={Math.min(400, zoom)}
           onChange={(e) => setZoom(Number(e.target.value))}
-          title="Zoom"
+          title={`Zoom ${zoom}% — Ctrl++ / Ctrl+-`}
           aria-label="Zoom"
-          className="h-1 w-24"
+          className="avero-slider w-24"
+          style={{ ["--avero-fill" as string]: `${((Math.min(400, zoom) - 10) / 390) * 100}%` }}
         />
         <button
           onClick={() => setZoom(100)}
-          title="Set zoom 100%"
-          className="rounded px-1.5 py-0.5 font-mono text-white hover:bg-[#2c2c31]"
+          title="Set zoom 100% (Ctrl+1)"
+          className="rounded-md px-1.5 py-0.5 font-mono tabular-nums text-white transition-colors hover:bg-[#2c2c31]"
         >
           {zoom}%
         </button>

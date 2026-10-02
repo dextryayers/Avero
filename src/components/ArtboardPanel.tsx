@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ART_PRESETS, useArtboardStore } from "../stores/useArtboardStore";
-import { getCompositeCanvas } from "./CanvasArea";
+import { getCompositeCanvas } from "../engine/compositeRef";
 import { rustSaveDataUrl } from "../io/tauriIo";
 import { save } from "@tauri-apps/plugin-dialog";
 

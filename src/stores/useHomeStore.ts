@@ -47,7 +47,7 @@ function saveRecents(r: RecentFile[]) {
         JSON.stringify(r.slice(0, 18).map((x) => ({ ...x, full: null, thumb: null }))),
       );
     } catch {
-      /* abaikan */
+      /* ignore */
     }
   }
 }

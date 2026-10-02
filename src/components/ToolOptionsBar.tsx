@@ -82,7 +82,7 @@ function ModernSlider({
   return (
     <label
       className="group flex shrink-0 cursor-default items-center gap-1.5 rounded-lg px-1.5 py-1 transition-colors hover:bg-white/5"
-      title={title ?? `${label}: seret, panah kiri/kanan, atau klik ganda angka untuk reset`}
+      title={title ?? `${label}: drag, arrow keys, or double-click the number to reset`}
       onDoubleClick={() => {
         if (resetValue !== undefined) onChange(resetValue);
       }}
@@ -118,7 +118,7 @@ function ModernSlider({
       ) : (
         <button
           type="button"
-          title="Klik untuk ketik angka pasti, klik ganda slider untuk reset"
+          title="Click to type an exact value, double-click the slider to reset"
           onClick={() => {
             setDraft(String(value));
             setEditing(true);
@@ -222,7 +222,7 @@ function IconBtn({ onClick, title, children, active }: { onClick: () => void; ti
   );
 }
 
-/** Baki pill horizontal tanpa scrollbar kasar: geser halus + fade di tepi. */
+/** Horizontal pill tray without a rough scrollbar: smooth scroll + edge fade. */
 function PillTray({ children, title }: { children: React.ReactNode; title?: string }) {
   return (
     <span
@@ -235,8 +235,8 @@ function PillTray({ children, title }: { children: React.ReactNode; title?: stri
 }
 
 // ---------------------------------------------------------------------------
-// Auto-hide interaktif: sembunyi saat melukis di kanvas, kembali saat tool
-// ganti / chip diklik / mouse di atas. Pin mematikan auto-hide.
+// Interactive auto-hide: collapses while painting on canvas, returns on tool
+// change / chip click / hover. Pin disables auto-hide entirely.
 // ---------------------------------------------------------------------------
 
 const AUTOHIDE_KEY = "avero-topbar-autohide";
@@ -271,7 +271,7 @@ function useTopBarVisibility(tool: string) {
     }, AUTOHIDE_DELAY);
   };
 
-  // Ganti tool: tampilkan lagi sekilas, tutup panel More, lalu idle-hide.
+  // Tool change: briefly reveal, close the More panel, then idle-hide.
   const first = useRef(true);
   useEffect(() => {
     if (first.current) {
@@ -282,10 +282,10 @@ function useTopBarVisibility(tool: string) {
     setCollapsed(false);
     setMoreOpen(false);
     armTimer();
-    // Sengaja hanya bergantung pada tool: armTimer stabil via ref.
+    // Intentionally depends only on tool: armTimer is ref-stable.
   }, [tool]);
 
-  // Klik/oles di kanvas: sembunyikan agar lega (hanya bila auto-hide aktif).
+  // Canvas click/paint: collapse for space (only when auto-hide is on).
   useEffect(() => {
     const onDown = (ev: PointerEvent) => {
       if (!autoRef.current || hoverRef.current) return;
@@ -301,7 +301,7 @@ function useTopBarVisibility(tool: string) {
     try {
       localStorage.setItem(AUTOHIDE_KEY, autoHide ? "on" : "off");
     } catch {
-      /* abaikan */
+      /* ignore */
     }
     if (!autoHide) {
       clearTimer();
@@ -309,7 +309,7 @@ function useTopBarVisibility(tool: string) {
     } else {
       armTimer();
     }
-    // Sengaja hanya bergantung pada autoHide: timer dipegang ref.
+    // Intentionally depends only on autoHide: the timer lives in a ref.
   }, [autoHide]);
 
   return {
@@ -476,7 +476,7 @@ export default function ToolOptionsBar({
   const { autoHide, setAutoHide, collapsed, setCollapsed, moreOpen, setMoreOpen, onEnter, onLeave, expand } =
     useTopBarVisibility(tool);
 
-  // Enter terapkan crop, Esc batalkan — dikirim dari handler keyboard global.
+  // Enter applies crop, Esc cancels — sent from the global keyboard handler.
   const applyRef = useRef(onApplyCrop);
   const cancelRef = useRef(onCancelCrop);
   applyRef.current = onApplyCrop;
@@ -506,7 +506,7 @@ export default function ToolOptionsBar({
       </span>
     ) : null;
 
-  // ---- isi bar per jenis tool: main (selalu tampil) + more (panel bawah) ----
+  // ---- per-tool bar content: main (always visible) + more (bottom panel) ----
   let main: React.ReactNode = null;
   let more: React.ReactNode = null;
   let summary = "";
@@ -515,22 +515,22 @@ export default function ToolOptionsBar({
     summary = `Size ${brushSize} · ${brushOpacity}%`;
     main = (
       <>
-        <ColorChip value={brushColor} onChange={(v) => setBrush({ color: v })} title="Brush color — dipakai paint, shape, text, fill (klik untuk ganti)" />
+        <ColorChip value={brushColor} onChange={(v) => setBrush({ color: v })} title="Brush color — shared by paint, shape, text, fill (click to change)" />
         <Divider />
-        <ModernSlider label="Size" value={brushSize} min={1} max={300} onChange={(v) => setBrush({ size: v })} title="Ukuran kuas — [ / ]" resetValue={24} />
-        <ModernSlider label="Hard" value={brushHardness} min={0} max={100} onChange={(v) => setBrush({ hardness: v })} suffix="%" title="Kekerasan tepi — Shift+[ / ]" resetValue={80} />
-        <ModernSlider label="Strength" value={brushOpacity} min={1} max={100} onChange={(v) => setBrush({ opacity: v })} suffix="%" title="Kekuatan/opasitas — tombol 1–0" resetValue={100} />
+        <ModernSlider label="Size" value={brushSize} min={1} max={300} onChange={(v) => setBrush({ size: v })} title="Brush size — [ / ]" resetValue={24} />
+        <ModernSlider label="Hard" value={brushHardness} min={0} max={100} onChange={(v) => setBrush({ hardness: v })} suffix="%" title="Edge hardness — Shift+[ / ]" resetValue={80} />
+        <ModernSlider label="Strength" value={brushOpacity} min={1} max={100} onChange={(v) => setBrush({ opacity: v })} suffix="%" title="Strength/opacity — number keys 1–0" resetValue={100} />
       </>
     );
     more = (
       <div className="flex flex-wrap items-center justify-center gap-x-1 gap-y-1">
-        <ModernSlider label="Flow" value={brushFlow} min={1} max={100} onChange={(v) => setBrush({ flow: v })} suffix="%" title="Aliran tinta per dab — Shift+angka" resetValue={100} />
-        <ModernSlider label="Spacing" value={brushSpacing} min={1} max={200} onChange={(v) => setBrush({ spacing: v })} suffix="%" title="Jarak antar dab" resetValue={18} />
-        <ModernSlider label="Jitter" value={brushJitter} min={0} max={100} onChange={(v) => setBrush({ jitter: v })} suffix="%" title="Acak ukuran/alpha per dab" resetValue={0} />
-        <ModernSlider label="Smooth" value={brushSmoothing} min={0} max={100} onChange={(v) => setBrush({ smoothing: v })} suffix="%" title="Penstabil garis" resetValue={35} />
-        <ModernSlider label="Angle" value={brushAngle} min={-180} max={180} onChange={(v) => setBrush({ angle: v })} suffix="°" title="Sudut nib kaligrafi" resetValue={0} />
-        <ModernSlider label="Round" value={brushRound} min={1} max={100} onChange={(v) => setBrush({ round: v })} suffix="%" title="Kebulatan nib" resetValue={100} />
-        <label className="flex shrink-0 items-center gap-1.5 rounded-lg px-1.5 py-1 text-[11px] text-[#8e8e98] hover:bg-white/5" title="Blend override kuas. Normal memakai blend asli tiap preset.">
+        <ModernSlider label="Flow" value={brushFlow} min={1} max={100} onChange={(v) => setBrush({ flow: v })} suffix="%" title="Ink flow per dab — Shift+digits" resetValue={100} />
+        <ModernSlider label="Spacing" value={brushSpacing} min={1} max={200} onChange={(v) => setBrush({ spacing: v })} suffix="%" title="Distance between dabs" resetValue={18} />
+        <ModernSlider label="Jitter" value={brushJitter} min={0} max={100} onChange={(v) => setBrush({ jitter: v })} suffix="%" title="Randomize size/alpha per dab" resetValue={0} />
+        <ModernSlider label="Smooth" value={brushSmoothing} min={0} max={100} onChange={(v) => setBrush({ smoothing: v })} suffix="%" title="Stroke stabilizer" resetValue={35} />
+        <ModernSlider label="Angle" value={brushAngle} min={-180} max={180} onChange={(v) => setBrush({ angle: v })} suffix="°" title="Calligraphy nib angle" resetValue={0} />
+        <ModernSlider label="Round" value={brushRound} min={1} max={100} onChange={(v) => setBrush({ round: v })} suffix="%" title="Nib roundness" resetValue={100} />
+        <label className="flex shrink-0 items-center gap-1.5 rounded-lg px-1.5 py-1 text-[11px] text-[#8e8e98] hover:bg-white/5" title="Brush blend override. Normal uses each preset's native blend.">
           Blend
           <select
             value={brushBlend}
@@ -548,24 +548,24 @@ export default function ToolOptionsBar({
     summary = `Size ${brushSize} · ${brushOpacity}%`;
     main = (
       <>
-        <ModernSlider label="Size" value={brushSize} min={1} max={300} onChange={(v) => setBrush({ size: v })} title="Ukuran kuas — [ / ]" resetValue={24} />
-        <ModernSlider label="Hard" value={brushHardness} min={0} max={100} onChange={(v) => setBrush({ hardness: v })} suffix="%" title="Kekerasan tepi — Shift+[ / ]" resetValue={80} />
-        <ModernSlider label="Strength" value={brushOpacity} min={1} max={100} onChange={(v) => setBrush({ opacity: v })} suffix="%" title="Kekuatan — tombol 1–0" resetValue={100} />
+        <ModernSlider label="Size" value={brushSize} min={1} max={300} onChange={(v) => setBrush({ size: v })} title="Brush size — [ / ]" resetValue={24} />
+        <ModernSlider label="Hard" value={brushHardness} min={0} max={100} onChange={(v) => setBrush({ hardness: v })} suffix="%" title="Edge hardness — Shift+[ / ]" resetValue={80} />
+        <ModernSlider label="Strength" value={brushOpacity} min={1} max={100} onChange={(v) => setBrush({ opacity: v })} suffix="%" title="Strength — number keys 1–0" resetValue={100} />
       </>
     );
   } else if (kind === "eraser") {
     summary = `Size ${brushSize} · ${brushOpacity}%`;
     main = (
       <>
-        <span className="hidden shrink-0 rounded-full bg-[#2f7cf6]/15 px-2 py-1 text-[10px] font-semibold text-[#8fb6f5] ring-1 ring-[#2f7cf6]/40 sm:block" title="Eraser tidak pernah menyentuh piksel foto. Hanya mengangkat goresan cat.">
+        <span className="hidden shrink-0 rounded-full bg-[#2f7cf6]/15 px-2 py-1 text-[10px] font-semibold text-[#8fb6f5] ring-1 ring-[#2f7cf6]/40 sm:block" title="The eraser never touches photo pixels. It only lifts paint strokes.">
           Photo-safe
         </span>
-        <ModernSlider label="Size" value={brushSize} min={1} max={300} onChange={(v) => setBrush({ size: v })} title="Ukuran penghapus — [ / ]" resetValue={24} />
-        <ModernSlider label="Hard" value={brushHardness} min={0} max={100} onChange={(v) => setBrush({ hardness: v })} suffix="%" title="Kekerasan tepi" resetValue={80} />
-        <ModernSlider label="Strength" value={brushOpacity} min={1} max={100} onChange={(v) => setBrush({ opacity: v })} suffix="%" title="Kekuatan — tombol 1–0" resetValue={100} />
+        <ModernSlider label="Size" value={brushSize} min={1} max={300} onChange={(v) => setBrush({ size: v })} title="Eraser size — [ / ]" resetValue={24} />
+        <ModernSlider label="Hard" value={brushHardness} min={0} max={100} onChange={(v) => setBrush({ hardness: v })} suffix="%" title="Edge hardness" resetValue={80} />
+        <ModernSlider label="Strength" value={brushOpacity} min={1} max={100} onChange={(v) => setBrush({ opacity: v })} suffix="%" title="Strength — number keys 1–0" resetValue={100} />
         <Action
           label="Clear strokes"
-          title="Hapus semua goresan di layer aktif (foto tetap utuh). Minta konfirmasi dulu."
+          title="Erase every stroke on the active layer (photos stay intact). Asks first."
           onClick={() => {
             const ed = useEditorStore.getState();
             const id = ed.activeLayerId;
@@ -584,18 +584,18 @@ export default function ToolOptionsBar({
   } else if (kind === "clone") {
     const needsHeal = tool === "healing-brush" || tool === "patch";
     const src = needsHeal ? healSource : cloneSource;
-    summary = src ? `Src ${Math.round(src.x)},${Math.round(src.y)}` : "Alt-klik sumber";
+    summary = src ? `Src ${Math.round(src.x)},${Math.round(src.y)}` : "Alt-click for source";
     main = (
       <>
-        <ModernSlider label="Size" value={brushSize} min={1} max={300} onChange={(v) => setBrush({ size: v })} title="Ukuran stamp — [ / ]" resetValue={24} />
-        <ModernSlider label="Strength" value={brushOpacity} min={1} max={100} onChange={(v) => setBrush({ opacity: v })} suffix="%" title="Kekuatan — tombol 1–0" resetValue={100} />
+        <ModernSlider label="Size" value={brushSize} min={1} max={300} onChange={(v) => setBrush({ size: v })} title="Stamp size — [ / ]" resetValue={24} />
+        <ModernSlider label="Strength" value={brushOpacity} min={1} max={100} onChange={(v) => setBrush({ opacity: v })} suffix="%" title="Strength — number keys 1–0" resetValue={100} />
         {!needsHeal && (
-          <Toggle label={cloneAligned ? "Aligned" : "Non-aligned"} on={cloneAligned} onClick={() => setCloneAligned(!cloneAligned)} title="Aligned menjaga offset sumber antar goresan. Non-aligned mengulang tiap goresan." />
+          <Toggle label={cloneAligned ? "Aligned" : "Non-aligned"} on={cloneAligned} onClick={() => setCloneAligned(!cloneAligned)} title="Aligned keeps the source offset across strokes. Non-aligned restarts it every stroke." />
         )}
       </>
     );
     more = (
-      <span className="flex items-center gap-1.5 text-[11px] text-[#8e8e98]" title="Alt-klik kanvas untuk memindah titik sumber.">
+      <span className="flex items-center gap-1.5 text-[11px] text-[#8e8e98]" title="Alt-click the canvas to move the source point.">
         Source {src ? `${Math.round(src.x)}, ${Math.round(src.y)}` : "not set"}
         {src && (
           <button
@@ -613,15 +613,15 @@ export default function ToolOptionsBar({
       <>
         <Pills options={SEL_MODES.map((m) => ({ id: m, label: m === "new" ? "New" : m === "add" ? "Add" : m === "subtract" ? "Sub" : "Inter" }))} value={selMode} onPick={setSelMode} />
         <Divider />
-        <Action label="Grow" title="Beralih ke Grow, lalu klik kanvas." onClick={() => setTool("select-grow")} />
-        <Action label="Shrink" title="Beralih ke Shrink, lalu klik kanvas." onClick={() => setTool("select-shrink")} />
-        <Action label="Inverse" title="Beralih ke Invert, lalu klik kanvas." onClick={() => setTool("select-inverse-click")} />
+        <Action label="Grow" title="Switch to Grow, then click the canvas." onClick={() => setTool("select-grow")} />
+        <Action label="Shrink" title="Switch to Shrink, then click the canvas." onClick={() => setTool("select-shrink")} />
+        <Action label="Inverse" title="Switch to Invert, then click the canvas." onClick={() => setTool("select-inverse-click")} />
       </>
     );
     more = (
       <div className="flex flex-wrap items-center justify-center gap-x-1 gap-y-1">
-        <ModernSlider label="Feather" value={selFeather} min={0} max={50} onChange={(v) => setSelParams({ selFeather: v })} suffix="px" title="Lembutkan tepi seleksi" resetValue={0} />
-        <ModernSlider label="Expand" value={selExpand} min={-24} max={24} onChange={(v) => setSelParams({ selExpand: v })} suffix="px" title="Besarkan/kecilkan seleksi" resetValue={0} />
+        <ModernSlider label="Feather" value={selFeather} min={0} max={50} onChange={(v) => setSelParams({ selFeather: v })} suffix="px" title="Soften the selection edge" resetValue={0} />
+        <ModernSlider label="Expand" value={selExpand} min={-24} max={24} onChange={(v) => setSelParams({ selExpand: v })} suffix="px" title="Grow/shrink the selection" resetValue={0} />
       </div>
     );
   } else if (kind === "select-auto") {
@@ -631,8 +631,8 @@ export default function ToolOptionsBar({
     );
     more = (
       <div className="flex flex-wrap items-center justify-center gap-x-1 gap-y-1">
-        <ModernSlider label="Tolerance" value={selTolerance} min={1} max={100} onChange={(v) => setSelParams({ selTolerance: v })} title="Toleransi warna wand" resetValue={32} />
-        <ModernSlider label="Feather" value={selFeather} min={0} max={50} onChange={(v) => setSelParams({ selFeather: v })} suffix="px" title="Lembutkan tepi" resetValue={0} />
+        <ModernSlider label="Tolerance" value={selTolerance} min={1} max={100} onChange={(v) => setSelParams({ selTolerance: v })} title="Wand color tolerance" resetValue={32} />
+        <ModernSlider label="Feather" value={selFeather} min={0} max={50} onChange={(v) => setSelParams({ selFeather: v })} suffix="px" title="Soften the edge" resetValue={0} />
       </div>
     );
   } else if (kind === "select-click") {
@@ -665,7 +665,7 @@ export default function ToolOptionsBar({
           <Action
             label={action.label}
             primary
-            title={hasSelection() ? "Jalankan operasi seleksi sekarang." : "Butuh seleksi dulu. Seret marquee atau lasso."}
+            title={hasSelection() ? "Run this selection op right now." : "Needs a selection first. Drag a marquee or lasso."}
             onClick={() => {
               if (tool !== "select-last" && tool !== "select-inverse-click" && !hasSelection()) return;
               action.run();
@@ -673,19 +673,19 @@ export default function ToolOptionsBar({
             }}
           />
         )}
-        <Action label="Deselect" title="Hapus seleksi saat ini (Ctrl+D)." onClick={() => { clearSelectionMask(); refreshSelection(); }} />
+        <Action label="Deselect" title="Clear the current selection (Ctrl+D)." onClick={() => { clearSelectionMask(); refreshSelection(); }} />
       </>
     );
   } else if (kind === "crop") {
-    summary = "Enter terapkan · Esc batal";
+    summary = "Enter applies · Esc cancels";
     main = (
       <>
-        <PillTray title="Rasio crop — geser untuk lihat semua">
+        <PillTray title="Crop ratios — scroll to see them all">
           <Pills options={CROP_RATIO_PILLS} value={tool as (typeof CROP_RATIO_PILLS)[number]["id"]} onPick={(v) => setTool(v)} />
         </PillTray>
-        <ModernSlider label="Level" value={Math.round(viewRotate)} min={-45} max={45} onChange={(v) => setViewRotate(v)} suffix="°" title="Luruskan horizon" resetValue={0} />
-        <Action label="Apply" primary onClick={onApplyCrop} title="Terapkan crop (Enter)." />
-        <Action label="Cancel" onClick={onCancelCrop} title="Batalkan crop (Esc)." />
+        <ModernSlider label="Level" value={Math.round(viewRotate)} min={-45} max={45} onChange={(v) => setViewRotate(v)} suffix="°" title="Straighten the horizon" resetValue={0} />
+        <Action label="Apply" primary onClick={onApplyCrop} title="Apply crop (Enter)." />
+        <Action label="Cancel" onClick={onCancelCrop} title="Cancel crop (Esc)." />
       </>
     );
     more = (
@@ -703,9 +703,9 @@ export default function ToolOptionsBar({
       </div>
     );
   } else if (kind === "crop-overlay") {
-    summary = "Pilih panduan";
+    summary = "Pick a guide";
     main = (
-      <PillTray title="Panduan komposisi">
+      <PillTray title="Composition guides">
         {CROP_OVERLAY_PILLS.map((o) => (
           <button
             key={o.id}
@@ -728,18 +728,18 @@ export default function ToolOptionsBar({
     summary = `Width ${width}px`;
     main = (
       <>
-        <ColorChip value={fill} onChange={(v) => patchShape({ fill: v })} title="Isi shape. Mengedit shape aktif, atau default untuk berikutnya." />
-        <ColorChip value={stroke} onChange={(v) => patchShape({ stroke: v })} title="Garis tepi shape. Mengedit shape aktif, atau default untuk berikutnya." />
+        <ColorChip value={fill} onChange={(v) => patchShape({ fill: v })} title="Shape fill. Edits the active shape, or the default for the next one." />
+        <ColorChip value={stroke} onChange={(v) => patchShape({ stroke: v })} title="Shape stroke. Edits the active shape, or the default for the next one." />
         <Divider />
-        <ModernSlider label="Width" value={width} min={0} max={64} onChange={(v) => patchShape({ strokeWidth: v })} suffix="px" title="Tebal garis tepi" resetValue={0} />
+        <ModernSlider label="Width" value={width} min={0} max={64} onChange={(v) => patchShape({ strokeWidth: v })} suffix="px" title="Stroke width" resetValue={0} />
       </>
     );
     more = (
       <div className="flex flex-wrap items-center justify-center gap-x-1 gap-y-1">
-        <ModernSlider label="Sides" value={sides} min={3} max={12} onChange={(v) => patchShape({ sides: v })} title="Jumlah sisi polygon" resetValue={6} />
+        <ModernSlider label="Sides" value={sides} min={3} max={12} onChange={(v) => patchShape({ sides: v })} title="Polygon side count" resetValue={6} />
         <Action
           label="Flip H"
-          title="Cerminkan shape aktif horizontal."
+          title="Mirror the active shape horizontally."
           onClick={() => {
             const ed = useEditorStore.getState();
             const id = ed.activeLayerId;
@@ -758,7 +758,7 @@ export default function ToolOptionsBar({
         />
         <Action
           label="Flip V"
-          title="Cerminkan shape aktif vertikal."
+          title="Mirror the active shape vertically."
           onClick={() => {
             const ed = useEditorStore.getState();
             const id = ed.activeLayerId;
@@ -782,9 +782,9 @@ export default function ToolOptionsBar({
     summary = `${spec.fontSize}px`;
     main = (
       <>
-        <ColorChip value={spec.color} onChange={(v) => patchText({ color: v })} title="Warna teks. Mengedit teks aktif, atau default untuk berikutnya." />
+        <ColorChip value={spec.color} onChange={(v) => patchText({ color: v })} title="Text color. Edits the active text, or the default for the next one." />
         <Divider />
-        <label className="flex shrink-0 items-center gap-1.5 rounded-lg px-1.5 py-1 text-[11px] text-[#8e8e98] hover:bg-white/5" title="Keluarga font.">
+        <label className="flex shrink-0 items-center gap-1.5 rounded-lg px-1.5 py-1 text-[11px] text-[#8e8e98] hover:bg-white/5" title="Font family.">
           Font
           <select
             value={spec.fontFamily}
@@ -796,34 +796,34 @@ export default function ToolOptionsBar({
             ))}
           </select>
         </label>
-        <ModernSlider label="Size" value={spec.fontSize} min={8} max={240} onChange={(v) => patchText({ fontSize: v })} suffix="px" title="Ukuran font" resetValue={48} />
-        <Toggle label="B" on={spec.bold} onClick={() => patchText({ bold: !spec.bold })} title="Tebal." />
-        <Toggle label="I" on={spec.italic} onClick={() => patchText({ italic: !spec.italic })} title="Miring." />
+        <ModernSlider label="Size" value={spec.fontSize} min={8} max={240} onChange={(v) => patchText({ fontSize: v })} suffix="px" title="Font size" resetValue={48} />
+        <Toggle label="B" on={spec.bold} onClick={() => patchText({ bold: !spec.bold })} title="Bold." />
+        <Toggle label="I" on={spec.italic} onClick={() => patchText({ italic: !spec.italic })} title="Italic." />
       </>
     );
     more = (
       <div className="flex flex-wrap items-center justify-center gap-x-1 gap-y-1">
-        <ModernSlider label="Track" value={spec.tracking} min={-20} max={60} onChange={(v) => patchText({ tracking: v })} title="Spasi antar huruf" resetValue={0} />
-        <ModernSlider label="Lead" value={Math.round(spec.leading * 100)} min={80} max={250} onChange={(v) => patchText({ leading: v / 100 })} suffix="%" title="Jarak antar baris" resetValue={120} />
+        <ModernSlider label="Track" value={spec.tracking} min={-20} max={60} onChange={(v) => patchText({ tracking: v })} title="Letter spacing" resetValue={0} />
+        <ModernSlider label="Lead" value={Math.round(spec.leading * 100)} min={80} max={250} onChange={(v) => patchText({ leading: v / 100 })} suffix="%" title="Line spacing" resetValue={120} />
       </div>
     );
   } else if (kind === "pen") {
     summary = `Width ${brushSize}px`;
     main = (
       <>
-        <ColorChip value={brushColor} onChange={(v) => setBrush({ color: v })} title="Warna tinta pen." />
+        <ColorChip value={brushColor} onChange={(v) => setBrush({ color: v })} title="Pen ink color." />
         <Divider />
-        <ModernSlider label="Width" value={brushSize} min={1} max={120} onChange={(v) => setBrush({ size: v })} suffix="px" title="Tebal garis — [ / ]" resetValue={24} />
-        <ModernSlider label="Strength" value={brushOpacity} min={1} max={100} onChange={(v) => setBrush({ opacity: v })} suffix="%" title="Kekuatan — tombol 1–0" resetValue={100} />
+        <ModernSlider label="Width" value={brushSize} min={1} max={120} onChange={(v) => setBrush({ size: v })} suffix="px" title="Line width — [ / ]" resetValue={24} />
+        <ModernSlider label="Strength" value={brushOpacity} min={1} max={100} onChange={(v) => setBrush({ opacity: v })} suffix="%" title="Strength — number keys 1–0" resetValue={100} />
       </>
     );
   } else if (kind === "gradient") {
-    summary = "Seret untuk arah";
+    summary = "Drag for direction";
     main = (
       <>
-        <ColorChip value={brushColor} onChange={(v) => setBrush({ color: v })} title="Warna depan gradien." />
+        <ColorChip value={brushColor} onChange={(v) => setBrush({ color: v })} title="Gradient foreground color." />
         <Divider />
-        <PillTray title="Mode gradien">
+        <PillTray title="Gradient mode">
           <Pills options={GRADIENT_MODE_PILLS} value={tool as (typeof GRADIENT_MODE_PILLS)[number]["id"]} onPick={(v) => setTool(v)} />
         </PillTray>
       </>
@@ -835,8 +835,8 @@ export default function ToolOptionsBar({
           value={gradTo}
           onPick={setGradTo}
         />
-        <Toggle label="Reverse" on={gradReverse} onClick={() => setGradReverse(!gradReverse)} title="Balik arah gradien." />
-        <Toggle label="Dither" on={gradDither} onClick={() => setGradDither(!gradDither)} title="Butir anti-banding di tiap gradien." />
+        <Toggle label="Reverse" on={gradReverse} onClick={() => setGradReverse(!gradReverse)} title="Swap gradient direction." />
+        <Toggle label="Dither" on={gradDither} onClick={() => setGradDither(!gradDither)} title="Anti-banding grain pass on every gradient." />
       </div>
     );
   } else if (kind === "fill") {
@@ -845,12 +845,12 @@ export default function ToolOptionsBar({
     summary = `Tol ${selTolerance}`;
     main = (
       <>
-        <ColorChip value={brushColor} onChange={(v) => setBrush({ color: v })} title="Warna isi (Alt+Backspace = isi FG)." />
+        <ColorChip value={brushColor} onChange={(v) => setBrush({ color: v })} title="Fill color (Alt+Backspace = fill FG)." />
         {usesTol && (
           <>
             <Divider />
-            <ModernSlider label="Tolerance" value={selTolerance} min={1} max={100} onChange={(v) => setSelParams({ selTolerance: v })} title="Toleransi warna" resetValue={32} />
-            <Toggle label={fillContiguous ? "Connected" : "Global"} on={fillContiguous} onClick={() => setFillContiguous(!fillContiguous)} title="Connected hanya mengisi tetangga. Global mengisi semua warna serupa." />
+            <ModernSlider label="Tolerance" value={selTolerance} min={1} max={100} onChange={(v) => setSelParams({ selTolerance: v })} title="Color tolerance" resetValue={32} />
+            <Toggle label={fillContiguous ? "Connected" : "Global"} on={fillContiguous} onClick={() => setFillContiguous(!fillContiguous)} title="Connected fills neighbors only. Global fills every similar color." />
           </>
         )}
         {usesMotif && (
@@ -891,15 +891,15 @@ export default function ToolOptionsBar({
         {usesUnit && <Pills options={MEASURE_UNITS.map((u) => ({ id: u, label: u }))} value={measureUnit} onPick={setMeasureUnit} />}
         {isGrid && (
           <>
-            <ModernSlider label="Grid" value={gridSize} min={8} max={512} onChange={(v) => setGridSize(v)} suffix="px" title="Ukuran grid" resetValue={64} />
-            <Toggle label={showGrid ? "Grid on" : "Grid off"} on={showGrid} onClick={toggleGrid} title="Tampilkan/sembunyikan grid." />
+            <ModernSlider label="Grid" value={gridSize} min={8} max={512} onChange={(v) => setGridSize(v)} suffix="px" title="Grid size" resetValue={64} />
+            <Toggle label={showGrid ? "Grid on" : "Grid off"} on={showGrid} onClick={toggleGrid} title="Show/hide the grid." />
           </>
         )}
         {tool === "snap-toggle" && (
-          <Toggle label={snapEnabled ? "Snap on" : "Snap off"} on={snapEnabled} onClick={toggleSnap} title="Aktifkan snap sekarang." />
+          <Toggle label={snapEnabled ? "Snap on" : "Snap off"} on={snapEnabled} onClick={toggleSnap} title="Toggle snapping right now." />
         )}
         {clearer && (
-          <Action label={clearer.label} onClick={() => { clearer.clear(); useEditorStore.getState().markDirty(); }} title="Hapus semua pin jenis ini." />
+          <Action label={clearer.label} onClick={() => { clearer.clear(); useEditorStore.getState().markDirty(); }} title="Remove all pins of this kind." />
         )}
       </>
     );
@@ -907,30 +907,30 @@ export default function ToolOptionsBar({
     summary = `${Math.round(zoom)}%`;
     main = (
       <>
-        <span className="shrink-0 rounded-lg bg-white/5 px-2 py-1 font-mono text-[11px] text-white tabular-nums" title="Zoom kanvas saat ini.">
+        <span className="shrink-0 rounded-lg bg-white/5 px-2 py-1 font-mono text-[11px] text-white tabular-nums" title="Current canvas zoom.">
           {Math.round(zoom)}%
         </span>
-        <Action label="Fit" title="Paskan dokumen ke layar (Ctrl+0)." onClick={() => setTool("zoom-fit")} />
-        <Action label="100%" title="Piksel asli (Ctrl+1)." onClick={() => setZoom(100)} />
-        <Action label="200%" title="Zoom 200%." onClick={() => setZoom(200)} />
+        <Action label="Fit" title="Fit the document on screen (Ctrl+0)." onClick={() => setTool("zoom-fit")} />
+        <Action label="100%" title="Actual pixels (Ctrl+1)." onClick={() => setZoom(100)} />
+        <Action label="200%" title="Zoom to 200 percent." onClick={() => setZoom(200)} />
       </>
     );
     more = (
       <div className="flex flex-wrap items-center justify-center gap-x-1 gap-y-1">
-        <Action label="50%" title="Zoom 50%." onClick={() => setZoom(50)} />
-        <Action label="400%" title="Zoom 400%." onClick={() => setZoom(400)} />
-        <ModernSlider label="Rotate" value={Math.round(viewRotate)} min={-180} max={180} onChange={(v) => setViewRotate(v)} suffix="°" title="Putar tampilan (, / . /)" resetValue={0} />
-        <Action label="Reset" title="Kembalikan rotasi ke nol (/)." onClick={() => setViewRotate(0)} />
+        <Action label="50%" title="Zoom to 50 percent." onClick={() => setZoom(50)} />
+        <Action label="400%" title="Zoom to 400 percent." onClick={() => setZoom(400)} />
+        <ModernSlider label="Rotate" value={Math.round(viewRotate)} min={-180} max={180} onChange={(v) => setViewRotate(v)} suffix="°" title="Rotate the view (, / . /)" resetValue={0} />
+        <Action label="Reset" title="Reset rotation to zero (/)." onClick={() => setViewRotate(0)} />
       </div>
     );
   } else if (kind === "move") {
     if (tool === "align-center") {
-      summary = "Pusatkan layer";
+      summary = "Center the layer";
       main = (
         <Action
           label="Center Now"
           primary
-          title="Pusatkan layer aktif segera."
+          title="Center the active layer immediately."
           onClick={() => {
             const ed = useEditorStore.getState();
             const id = ed.activeLayerId;
@@ -954,14 +954,14 @@ export default function ToolOptionsBar({
         />
       );
     } else {
-      summary = "Seret layer";
-      main = <Action label="Center" title="Beralih ke Align Center." onClick={() => setTool("align-center")} />;
+      summary = "Drag the layer";
+      main = <Action label="Center" title="Switch to Align Center." onClick={() => setTool("align-center")} />;
     }
   } else if (kind === "eyedropper") {
     summary = brushColor.toUpperCase();
     main = (
       <>
-        <ColorChip value={brushColor} onChange={(v) => setBrush({ color: v })} title="Warna terakhir yang dipetik." />
+        <ColorChip value={brushColor} onChange={(v) => setBrush({ color: v })} title="Last picked color." />
         <Divider />
         <Pills
           options={[{ id: "all", label: "All layers" }, { id: "current", label: "Current" }] as const}
@@ -970,7 +970,7 @@ export default function ToolOptionsBar({
         />
         <Action
           label="Save swatch"
-          title="Simpan warna ke swatch panel Color."
+          title="Save the color to Color panel swatches."
           onClick={() => useProStore.getState().addSwatch(brushColor)}
         />
       </>
@@ -978,26 +978,26 @@ export default function ToolOptionsBar({
   } else {
     if (tool === "snap-toggle") {
       summary = snapEnabled ? "Snap on" : "Snap off";
-      main = <Toggle label={snapEnabled ? "Snap on" : "Snap off"} on={snapEnabled} onClick={toggleSnap} title="Aktifkan snap sekarang." />;
+      main = <Toggle label={snapEnabled ? "Snap on" : "Snap off"} on={snapEnabled} onClick={toggleSnap} title="Toggle snapping right now." />;
     } else if (tool === "guide-clear") {
       summary = "Hapus guides";
-      main = <Action label="Clear now" primary onClick={() => { useProStore.getState().clearGuides(); useEditorStore.getState().markDirty(); }} title="Hapus semua guides segera." />;
+      main = <Action label="Clear now" primary onClick={() => { useProStore.getState().clearGuides(); useEditorStore.getState().markDirty(); }} title="Remove all guides immediately." />;
     } else if (tool === "grid-toggle") {
       summary = showGrid ? "Grid on" : "Grid off";
-      main = <Toggle label={showGrid ? "Grid on" : "Grid off"} on={showGrid} onClick={toggleGrid} title="Tampilkan/sembunyikan grid sekarang." />;
+      main = <Toggle label={showGrid ? "Grid on" : "Grid off"} on={showGrid} onClick={toggleGrid} title="Show/hide the grid right now." />;
     } else {
       main = null;
     }
   }
 
-  // ---- mini chip saat terlipat: ringkas, elegan, satu klik membuka lagi ----
+  // ---- mini chip when collapsed: compact, elegant, one click reopens ----
   if (collapsed) {
     return (
       <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex justify-center">
         <button
           onClick={expand}
           onMouseEnter={expand}
-          title={`${name} — klik untuk menampilkan opsi${autoHide ? " (auto-hide aktif, klik Pin untuk mengunci)" : ""}`}
+          title={`${name} — click to reveal options${autoHide ? " (auto-hide is on, click Pin to lock)" : ""}`}
           className="avero-chip-in pointer-events-auto mt-2.5 flex max-w-[94%] items-center gap-2 rounded-full border border-white/10 bg-[#1b1b1f]/90 py-1.5 pl-2.5 pr-1.5 text-[11px] shadow-[0_8px_28px_rgba(0,0,0,0.55)] backdrop-blur-xl transition-colors hover:border-[#2f7cf6]/50"
         >
           <span className="rounded-full bg-[#2f7cf6] px-2 py-0.5 font-bold text-white">{name}</span>
@@ -1027,7 +1027,7 @@ export default function ToolOptionsBar({
               <Divider />
               <button
                 onClick={() => setMoreOpen((v) => !v)}
-                title={moreOpen ? "Sembunyikan opsi lanjutan" : "Tampilkan Flow, Spacing, Jitter, Smooth, Angle, Round, Blend"}
+                title={moreOpen ? "Hide advanced options" : "Show Flow, Spacing, Jitter, Smooth, Angle, Round, Blend"}
                 className={`avero-press flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold transition-colors ${moreOpen ? "bg-[#2f7cf6] text-white" : "bg-white/5 text-[#c9c9d1] hover:bg-white/10 hover:text-white"}`}
               >
                 <SlidersHorizontal size={12} />
@@ -1039,12 +1039,12 @@ export default function ToolOptionsBar({
           <Divider />
           <IconBtn
             onClick={() => setAutoHide(!autoHide)}
-            title={autoHide ? "Auto-hide aktif: bar sembunyi saat melukis. Klik untuk mengunci (Pin)." : "Bar dikunci terlihat. Klik untuk aktifkan auto-hide."}
+            title={autoHide ? "Auto-hide on: the bar hides while painting. Click to lock it (Pin)." : "Bar locked visible. Click to enable auto-hide."}
             active={!autoHide}
           >
             {autoHide ? <PinOff size={13} /> : <Pin size={13} />}
           </IconBtn>
-          <IconBtn onClick={() => setCollapsed(true)} title="Lipatkan bar (klik chip untuk membuka lagi)">
+          <IconBtn onClick={() => setCollapsed(true)} title="Collapse the bar (click the chip to reopen)">
             <ChevronUp size={13} />
           </IconBtn>
         </div>

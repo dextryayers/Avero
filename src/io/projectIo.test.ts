@@ -167,29 +167,29 @@ describe("encodeBmpDataUrl", () => {
 
 describe("word-like project helpers", () => {
   it("sanitizeProjectName strips forbidden characters", () => {
-    expect(sanitizeProjectName('Proyek: Baru/Bagus*?')).toBe("Proyek_ Baru_Bagus_");
+    expect(sanitizeProjectName('Project: New/Good*?')).toBe("Project_ New_Good_");
     expect(sanitizeProjectName("")).toBe("Untitled");
   });
 
   it("ensureAvxExtension always defaults to .avx", () => {
-    expect(ensureAvxExtension("Kerja")).toBe("Kerja.avx");
-    expect(ensureAvxExtension("Kerja.avx")).toBe("Kerja.avx");
-    expect(ensureAvxExtension("Kerja.AVX")).toBe("Kerja.AVX");
+    expect(ensureAvxExtension("Work")).toBe("Work.avx");
+    expect(ensureAvxExtension("Work.avx")).toBe("Work.avx");
+    expect(ensureAvxExtension("Work.AVX")).toBe("Work.AVX");
     expect(ensureAvxExtension("")).toBe("Untitled.avx");
   });
 
   it("joinPath + parentDir + baseName stay consistent on win/posix", () => {
-    expect(joinPath("D:\\kerja", "Proyek")).toBe("D:\\kerja\\Proyek");
-    expect(joinPath("/home/u", "Proyek")).toBe("/home/u/Proyek");
-    expect(parentDir("D:\\kerja\\Proyek\\a.avx")).toBe("D:\\kerja\\Proyek");
-    expect(parentDir("/home/u/Proyek/a.avx")).toBe("/home/u/Proyek");
-    expect(baseName("/home/u/Proyek/a.avx")).toBe("a.avx");
+    expect(joinPath("D:\\work", "Project")).toBe("D:\\work\\Project");
+    expect(joinPath("/home/u", "Project")).toBe("/home/u/Project");
+    expect(parentDir("D:\\work\\Project\\a.avx")).toBe("D:\\work\\Project");
+    expect(parentDir("/home/u/Project/a.avx")).toBe("/home/u/Project");
+    expect(baseName("/home/u/Project/a.avx")).toBe("a.avx");
     expect(parentDir(null)).toBeNull();
   });
 
   it("previewPathFor sits beside the project", () => {
-    expect(previewPathFor("D:\\kerja\\Proyek\\a.avx")).toBe("D:\\kerja\\Proyek\\a_preview.jpg");
-    expect(previewPathFor("/home/u/Proyek/a.avx")).toBe("/home/u/Proyek/a_preview.jpg");
+    expect(previewPathFor("D:\\work\\Project\\a.avx")).toBe("D:\\work\\Project\\a_preview.jpg");
+    expect(previewPathFor("/home/u/Project/a.avx")).toBe("/home/u/Project/a_preview.jpg");
   });
 });
 
@@ -198,8 +198,8 @@ describe("normalizeAvxFile anti-corruption", () => {
     const raw = {
       magic: AVX_MAGIC,
       version: 1,
-      doc: { name: "Lama", width: 100, height: 100 },
-      layers: [{ meta: { id: "x" }, pixels: "bukan-gambar", maskPixels: null }],
+      doc: { name: "Legacy", width: 100, height: 100 },
+      layers: [{ meta: { id: "x" }, pixels: "not-an-image", maskPixels: null }],
     } as unknown as AvxFile;
     const out = normalizeAvxFile(raw);
     expect(out.layers).toHaveLength(1);

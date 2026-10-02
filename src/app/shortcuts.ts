@@ -1,12 +1,12 @@
 // Global editor shortcuts: tool letters (Shift cycles family), menu actions, quick navigation.
 //
-// Lapisan shortcut (urutan prioritas di App.tsx):
-//   1. Global app  — Ctrl+K/S/E/O/,  — jalan bahkan saat mengetik di input.
-//   2. Edit umum   — Ctrl+Z/Y/X/C/V/A/D/T/J/G + Del/Backspace/F5 — hanya saat TIDAK mengetik,
-//                    supaya perilaku native input (undo/cut/paste teks) tidak dibajak.
-//   3. View        — Ctrl++/−/0/1, Ctrl+R, Ctrl+;, ' — hanya saat tidak mengetik.
-//   4. Tools       — huruf tunggal, Shift+huruf, [ ], angka 0-9, X/D, Space, panah.
-// Semua helper edit terpusat di sini supaya App.tsx tipis dan mudah diuji.
+// Shortcut layers (priority order in App.tsx):
+//   1. Global app — Ctrl+K/S/E/O/, — works even while typing in inputs.
+//   2. General edit — Ctrl+Z/Y/X/C/V/A/D/T/J/G + Del/Backspace/F5 — only when NOT typing,
+//      so native input behavior (text undo/cut/paste) is never hijacked.
+//   3. View — Ctrl++/−/0/1, Ctrl+R, Ctrl+;, ' — only when not typing.
+//   4. Tools — single letters, Shift+letter, [ ], digits 0-9, X/D, Space, arrows.
+// All edit helpers live here so App.tsx stays thin and testable.
 import { TOOLS } from "../components/ToolBar";
 import { MENUS } from "./menus";
 import { makeLayer, useEditorStore, type ToolId } from "../stores/useEditorStore";
@@ -89,10 +89,10 @@ export function comboOf(e: KeyboardEvent): string {
 }
 
 // ---------------------------------------------------------------------------
-// Fokus: jangan bajak input teks.
+// Focus guard: never hijack text inputs.
 // ---------------------------------------------------------------------------
 
-/** True bila elemen adalah field teks yang harus menerima shortcut native browser. */
+/** True when the element is a text field that must receive native browser shortcuts. */
 export function isEditableTarget(el: Element | null | undefined): boolean {
   if (!el) return false;
   const tag = (el.tagName ?? "").toUpperCase();
@@ -101,12 +101,12 @@ export function isEditableTarget(el: Element | null | undefined): boolean {
   try {
     if (typeof (el as HTMLElement).closest === "function" && (el as HTMLElement).closest("[contenteditable='true'], [contenteditable='']")) return true;
   } catch {
-    /* abaikan */
+    /* ignore */
   }
   return false;
 }
 
-/** True bila fokus saat ini ada di dalam input/teks — shortcut edit kanvas wajib diam. */
+/** True when focus is inside an input/text field — canvas edit shortcuts must stay quiet. */
 export function isEditingNow(): boolean {
   try {
     return isEditableTarget(document.activeElement);
@@ -116,19 +116,19 @@ export function isEditingNow(): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Menu-action lookup dengan alias (satu aksi boleh punya banyak combo).
+// Menu-action lookup with aliases (one action may own several combos).
 // ---------------------------------------------------------------------------
 
-/** Alias combo tambahan yang tidak tertulis di MENUS tapi wajib jalan. */
+/** Extra combos not printed in MENUS but required to work. */
 const COMBO_ALIASES: Record<string, string> = {
-  // Redo: Photoshop + umum — Ctrl+Y ATAU Ctrl+Shift+Z.
+  // Redo: Photoshop + common — Ctrl+Y OR Ctrl+Shift+Z.
   "Ctrl+Shift+Z": "redo",
   "Ctrl+Y": "redo",
-  // Step backward ala Photoshop — perlakukan sebagai undo.
+  // Photoshop-style step backward — treated as undo.
   "Ctrl+Alt+Z": "undo",
-  // Merge visible / merge down tanpa konflik dengan Export (Ctrl+E).
+  // Merge visible / merge down without conflicting with Export (Ctrl+E).
   "Ctrl+Shift+E": "merge-all",
-  // Buka proyek .avx tanpa merebut Ctrl+O milik Open Image.
+  // Open .avx projects without stealing Ctrl+O from Open Image.
   "Ctrl+Shift+O": "open-avx",
 };
 
@@ -149,48 +149,48 @@ export function findMenuAction(combo: string): string | null {
   return actionIndex.get(combo) ?? null;
 }
 
-/** Daftar shortcut edit umum untuk footer / palette / dokumentasi. Satu sumber kebenaran. */
+/** General edit shortcuts for the footer / palette / docs. Single source of truth. */
 export const EDIT_SHORTCUTS: { combo: string; label: string; desc: string }[] = [
-  { combo: "Ctrl+Z", label: "Undo", desc: "Batalkan langkah terakhir (pixel + mask ikut pulih)" },
-  { combo: "Ctrl+Shift+Z", label: "Redo", desc: "Ulangi lagi — alternatif Ctrl+Y" },
-  { combo: "Ctrl+Y", label: "Redo", desc: "Ulangi lagi — alternatif Ctrl+Shift+Z" },
-  { combo: "Ctrl+Alt+Z", label: "Step Backward", desc: "Mundur satu langkah ala Photoshop" },
-  { combo: "Ctrl+X", label: "Cut", desc: "Potong seleksi/layer ke clipboard + riwayat undo" },
-  { combo: "Ctrl+C", label: "Copy", desc: "Salin seleksi/layer (hormati seleksi aktif)" },
-  { combo: "Ctrl+V", label: "Paste", desc: "Tempel sebagai layer baru, proporsional di tengah" },
-  { combo: "Ctrl+Shift+V", label: "Paste in Place", desc: "Tempel tepat di posisi asal (tanpa geser)" },
-  { combo: "Ctrl+A", label: "Select All", desc: "Pilih seluruh kanvas" },
-  { combo: "Ctrl+D", label: "Deselect", desc: "Hapus seleksi" },
-  { combo: "Ctrl+Shift+D", label: "Reselect", desc: "Kembalikan seleksi terakhir" },
-  { combo: "Ctrl+Shift+I", label: "Inverse", desc: "Balik seleksi" },
-  { combo: "Delete", label: "Delete", desc: "Hapus piksel terseleksi (riwayat tersimpan)" },
-  { combo: "Ctrl+J", label: "Duplicate", desc: "Duplikat layer aktif" },
-  { combo: "Ctrl+Shift+J", label: "Layer via Cut", desc: "Potong seleksi ke layer baru" },
-  { combo: "Ctrl+T", label: "Free Transform", desc: "Mode transform bebas" },
-  { combo: "Ctrl+G", label: "Group", desc: "Kelompokkan (via palette)" },
-  { combo: "Ctrl+]", label: "Layer Up", desc: "Naikkan urutan layer" },
-  { combo: "Ctrl+[", label: "Layer Down", desc: "Turunkan urutan layer" },
-  { combo: "Shift+F5", label: "Content Fill", desc: "Isi sadar-konten" },
-  { combo: "Alt+Backspace", label: "Fill FG", desc: "Isi dengan warna depan" },
-  { combo: "Ctrl+Backspace", label: "Fill BG", desc: "Isi dengan warna belakang" },
-  { combo: "Ctrl+S", label: "Save", desc: "Simpan proyek .avx" },
-  { combo: "Ctrl+Shift+S", label: "Save As", desc: "Simpan proyek sebagai baru" },
-  { combo: "Ctrl+O", label: "Open", desc: "Buka gambar" },
-  { combo: "Ctrl+E", label: "Export", desc: "Buka dialog ekspor" },
-  { combo: "Ctrl+K", label: "All Actions", desc: "Buka command palette" },
-  { combo: "Ctrl+,", label: "Settings", desc: "Buka/tutup pengaturan" },
-  { combo: "Ctrl++ / Ctrl+-", label: "Zoom", desc: "Perbesar / perkecil" },
-  { combo: "Ctrl+0 / Ctrl+1", label: "Fit / 100%", desc: "Paskan layar / piksel asli" },
-  { combo: "[ / ]", label: "Brush Size", desc: "Kecilkan / besarkan kuas" },
-  { combo: "Shift+[ / Shift+]", label: "Hardness", desc: "Lunakkan / keraskan kuas" },
-  { combo: "1..0", label: "Opacity", desc: "Set opasitas kuas 10–100%" },
-  { combo: "X / D", label: "Colors", desc: "Tukar / reset warna depan-belakang" },
-  { combo: "Space", label: "Hand", desc: "Tahan untuk geser kanvas sementara" },
-  { combo: "Arrows", label: "Nudge", desc: "Geser layer 1px (Shift = 10px)" },
-  { combo: "Esc / Enter", label: "Cancel / Apply", desc: "Batalkan crop & tutup dialog / terapkan crop" },
+  { combo: "Ctrl+Z", label: "Undo", desc: "Undo the last step (pixels + mask are restored)" },
+  { combo: "Ctrl+Shift+Z", label: "Redo", desc: "Redo again — Ctrl+Y alternative" },
+  { combo: "Ctrl+Y", label: "Redo", desc: "Redo again — Ctrl+Shift+Z alternative" },
+  { combo: "Ctrl+Alt+Z", label: "Step Backward", desc: "Step one stroke back, Photoshop-style" },
+  { combo: "Ctrl+X", label: "Cut", desc: "Cut selection/layer to clipboard + undo history" },
+  { combo: "Ctrl+C", label: "Copy", desc: "Copy selection/layer (respects the active selection)" },
+  { combo: "Ctrl+V", label: "Paste", desc: "Paste as a new layer, scaled proportionally, centered" },
+  { combo: "Ctrl+Shift+V", label: "Paste in Place", desc: "Paste back at the exact source position" },
+  { combo: "Ctrl+A", label: "Select All", desc: "Select the whole canvas" },
+  { combo: "Ctrl+D", label: "Deselect", desc: "Clear the selection" },
+  { combo: "Ctrl+Shift+D", label: "Reselect", desc: "Restore the last selection" },
+  { combo: "Ctrl+Shift+I", label: "Inverse", desc: "Invert the selection" },
+  { combo: "Delete", label: "Delete", desc: "Delete selected pixels (history is kept)" },
+  { combo: "Ctrl+J", label: "Duplicate", desc: "Duplicate the active layer" },
+  { combo: "Ctrl+Shift+J", label: "Layer via Cut", desc: "Cut the selection to a new layer" },
+  { combo: "Ctrl+T", label: "Free Transform", desc: "Free-transform mode" },
+  { combo: "Ctrl+G", label: "Group", desc: "Group layers (via palette)" },
+  { combo: "Ctrl+]", label: "Layer Up", desc: "Raise the layer order" },
+  { combo: "Ctrl+[", label: "Layer Down", desc: "Lower the layer order" },
+  { combo: "Shift+F5", label: "Content Fill", desc: "Content-aware fill" },
+  { combo: "Alt+Backspace", label: "Fill FG", desc: "Fill with the foreground color" },
+  { combo: "Ctrl+Backspace", label: "Fill BG", desc: "Fill with the background color" },
+  { combo: "Ctrl+S", label: "Save", desc: "Save the .avx project" },
+  { combo: "Ctrl+Shift+S", label: "Save As", desc: "Save the project under a new name" },
+  { combo: "Ctrl+O", label: "Open", desc: "Open an image" },
+  { combo: "Ctrl+E", label: "Export", desc: "Open the export dialog" },
+  { combo: "Ctrl+K", label: "All Actions", desc: "Open the command palette" },
+  { combo: "Ctrl+,", label: "Settings", desc: "Open/close settings" },
+  { combo: "Ctrl++ / Ctrl+-", label: "Zoom", desc: "Zoom in / out" },
+  { combo: "Ctrl+0 / Ctrl+1", label: "Fit / 100%", desc: "Fit to screen / actual pixels" },
+  { combo: "[ / ]", label: "Brush Size", desc: "Decrease / increase brush size" },
+  { combo: "Shift+[ / Shift+]", label: "Hardness", desc: "Soften / harden the brush edge" },
+  { combo: "1..0", label: "Opacity", desc: "Set brush opacity 10–100%" },
+  { combo: "X / D", label: "Colors", desc: "Swap / reset foreground-background colors" },
+  { combo: "Space", label: "Hand", desc: "Hold to pan the canvas temporarily" },
+  { combo: "Arrows", label: "Nudge", desc: "Move the layer 1px (Shift = 10px)" },
+  { combo: "Esc / Enter", label: "Cancel / Apply", desc: "Cancel crop & close dialogs / apply crop" },
 ];
 
-/** True bila event adalah Undo (Ctrl/Cmd+Z tanpa Shift, atau Ctrl+Alt+Z step-backward). */
+/** True when the event is an Undo (Ctrl/Cmd+Z without Shift, or Ctrl+Alt+Z step-backward). */
 export function matchUndo(e: KeyboardEvent): boolean {
   const mod = e.ctrlKey || e.metaKey;
   if (!mod) return false;
@@ -200,7 +200,7 @@ export function matchUndo(e: KeyboardEvent): boolean {
   return false;
 }
 
-/** True bila event adalah Redo (Ctrl+Y atau Ctrl+Shift+Z). */
+/** True when the event is a Redo (Ctrl+Y or Ctrl+Shift+Z). */
 export function matchRedo(e: KeyboardEvent): boolean {
   const mod = e.ctrlKey || e.metaKey;
   if (!mod) return false;
@@ -261,7 +261,7 @@ export function adjustBrushFlow(delta: number): boolean {
   return true;
 }
 
-/** Tombol angka 1..0 ala Photoshop: 1=10%, 5=50%, 0=100%. Shift+angka = Flow. */
+/** Photoshop-style digit keys 1..0: 1=10%, 5=50%, 0=100%. Shift+digit = Flow. */
 export function setBrushOpacityDigit(digit: string, toFlow = false): boolean {
   const n = digit === "0" ? 100 : Math.max(1, Math.min(9, Number(digit))) * 10;
   if (!Number.isFinite(n)) return false;
@@ -270,7 +270,7 @@ export function setBrushOpacityDigit(digit: string, toFlow = false): boolean {
   return true;
 }
 
-/** X: tukar warna depan/belakang. D: reset ke hitam/putih ala Photoshop. */
+/** X: swap foreground/background colors. D: reset to Photoshop-style black/white. */
 export function swapBrushColors(): boolean {
   const ed = useEditorStore.getState();
   const fg = ed.brushColor;
@@ -291,7 +291,7 @@ export function resetBrushColors(): boolean {
 let spaceTool: string | null = null;
 
 export function spaceDown(): boolean {
-  // Jangan bajak spasi saat mengetik teks.
+  // Never hijack Space while typing text.
   if (isEditingNow()) return false;
   const ed = useEditorStore.getState();
   if (ed.tool === "hand") return true;
@@ -309,8 +309,8 @@ export function spaceUp(): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Clipboard + operasi edit umum (satu sumber kebenaran, dipakai App.tsx dan
-// event avero:clip). Semua operasi perusak mendorong history agar bisa Undo.
+// Clipboard + general edit ops (single source of truth, used by App.tsx and
+// the avero:clip event). Every destructive op pushes history for Undo.
 // ---------------------------------------------------------------------------
 
 const MEM_CLIP_KEY = "__avero_clipboard" as const;
@@ -327,11 +327,11 @@ export function setMemClipboard(v: string | null): void {
   try {
     (window as unknown as Record<string, string | null>)[MEM_CLIP_KEY] = v;
   } catch {
-    /* abaikan */
+    /* ignore */
   }
 }
 
-/** Kecilkan layer ke max 2048px agar dataURL PNG tidak meledak di 4K. */
+/** Downscale layers to max 2048px so PNG dataURLs stay manageable at 4K. */
 export function layerToClipboardURL(c: HTMLCanvasElement): string {
   try {
     const maxSide = 2048;
@@ -348,7 +348,7 @@ export function layerToClipboardURL(c: HTMLCanvasElement): string {
   }
 }
 
-/** Coba tulis PNG ke clipboard sistem (best-effort, boleh gagal di web biasa). */
+/** Try writing the PNG to the system clipboard (best-effort, may fail on plain web). */
 async function tryWriteSystemClipboard(dataUrl: string): Promise<void> {
   try {
     const nav = navigator as Navigator & {
@@ -359,7 +359,7 @@ async function tryWriteSystemClipboard(dataUrl: string): Promise<void> {
     const blob = await res.blob();
     await nav.clipboard.write([new ClipboardItem({ [blob.type || "image/png"]: blob })]);
   } catch {
-    /* clipboard sistem opsional — memori internal sudah cukup */
+    /* System clipboard is optional — the in-memory fallback is enough */
   }
 }
 
@@ -367,14 +367,14 @@ function emitSelectionChanged(): void {
   try {
     window.dispatchEvent(new Event("avero:selection-changed"));
   } catch {
-    /* abaikan */
+    /* ignore */
   }
 }
 
 /**
- * Salin layer aktif ke clipboard.
- * Hormati seleksi: bila ada seleksi, hanya area terseleksi yang disalin
- * (cropped ke bounding box agar paste tidak membawa kanvas kosong).
+ * Copy the active layer to the clipboard.
+ * Respects the selection: when one exists, only the selected area is copied
+ * (cropped to its bounding box so paste carries no empty canvas).
  */
 export function copyActiveLayer(): boolean {
   try {
@@ -397,7 +397,7 @@ export function copyActiveLayer(): boolean {
         g.globalCompositeOperation = "destination-in";
         g.drawImage(sel, 0, 0);
         g.globalCompositeOperation = "source-over";
-        // Crop ke bbox agar clipboard ramping.
+        // Crop to the bbox to keep the clipboard lean.
         try {
           const data = g.getImageData(0, 0, masked.width, masked.height).data;
           let x0 = masked.width;
@@ -421,7 +421,7 @@ export function copyActiveLayer(): boolean {
             cropped.width = cw;
             cropped.height = ch;
             cropped.getContext("2d")!.drawImage(masked, x0, y0, cw, ch, 0, 0, cw, ch);
-            // Simpan offset agar Paste-in-Place bisa menaruh tepat kembali.
+            // Keep the offset so Paste-in-Place can drop it exactly back.
             (cropped as HTMLCanvasElement & { __ox?: number; __oy?: number }).__ox = x0;
             (cropped as HTMLCanvasElement & { __oy?: number; __oy2?: number }).__oy = y0;
             out = cropped;
@@ -435,14 +435,14 @@ export function copyActiveLayer(): boolean {
     }
     const url = layerToClipboardURL(out);
     setMemClipboard(url);
-    // Simpan offset bbox untuk paste-in-place (Shift tidak mengubah posisi).
+    // Keep the bbox offset for paste-in-place (Shift never moves it).
     try {
       const ox = (out as HTMLCanvasElement & { __ox?: number }).__ox ?? 0;
       const oy = (out as HTMLCanvasElement & { __oy?: number }).__oy ?? 0;
       (window as unknown as Record<string, unknown>)[`${MEM_CLIP_KEY}:ox`] = ox;
       (window as unknown as Record<string, unknown>)[`${MEM_CLIP_KEY}:oy`] = oy;
     } catch {
-      /* abaikan */
+      /* ignore */
     }
     void tryWriteSystemClipboard(url);
     return true;
@@ -452,8 +452,8 @@ export function copyActiveLayer(): boolean {
 }
 
 /**
- * Potong: salin dulu lalu hapus piksel (hormati seleksi).
- * Selalu dorong history agar Ctrl+Z bisa mengembalikan.
+ * Cut: copy first, then erase pixels (respects the selection).
+ * Always pushes history so Ctrl+Z can restore it.
  */
 export function cutActiveLayer(): boolean {
   try {
@@ -478,7 +478,7 @@ export function cutActiveLayer(): boolean {
   }
 }
 
-/** Hapus isi piksel layer (hormati seleksi + paper background), tanpa clipboard. */
+/** Erase layer pixel content (respects selection + paper background), no clipboard. */
 function erasePixelsOf(id: string, _forCut: boolean): void {
   const st = useEditorStore.getState();
   const meta = st.layers.find((l) => l.id === id);
@@ -520,7 +520,7 @@ function erasePixelsOf(id: string, _forCut: boolean): void {
   }
 }
 
-/** Delete/Backspace: hapus piksel terseleksi (atau seluruh layer) + history. */
+/** Delete/Backspace: erase selected pixels (or the whole layer) + history. */
 export function deleteActivePixels(): boolean {
   try {
     const st = useEditorStore.getState();
@@ -544,9 +544,9 @@ export function deleteActivePixels(): boolean {
 }
 
 /**
- * Tempel clipboard sebagai layer baru.
- * Proporsional + di tengah (perbaiki bug lama yang me-stretch ke ukuran dokumen).
- * inPlace=true menaruh kembali di offset asal (Ctrl+Shift+V).
+ * Paste the clipboard as a new layer.
+ * Proportional + centered (fixes the old bug that stretched to document size).
+ * inPlace=true drops it back at the source offset (Ctrl+Shift+V).
  */
 export function pasteClipboardAsLayer(inPlace = false): Promise<boolean> {
   const dataUrl = getMemClipboard();
@@ -567,7 +567,7 @@ export function pasteClipboardAsLayer(inPlace = false): Promise<boolean> {
             const oy = Number((window as unknown as Record<string, unknown>)[`${MEM_CLIP_KEY}:oy`] ?? 0) || 0;
             g.drawImage(img, ox, oy, iw, ih);
           } else {
-            // Muat apa adanya, pusatkan — tanpa stretch.
+            // Draw as-is, centered — no stretching.
             const dw = Math.min(iw, cur.doc.width);
             const dh = Math.min(ih, cur.doc.height);
             const sc = Math.min(1, dw / Math.max(1, iw), dh / Math.max(1, ih));
@@ -595,7 +595,7 @@ export function pasteClipboardAsLayer(inPlace = false): Promise<boolean> {
   });
 }
 
-/** Duplikat layer aktif (Ctrl+J) — bawa piksel + opacity/blend/kind. */
+/** Duplicate the active layer (Ctrl+J) — carries pixels + opacity/blend/kind. */
 export function duplicateActiveLayer(): boolean {
   try {
     const st = useEditorStore.getState();
@@ -615,7 +615,7 @@ export function duplicateActiveLayer(): boolean {
   }
 }
 
-/** Layer via Cut (Ctrl+Shift+J): potong seleksi ke layer baru, sisa bisa Undo. */
+/** Layer via Cut (Ctrl+Shift+J): cut the selection to a new layer, rest is Undoable. */
 export function layerViaCut(): boolean {
   try {
     const st = useEditorStore.getState();
@@ -627,7 +627,7 @@ export function layerViaCut(): boolean {
     const sel = selectionMaskCanvas();
     if (!src || !sel) return false;
     const snap = layerManager.snapshot(id);
-    // Pindahkan piksel terseleksi ke layer baru.
+    // Move the selected pixels to the new layer.
     const moved = document.createElement("canvas");
     moved.width = src.width;
     moved.height = src.height;
@@ -653,7 +653,7 @@ export function layerViaCut(): boolean {
   }
 }
 
-/** Geser layer aktif (arrow keys). Riwayat digabung 1,5 detik agar Undo bersih. */
+/** Nudge the active layer (arrow keys). History coalesces for 1.5s for clean Undo. */
 export function nudgeActiveLayer(dx: number, dy: number): boolean {
   try {
     const st = useEditorStore.getState();

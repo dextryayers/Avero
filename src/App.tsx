@@ -1,8 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import TitleBar from "./components/TitleBar";
-import ToolBar from "./components/ToolBar";
-import CanvasArea, { getCompositeCanvas } from "./components/CanvasArea";
-import RightPanel from "./components/RightPanel";
+import { getCompositeCanvas } from "./engine/compositeRef";
 import StatusBar from "./components/StatusBar";
 import CommandPalette from "./components/CommandPalette";
 import PsdInfo from "./components/PsdInfo";
@@ -12,9 +10,25 @@ import NodeGraph from "./components/NodeGraph";
 import Onboarding from "./components/Onboarding";
 import BootSplash from "./components/BootSplash";
 import HomeScreen, { openImageViaDialog } from "./components/HomeScreen";
-import ExportDialog from "./components/ExportDialog";
 import Notifier from "./components/Notifier";
 import AppDialog from "./components/AppDialog";
+
+// Code-split heavy routes: the editor workspace (canvas engine + panels),
+// settings and export dialog load on demand instead of in the first paint.
+const EditorView = lazy(() => import("./components/EditorView"));
+const SettingsPanel = lazy(() => import("./components/SettingsPanel"));
+const ExportDialog = lazy(() => import("./components/ExportDialog"));
+
+function ChunkFallback({ label }: { label: string }) {
+  return (
+    <div className="grid min-h-0 flex-1 place-items-center bg-[#101012]" role="status" aria-label={label}>
+      <div className="flex items-center gap-2.5 text-[12px] text-[#a7a7b0]">
+        <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#2c2c31] border-t-[#2f7cf6]" />
+        Loading {label}…
+      </div>
+    </div>
+  );
+}
 import { showError, showMessage, askText } from "./ui/notify";
 import { fetchStartupFile, openAvxProject, saveAvxProject } from "./io/projectIo";
 import { useEditorStore } from "./stores/useEditorStore";
@@ -47,7 +61,6 @@ import {
 } from "./app/shortcuts";
 import { useHomeStore } from "./stores/useHomeStore";
 import { useSettingsStore } from "./stores/useSettingsStore";
-import SettingsPanel from "./components/SettingsPanel";
 import { layerManager } from "./engine/layerManager";
 import { clearSelectionMask, drawRectSelection, hasSelection, inverseSelection, restoreLastSelection } from "./engine/selection";
 import { loadRecovery, saveRecovery, clearRecovery } from "./engine/recovery";
@@ -137,7 +150,7 @@ export default function App() {
       const mod = e.ctrlKey || e.metaKey;
       const editing = isEditingNow();
       const key = e.key.toLowerCase();
-      // ---- Lapisan 1: global app — jalan bahkan saat mengetik di input.
+      // ---- Layer 1: global app — works even while typing in inputs.
       if (mod && key === "k") {
         e.preventDefault();
         setPalette((v) => !v);
@@ -150,7 +163,7 @@ export default function App() {
       }
       if (mod && key === "s") {
         e.preventDefault();
-        // Simpan boleh dari mana saja (termasuk saat mengetik nama layer).
+        // Save works from anywhere (even while typing a layer name).
         saveAvxProject(e.shiftKey).catch((err) => showError(`Failed to save project: ${String(err)}`));
         return;
       }
@@ -172,15 +185,15 @@ export default function App() {
         dispatchAction("new-doc");
         return;
       }
-      // Saat mengetik teks: biarkan shortcut native browser (undo/cut/paste
-      // teks, panah, spasi) bekerja. Hanya lapisan 1 + Escape yang boleh jalan.
+      // While typing text: let native browser shortcuts (text undo/cut/paste,
+      // arrows, Space) work. Only layer 1 + Escape may run.
       if (editing) {
         if (e.key === "Escape") {
           (document.activeElement as HTMLElement | null)?.blur?.();
         }
         return;
       }
-      // ---- Lapisan 2: edit umum — Undo / Redo / Step-backward.
+      // ---- Layer 2: general edit — Undo / Redo / Step-backward.
       if (matchUndo(e)) {
         e.preventDefault();
         doUndo();
@@ -206,7 +219,7 @@ export default function App() {
       }
       if (mod && e.shiftKey && !e.altKey && key === "d") {
         e.preventDefault();
-        // Reselect: kembalikan seleksi terakhir (bukan select-all).
+        // Reselect: restore the last selection (not select-all).
         if (!restoreLastSelection()) {
           const st = useEditorStore.getState();
           drawRectSelection(st.doc.width, st.doc.height, { x: 0, y: 0, w: st.doc.width, h: st.doc.height });
@@ -271,7 +284,7 @@ export default function App() {
         else useEditorStore.getState().moveLayer(id, e.key === "]" ? 1 : -1);
         return;
       }
-      // Fill FG / BG + Delete — selalu via helper ber-history.
+      // Fill FG / BG + Delete — always via history-aware helpers.
       if (!mod && e.altKey && !e.shiftKey && (e.key === "Backspace" || e.key === "Delete")) {
         e.preventDefault();
         dispatchAction("fill-fg");
@@ -279,14 +292,13 @@ export default function App() {
       }
       if (mod && !e.shiftKey && !e.altKey && (e.key === "Backspace" || e.key === "Delete")) {
         e.preventDefault();
-        // Ctrl+Backspace = isi BG (standar), Backspace biasa = hapus piksel.
+        // Ctrl+Backspace = fill BG (standard), plain Backspace = delete pixels.
         if (e.key === "Backspace") dispatchAction("fill-bg");
         else deleteActivePixels();
         return;
       }
       if ((e.key === "Delete" || e.key === "Backspace") && !mod && !e.altKey) {
-        // Jangan cegah navigasi-history browser saat fokus di luar kanvas?
-        // Di editor, Delete selalu berarti hapus piksel.
+        // In the editor, Delete always means delete pixels.
         e.preventDefault();
         deleteActivePixels();
         return;
@@ -315,7 +327,7 @@ export default function App() {
         }
         return;
       }
-      // ---- Lapisan 3: view cepat.
+      // ---- Layer 3: quick view.
       if (mod && !e.shiftKey && !e.altKey && (e.key === "+" || e.key === "=")) {
         e.preventDefault();
         const ed = useEditorStore.getState();
@@ -338,10 +350,10 @@ export default function App() {
         useEditorStore.getState().setZoom(100);
         return;
       }
-      // ---- Lapisan 4: huruf tool tunggal (tanpa Ctrl/Alt) + angka + X/D.
+      // ---- Layer 4: single tool letters (no Ctrl/Alt) + digits + X/D.
       if (!mod && !e.altKey && !e.shiftKey) {
         const t = e.key.toLowerCase();
-        // Angka 1..0 = opasitas kuas ala Photoshop (Shift+angka = Flow).
+        // Digits 1..0 = Photoshop-style brush opacity (Shift+digit = Flow).
         if (/^[0-9]$/.test(e.key)) {
           e.preventDefault();
           setBrushOpacityDigit(e.key, false);
@@ -413,14 +425,14 @@ export default function App() {
         }
         if (selectFamilyFirst(t.toUpperCase())) return;
       }
-      // Shift+angka = Flow kuas.
+      // Shift+digit = brush Flow.
       if (!mod && !e.altKey && e.shiftKey && /^[0-9]$/.test(e.key)) {
         e.preventDefault();
         setBrushOpacityDigit(e.key, true);
         return;
       }
 
-      // ---- Lapisan 5: sisa aksi menu generik (Levels Ctrl+L, Curves Ctrl+M, ...).
+      // ---- Layer 5: remaining generic menu actions (Levels Ctrl+L, Curves Ctrl+M, ...).
       {
         const hasMod = e.ctrlKey || e.metaKey || e.altKey;
         const isLetter = e.key.length === 1 && /[a-z]/i.test(e.key);
@@ -442,7 +454,7 @@ export default function App() {
           return;
         }
       }
-      // [ ] ukuran kuas, Shift+[ ] hardness, Ctrl+[ ] / Alt+[ ] opasitas/flow.
+      // [ ] brush size, Shift+[ ] hardness, Ctrl+[ ] / Alt+[ ] opacity/flow.
       if (!mod && e.key !== undefined && (e.key === "[" || e.key === "]" || e.key === "{" || e.key === "}")) {
         if (e.altKey) adjustBrushOpacity(e.key === "]" || e.key === "}" ? 10 : -10);
         else if (e.key === "{" || e.key === "}") adjustBrushHardness(e.key === "}" ? 10 : -10);
@@ -456,7 +468,7 @@ export default function App() {
         adjustBrushOpacity(e.key === "]" ? 10 : -10);
         return;
       }
-      // Panah: geser layer 1px (Shift = 10px), riwayat digabung.
+      // Arrows: nudge layer 1px (Shift = 10px), history coalesced.
       if (!mod && !e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "ArrowLeft" || e.key === "ArrowRight")) {
         e.preventDefault();
         const step = e.shiftKey ? 10 : 1;
@@ -510,7 +522,7 @@ export default function App() {
         clearSelectionMask();
         window.dispatchEvent(new Event("avero:selection-changed"));
       } else if (detail === "sel-reselect") {
-        // Perbaikan: kembalikan seleksi terakhir, bukan select-all.
+        // Fix: restore the last selection, not select-all.
         if (!restoreLastSelection()) {
           drawRectSelection(W, H, { x: 0, y: 0, w: W, h: H });
         }
@@ -528,7 +540,7 @@ export default function App() {
     function onClipEvent(e: Event) {
       const detail = (e as CustomEvent).detail as string;
       if (isEditingNow()) return;
-      // Langsung pakai helper terpusat (riwayat + seleksi + paste proporsional).
+      // Use the centralized helpers directly (history + selection + proportional paste).
       if (detail === "copy") copyActiveLayer();
       else if (detail === "cut") cutActiveLayer();
       else if (detail === "paste") void pasteClipboardAsLayer(false);
@@ -619,19 +631,23 @@ export default function App() {
         </div>
       )}
       {settingsOpen ? (
-        <SettingsPanel onBack={closeSettings} />
+        <Suspense fallback={<ChunkFallback label="Settings" />}>
+          <SettingsPanel onBack={closeSettings} />
+        </Suspense>
       ) : homeOpen ? (
         <HomeScreen />
       ) : (
-        <div className="flex min-h-0 flex-1">
-          <ToolBar />
-          <CanvasArea />
-          <RightPanel />
-        </div>
+        <Suspense fallback={<ChunkFallback label="Editor" />}>
+          <EditorView />
+        </Suspense>
       )}
       <StatusBar />
       <CommandPalette open={palette} onClose={() => setPalette(false)} />
-      {!homeOpen && !settingsOpen && exportOpen && <ExportDialog onClose={() => setExportOpen(false)} />}
+      {!homeOpen && !settingsOpen && exportOpen && (
+        <Suspense fallback={null}>
+          <ExportDialog onClose={() => setExportOpen(false)} />
+        </Suspense>
+      )}
       {booted && <Onboarding />}
       <AppDialog />
       <Notifier />

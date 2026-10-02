@@ -5,6 +5,7 @@ import {
   Cpu,
   Gauge,
   HardDrive,
+  Keyboard,
   Layout,
   MemoryStick,
   Monitor,
@@ -16,6 +17,10 @@ import {
 import { scanHardware, gpuLabel, type HardwareReport } from "../io/hardware";
 import { resetGpuCache } from "../io/gpuCanvas";
 import { useSettingsStore, effectiveTile, type EngineDevice, type PerfMode } from "../stores/useSettingsStore";
+import { useShallow } from "zustand/shallow";
+import { EDIT_SHORTCUTS } from "../app/shortcuts";
+import { loadShortcuts } from "../stores/useWorkspaceStore";
+import { Kbd } from "../ui/atoms";
 import { useEditorStore } from "../stores/useEditorStore";
 import { useProStore } from "../stores/useProStore";
 import { clearRecovery } from "../engine/recovery";
@@ -102,13 +107,14 @@ function SectionHead({ title, info }: { title: string; info: string }) {
   );
 }
 
-type TabId = "hardware" | "engine" | "canvas" | "tools" | "workspace";
+type TabId = "hardware" | "engine" | "canvas" | "tools" | "shortcuts" | "workspace";
 
 const TABS: { id: TabId; label: string; desc: string; icon: typeof Cpu }[] = [
   { id: "hardware", label: "Hardware", desc: "Device scan and score", icon: Cpu },
   { id: "engine", label: "Engine", desc: "Speed, device, tiles", icon: Gauge },
   { id: "canvas", label: "Canvas", desc: "Rulers, grid, zoom", icon: Layout },
   { id: "tools", label: "Tools", desc: "Brush defaults", icon: Brush },
+  { id: "shortcuts", label: "Shortcuts", desc: "Every key, one table", icon: Keyboard },
   { id: "workspace", label: "Studio", desc: "Save, motion, storage", icon: Palette },
 ];
 
@@ -129,6 +135,10 @@ const TAB_INFO: Record<TabId, { title: string; info: string }> = {
     title: "Brush and tools",
     info: "Starting values for all 174 tools. Size, Hardness and Strength in the top options bar still override these per stroke. Use Apply to push the defaults into the current brush.",
   },
+  shortcuts: {
+    title: "Keyboard shortcuts",
+    info: "Every shortcut in one table, grouped by area. Single letters pick tools (Shift cycles the family); Ctrl combos edit, save and zoom. Shortcuts never fire while typing in a text field.",
+  },
   workspace: {
     title: "Studio and storage",
     info: "Autosave, interface motion and local storage. Recovery snapshots protect against crashes. Nuke canvas is the emergency free for stuck GPU memory.",
@@ -136,7 +146,32 @@ const TAB_INFO: Record<TabId, { title: string; info: string }> = {
 };
 
 export default function SettingsPanel({ onBack }: { onBack: () => void }) {
-  const s = useSettingsStore();
+  // Granular subscription: re-renders only when a displayed setting changes,
+  // never on unrelated store churn.
+  const s = useSettingsStore(
+    useShallow((st) => ({
+      perfMode: st.perfMode,
+      device: st.device,
+      tileSize: st.tileSize,
+      historyCap: st.historyCap,
+      autosaveMin: st.autosaveMin,
+      animations: st.animations,
+      showRulersOnStart: st.showRulersOnStart,
+      showGridOnStart: st.showGridOnStart,
+      snapOnStart: st.snapOnStart,
+      autoFitOnOpen: st.autoFitOnOpen,
+      defaultBrushSize: st.defaultBrushSize,
+      defaultHardness: st.defaultHardness,
+      brushSmoothing: st.brushSmoothing,
+      confirmDestructive: st.confirmDestructive,
+      themeMode: st.themeMode,
+      canvasQuality: st.canvasQuality,
+      maxZoom: st.maxZoom,
+      set: st.set,
+      applyRecommendation: st.applyRecommendation,
+      resetAll: st.resetAll,
+    })),
+  );
   const [report, setReport] = useState<HardwareReport | null>(null);
   const [busy, setBusy] = useState(false);
   const [applied, setApplied] = useState(false);
@@ -610,6 +645,8 @@ export default function SettingsPanel({ onBack }: { onBack: () => void }) {
                 </div>
               </div>
             )}
+
+            {tab === "shortcuts" && <ShortcutsView />}
           </div>
         </div>
       </div>
@@ -621,6 +658,68 @@ export default function SettingsPanel({ onBack }: { onBack: () => void }) {
         <span className="h-1 w-1 rounded-full bg-[#2c2c31]" />
         <span className="hidden sm:block">Changes save instantly to this device</span>
         <span className="ml-auto hidden md:block">avero-settings-v2</span>
+      </div>
+    </div>
+  );
+}
+
+function shortcutGroup(combo: string, label: string): string {
+  if (/^(Ctrl\+(S|O|E|K|N|W)|Ctrl\+Shift\+(S|O|E))/.test(combo) || label === "Settings") return "File & app";
+  if (/^(Ctrl\+(\+|-|0|1)|Ctrl\+R|Ctrl\+;|')/.test(combo) || /Levels|Curves|Zoom|Rulers|Guides|Grid/.test(label)) return "View & adjust";
+  if (/^(\[|Shift\+\[|1\.\.0|X \/ D|Space|Arrows|,|\.)/.test(combo) || /Brush|Hardness|Opacity|Colors|Hand|Nudge|Rotate/.test(label)) return "Brush & canvas";
+  return "Edit & history";
+}
+
+function ShortcutsView() {
+  const groups = useMemo(() => {
+    const map = new Map<string, typeof EDIT_SHORTCUTS>();
+    for (const sc of EDIT_SHORTCUTS) {
+      const g = shortcutGroup(sc.combo, sc.label);
+      if (!map.has(g)) map.set(g, []);
+      map.get(g)!.push(sc);
+    }
+    return ["Edit & history", "File & app", "View & adjust", "Brush & canvas"]
+      .filter((g) => map.has(g))
+      .map((g) => ({ name: g, items: map.get(g)! }));
+  }, []);
+  const toolKeys = useMemo(() => {
+    const entries = Object.entries(loadShortcuts());
+    entries.sort((a, b) => a[1].localeCompare(b[1]));
+    return entries;
+  }, []);
+  return (
+    <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+      {groups.map((g) => (
+        <div key={g.name} className="rounded-lg border border-[#2c2c31] bg-[#1c1c1f] p-4">
+          <div className="text-[12px] font-bold text-white">{g.name}</div>
+          <div className="mb-2 text-[11px] text-[#6e6e78]">{g.items.length} shortcuts</div>
+          <div className="overflow-hidden rounded-md border border-[#2c2c31]">
+            {g.items.map((sc, i) => (
+              <div
+                key={`${sc.combo}-${sc.label}`}
+                className={`flex items-center gap-3 px-2.5 py-1.5 text-[11px] ${i % 2 === 1 ? "bg-white/[0.02]" : ""}`}
+              >
+                <Kbd className="min-w-20 justify-center">{sc.combo}</Kbd>
+                <span className="shrink-0 font-semibold text-white">{sc.label}</span>
+                <span className="truncate text-[#6e6e78]">{sc.desc}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+      <div className="rounded-lg border border-[#2c2c31] bg-[#1c1c1f] p-4">
+        <div className="text-[12px] font-bold text-white">Tool keys</div>
+        <div className="mb-2 text-[11px] text-[#6e6e78]">
+          Single letters pick tools. Shift+letter cycles the family. Change them in the toolbar flyout.
+        </div>
+        <div className="grid max-h-[320px] grid-cols-2 gap-1 overflow-y-auto pr-1 sm:grid-cols-3">
+          {toolKeys.map(([tool, key]) => (
+            <div key={tool} className="flex items-center justify-between gap-2 rounded-md bg-[#101012] px-2 py-1 text-[10.5px]">
+              <span className="truncate text-[#a7a7b0]" title={tool}>{tool}</span>
+              <Kbd>{key}</Kbd>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -654,34 +753,46 @@ function CanvasLiveControls() {
 }
 
 function GuideControls() {
-  const pro = useProStore();
+  // Granular subscriptions + getState actions: immune to histogram ticks,
+  // transform nudges and other hot pro-store churn.
+  const showGuides = useProStore((st) => st.showGuides);
+  const showGrid = useProStore((st) => st.showGrid);
+  const snapEnabled = useProStore((st) => st.snapEnabled);
+  const gridSize = useProStore((st) => st.gridSize);
+  const guidesH = useProStore((st) => st.guidesH);
+  const guidesV = useProStore((st) => st.guidesV);
+  const slices = useProStore((st) => st.slices);
+  const notes = useProStore((st) => st.notes);
+  const samplers = useProStore((st) => st.samplers);
+  const measures = useProStore((st) => st.measures);
+  const pro = useProStore.getState();
   return (
     <div className="space-y-2">
       <div className="flex gap-1">
-        <button onClick={() => pro.toggleGuides()} className={clsx("flex-1 rounded px-2 py-1.5 text-[11px]", pro.showGuides ? "bg-[#2f7cf6] text-white" : "bg-[#232327] text-[#a7a7b0]")}>
-          Guides {pro.showGuides ? "on" : "off"}
+        <button onClick={() => pro.toggleGuides()} className={clsx("flex-1 rounded px-2 py-1.5 text-[11px]", showGuides ? "bg-[#2f7cf6] text-white" : "bg-[#232327] text-[#a7a7b0]")}>
+          Guides {showGuides ? "on" : "off"}
         </button>
-        <button onClick={() => pro.toggleGrid()} className={clsx("flex-1 rounded px-2 py-1.5 text-[11px]", pro.showGrid ? "bg-[#2f7cf6] text-white" : "bg-[#232327] text-[#a7a7b0]")}>
-          Grid {pro.showGrid ? "on" : "off"}
+        <button onClick={() => pro.toggleGrid()} className={clsx("flex-1 rounded px-2 py-1.5 text-[11px]", showGrid ? "bg-[#2f7cf6] text-white" : "bg-[#232327] text-[#a7a7b0]")}>
+          Grid {showGrid ? "on" : "off"}
         </button>
-        <button onClick={() => pro.toggleSnap()} className={clsx("flex-1 rounded px-2 py-1.5 text-[11px]", pro.snapEnabled ? "bg-[#2f7cf6] text-white" : "bg-[#232327] text-[#a7a7b0]")}>
-          Snap {pro.snapEnabled ? "on" : "off"}
+        <button onClick={() => pro.toggleSnap()} className={clsx("flex-1 rounded px-2 py-1.5 text-[11px]", snapEnabled ? "bg-[#2f7cf6] text-white" : "bg-[#232327] text-[#a7a7b0]")}>
+          Snap {snapEnabled ? "on" : "off"}
         </button>
       </div>
       <div>
         <div className="mb-1 flex justify-between text-[11px] text-[#a7a7b0]">
-          Grid size <span className="font-mono text-white">{pro.gridSize}px</span>
+          Grid size <span className="font-mono text-white">{gridSize}px</span>
         </div>
-        <input type="range" min={8} max={256} value={pro.gridSize} onChange={(e) => pro.setGridSize(Number(e.target.value))} className="w-full" />
+        <input type="range" min={8} max={256} value={gridSize} onChange={(e) => pro.setGridSize(Number(e.target.value))} className="w-full" />
       </div>
       <div className="flex gap-1">
-        <button onClick={() => pro.clearGuides()} className="flex-1 rounded bg-[#232327] px-2 py-1.5 text-[11px] text-[#a7a7b0] hover:text-white">Clear guides ({pro.guidesH.length + pro.guidesV.length})</button>
-        <button onClick={() => pro.clearSlices()} className="flex-1 rounded bg-[#232327] px-2 py-1.5 text-[11px] text-[#a7a7b0] hover:text-white">Clear slices ({pro.slices.length})</button>
+        <button onClick={() => pro.clearGuides()} className="flex-1 rounded bg-[#232327] px-2 py-1.5 text-[11px] text-[#a7a7b0] hover:text-white">Clear guides ({guidesH.length + guidesV.length})</button>
+        <button onClick={() => pro.clearSlices()} className="flex-1 rounded bg-[#232327] px-2 py-1.5 text-[11px] text-[#a7a7b0] hover:text-white">Clear slices ({slices.length})</button>
       </div>
       <div className="flex gap-1">
-        <button onClick={() => pro.clearNotes()} className="flex-1 rounded bg-[#232327] px-2 py-1.5 text-[11px] text-[#a7a7b0] hover:text-white">Notes ({pro.notes.length})</button>
-        <button onClick={() => pro.clearSamplers()} className="flex-1 rounded bg-[#232327] px-2 py-1.5 text-[11px] text-[#a7a7b0] hover:text-white">Samplers ({pro.samplers.length})</button>
-        <button onClick={() => pro.clearMeasures()} className="flex-1 rounded bg-[#232327] px-2 py-1.5 text-[11px] text-[#a7a7b0] hover:text-white">Measures ({pro.measures.length})</button>
+        <button onClick={() => pro.clearNotes()} className="flex-1 rounded bg-[#232327] px-2 py-1.5 text-[11px] text-[#a7a7b0] hover:text-white">Notes ({notes.length})</button>
+        <button onClick={() => pro.clearSamplers()} className="flex-1 rounded bg-[#232327] px-2 py-1.5 text-[11px] text-[#a7a7b0] hover:text-white">Samplers ({samplers.length})</button>
+        <button onClick={() => pro.clearMeasures()} className="flex-1 rounded bg-[#232327] px-2 py-1.5 text-[11px] text-[#a7a7b0] hover:text-white">Measures ({measures.length})</button>
       </div>
     </div>
   );

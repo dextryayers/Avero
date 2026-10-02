@@ -1,6 +1,6 @@
 // Phase 6.1: lightweight auto-save and crash recovery.
-// Simpan thumbnail composite + metadata tiap 2 menit ke localStorage.
-// Saat start, jika ada sesi kotor, tawarkan recovery banner.
+// Persist the composite thumbnail + metadata to localStorage every 2 minutes.
+// On startup, if a dirty session exists, offer the recovery banner.
 
 const KEY = "avero-recovery-v1";
 
@@ -17,7 +17,7 @@ export function saveRecovery(thumb: string, docName: string, w: number, h: numbe
     const data: RecoveryData = { time: Date.now(), docName, width: w, height: h, thumb };
     localStorage.setItem(KEY, JSON.stringify(data));
   } catch {
-    // storage penuh: abaikan, jangan ganggu editing
+    // storage full: ignore, never interrupt editing
   }
 }
 
@@ -37,6 +37,6 @@ export function clearRecovery() {
   try {
     localStorage.removeItem(KEY);
   } catch {
-    /* abaikan */
+    /* ignore */
   }
 }

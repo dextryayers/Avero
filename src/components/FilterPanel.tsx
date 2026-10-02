@@ -291,7 +291,7 @@ export default function FilterPanel() {
             {f.type === "pixelate" && (<Row label="Size" value={f.params.size ?? 8} min={2} max={48} onChange={(v) => updateFilterParams(f.id, { size: v })} />)}
             {f.type === "halftone" && (<Row label="Size" value={f.params.size ?? 6} min={3} max={20} onChange={(v) => updateFilterParams(f.id, { size: v })} />)}
             {f.type === "oilPaintLite" && (<Row label="Radius" value={f.params.radius ?? 3} min={1} max={12} onChange={(v) => updateFilterParams(f.id, { radius: v })} />)}
-            {f.type === "tiltShift" && (<Row label="Blur" value={f.params.blur ?? 8} min={1} max={24} onChange={(v) => updateFilterParams(f.id, { blur: v })} />)}
+            {f.type === "tiltShift" && (<><Row label="Blur" value={f.params.blur ?? 8} min={1} max={24} onChange={(v) => updateFilterParams(f.id, { blur: v })} /><Row label="Focus" value={f.params.focus ?? 50} min={0} max={100} onChange={(v) => updateFilterParams(f.id, { focus: v })} /></>)}
             {f.type === "vignette" && (<Row label="Amount" value={f.params.amount ?? 45} min={0} max={100} onChange={(v) => updateFilterParams(f.id, { amount: v })} />)}
             {f.type === "chromaticAberration" && (<Row label="Amount" value={f.params.amount ?? 3} min={0} max={12} onChange={(v) => updateFilterParams(f.id, { amount: v })} />)}
             {(f.type === "emboss" || f.type === "findEdges") && (<div className="text-[10px] text-[#6e6e78]">No parameters. Adjust via Opacity.</div>)}

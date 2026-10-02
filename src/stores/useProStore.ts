@@ -255,6 +255,9 @@ interface ProState {
   moveGuide: (kind: "h" | "v", index: number, pos: number) => void;
   removeGuide: (kind: "h" | "v", index: number) => void;
   clearGuides: () => void;
+  // plan3 crop: shift every document-space annotation by (dx,dy) after a crop
+  // and drop items fully outside the new w x h document.
+  shiftDocSpace: (dx: number, dy: number, w: number, h: number) => void;
   toggleGuides: () => void;
   toggleGrid: () => void;
   setGridSize: (n: number) => void;
@@ -600,6 +603,57 @@ export const useProStore = create<ProState>((set) => ({
       guidesV: kind === "v" ? s.guidesV.filter((_, i) => i !== index) : s.guidesV,
     })),
   clearGuides: () => set({ guidesH: [], guidesV: [] }),
+  shiftDocSpace: (dx, dy, w, h) =>
+    set((s) => {
+      const inside = (x: number, y: number) => x >= 0 && y >= 0 && x < w && y < h;
+      const guidesH = s.guidesH.map((g) => Math.round(g + dy)).filter((g) => g >= 0 && g <= h);
+      const guidesV = s.guidesV.map((g) => Math.round(g + dx)).filter((g) => g >= 0 && g <= w);
+      const slices = s.slices
+        .map((sl) => ({ ...sl, x: Math.round(sl.x + dx), y: Math.round(sl.y + dy) }))
+        .filter((sl) => sl.x + sl.w > 0 && sl.y + sl.h > 0 && sl.x < w && sl.y < h);
+      const activeKept = slices.some((sl) => sl.id === s.activeSliceId);
+      const notes = s.notes
+        .map((n) => ({ ...n, x: Math.round(n.x + dx), y: Math.round(n.y + dy) }))
+        .filter((n) => inside(n.x, n.y));
+      const counts = s.counts
+        .map((c) => ({ ...c, x: Math.round(c.x + dx), y: Math.round(c.y + dy) }))
+        .filter((c) => inside(c.x, c.y));
+      const samplers = s.samplers
+        .map((p) => ({ ...p, x: Math.round(p.x + dx), y: Math.round(p.y + dy) }))
+        .filter((p) => inside(p.x, p.y));
+      const measures = s.measures
+        .map((m) => ({
+          ...m,
+          x0: Math.round(m.x0 + dx),
+          y0: Math.round(m.y0 + dy),
+          x1: Math.round(m.x1 + dx),
+          y1: Math.round(m.y1 + dy),
+        }))
+        .filter((m) => inside(m.x0, m.y0) || inside(m.x1, m.y1));
+      const paths = s.paths.map((p) => ({
+        ...p,
+        points: p.points.map((pt) => ({ x: Math.round(pt.x + dx), y: Math.round(pt.y + dy) })),
+      }));
+      const textSpecs: ProState["textSpecs"] = {};
+      for (const [id, spec] of Object.entries(s.textSpecs)) {
+        textSpecs[id] =
+          spec.x === undefined || spec.y === undefined
+            ? spec
+            : { ...spec, x: Math.round(spec.x + dx), y: Math.round(spec.y + dy) };
+      }
+      return {
+        guidesH,
+        guidesV,
+        slices,
+        activeSliceId: activeKept ? s.activeSliceId : null,
+        notes,
+        counts,
+        samplers,
+        measures,
+        paths,
+        textSpecs,
+      };
+    }),
   toggleGuides: () => set((s) => ({ showGuides: !s.showGuides })),
   toggleGrid: () => set((s) => ({ showGrid: !s.showGrid })),
   setGridSize: (gridSize) => set({ gridSize: Math.max(8, Math.min(512, Math.round(gridSize))) }),

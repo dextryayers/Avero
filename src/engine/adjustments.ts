@@ -82,9 +82,22 @@ export function applyAdjustmentToImageData(img: ImageData, adj: AdjustmentEntry)
       break;
     }
     case "blackWhite": {
-      // simple channel-mixer approximation
+      // Channel-weighted monochrome: secondary colors split into RGB, normalized.
+      const rw = (p.reds ?? 40) / 100;
+      const yw = (p.yellows ?? 60) / 100;
+      const gw = (p.greens ?? 40) / 100;
+      const cw = (p.cyans ?? 60) / 100;
+      const bw = (p.blues ?? 20) / 100;
+      const mw = (p.magentas ?? 80) / 100;
+      let R = rw + yw * 0.5 + mw * 0.5;
+      let G = gw + yw * 0.5 + cw * 0.5;
+      let B = bw + cw * 0.5 + mw * 0.5;
+      const tot = R + G + B || 1;
+      R /= tot;
+      G /= tot;
+      B /= tot;
       for (let i = 0; i < d.length; i += 4) {
-        const v = Math.round(d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11);
+        const v = Math.round(d[i] * R + d[i + 1] * G + d[i + 2] * B);
         d[i] = v;
         d[i + 1] = v;
         d[i + 2] = v;

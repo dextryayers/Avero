@@ -753,7 +753,10 @@ export default function ToolOptionsBar({
         </span>
         <span className="hidden shrink-0 items-center gap-1 border-l border-[#2c2c31] pl-2.5 md:flex">
           <Action label="Fit" title="Fit the document on screen." onClick={() => setTool("zoom-fit")} />
+          <Action label="50%" title="Zoom to 50 percent." onClick={() => setZoom(50)} />
           <Action label="100%" title="Jump to actual pixels." onClick={() => setZoom(100)} />
+          <Action label="200%" title="Zoom to 200 percent." onClick={() => setZoom(200)} />
+          <Action label="400%" title="Zoom to 400 percent." onClick={() => setZoom(400)} />
         </span>
         <span className="hidden shrink-0 items-center gap-3 border-l border-[#2c2c31] pl-2.5 lg:flex">
           <Slider label="Rotate" value={Math.round(viewRotate)} min={-180} max={180} onChange={(v) => setViewRotate(v)} suffix="deg" />
@@ -825,6 +828,13 @@ export default function ToolOptionsBar({
             options={[{ id: "all", label: "All layers" }, { id: "current", label: "Current" }] as const}
             value={sampleMode}
             onPick={setSampleMode}
+          />
+        </span>
+        <span className="hidden shrink-0 items-center border-l border-[#2c2c31] pl-2.5 md:flex">
+          <Action
+            label="Save swatch"
+            title="Save the picked color to Color panel swatches."
+            onClick={() => useProStore.getState().addSwatch(brushColor)}
           />
         </span>
       </div>

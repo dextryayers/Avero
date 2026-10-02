@@ -35,4 +35,21 @@ describe("adjustments", () => {
     const vals = [img.data[0], img.data[4], img.data[8], img.data[12]];
     expect(vals.every((v) => v === 0 || v === 255)).toBe(true);
   });
+  it("blackWhite honors channel weights (reds-only keeps red, drops blue)", () => {
+    const d = new Uint8ClampedArray([200, 20, 20, 255, 20, 20, 200, 255]);
+    const img = new ImageData(d, 2, 1);
+    applyAdjustmentToImageData(img, {
+      id: "t",
+      type: "blackWhite",
+      name: "BW",
+      enabled: true,
+      opacity: 100,
+      params: { reds: 100, yellows: 0, greens: 0, cyans: 0, blues: 0, magentas: 0 },
+    });
+    // R channel weight 1.0: red pixel stays bright, blue pixel goes dark.
+    expect(img.data[0]).toBeGreaterThan(150);
+    expect(img.data[4]).toBeLessThan(60);
+    expect(img.data[0]).toBe(img.data[1]);
+    expect(img.data[1]).toBe(img.data[2]);
+  });
 });

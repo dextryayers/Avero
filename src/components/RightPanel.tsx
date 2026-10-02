@@ -178,6 +178,7 @@ export default function RightPanel() {
   const future = useEditorStore((s) => s.future);
   const adjustments = useProStore((s) => s.adjustments);
   const filters = useProStore((s) => s.filters);
+  const masks = useProStore((s) => s.masks);
 
   function handleUndo() {
     doUndo();
@@ -456,6 +457,16 @@ export default function RightPanel() {
                             {l.name}{" "}
                             <span className="rounded border border-[#2c2c31] bg-[#101012] px-1 text-[9px] text-[#6e6e78]">{l.kind}</span>
                             {!accelerated && <span className="ml-1 text-[9px] text-[#d9a441]">cpu</span>}
+                            {masks[l.id]?.hasMask && (
+                              <span className="ml-1 rounded border border-[#2c2c31] bg-[#101012] px-1 text-[9px] text-[#8fb6f5]" title="Layer has a mask">
+                                mask
+                              </span>
+                            )}
+                            {l.clipped && (
+                              <span className="ml-1 rounded border border-[#2c2c31] bg-[#101012] px-1 text-[9px] text-[#7ad69e]" title="Clipped to the layer below">
+                                clip
+                              </span>
+                            )}
                           </span>
                           <button
                             onClick={(e) => {
@@ -661,9 +672,17 @@ function ActiveLayerProps() {
   const activeId = useEditorStore((s) => s.activeLayerId);
   const layers = useEditorStore((s) => s.layers);
   const transforms = useProStore((s) => s.transforms);
+  const updateTransform = useProStore((s) => s.updateTransform);
+  const ensureTransform = useProStore((s) => s.ensureTransform);
   const l = layers.find((x) => x.id === activeId);
   if (!l) return <div className="font-mono text-[10px] text-[#6e6e78]">No active layer.</div>;
   const t = transforms[l.id];
+  const num = (field: "x" | "y" | "rotation", val: number) => {
+    if (!activeId) return;
+    ensureTransform(activeId);
+    updateTransform(activeId, { [field]: Math.round(val) } as never);
+  };
+  const meta = l.locked || !l.visible;
   return (
     <div className="rounded-md border border-[#2c2c31] bg-[#101012] p-2">
       <div className="mb-1 flex items-center justify-between">
@@ -673,12 +692,40 @@ function ActiveLayerProps() {
         </span>
       </div>
       {t ? (
-        <div className="grid grid-cols-2 gap-x-2 font-mono text-[10px] tabular-nums text-[#a7a7b0]">
-          <span>X {Math.round(t.x)}</span>
-          <span>Y {Math.round(t.y)}</span>
+        <div className="grid grid-cols-2 gap-x-2 gap-y-1 font-mono text-[10px] tabular-nums text-[#a7a7b0]">
+          <label className="flex items-center gap-1">
+            X
+            <input
+              type="number"
+              value={Math.round(t.x)}
+              disabled={meta}
+              onChange={(e) => num("x", Number(e.target.value))}
+              className="h-5 w-full min-w-0 rounded border border-[#2c2c31] bg-[#161618] px-1 text-white outline-none disabled:opacity-40 focus:border-[#2f7cf6]"
+            />
+          </label>
+          <label className="flex items-center gap-1">
+            Y
+            <input
+              type="number"
+              value={Math.round(t.y)}
+              disabled={meta}
+              onChange={(e) => num("y", Number(e.target.value))}
+              className="h-5 w-full min-w-0 rounded border border-[#2c2c31] bg-[#161618] px-1 text-white outline-none disabled:opacity-40 focus:border-[#2f7cf6]"
+            />
+          </label>
           <span>SX {t.scaleX.toFixed(2)}</span>
           <span>SY {t.scaleY.toFixed(2)}</span>
-          <span className="col-span-2">R {Math.round(t.rotation)}°</span>
+          <label className="col-span-2 flex items-center gap-1">
+            R
+            <input
+              type="number"
+              value={Math.round(t.rotation)}
+              disabled={meta}
+              onChange={(e) => num("rotation", Number(e.target.value))}
+              className="h-5 w-full min-w-0 rounded border border-[#2c2c31] bg-[#161618] px-1 text-white outline-none disabled:opacity-40 focus:border-[#2f7cf6]"
+            />
+            <span>°</span>
+          </label>
         </div>
       ) : (
         <div className="font-mono text-[10px] text-[#6e6e78]">No transform. Move tool to transform.</div>

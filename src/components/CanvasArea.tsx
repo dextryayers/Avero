@@ -33,6 +33,7 @@ import {
   ERASER_TOOLS,
   IS_CROP_TOOL,
   IS_SHAPE_TOOL,
+  PEN_TOOLS,
   SHAPE_KIND_OF,
   distortOf,
   isPaintTool,
@@ -352,6 +353,7 @@ export default function CanvasArea() {
   const counts = useProStore((s) => s.counts);
   const samplers = useProStore((s) => s.samplers);
   const measures = useProStore((s) => s.measures);
+  const paths = useProStore((s) => s.paths);
 
   useEffect(() => {
     layers.forEach((l) => layerManager.ensure(l.id, doc.width, doc.height));
@@ -1071,10 +1073,14 @@ export default function CanvasArea() {
       const ang = (Math.atan2(-dy, dx) * 180) / Math.PI;
       ctx.font = "11px JetBrains Mono, monospace";
       ctx.fillStyle = "#ffffff";
+      // Same unit formatting as the stored label (top bar unit pills).
+      const mUnit = useProStore.getState().measureUnit;
+      const mFmt = (px: number) =>
+        mUnit === "in" ? `${(px / 96).toFixed(2)} in` : mUnit === "cm" ? `${((px / 96) * 2.54).toFixed(2)} cm` : `${px.toFixed(1)} px`;
       const mlabel =
         tool === "measure-area"
-          ? `${Math.abs(dx).toFixed(0)}x${Math.abs(dy).toFixed(0)} = ${(Math.abs(dx * dy) / 1000).toFixed(1)}k px2`
-          : `${dist.toFixed(1)} px ${ang.toFixed(1)} deg`;
+          ? `${mFmt(Math.abs(dx))}x${mFmt(Math.abs(dy))} = ${(Math.abs(dx * dy) / 1000).toFixed(1)}k px2`
+          : `${mFmt(dist)} ${ang.toFixed(1)} deg`;
       ctx.fillText(mlabel, (mx1 + mx2) / 2 + 8, (my1 + my2) / 2 - 8);
       ctx.restore();
     }
@@ -1117,15 +1123,14 @@ export default function CanvasArea() {
       notes.forEach((n, i) => {
         const x = ox + n.x * s;
         const y = oy + n.y * s;
-        ctx.fillStyle = "#d9a441";
+        ctx.fillStyle = n.color ?? "#d9a441";
         ctx.beginPath();
         ctx.arc(x, y, 7, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillStyle = "#000";
         ctx.fillText(String(i + 1), x - 3, y + 3.5);
         ctx.fillStyle = "rgba(217,164,65,0.95)";
-        const label = n.text.length > 24 ? `${n.text.slice(0, 24)}…` : n.text;
-        ctx.fillText(label, x + 10, y + 3);
+        const label = n.text.length > 24 ? `${n.text.slice(0, 24)}…` : n.text;        ctx.fillText(label, x + 10, y + 3);
       });
       ctx.restore();
     }
@@ -1165,7 +1170,7 @@ export default function CanvasArea() {
       ctx.font = "9px JetBrains Mono, monospace";
       ctx.strokeStyle = "rgba(90,48,255,0.7)";
       ctx.fillStyle = "rgba(255,255,255,0.85)";
-      measures.slice(-8).forEach((mm) => {
+      measures.forEach((mm) => {
         const x1 = ox + mm.x0 * s;
         const y1 = oy + mm.y0 * s;
         const x2 = ox + mm.x1 * s;
@@ -1177,6 +1182,29 @@ export default function CanvasArea() {
         ctx.stroke();
         ctx.setLineDash([]);
         ctx.fillText(mm.label, (x1 + x2) / 2 + 6, (y1 + y2) / 2 - 6);
+      });
+      ctx.restore();
+    }
+    // Pen paths overlay: stored vector paths become visible while a pen tool
+    // is active (previously write-only). Anchors drawn as dots.
+    if (paths.length > 0 && (PEN_TOOLS as Set<string>).has(tool)) {
+      ctx.save();
+      ctx.strokeStyle = "rgba(56,225,255,0.85)";
+      ctx.lineWidth = 1.2;
+      paths.forEach((pp) => {
+        if (pp.points.length < 2) return;
+        ctx.beginPath();
+        pp.points.forEach((pt, i) => {
+          const sx = ox + pt.x * s;
+          const sy = oy + pt.y * s;
+          if (i === 0) ctx.moveTo(sx, sy);
+          else ctx.lineTo(sx, sy);
+        });
+        ctx.stroke();
+        ctx.fillStyle = "rgba(56,225,255,0.95)";
+        pp.points.forEach((pt) => {
+          ctx.fillRect(ox + pt.x * s - 1.5, oy + pt.y * s - 1.5, 3, 3);
+        });
       });
       ctx.restore();
     }
@@ -1250,6 +1278,7 @@ export default function CanvasArea() {
     counts,
     samplers,
     measures,
+    paths,
     tool,
     cropOverlay,
   ]);
@@ -3003,6 +3032,9 @@ export default function CanvasArea() {
       const snap = layerManager.snapshot(l.id);
       if (snap) st.pushHistory({ label: curTool === "crop-straighten" ? "Straighten crop" : `Crop ${curTool}`, layerId: l.id, snapshot: snap });
     });
+    const pro = useProStore.getState();
+    const oldW = st.doc.width;
+    const oldH = st.doc.height;
     st.layers.forEach((l) => {
       const c = layerManager.get(l.id);
       if (c) {
@@ -3024,9 +3056,18 @@ export default function CanvasArea() {
         mc.height = h;
         mc.getContext("2d")!.drawImage(tmp, 0, 0);
       }
-      // transform reset because document origin changed
-      useProStore.getState().updateTransform(l.id, { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 });
+      // transform follows the cropped content: keep visual position by
+      // shifting with the origin (resetting to zero made shapes jump).
+      const t = pro.transforms[l.id];
+      if (t) {
+        pro.updateTransform(l.id, {
+          x: t.x + (oldW - w) / 2 - x,
+          y: t.y + (oldH - h) / 2 - y,
+        });
+      }
     });
+    // Annotations live in document space: shift them with the crop origin.
+    pro.shiftDocSpace(-x, -y, w, h);
     st.setDocSize(w, h);
     if (curTool === "crop-straighten") st.setViewRotate(0);
     if (curTool === "perspective-crop") notify("Perspective Crop applied as rect crop. Adjust corners further in Transform panel.");
@@ -4989,7 +5030,10 @@ export default function CanvasArea() {
               needsFreshPaintLayer(strokeMeta?.kind, layerManager.isPhotoLayer(strokeLayerId))
             ) {
               const st = useEditorStore.getState();
-              const l = makeLayer(`Paint ${st.layers.length}`);
+              // Smart layer: name the auto-created stroke layer after the tool
+              // so the stack reads Brush/Dodge/Blur instead of Paint N.
+              const toolName = (TOOL_LABEL[tool] ?? "Paint").replace(/ Tool$/, "");
+              const l = makeLayer(`${toolName} ${st.layers.length}`);
               layerManager.ensure(l.id, st.doc.width, st.doc.height);
               useProStore.getState().ensureTransform(l.id);
               st.addLayer(l);

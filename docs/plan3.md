@@ -112,7 +112,9 @@ Perbaikan yang diterapkan:
   tapi tidak pernah digambar. Sekarang thirds/diagonal/triangle/spiral/center-dot
   digambar live di dalam rect crop (spiral via polyline logaritmik 64 langkah),
   dengan subscription + dep render agar ganti overlay refresh instan.
-- Kunci: crop undoable per layer (snapshot semua layer + mask + reset transform).
+- Kunci: crop undoable per layer (snapshot semua layer + mask + transform ikut
+  konten via shift origin, bukan reset nol; guides/slices/notes/counts/samplers/
+  measures/paths/text-xy digeser via shiftDocSpace + drop di luar).
   Crop resize semua layer bersama (document-level op, termasuk locked — disengaja).
 - Hasil: `npm run typecheck` hijau, `npx vitest run` 9 file 88 test hijau.
 
@@ -317,7 +319,7 @@ Perbaikan yang diterapkan:
 ## Definisi selesai plan3 — SELESAI
 
 - [x] Semua 422 sub-tools lolos checklist fasenya masing-masing (Fase 0-17).
-- [x] `npm run typecheck` hijau, `npx vitest run` hijau (9 file, 89 test).
+- [x] `npm run typecheck` hijau, `npx vitest run` hijau (10 file, 92 test).
 - [x] Bug kertas: skenario fresh-doc + photo-doc + file lama raster didokumentasikan hasilnya
   (status: fresh doc dilindungi kind background, photo doc dilindungi photo-rule,
   file lama raster = layer normal yang sah seperti Photoshop Layer 0, erasable by design).

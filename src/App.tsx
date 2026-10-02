@@ -31,6 +31,7 @@ function ChunkFallback({ label }: { label: string }) {
 }
 import { showError, showMessage, askText } from "./ui/notify";
 import { fetchStartupFile, openAvxProject, saveAvxProject } from "./io/projectIo";
+import { runAutoSegment } from "./io/autoSegment";
 import { useEditorStore } from "./stores/useEditorStore";
 import { useProStore } from "./stores/useProStore";
 import { loadShortcuts } from "./stores/useWorkspaceStore";
@@ -545,6 +546,11 @@ export default function App() {
       else if (detail === "paste") void pasteClipboardAsLayer(false);
       else if (detail === "paste-place") void pasteClipboardAsLayer(true);
     }
+    function onAutoSegmentEvent() {
+      // Plan5 Fase 1 slice: palette-triggered for now; auto-run on import
+      // arrives with the Fase 6 frontend work.
+      void runAutoSegment();
+    }
     function onSettingsEvent() {
       openSettingsRef.current();
     }
@@ -578,6 +584,7 @@ export default function App() {
     window.addEventListener("avero:open-avx-path", onOpenAvxPathEvent);
     window.addEventListener("avero:select", onSelectEvent);
     window.addEventListener("avero:clip", onClipEvent);
+    window.addEventListener("avero:auto-segment", onAutoSegmentEvent);
     return () => {
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("keyup", onKeyUp);
@@ -590,6 +597,7 @@ export default function App() {
       window.removeEventListener("avero:open-avx-path", onOpenAvxPathEvent);
       window.removeEventListener("avero:select", onSelectEvent);
       window.removeEventListener("avero:clip", onClipEvent);
+      window.removeEventListener("avero:auto-segment", onAutoSegmentEvent);
     };
   }, []);
 

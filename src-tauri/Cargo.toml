@@ -40,6 +40,11 @@ chrono = { version = "0.4", features = ["serde"] }
 rayon = "1"
 sysinfo = "0.30"
 bytemuck = "1"
+# Plan5 Fase 0: local YOLO11 inference (things). Exact RC pin: 2.0 stable is not
+# published yet and caret requirements skip prereleases. ort fetches prebuilt
+# ONNX Runtime binaries on first build (network required once, then cached).
+# No ndarray needed: Tensor::from_array accepts a plain (shape, Vec) tuple.
+ort = { version = "=2.0.0-rc.13" }
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.52"

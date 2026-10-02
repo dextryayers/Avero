@@ -1,5 +1,5 @@
 // AVERO STUDIO - Core Engine entry point
-// Shell, IO, PSD, color, RAW, native C/C++, stabilisasi.
+// Shell, IO, PSD, color, RAW, native C/C++, stabilisasi, segmentasi.
 
 mod commands;
 mod convert;
@@ -8,6 +8,7 @@ mod io;
 mod native;
 mod pro;
 mod ram;
+pub mod segment;
 mod system;
 
 use commands::{app_ping, document_info, list_fonts_system};
@@ -70,6 +71,8 @@ pub fn run() {
             ram::cmd_ram_budget,
             ram::cmd_tile_plan,
             ram::cmd_export_plan,
+            segment::cmd_segment_model_path,
+            segment::cmd_segment_objects,
             system::cmd_system_profile,
             system::cmd_engine_recommend
         ])

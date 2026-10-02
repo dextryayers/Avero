@@ -384,6 +384,11 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
         },
       },
       {
+        id: "auto-segment",
+        title: "Auto Segment Objects with YOLO11 (desktop, one layer per object)",
+        run: () => window.dispatchEvent(new Event("avero:auto-segment")),
+      },
+      {
         id: "sel-all",
         title: "Select all",
         run: () => window.dispatchEvent(new CustomEvent("avero:select", { detail: "sel-all" })),

@@ -109,6 +109,55 @@ export function isTauri(): boolean {
   try { return typeof window !== "undefined" && "__TAURI__" in window; } catch { return false; }
 }
 
+// --- Plan5 Fase 1: YOLO11 auto segmentation (things) ---
+export interface SegmentDetection {
+  label: string;
+  class_id: number;
+  score: number;
+  /** Box in the submitted buffer pixels. */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** Bbox-sized grayscale PNG (white = object), base64. */
+  mask_png_base64: string;
+}
+
+export interface SegmentResult {
+  detections: SegmentDetection[];
+  input_width: number;
+  input_height: number;
+  millis: number;
+}
+
+export interface SegmentModelStatus {
+  found: boolean;
+  path: string;
+}
+
+export async function segmentModelPath(): Promise<SegmentModelStatus> {
+  if (!isTauri()) throw new Error("Auto Segment needs the desktop app (YOLO runs in Rust)");
+  return invoke<SegmentModelStatus>("cmd_segment_model_path");
+}
+
+export async function segmentObjects(
+  modelPath: string,
+  rgba: Uint8ClampedArray | Uint8Array,
+  width: number,
+  height: number,
+  conf?: number,
+): Promise<SegmentResult> {
+  if (!isTauri()) throw new Error("Auto Segment needs the desktop app (YOLO runs in Rust)");
+  if (rgba.length !== width * height * 4) throw new Error("Segment buffer size mismatch");
+  return invoke<SegmentResult>("cmd_segment_objects", {
+    modelPath,
+    rgba: Array.from(rgba),
+    width,
+    height,
+    conf: conf ?? null,
+  });
+}
+
 export async function nativeInfo(): Promise<NativeInfo> { return invoke<NativeInfo>("cmd_native_info"); }
 export async function nativeHistogram(rgba: Uint8ClampedArray | Uint8Array, width: number, height: number): Promise<NativeHistogram> {
   // Histogram full-res via IPC is costly (Array.from). Call it only for thumb/256px when possible.

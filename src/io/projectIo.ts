@@ -693,6 +693,8 @@ export async function openAvxProject(fromPath?: string): Promise<boolean> {
     layers: newLayers,
     activeLayerId:
       newLayers.find((l) => l.name === file.activeLayerName)?.id ?? newLayers[newLayers.length - 1].id,
+    selectedLayerIds: [],
+    collapsedGroups: [],
     history: [],
     future: [],
     doc: { ...s.doc, projectPath: path, projectFolder: parentDir(path) ?? s.doc.projectFolder },

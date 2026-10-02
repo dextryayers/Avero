@@ -1,8 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import {
   Eye,
+  Folder,
+  Group,
   Lock,
   Plus,
+  Ungroup,
   Trash2,
   ChevronUp,
   ChevronDown,
@@ -50,7 +53,7 @@ import PluginPanel from "./PluginPanel";
 import MockupPanel from "./MockupPanel";
 import NativeLabPanel from "./NativeLabPanel";
 import { useWorkspaceStore } from "../stores/useWorkspaceStore";
-import { showError, askConfirm, askText } from "../ui/notify";
+import { showError, showMessage, askConfirm, askText } from "../ui/notify";
 import { doUndo, doRedo, jumpToHistory } from "../engine/historyOps";
 import { blendToComposite } from "../engine/canvasRender";
 import { CollapseChevron, DockSlider, EmptyState, ScrollPager } from "../ui/atoms";
@@ -182,6 +185,31 @@ export default function RightPanel() {
     st.removeLayer(id);
     setMenu(null);
   }
+
+  // Plan4 Fase 19: group the current multi-selection under one collapsible
+  // header. Panel-only organization (pixels keep stack order); groupId
+  // persists in .avx via the layer meta automatically.
+  function groupSelected(): boolean {
+    const st = useEditorStore.getState();
+    const ids = st.selectedLayerIds.filter((id) => st.layers.some((l) => l.id === id));
+    if (ids.length < 2) {
+      void showMessage("Select 2 or more layers first (Ctrl+click rows).");
+      return false;
+    }
+    const gid = `group-${Date.now().toString(36)}`;
+    for (const id of ids) st.updateLayer(id, { groupId: gid });
+    st.markDirty();
+    void showMessage(`Grouped ${ids.length} layers. Right-click to ungroup.`);
+    return true;
+  }
+
+  function ungroupMembers(groupId: string) {
+    const st = useEditorStore.getState();
+    for (const l of st.layers) {
+      if (l.groupId === groupId) st.updateLayer(l.id, { groupId: null });
+    }
+    st.markDirty();
+  }
   // Affinity-style studio strip: colour tools above the main tab system.
   // Selecting a main tab always returns to tab content.
   const [studio, setStudio] = useState<null | "colour" | "swatches" | "stroke" | "brushes">(null);
@@ -200,6 +228,12 @@ export default function RightPanel() {
   const updateLayer = useEditorStore((s) => s.updateLayer);
   const setActiveLayer = useEditorStore((s) => s.setActiveLayer);
   const moveLayer = useEditorStore((s) => s.moveLayer);
+  const selectedLayerIds = useEditorStore((s) => s.selectedLayerIds);
+  const setLayerSelection = useEditorStore((s) => s.setLayerSelection);
+  const toggleLayerSelect = useEditorStore((s) => s.toggleLayerSelect);
+  const selectLayerRange = useEditorStore((s) => s.selectLayerRange);
+  const collapsedGroups = useEditorStore((s) => s.collapsedGroups);
+  const toggleGroupCollapse = useEditorStore((s) => s.toggleGroupCollapse);
   const doc = useEditorStore((s) => s.doc);
   // useShallow is required: a plain object selector without stable equality triggers an
   // endless update loop on React 19 (blank screen). Do not revert to a plain object.
@@ -592,22 +626,69 @@ export default function RightPanel() {
                   group: "Group",
                   fill: "Fill",
                 };
-                return vis.map((l) => {
+                return vis.map((l, vi) => {
                   const active = l.id === activeLayerId;
+                  const selected = selectedLayerIds.includes(l.id);
                   const accelerated = blendToComposite(l.blendMode) !== "source-over" || l.blendMode === "normal";
                   const hasFx =
                     !!l.fx && (!!l.fx.dropShadow?.enabled || !!l.fx.outerGlow?.enabled || !!l.fx.innerGlow?.enabled || !!l.fx.stroke?.enabled);
+                  const g = l.groupId ?? null;
+                  const prevG = vi > 0 ? (vis[vi - 1].groupId ?? null) : null;
+                  const runStart = !!g && g !== prevG;
+                  const collapsed = g ? collapsedGroups.includes(g) : false;
+                  const runCount = g ? vis.filter((x) => x.groupId === g).length : 0;
                   return (
+                    <Fragment key={l.id}>
+                      {runStart && g && (
+                        <div className="flex items-center gap-1.5 rounded-lg border border-[#2c2c31] bg-[#101012] px-2 py-1">
+                          <Folder size={12} className="shrink-0 text-[#d9a441]" />
+                          <span className="flex-1 truncate text-[11px] font-semibold text-white" title={`Group with ${runCount} shown layers`}>
+                            Group ({runCount})
+                          </span>
+                          <button
+                            onClick={() => ungroupMembers(g)}
+                            title="Ungroup these layers"
+                            className="grid h-5 w-5 place-items-center rounded-md text-[#6e6e78] transition-colors hover:bg-white/5 hover:text-white"
+                          >
+                            <Ungroup size={12} />
+                          </button>
+                          <button
+                            onClick={() => toggleGroupCollapse(g)}
+                            title={collapsed ? "Expand group" : "Collapse group"}
+                            aria-expanded={!collapsed}
+                            className="grid h-5 w-5 place-items-center rounded-md text-[#6e6e78] transition-colors hover:bg-white/5 hover:text-white"
+                          >
+                            <CollapseChevron open={!collapsed} />
+                          </button>
+                        </div>
+                      )}
+                      {!collapsed && (
                     <div
-                      key={l.id}
-                      onClick={() => setActiveLayer(l.id)}
+                      onClick={(e) => {
+                        if (e.ctrlKey || e.metaKey) {
+                          toggleLayerSelect(l.id);
+                          const fresh = useEditorStore.getState().selectedLayerIds;
+                          if (fresh.includes(l.id)) {
+                            setActiveLayer(l.id);
+                          } else if (activeLayerId === l.id) {
+                            const rest = fresh.filter((x) => x !== l.id);
+                            setActiveLayer(rest[rest.length - 1] ?? layers[layers.length - 1]?.id ?? l.id);
+                          }
+                        } else if (e.shiftKey && activeLayerId && activeLayerId !== l.id) {
+                          selectLayerRange(activeLayerId, l.id);
+                          setActiveLayer(l.id);
+                        } else {
+                          setActiveLayer(l.id);
+                          setLayerSelection([l.id]);
+                        }
+                      }}
                       onContextMenu={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
                         setActiveLayer(l.id);
                         setMenu({
                           x: Math.max(8, Math.min(e.clientX, window.innerWidth - 216)),
-                          y: Math.max(8, Math.min(e.clientY, window.innerHeight - 380)),
+                          y: Math.max(8, Math.min(e.clientY, window.innerHeight - 430)),
                           id: l.id,
                         });
                       }}
@@ -615,12 +696,15 @@ export default function RightPanel() {
                         const v = await askText("Rename layer", "Layer name:", l.name);
                         if (v && v.trim()) updateLayer(l.id, { name: v.trim().slice(0, 60) });
                       }}
-                      title="Click to select · double-click to rename"
+                      title="Click select, Ctrl+click multi-select, Shift+click range, double-click rename"
                       className={clsx(
                         "avero-lift cursor-pointer rounded-xl border px-2 py-1.5 transition-colors",
+                        g && "ml-5",
                         active
                           ? "border-[#2f7cf6]/60 bg-[#232327] shadow-[0_2px_12px_rgba(47,124,246,0.25)]"
-                          : "border-[#2c2c31] bg-[#161618] hover:border-[#3a3a41] hover:bg-[#1b1b1f]",
+                          : selected
+                            ? "border-[#2f7cf6]/40 bg-[#1d1d22]"
+                            : "border-[#2c2c31] bg-[#161618] hover:border-[#3a3a41] hover:bg-[#1b1b1f]",
                       )}
                     >
                       <div className="flex items-center gap-2">
@@ -740,6 +824,8 @@ export default function RightPanel() {
                         </div>
                       )}
                     </div>
+                      )}
+                    </Fragment>
                   );
                 });
               })()}
@@ -827,6 +913,14 @@ export default function RightPanel() {
                 className="avero-press grid h-7 w-7 place-items-center rounded-md text-[#a7a7b0] hover:bg-[#232327] hover:text-white disabled:opacity-40"
               >
                 <ArrowDownToLine size={14} />
+              </button>
+              <button
+                onClick={() => groupSelected()}
+                disabled={selectedLayerIds.length < 2}
+                title={selectedLayerIds.length < 2 ? "Group selected layers (Ctrl+G): select 2+ rows with Ctrl+click first" : `Group ${selectedLayerIds.length} selected layers (Ctrl+G)`}
+                className="avero-press grid h-7 w-7 place-items-center rounded-md text-[#a7a7b0] hover:bg-[#232327] hover:text-white disabled:opacity-40"
+              >
+                <Group size={14} />
               </button>
               <span className="mx-1 h-4 w-px bg-[#2c2c31]" />
               <button
@@ -974,6 +1068,25 @@ export default function RightPanel() {
               disabled: idx <= 0,
               run: () => { close(); void mergeDown(m.id); },
             },
+            {
+              icon: Group,
+              label: `Group selected (${st.selectedLayerIds.length})`,
+              hint: "Ctrl+G",
+              disabled: st.selectedLayerIds.length < 2,
+              run: () => { close(); groupSelected(); },
+            },
+            ...(m.groupId
+              ? [
+                  {
+                    icon: Ungroup,
+                    label: "Ungroup",
+                    run: () => {
+                      close();
+                      ungroupMembers(m.groupId as string);
+                    },
+                  } as const,
+                ]
+              : []),
             {
               icon: CircleDashed,
               label: "Add mask",

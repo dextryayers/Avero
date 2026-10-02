@@ -132,8 +132,8 @@ export default function SelectionPanel() {
       >
         Refine edge
       </button>
-      <div className="rounded border border-[#2c2c31] bg-[#232327] p-2 text-[11px] text-[#a7a7b0]">
-        {hasSelection() || tick >= 0
+      <div key={tick} className="rounded border border-[#2c2c31] bg-[#232327] p-2 text-[11px] text-[#a7a7b0]">
+        {hasSelection()
           ? "Brushes automatically respect the selection. Areas outside the selection are protected."
           : "No selection yet."}
         <br />

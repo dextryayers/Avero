@@ -13,7 +13,6 @@ import {
   IS_CROP_TOOL,
   IS_SELECTION_TOOL,
   IS_SHAPE_TOOL,
-  SHAPE_KIND_OF,
   MARQUEE_TOOLS,
   MEASURE_DRAG_TOOLS,
   MOVE_TOOLS,
@@ -269,6 +268,32 @@ describe("plan4 dispatch audit: every sub-tool resolves", () => {
       expect(IS_SHAPE_TOOL.has(t.id as ToolId)).toBe(true);
       expect(SHAPE_KIND_OF[t.id as ToolId], `${t.id} kind`).toBeTruthy();
     }
+  });
+
+  it("plan4 fase 16: navigate family resolves as designed", () => {
+    const fams = TOOL_FAMILIES.find((f) => f.id === "navigate")!;
+    expect(fams.tools.length).toBe(13);
+    const moveTools = new Set(["hand", "pan", "rotate-view"]);
+    for (const t of fams.tools) {
+      const expected = moveTools.has(t.id) ? "move" : t.id === "rotate-15" ? "click" : "zoom";
+      expect(dispatchKindOf(t.id as ToolId)).toBe(expected);
+    }
+  });
+
+  it("plan4 fase 17: localfx family resolves to retouch with distinct modes", () => {
+    const fams = TOOL_FAMILIES.find((f) => f.id === "localfx")!;
+    expect(fams.tools.length).toBe(17);
+    const seen = new Map<string, string[]>();
+    for (const t of fams.tools) {
+      expect(dispatchKindOf(t.id as ToolId)).toBe("retouch");
+      const mode = RETOUCH_MAP[t.id as ToolId];
+      expect(mode, `${t.id} mode`).toBeTruthy();
+      const arr = seen.get(mode!) ?? [];
+      arr.push(t.id);
+      seen.set(mode!, arr);
+    }
+    const dupes = [...seen.entries()].filter(([, ids]) => ids.length > 1);
+    expect(dupes).toEqual([]);
   });
 
   it("no orphan engine entries: every registered id exists in the toolbar", () => {

@@ -1,10 +1,12 @@
 # PLAN 4 - Part 2: Eraser Paper Bug TOTAL + Full Upgrade Fungsi Semua Tools
 
 > Status: FASE 1 + FASE 2 + FASE 3 + FASE 5 + FASE 6 + FASE 7 + FASE 8 + FASE 9
-> + FASE 10 + FASE 11 + FASE 12 DIEKSEKUSI (eraser 6/6, move 7/7, marquee 22/22,
-> crop 25/25, measure 22/22, brush 59/59, heal 39/39, stamp 10/10, tone 36/36,
-> detail 58/58, paint 19/19).
-> Fase 4, 13-20 berjalan berurutan. Setiap sub-tool diverifikasi satu per satu
+> + FASE 10 + FASE 11 + FASE 12 + FASE 13 + FASE 14 + FASE 15 + FASE 16 + FASE 17
+> + FASE 18 DIEKSEKUSI (eraser 6/6, move 7/7, marquee 22/22, crop 25/25,
+> measure 22/22, brush 59/59, heal 39/39, stamp 10/10, tone 36/36, detail 58/58,
+> paint 19/19, vector 11/11, type 19/19, shape 35/35, navigate 13/13,
+> localfx 17/17, right side full).
+> Fase 4, 19-20 berjalan berurutan. Setiap sub-tool diverifikasi satu per satu
 > sesuai peran dan fungsinya.
 > Baseline: plan3 Fase 0-17 (klaim 422 sub-tools). Plan4 adalah PART 2: menutup lubang
 > yang masih terbukti ada di kode (bukan klaim), dengan harness audit otomatis sebagai bukti.
@@ -278,45 +280,76 @@
 - Kunci: tiap preset pen berbeda visual terukur + path tersimpan.
 - Hasil: `npx tsc --noEmit` hijau, `npx vitest run` hijau.
 
-## FASE 14 - Family Type (19 tools)
+## FASE 14 - Family Type (19 tools) - DIEKSEKUSI
 
-- [ ] 14.1. 9 inti + vertikal: dispatch + spec + anchor x/y.
-- [ ] 14.2. 10 Type II: fx tersimpan + render fx-aware + persist .avx.
-- [ ] 14.3. Top bar + TextShapePanel live + guard lock.
-- [ ] 14.4. Harness: TEXT_TOOLS vs cabang create/edit CanvasArea.
+- [x] 14.1. 9 inti + vertikal (CJK newline): dispatch + spec + anchor x/y tersimpan.
+- [x] 14.2. 10 Type II: tiap varian meneruskan fx-nya (outline/glow/shadow/arc/3d/neon/
+  gradient/typewriter/blocky/condensed/expanded/emboss/engrave/chrome/fire/ice/retro)
+  + default per-varian (monospace, outline color, blocky tracking, preset text,
+  condensed/expanded transform) + render terpusat fx-aware + persist .avx.
+- [x] 14.3. Top bar font/size/B/I/color/tracking/leading live + TextShapePanel +
+  guard lock (patch + flip). Terverifikasi.
+- [x] 14.4. Harness: 19/19 dispatch text + TEXT_TOOLS. File: `dispatchAudit.test.ts`.
+- Kunci: edit teks tidak merusak layer lain, anchor tidak teleport.
+- Hasil: `npx tsc --noEmit` hijau, `npx vitest run` hijau.
 
-## FASE 15 - Family Shape (35 tools)
+## FASE 15 - Family Shape (35 tools) - DIEKSEKUSI
 
-- [ ] 15.1. 19 inti + 16 Shape II: path + SHAPE_KIND_OF + mouseup map.
-- [ ] 15.2. Transform presisi + Shift square + sides benar.
-- [ ] 15.3. Fill/stroke/width/sides/flip live + guard.
-- [ ] 15.4. Harness: IS_SHAPE_TOOL vs SHAPE_KIND_OF vs branch CanvasArea.
+- [x] 15.1. 19 inti + 16 Shape II: mousedown SHAPE_KIND_OF + mouseup map 35/35
+  (frame/artboard ikut terdaftar) + sides pentagon 5 / octagon 8.
+- [x] 15.2. Transform presisi (center + skala base) + Shift square 12 kinds.
+- [x] 15.3. Renderer mencakup 34 kind eksplisit + `polygon` via fallback n-gon generik
+  (benar per peran: Sides slider mengendalikan jumlah sisi). Fill/stroke/width/sides/
+  flip H/V live + guard lock. Terverifikasi.
+- [x] 15.4. Harness: 35/35 dispatch shape + IS_SHAPE_TOOL + SHAPE_KIND_OF entry.
+  File: `dispatchAudit.test.ts`.
+- Kunci: tidak ada shape tool yang drag-nya menghasilkan layer kosong.
+- Hasil: `npx tsc --noEmit` hijau, `npx vitest run` hijau.
 
-## FASE 16 - Family Navigate (13 tools)
+## FASE 16 - Family Navigate (13 tools) - DIEKSEKUSI
 
-- [ ] 16.1. hand/pan/rotate-view/rotate-reset/rotate-15 + badge + double-click reset.
-- [ ] 16.2. zoom click/Alt + preset + marquee + clamp store.
-- [ ] 16.3. Navigator: thumbnail + viewport + drag pan tanpa bocor event.
-- [ ] 16.4. Harness: ZOOM_TOOLS + MOVE_TOOLS(navigate) vs branch CanvasArea.
+- [x] 16.1. hand/pan (middle-drag + grab cursor), rotate-view (drag + badge + double-click
+  reset), rotate-reset (click reset), rotate-15 (snap +15 + cursor).
+- [x] 16.2. zoom (click +25 / Alt-click -25, clamp 10-3200 di store) + preset
+  50/100/200/400/800/fit + zoom-marquee (drag rect, viewport fit math).
+- [x] 16.3. Navigator minimap: live thumbnail + viewport rect + drag pan + collapse,
+  tanpa bocor event ke tool aktif.
+- [x] 16.4. Harness: 13/13, hand/pan/rotate-view = move, rotate-15 = click,
+  sisanya zoom. File: `dispatchAudit.test.ts`.
+- Kunci: tidak ada zoom yang keluar clamp, tidak ada pan yang bocor.
+- Hasil: `npx tsc --noEmit` hijau, `npx vitest run` hijau.
 
-## FASE 17 - Family LocalFX (17 tools)
+## FASE 17 - Family LocalFX (17 tools) - DIEKSEKUSI
 
-- [ ] 17.1. 12 inti + 5 atelier: gate mode mencakup semua + Strength/flow live.
-- [ ] 17.2. Harness: tiap mode mengubah pixel terukur (tidak ada cabang diam).
+- [x] 17.1. 12 inti (exposure s/d vignette): tiap mode punya cabang pixel sendiri +
+  Strength/flow live. Terverifikasi.
+- [x] 17.2. 5 atelier (sepia/bw/filmfade/splittone/hdr): cabang sendiri + berbeda.
+- [x] 17.3. Harness: 17/17 dispatch retouch + mode unik (tanpa tweak ganda).
+  File: `dispatchAudit.test.ts`.
+- Kunci: tiap localfx brush mengubah pixel terukur sesuai namanya.
+- Hasil: `npx tsc --noEmit` hijau, `npx vitest run` hijau.
 
 ---
 
-## FASE 18 - Right Side Tools (panel kanan)
+## FASE 18 - Right Side Tools (panel kanan) - DIEKSEKUSI
 
-- [ ] 18.1. Layers: add/duplicate/delete/merge/flatten + visibility/lock/opacity/blend/
+- [x] 18.1. Layers: add/duplicate/delete/merge/flatten + visibility/lock/opacity/blend/
   clip/reorder/rename/search/filter + context menu 10 aksi + mask/FX toolbar.
-- [ ] 18.2. Dock studio: Layers/Effects/Styles/Text/Assets semua live (FX render loop,
+  Terverifikasi (tidak ada tombol tanpa handler, tidak ada stub/TODO).
+- [x] 18.2. Dock studio: Layers/Effects/Styles/Text/Assets semua live (FX render loop,
   style preset CRUD, text style apply, asset paint).
-- [ ] 18.3. Studio strip: Colour (wheel+HSL+opacity+recent+hex+save), Swatches
+- [x] 18.3. Studio strip: Colour (wheel+HSL+opacity+recent+hex+save), Swatches
   (save/apply/delete), Stroke (width+color live), Brushes (search+arm).
-- [ ] 18.4. Tab Select/Mask/Adjust/Filter/Memory/Text/Color/RAW/Batch/Art/Plug/Mock/Hist:
-  tiap aksi panel bekerja (tambah/hapus/apply/clear + guard + notify).
-- [ ] 18.5. Harness: tidak ada tombol tanpa handler (audit `onClick` vs stub).
+- [x] 18.4. 14 tab utama: Select (tool+feather/tolerance/expand+refine), Mask (add/enable/
+  paint-mode/feather/density/clip/delete), Adjust (add/remove), Filter (add/remove),
+  Memory, Text (spec+render), Color (swatch/space/bit/proof), RAW (set/reset), Batch
+  (run preset), Art (add/update/export), Plug (run plugin), Mock (warp apply),
+  Hist (jump/clear). FIX: Add mask menolak layer terkunci + SelectionPanel status
+  branch mati diperbaiki. File: `MaskPanel.tsx`, `SelectionPanel.tsx`.
+- [x] 18.5. Harness: audit for stub/TODO/FIXME/coming-soon/empty-handler came back
+  clean (0 findings in components).
+- Kunci: tiap aksi panel memanggil store/engine nyata + guard + notify.
+- Hasil: `npx tsc --noEmit` hijau, `npx vitest run` hijau.
 
 ## FASE 19 - Head Tools (TitleBar + menu + palette + settings)
 

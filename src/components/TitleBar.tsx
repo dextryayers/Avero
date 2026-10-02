@@ -12,7 +12,8 @@ import { useProStore } from "../stores/useProStore";
 import { House, Search, Settings2 } from "lucide-react";
 import clsx from "clsx";
 import { MENUS } from "../app/menus";
-import { showError, showMessage } from "../ui/notify";
+import { askText, showError, showMessage } from "../ui/notify";
+import { clearSelectionMask } from "../engine/selection";
 import { Kbd } from "../ui/atoms";
 import { doUndo, doRedo } from "../engine/historyOps";
 import { duplicateActiveLayer, layerViaCut, deleteActivePixels } from "../app/shortcuts";
@@ -385,24 +386,184 @@ export default function TitleBar({
         ed.setTool("content-fill");
         if (!hasSelection()) void showMessage("Content-Aware: make a selection first, then click the canvas.");
         break;
-      case "group":
-      case "add-mask":
-      case "clip-mask":
-      case "lock-layer":
-      case "layer-opacity":
-      case "blend-mode":
-      case "select-mask":
-      case "color-range":
-      case "select-subject":
-      case "trim":
-      case "prefs":
-      case "histogram":
-      case "tips":
-      case "filter-gallery":
-      case "img-size":
-      case "canvas-size":
-        onOpenCommand();
+      case "group": {
+        const st = useEditorStore.getState();
+        const ids = st.selectedLayerIds.filter((id) => st.layers.some((l) => l.id === id));
+        if (ids.length < 2) {
+          void showMessage("Select 2 or more layers first (Ctrl+click rows in Layers).");
+          break;
+        }
+        const gid = `group-${Date.now().toString(36)}`;
+        for (const id of ids) st.updateLayer(id, { groupId: gid });
+        st.markDirty();
+        void showMessage(`Grouped ${ids.length} layers. Right-click to ungroup.`);
         break;
+      }
+      case "add-mask": {
+        const id = ed.activeLayerId;
+        const m = ed.layers.find((l) => l.id === id);
+        if (!id || !m) {
+          void showMessage("No active layer.");
+          break;
+        }
+        if (m.locked || !m.visible) {
+          void showMessage("Active layer is locked or hidden.");
+          break;
+        }
+        layerManager.ensureMask(id, ed.doc.width, ed.doc.height);
+        pro.ensureMask(id);
+        ed.markDirty();
+        break;
+      }
+      case "clip-mask": {
+        const id = ed.activeLayerId;
+        const m = ed.layers.find((l) => l.id === id);
+        if (!id || !m) {
+          void showMessage("No active layer.");
+          break;
+        }
+        ed.updateLayer(id, { clipped: !m.clipped });
+        void showMessage(m.clipped ? "Clipping mask off." : "Clipped to the layer below.");
+        break;
+      }
+      case "lock-layer": {
+        const id = ed.activeLayerId;
+        const m = ed.layers.find((l) => l.id === id);
+        if (!id || !m) {
+          void showMessage("No active layer.");
+          break;
+        }
+        ed.updateLayer(id, { locked: !m.locked });
+        void showMessage(m.locked ? "Layer unlocked." : "Layer locked.");
+        break;
+      }
+      case "layer-opacity": {
+        const id = ed.activeLayerId;
+        const m = ed.layers.find((l) => l.id === id);
+        if (!id || !m) {
+          void showMessage("No active layer.");
+          break;
+        }
+        void askText("Layer Opacity", "Opacity percent (0-100):", String(m.opacity)).then((v) => {
+          if (v === null || v === "") return;
+          const n = Math.max(0, Math.min(100, Math.round(Number(v) || 0)));
+          useEditorStore.getState().updateLayer(id, { opacity: n });
+        });
+        break;
+      }
+      case "blend-mode":
+        useWorkspaceStore.getState().setRightTab("layers");
+        void showMessage("Pick the blend mode in Layers (select the active row).");
+        break;
+      case "select-mask":
+        useWorkspaceStore.getState().setRightTab("select");
+        void showMessage("Refine in Select, then paint the mask with Mask mode.");
+        break;
+      case "color-range":
+        ed.setTool("color-range");
+        break;
+      case "select-subject":
+        ed.setTool("select-subject");
+        break;
+      case "trim": {
+        const comp = getCompositeCanvas();
+        if (!comp || comp.width < 1 || comp.height < 1) {
+          void showMessage("Nothing to trim.");
+          break;
+        }
+        try {
+          const W = comp.width;
+          const H = comp.height;
+          const d = comp.getContext("2d", { willReadFrequently: true })!.getImageData(0, 0, W, H).data;
+          let x0 = W;
+          let y0 = H;
+          let x1 = -1;
+          let y1 = -1;
+          for (let y = 0; y < H; y++) {
+            for (let x = 0; x < W; x++) {
+              if (d[(y * W + x) * 4 + 3] > 8) {
+                if (x < x0) x0 = x;
+                if (y < y0) y0 = y;
+                if (x > x1) x1 = x;
+                if (y > y1) y1 = y;
+              }
+            }
+          }
+          if (x1 < x0) {
+            void showMessage("Trim: document is fully transparent.");
+            break;
+          }
+          const sc = ed.doc.width / Math.max(1, W);
+          window.dispatchEvent(
+            new CustomEvent("avero:crop-rect", {
+              detail: {
+                x: Math.floor(x0 * sc),
+                y: Math.floor(y0 * sc),
+                w: Math.max(2, Math.floor((x1 - x0 + 1) * sc)),
+                h: Math.max(2, Math.floor((y1 - y0 + 1) * sc)),
+                label: "Trim",
+              },
+            }),
+          );
+        } catch {
+          void showMessage("Trim failed.");
+        }
+        break;
+      }
+      case "prefs":
+        window.dispatchEvent(new Event("avero:open-settings"));
+        break;
+      case "histogram":
+        useWorkspaceStore.getState().setRightTab("color");
+        break;
+      case "tips":
+        void showMessage(
+          "Tips: [ ] brush size, 1-0 opacity, X swaps colors, Space pans, Ctrl+Z undoes, Shift+letter cycles tools, double-click a layer row to rename.",
+          "Shortcuts and Tips",
+        );
+        break;
+      case "filter-gallery":
+        useWorkspaceStore.getState().setRightTab("filter");
+        break;
+      case "img-size": {
+        void askText("Image Size", "New size as WIDTHxHEIGHT:", `${ed.doc.width}x${ed.doc.height}`).then((v) => {
+          if (!v) return;
+          const m = /^\s*(\d+)\s*[xX*,]\s*(\d+)\s*$/.exec(v);
+          if (!m) {
+            void showMessage("Type a size like 1920x1080.");
+            return;
+          }
+          const W = Math.max(2, Math.min(16384, parseInt(m[1], 10)));
+          const H = Math.max(2, Math.min(16384, parseInt(m[2], 10)));
+          resampleDocument(W, H);
+        });
+        break;
+      }
+      case "canvas-size": {
+        void askText("Canvas Size", "New size as WIDTHxHEIGHT (centered):", `${ed.doc.width}x${ed.doc.height}`).then((v) => {
+          if (!v) return;
+          const m = /^\s*(\d+)\s*[xX*,]\s*(\d+)\s*$/.exec(v);
+          if (!m) {
+            void showMessage("Type a size like 1920x1080.");
+            return;
+          }
+          const W = Math.max(2, Math.min(16384, parseInt(m[1], 10)));
+          const H = Math.max(2, Math.min(16384, parseInt(m[2], 10)));
+          const st = useEditorStore.getState();
+          window.dispatchEvent(
+            new CustomEvent("avero:crop-rect", {
+              detail: {
+                x: Math.round((st.doc.width - W) / 2),
+                y: Math.round((st.doc.height - H) / 2),
+                w: W,
+                h: H,
+                label: "Canvas size",
+              },
+            }),
+          );
+        });
+        break;
+      }
       case "mode-8":
         pro.setColor({ bitDepth: 8 });
         break;

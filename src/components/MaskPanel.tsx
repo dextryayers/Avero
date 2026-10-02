@@ -1,6 +1,7 @@
 import { useEditorStore } from "../stores/useEditorStore";
 import { useProStore } from "../stores/useProStore";
 import { layerManager } from "../engine/layerManager";
+import { notify } from "../ui/notify";
 
 export default function MaskPanel() {
   const layers = useEditorStore((s) => s.layers);
@@ -29,6 +30,11 @@ export default function MaskPanel() {
         <button
           onClick={() => {
             if (!activeLayerId) return;
+            const meta = layers.find((l) => l.id === activeLayerId);
+            if (!meta || meta.locked || !meta.visible) {
+              notify("Active layer is locked or hidden. Unlock it first.");
+              return;
+            }
             layerManager.ensureMask(activeLayerId, doc.width, doc.height);
             ensureMask(activeLayerId);
           }}

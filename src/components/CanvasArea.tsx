@@ -479,6 +479,22 @@ export default function CanvasArea() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Plan4 Fase 19: programmatic document reshape (Trim, Canvas Size) reuses
+  // the exact crop machinery: per-layer undo, masks, transforms, annotations.
+  useEffect(() => {
+    function onCropRect(e: Event) {
+      const d = (e as CustomEvent).detail as { x: number; y: number; w: number; h: number; label?: string } | null;
+      if (!d) return;
+      const w = Math.max(2, Math.min(16384, Math.round(d.w)));
+      const h = Math.max(2, Math.min(16384, Math.round(d.h)));
+      const x = Math.round(d.x);
+      const y = Math.round(d.y);
+      doCropRect(x, y, w, h, typeof d.label === "string" && d.label ? d.label : "Canvas change");
+    }
+    window.addEventListener("avero:crop-rect", onCropRect);
+    return () => window.removeEventListener("avero:crop-rect", onCropRect);
+  }, []);
+
   // Drag and drop image files from Explorer straight into a layer
   async function handleDrop(e: React.DragEvent) {
     e.preventDefault();
@@ -3148,21 +3164,38 @@ export default function CanvasArea() {
         : curTool === "perspective-crop"
           ? "Perspective crop"
           : `Crop ${ratioPill ? ratioPill.label : curTool}`;
-    // snapshot all layers so crop can be undone per layer
+    doCropRect(x, y, w, h, cropLabel);
+    if (curTool === "crop-straighten") st.setViewRotate(0);
+    if (curTool === "perspective-crop") notify("Perspective Crop applied as rect crop. Adjust corners further in Transform panel.");
+  }
+
+  // Plan4 Fase 19: shared document-reshape engine. One offset-blit path serves
+  // interactive crop, Trim (content bbox) and Canvas Size (shrink AND expand).
+  // Old content lands at (-x, -y); new margins stay transparent, except paper
+  // layers which refill the background color and masks which default to reveal.
+  function doCropRect(x: number, y: number, w: number, h: number, label: string) {
+    const st = useEditorStore.getState();
+    // snapshot all layers so the op can be undone per layer
     st.layers.forEach((l) => {
       const snap = layerManager.snapshot(l.id);
-      if (snap) st.pushHistory({ label: cropLabel, layerId: l.id, snapshot: snap });
+      if (snap) st.pushHistory({ label, layerId: l.id, snapshot: snap });
     });
     const pro = useProStore.getState();
     const oldW = st.doc.width;
     const oldH = st.doc.height;
+    const paper = st.bgColor || "#ffffff";
     st.layers.forEach((l) => {
       const c = layerManager.get(l.id);
       if (c) {
         const tmp = document.createElement("canvas");
         tmp.width = w;
         tmp.height = h;
-        tmp.getContext("2d")!.drawImage(c, x, y, w, h, 0, 0, w, h);
+        const tctx = tmp.getContext("2d")!;
+        if (l.kind === "background") {
+          tctx.fillStyle = paper;
+          tctx.fillRect(0, 0, w, h);
+        }
+        tctx.drawImage(c, -x, -y);
         c.width = w;
         c.height = h;
         c.getContext("2d")!.drawImage(tmp, 0, 0);
@@ -3172,13 +3205,16 @@ export default function CanvasArea() {
         const tmp = document.createElement("canvas");
         tmp.width = w;
         tmp.height = h;
-        tmp.getContext("2d")!.drawImage(mc, x, y, w, h, 0, 0, w, h);
+        const tctx = tmp.getContext("2d")!;
+        tctx.fillStyle = "#ffffff";
+        tctx.fillRect(0, 0, w, h);
+        tctx.drawImage(mc, -x, -y);
         mc.width = w;
         mc.height = h;
         mc.getContext("2d")!.drawImage(tmp, 0, 0);
       }
-      // transform follows the cropped content: keep visual position by
-      // shifting with the origin (resetting to zero made shapes jump).
+      // transform follows the content: keep visual position by shifting with
+      // the origin (resetting to zero made shapes jump).
       const t = pro.transforms[l.id];
       if (t) {
         pro.updateTransform(l.id, {
@@ -3187,11 +3223,9 @@ export default function CanvasArea() {
         });
       }
     });
-    // Annotations live in document space: shift them with the crop origin.
+    // Annotations live in document space: shift them with the origin.
     pro.shiftDocSpace(-x, -y, w, h);
     st.setDocSize(w, h);
-    if (curTool === "crop-straighten") st.setViewRotate(0);
-    if (curTool === "perspective-crop") notify("Perspective Crop applied as rect crop. Adjust corners further in Transform panel.");
     clearSelectionMask();
     st.markDirty();
     setCropDrag(null);

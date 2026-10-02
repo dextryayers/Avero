@@ -567,6 +567,10 @@ interface EditorState {
   theme: "dark" | "light";
   layers: LayerMeta[];
   activeLayerId: string | null;
+  // Plan4 Fase 19: multi-selection for grouping (Ctrl+click toggle,
+  // Shift+click range). Panel-only organization; pixels keep stack order.
+  selectedLayerIds: string[];
+  collapsedGroups: string[];
   history: HistoryEntry[];
   future: HistoryEntry[];
   doc: DocumentState;
@@ -612,6 +616,11 @@ interface EditorState {
   removeLayer: (id: string) => void;
   updateLayer: (id: string, p: Partial<LayerMeta>) => void;
   setActiveLayer: (id: string) => void;
+  setLayerSelection: (ids: string[]) => void;
+  toggleLayerSelect: (id: string) => void;
+  selectLayerRange: (anchorId: string, toId: string) => void;
+  clearLayerSelection: () => void;
+  toggleGroupCollapse: (groupId: string) => void;
   moveLayer: (id: string, dir: 1 | -1) => void;
   pushHistory: (e: Omit<HistoryEntry, "id" | "time">) => void;
   undoMeta: () => HistoryEntry | null;
@@ -665,6 +674,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   theme: "dark",
   layers: [defaultLayer()],
   activeLayerId: null,
+  selectedLayerIds: [],
+  collapsedGroups: [],
   history: [],
   future: [],
   doc: {
@@ -714,6 +725,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       doc: { name, width, height, filePath: null, projectPath: null, projectFolder, dirty: false, fileSize: null },
       layers: [l],
       activeLayerId: l.id,
+      selectedLayerIds: [],
+      collapsedGroups: [],
       history: [],
       future: [],
       zoom: 100,
@@ -729,6 +742,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       doc: { name, width: w, height: h, filePath, projectPath: null, projectFolder, dirty: false, fileSize },
       layers: [l],
       activeLayerId: l.id,
+      selectedLayerIds: [],
+      collapsedGroups: [],
       history: [],
       future: [],
       zoom: 100,
@@ -765,7 +780,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (s.layers.length <= 1) return s;
       const layers = s.layers.filter((l) => l.id !== id);
       const activeLayerId = s.activeLayerId === id ? layers[layers.length - 1].id : s.activeLayerId;
-      return { layers, activeLayerId, doc: { ...s.doc, dirty: true } };
+      return {
+        layers,
+        activeLayerId,
+        selectedLayerIds: s.selectedLayerIds.filter((x) => x !== id),
+        doc: { ...s.doc, dirty: true },
+      };
     }),
   updateLayer: (id, p) =>
     set((s) => ({
@@ -773,6 +793,29 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       doc: { ...s.doc, dirty: true },
     })),
   setActiveLayer: (id) => set({ activeLayerId: id }),
+  setLayerSelection: (ids) =>
+    set((s) => ({ selectedLayerIds: ids.filter((id) => s.layers.some((l) => l.id === id)) })),
+  toggleLayerSelect: (id) =>
+    set((s) => ({
+      selectedLayerIds: s.selectedLayerIds.includes(id)
+        ? s.selectedLayerIds.filter((x) => x !== id)
+        : [...s.selectedLayerIds, id],
+    })),
+  selectLayerRange: (anchorId, toId) =>
+    set((s) => {
+      const a = s.layers.findIndex((l) => l.id === anchorId);
+      const b = s.layers.findIndex((l) => l.id === toId);
+      if (a < 0 || b < 0) return s;
+      const [lo, hi] = a < b ? [a, b] : [b, a];
+      return { selectedLayerIds: s.layers.slice(lo, hi + 1).map((l) => l.id) };
+    }),
+  clearLayerSelection: () => set({ selectedLayerIds: [] }),
+  toggleGroupCollapse: (groupId) =>
+    set((s) => ({
+      collapsedGroups: s.collapsedGroups.includes(groupId)
+        ? s.collapsedGroups.filter((g) => g !== groupId)
+        : [...s.collapsedGroups, groupId],
+    })),
   moveLayer: (id, dir) =>
     set((s) => {
       const idx = s.layers.findIndex((l) => l.id === id);

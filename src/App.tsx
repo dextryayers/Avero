@@ -62,7 +62,7 @@ import {
 import { useHomeStore } from "./stores/useHomeStore";
 import { useSettingsStore } from "./stores/useSettingsStore";
 import { layerManager } from "./engine/layerManager";
-import { clearSelectionMask, drawRectSelection, hasSelection, inverseSelection, restoreLastSelection } from "./engine/selection";
+import { clearSelectionMask, drawRectSelection, featherSelection, hasSelection, inverseSelection, restoreLastSelection } from "./engine/selection";
 import { loadRecovery, saveRecovery, clearRecovery } from "./engine/recovery";
 import { doUndo, doRedo } from "./engine/historyOps";
 
@@ -531,7 +531,6 @@ export default function App() {
         inverseSelection();
         window.dispatchEvent(new Event("avero:selection-changed"));
       } else if (detail === "sel-feather") {
-        const { featherSelection } = await import("./engine/selection");
         askText("Feather Selection", "Feather radius in px (0-100):", "2").then((v) => {
           if (v !== null && v !== "") featherSelection(Math.max(0, Math.min(100, Number(v) || 0)));
         });

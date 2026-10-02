@@ -15,7 +15,8 @@ import { MENUS } from "../app/menus";
 import { showError, showMessage } from "../ui/notify";
 import { Kbd } from "../ui/atoms";
 import { doUndo, doRedo } from "../engine/historyOps";
-import { copyActiveLayerShim } from "../app/shortcuts-shim";
+import { duplicateActiveLayer, layerViaCut, deleteActivePixels } from "../app/shortcuts";
+import { hasSelection, selectionMaskCanvas } from "../engine/selection";
 
 
 export default function TitleBar({
@@ -166,16 +167,10 @@ export default function TitleBar({
         onOpenCommand();
         break;
       case "undo":
-        void (async () => {
-          const { doUndo } = await import("../engine/historyOps");
-          doUndo();
-        })();
+        doUndo();
         break;
       case "redo":
-        void (async () => {
-          const { doRedo } = await import("../engine/historyOps");
-          doRedo();
-        })();
+        doRedo();
         break;
       case "fit":
         window.dispatchEvent(new Event("avero:fit-zoom"));
@@ -219,48 +214,42 @@ export default function TitleBar({
       }
       case "dup-layer":
       case "layer-copy": {
-        void (async () => {
-          const s = await import("../app/shortcuts");
-          if (!(await import("../engine/selection")).hasSelection()) {
-            s.duplicateActiveLayer();
-            return;
+        // Layer via Copy: copy the selection to a new layer, keep the original.
+        if (!hasSelection()) {
+          duplicateActiveLayer();
+          break;
+        }
+        try {
+          const st = useEditorStore.getState();
+          const id = st.activeLayerId;
+          if (!id) break;
+          const src = layerManager.get(id);
+          const sel = selectionMaskCanvas();
+          if (!src || !sel) {
+            duplicateActiveLayer();
+            break;
           }
-          // Layer via Copy: copy the selection to a new layer, keep the original.
-          try {
-            const st = useEditorStore.getState();
-            const id = st.activeLayerId;
-            if (!id) return;
-            const src = layerManager.get(id);
-            const sel = (await import("../engine/selection")).selectionMaskCanvas();
-            if (!src || !sel) {
-              s.duplicateActiveLayer();
-              return;
-            }
-            const moved = document.createElement("canvas");
-            moved.width = src.width;
-            moved.height = src.height;
-            const mg = moved.getContext("2d")!;
-            mg.drawImage(src, 0, 0);
-            mg.globalCompositeOperation = "destination-in";
-            mg.drawImage(sel, 0, 0);
-            const meta = st.layers.find((l) => l.id === id);
-            const l = makeLayer(`${meta?.name ?? "Layer"} copy`);
-            const nc = layerManager.ensure(l.id, st.doc.width, st.doc.height);
-            nc.getContext("2d")!.drawImage(moved, 0, 0);
-            st.addLayer(l);
-            st.setActiveLayer(l.id);
-            st.markDirty();
-          } catch {
-            /* ignore */
-          }
-        })();
+          const moved = document.createElement("canvas");
+          moved.width = src.width;
+          moved.height = src.height;
+          const mg = moved.getContext("2d")!;
+          mg.drawImage(src, 0, 0);
+          mg.globalCompositeOperation = "destination-in";
+          mg.drawImage(sel, 0, 0);
+          const meta = st.layers.find((l) => l.id === id);
+          const l = makeLayer(`${meta?.name ?? "Layer"} copy`);
+          const nc = layerManager.ensure(l.id, st.doc.width, st.doc.height);
+          nc.getContext("2d")!.drawImage(moved, 0, 0);
+          st.addLayer(l);
+          st.setActiveLayer(l.id);
+          st.markDirty();
+        } catch {
+          /* ignore */
+        }
         break;
       }
       case "layer-cut":
-        void (async () => {
-          const s = await import("../app/shortcuts");
-          if (!s.layerViaCut()) s.duplicateActiveLayer();
-        })();
+        if (!layerViaCut()) duplicateActiveLayer();
         break;
       case "del-layer":
         if (ed.activeLayerId && ed.layers.length > 1) ed.removeLayer(ed.activeLayerId);
@@ -335,7 +324,7 @@ export default function TitleBar({
             g.restore();
           }
           if (snap) st.pushHistory({ label: a === "flatten" ? "Flatten" : "Merge all", layerId: bottom.id, snapshot: snap });
-          // Hapus layer atas (bawah dipertahankan sebagai hasil).
+          // Drop the upper layers (the bottom one keeps the result).
           for (let i = vis.length - 1; i >= 1; i--) {
             if (st.layers.length > 1) st.removeLayer(vis[i].id);
           }
@@ -348,63 +337,53 @@ export default function TitleBar({
         break;
       }
       case "clear-fill":
-        void (async () => {
-          const s = await import("../app/shortcuts");
-          s.deleteActivePixels();
-        })();
+        deleteActivePixels();
         break;
       case "fill-fg":
       case "fill-bg": {
-        void (async () => {
-          try {
-            const st = useEditorStore.getState();
-            const id = st.activeLayerId;
-            if (!id) return;
-            const meta = st.layers.find((l) => l.id === id);
-            if (!meta || meta.locked || !meta.visible) {
-              void showMessage("Active layer is locked or hidden.");
-              return;
-            }
-            const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height);
-            const snap = layerManager.snapshot(id);
-            const color = a === "fill-fg" ? st.brushColor : st.bgColor;
-            const g = c.getContext("2d")!;
-            const sel = (await import("../engine/selection")).hasSelection()
-              ? (await import("../engine/selection")).selectionMaskCanvas()
-              : null;
-            g.save();
-            if (sel) {
-              // Fill inside the selection only: clip via a temporary mask.
-              const tmp = document.createElement("canvas");
-              tmp.width = c.width;
-              tmp.height = c.height;
-              const tg = tmp.getContext("2d")!;
-              tg.fillStyle = color;
-              tg.fillRect(0, 0, tmp.width, tmp.height);
-              tg.globalCompositeOperation = "destination-in";
-              tg.drawImage(sel, 0, 0);
-              g.drawImage(tmp, 0, 0);
-            } else {
-              g.fillStyle = color;
-              g.fillRect(0, 0, c.width, c.height);
-            }
-            g.restore();
-            if (snap) st.pushHistory({ label: a === "fill-fg" ? "Fill FG" : "Fill BG", layerId: id, snapshot: snap });
-            st.markDirty();
-            pro.bumpHistogram();
-          } catch (e) {
-            void showError(`Fill failed: ${String(e)}`);
+        try {
+          const st = useEditorStore.getState();
+          const id = st.activeLayerId;
+          if (!id) break;
+          const meta = st.layers.find((l) => l.id === id);
+          if (!meta || meta.locked || !meta.visible) {
+            void showMessage("Active layer is locked or hidden.");
+            break;
           }
-        })();
+          const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height);
+          const snap = layerManager.snapshot(id);
+          const color = a === "fill-fg" ? st.brushColor : st.bgColor;
+          const g = c.getContext("2d")!;
+          const sel = hasSelection() ? selectionMaskCanvas() : null;
+          g.save();
+          if (sel) {
+            // Fill inside the selection only: clip via a temporary mask.
+            const tmp = document.createElement("canvas");
+            tmp.width = c.width;
+            tmp.height = c.height;
+            const tg = tmp.getContext("2d")!;
+            tg.fillStyle = color;
+            tg.fillRect(0, 0, tmp.width, tmp.height);
+            tg.globalCompositeOperation = "destination-in";
+            tg.drawImage(sel, 0, 0);
+            g.drawImage(tmp, 0, 0);
+          } else {
+            g.fillStyle = color;
+            g.fillRect(0, 0, c.width, c.height);
+          }
+          g.restore();
+          if (snap) st.pushHistory({ label: a === "fill-fg" ? "Fill FG" : "Fill BG", layerId: id, snapshot: snap });
+          st.markDirty();
+          pro.bumpHistogram();
+        } catch (e) {
+          void showError(`Fill failed: ${String(e)}`);
+        }
         break;
       }
       case "content-aware":
         // Point at the Content Fill tool so the next click fills the selection.
         ed.setTool("content-fill");
-        void (async () => {
-          const { hasSelection } = await import("../engine/selection");
-          if (!hasSelection()) void showMessage("Content-Aware: make a selection first, then click the canvas.");
-        })();
+        if (!hasSelection()) void showMessage("Content-Aware: make a selection first, then click the canvas.");
         break;
       case "group":
       case "add-mask":

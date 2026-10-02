@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useEditorStore } from "../stores/useEditorStore";
 import { useProStore } from "../stores/useProStore";
 import { layerManager } from "../engine/layerManager";
@@ -9,14 +9,41 @@ import ColorWheel, { hexToRgb, hslToRgb, rgbToHex, rgbToHsl } from "./ColorWheel
 import SwatchesGrid from "./SwatchesGrid";
 import { DockSlider } from "../ui/atoms";
 
+const RECENT_COLORS_KEY = "avero-recent-colors";
+
+function loadRecentColors(): string[] {
+  try {
+    const raw = localStorage.getItem(RECENT_COLORS_KEY);
+    const arr = JSON.parse(raw ?? "[]") as unknown;
+    return Array.isArray(arr) ? arr.filter((x): x is string => typeof x === "string" && /^#[0-9a-f]{6}$/i.test(x)).slice(0, 12) : [];
+  } catch {
+    return [];
+  }
+}
+
 // ---- Colour: Affinity-style wheel + H/S/L + opacity, all live on brush ----
 export function ColourView() {
   const brushColor = useEditorStore((s) => s.brushColor);
   const brushOpacity = useEditorStore((s) => s.brushOpacity);
   const setBrush = useEditorStore((s) => s.setBrush);
   const addSwatch = useProStore((s) => s.addSwatch);
+  const [recents, setRecents] = useState<string[]>(() => loadRecentColors());
   const [r, g, b] = hexToRgb(brushColor);
   const [h, s, l] = rgbToHsl(r, g, b);
+
+  // Track the last picked colors persistently. Click any chip to paint with it.
+  useEffect(() => {
+    setRecents((prev) => {
+      if (prev[0]?.toLowerCase() === brushColor.toLowerCase()) return prev;
+      const next = [brushColor, ...prev.filter((c) => c.toLowerCase() !== brushColor.toLowerCase())].slice(0, 12);
+      try {
+        localStorage.setItem(RECENT_COLORS_KEY, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, [brushColor]);
 
   const setHSL = (nh: number, ns: number, nl: number) => {
     const [nr, ng, nb] = hslToRgb(nh, ns, nl);
@@ -61,9 +88,32 @@ export function ColourView() {
         min={1}
         max={100}
         suffix="%"
-        title="Brush opacity — number keys 1–0"
+        title="Brush opacity - number keys 1-0"
         onChange={(v) => setBrush({ opacity: v })}
       />
+      <div>
+        <div className="mb-1 text-[11px] font-medium text-[#8e8e98]">Recent</div>
+        {recents.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-[#2c2c31] px-2 py-1.5 text-center text-[10px] text-[#6e6e78]">
+            Pick colors and they land here.
+          </div>
+        ) : (
+          <div className="grid grid-cols-12 gap-1">
+            {recents.map((c) => (
+              <button
+                key={c}
+                onClick={() => setBrush({ color: c })}
+                title={`${c} - click to paint with it`}
+                aria-label={`Paint with ${c}`}
+                className={`h-5 rounded-md ring-1 transition-all hover:scale-110 hover:ring-2 hover:ring-white/60 ${
+                  c.toLowerCase() === brushColor.toLowerCase() ? "ring-2 ring-[#2f7cf6]" : "ring-white/15"
+                }`}
+                style={{ backgroundColor: c }}
+              />
+            ))}
+          </div>
+        )}
+      </div>
       <div className="flex items-center gap-2">
         <span className="h-7 w-11 shrink-0 rounded-lg ring-1 ring-white/20" style={{ background: brushColor }} title="Current brush color" />
         <input
@@ -149,7 +199,7 @@ export function StrokeView() {
     <div className="space-y-2.5 p-3 text-[11px]">
       {!spec && (
         <p className="text-[#6e6e78]">
-          {meta ? "No shape selected — editing defaults for the next shape." : "Select a shape layer to edit its stroke live."}
+          {meta ? "No shape selected - editing defaults for the next shape." : "Select a shape layer to edit its stroke live."}
         </p>
       )}
       <DockSlider

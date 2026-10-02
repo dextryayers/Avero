@@ -476,7 +476,7 @@ export default function ToolOptionsBar({
   const { autoHide, setAutoHide, collapsed, setCollapsed, moreOpen, setMoreOpen, onEnter, onLeave, expand } =
     useTopBarVisibility(tool);
 
-  // Enter applies crop, Esc cancels — sent from the global keyboard handler.
+  // Enter applies crop, Esc cancels - sent from the global keyboard handler.
   const applyRef = useRef(onApplyCrop);
   const cancelRef = useRef(onCancelCrop);
   applyRef.current = onApplyCrop;
@@ -515,16 +515,16 @@ export default function ToolOptionsBar({
     summary = `Size ${brushSize} · ${brushOpacity}%`;
     main = (
       <>
-        <ColorChip value={brushColor} onChange={(v) => setBrush({ color: v })} title="Brush color — shared by paint, shape, text, fill (click to change)" />
+        <ColorChip value={brushColor} onChange={(v) => setBrush({ color: v })} title="Brush color - shared by paint, shape, text, fill (click to change)" />
         <Divider />
-        <ModernSlider label="Size" value={brushSize} min={1} max={300} onChange={(v) => setBrush({ size: v })} title="Brush size — [ / ]" resetValue={24} />
-        <ModernSlider label="Hard" value={brushHardness} min={0} max={100} onChange={(v) => setBrush({ hardness: v })} suffix="%" title="Edge hardness — Shift+[ / ]" resetValue={80} />
-        <ModernSlider label="Strength" value={brushOpacity} min={1} max={100} onChange={(v) => setBrush({ opacity: v })} suffix="%" title="Strength/opacity — number keys 1–0" resetValue={100} />
+        <ModernSlider label="Size" value={brushSize} min={1} max={300} onChange={(v) => setBrush({ size: v })} title="Brush size - [ / ]" resetValue={24} />
+        <ModernSlider label="Hard" value={brushHardness} min={0} max={100} onChange={(v) => setBrush({ hardness: v })} suffix="%" title="Edge hardness - Shift+[ / ]" resetValue={80} />
+        <ModernSlider label="Strength" value={brushOpacity} min={1} max={100} onChange={(v) => setBrush({ opacity: v })} suffix="%" title="Strength/opacity - number keys 1-0" resetValue={100} />
       </>
     );
     more = (
       <div className="flex flex-wrap items-center justify-center gap-x-1 gap-y-1">
-        <ModernSlider label="Flow" value={brushFlow} min={1} max={100} onChange={(v) => setBrush({ flow: v })} suffix="%" title="Ink flow per dab — Shift+digits" resetValue={100} />
+        <ModernSlider label="Flow" value={brushFlow} min={1} max={100} onChange={(v) => setBrush({ flow: v })} suffix="%" title="Ink flow per dab - Shift+digits" resetValue={100} />
         <ModernSlider label="Spacing" value={brushSpacing} min={1} max={200} onChange={(v) => setBrush({ spacing: v })} suffix="%" title="Distance between dabs" resetValue={18} />
         <ModernSlider label="Jitter" value={brushJitter} min={0} max={100} onChange={(v) => setBrush({ jitter: v })} suffix="%" title="Randomize size/alpha per dab" resetValue={0} />
         <ModernSlider label="Smooth" value={brushSmoothing} min={0} max={100} onChange={(v) => setBrush({ smoothing: v })} suffix="%" title="Stroke stabilizer" resetValue={35} />
@@ -548,9 +548,9 @@ export default function ToolOptionsBar({
     summary = `Size ${brushSize} · ${brushOpacity}%`;
     main = (
       <>
-        <ModernSlider label="Size" value={brushSize} min={1} max={300} onChange={(v) => setBrush({ size: v })} title="Brush size — [ / ]" resetValue={24} />
-        <ModernSlider label="Hard" value={brushHardness} min={0} max={100} onChange={(v) => setBrush({ hardness: v })} suffix="%" title="Edge hardness — Shift+[ / ]" resetValue={80} />
-        <ModernSlider label="Strength" value={brushOpacity} min={1} max={100} onChange={(v) => setBrush({ opacity: v })} suffix="%" title="Strength — number keys 1–0" resetValue={100} />
+        <ModernSlider label="Size" value={brushSize} min={1} max={300} onChange={(v) => setBrush({ size: v })} title="Brush size - [ / ]" resetValue={24} />
+        <ModernSlider label="Hard" value={brushHardness} min={0} max={100} onChange={(v) => setBrush({ hardness: v })} suffix="%" title="Edge hardness - Shift+[ / ]" resetValue={80} />
+        <ModernSlider label="Strength" value={brushOpacity} min={1} max={100} onChange={(v) => setBrush({ opacity: v })} suffix="%" title="Strength - number keys 1-0" resetValue={100} />
       </>
     );
   } else if (kind === "eraser") {
@@ -560,9 +560,9 @@ export default function ToolOptionsBar({
         <span className="hidden shrink-0 rounded-full bg-[#2f7cf6]/15 px-2 py-1 text-[10px] font-semibold text-[#8fb6f5] ring-1 ring-[#2f7cf6]/40 sm:block" title="The eraser never touches photo pixels. It only lifts paint strokes.">
           Photo-safe
         </span>
-        <ModernSlider label="Size" value={brushSize} min={1} max={300} onChange={(v) => setBrush({ size: v })} title="Eraser size — [ / ]" resetValue={24} />
+        <ModernSlider label="Size" value={brushSize} min={1} max={300} onChange={(v) => setBrush({ size: v })} title="Eraser size - [ / ]" resetValue={24} />
         <ModernSlider label="Hard" value={brushHardness} min={0} max={100} onChange={(v) => setBrush({ hardness: v })} suffix="%" title="Edge hardness" resetValue={80} />
-        <ModernSlider label="Strength" value={brushOpacity} min={1} max={100} onChange={(v) => setBrush({ opacity: v })} suffix="%" title="Strength — number keys 1–0" resetValue={100} />
+        <ModernSlider label="Strength" value={brushOpacity} min={1} max={100} onChange={(v) => setBrush({ opacity: v })} suffix="%" title="Strength - number keys 1-0" resetValue={100} />
         <Action
           label="Clear strokes"
           title="Erase every stroke on the active layer (photos stay intact). Asks first."
@@ -570,6 +570,17 @@ export default function ToolOptionsBar({
             const ed = useEditorStore.getState();
             const id = ed.activeLayerId;
             if (!id) return;
+            const meta = ed.layers.find((l) => l.id === id);
+            if (!meta || meta.locked || !meta.visible) {
+              notify("Active layer is locked or hidden. Unlock it first.");
+              return;
+            }
+            // Plan4 Fase 1.1: the paper is never a valid clear target. Clearing
+            // the Background layer would punch a transparent hole in the canvas.
+            if (meta.kind === "background") {
+              notify("Background paper is protected. Clear strokes works on paint layers.");
+              return;
+            }
             if (!window.confirm("Erase every stroke on the active layer? Photos stay intact. This can be undone.")) return;
             const snap = layerManager.snapshot(id);
             if (snap) ed.pushHistory({ label: "Clear strokes", layerId: id, snapshot: snap });
@@ -587,8 +598,8 @@ export default function ToolOptionsBar({
     summary = src ? `Src ${Math.round(src.x)},${Math.round(src.y)}` : "Alt-click for source";
     main = (
       <>
-        <ModernSlider label="Size" value={brushSize} min={1} max={300} onChange={(v) => setBrush({ size: v })} title="Stamp size — [ / ]" resetValue={24} />
-        <ModernSlider label="Strength" value={brushOpacity} min={1} max={100} onChange={(v) => setBrush({ opacity: v })} suffix="%" title="Strength — number keys 1–0" resetValue={100} />
+        <ModernSlider label="Size" value={brushSize} min={1} max={300} onChange={(v) => setBrush({ size: v })} title="Stamp size - [ / ]" resetValue={24} />
+        <ModernSlider label="Strength" value={brushOpacity} min={1} max={100} onChange={(v) => setBrush({ opacity: v })} suffix="%" title="Strength - number keys 1-0" resetValue={100} />
         {!needsHeal && (
           <Toggle label={cloneAligned ? "Aligned" : "Non-aligned"} on={cloneAligned} onClick={() => setCloneAligned(!cloneAligned)} title="Aligned keeps the source offset across strokes. Non-aligned restarts it every stroke." />
         )}
@@ -680,7 +691,7 @@ export default function ToolOptionsBar({
     summary = "Enter applies · Esc cancels";
     main = (
       <>
-        <PillTray title="Crop ratios — scroll to see them all">
+        <PillTray title="Crop ratios - scroll to see them all">
           <Pills options={CROP_RATIO_PILLS} value={tool as (typeof CROP_RATIO_PILLS)[number]["id"]} onPick={(v) => setTool(v)} />
         </PillTray>
         <ModernSlider label="Level" value={Math.round(viewRotate)} min={-45} max={45} onChange={(v) => setViewRotate(v)} suffix="°" title="Straighten the horizon" resetValue={0} />
@@ -813,8 +824,8 @@ export default function ToolOptionsBar({
       <>
         <ColorChip value={brushColor} onChange={(v) => setBrush({ color: v })} title="Pen ink color." />
         <Divider />
-        <ModernSlider label="Width" value={brushSize} min={1} max={120} onChange={(v) => setBrush({ size: v })} suffix="px" title="Line width — [ / ]" resetValue={24} />
-        <ModernSlider label="Strength" value={brushOpacity} min={1} max={100} onChange={(v) => setBrush({ opacity: v })} suffix="%" title="Strength — number keys 1–0" resetValue={100} />
+        <ModernSlider label="Width" value={brushSize} min={1} max={120} onChange={(v) => setBrush({ size: v })} suffix="px" title="Line width - [ / ]" resetValue={24} />
+        <ModernSlider label="Strength" value={brushOpacity} min={1} max={100} onChange={(v) => setBrush({ opacity: v })} suffix="%" title="Strength - number keys 1-0" resetValue={100} />
       </>
     );
   } else if (kind === "gradient") {
@@ -997,7 +1008,7 @@ export default function ToolOptionsBar({
         <button
           onClick={expand}
           onMouseEnter={expand}
-          title={`${name} — click to reveal options${autoHide ? " (auto-hide is on, click Pin to lock)" : ""}`}
+          title={`${name} - click to reveal options${autoHide ? " (auto-hide is on, click Pin to lock)" : ""}`}
           className="avero-chip-in pointer-events-auto mt-2.5 flex max-w-[94%] items-center gap-2 rounded-full border border-white/10 bg-[#1b1b1f]/90 py-1.5 pl-2.5 pr-1.5 text-[11px] shadow-[0_8px_28px_rgba(0,0,0,0.55)] backdrop-blur-xl transition-colors hover:border-[#2f7cf6]/50"
         >
           <span className="rounded-full bg-[#2f7cf6] px-2 py-0.5 font-bold text-white">{name}</span>

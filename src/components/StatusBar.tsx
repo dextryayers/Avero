@@ -147,7 +147,7 @@ export default function StatusBar() {
           max={400}
           value={Math.min(400, zoom)}
           onChange={(e) => setZoom(Number(e.target.value))}
-          title={`Zoom ${zoom}% — Ctrl++ / Ctrl+-`}
+          title={`Zoom ${zoom}% - Ctrl++ / Ctrl+-`}
           aria-label="Zoom"
           className="avero-slider w-24"
           style={{ ["--avero-fill" as string]: `${((Math.min(400, zoom) - 10) / 390) * 100}%` }}

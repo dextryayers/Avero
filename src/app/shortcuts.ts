@@ -1,11 +1,11 @@
 // Global editor shortcuts: tool letters (Shift cycles family), menu actions, quick navigation.
 //
 // Shortcut layers (priority order in App.tsx):
-//   1. Global app — Ctrl+K/S/E/O/, — works even while typing in inputs.
-//   2. General edit — Ctrl+Z/Y/X/C/V/A/D/T/J/G + Del/Backspace/F5 — only when NOT typing,
+//   1. Global app - Ctrl+K/S/E/O/, - works even while typing in inputs.
+//   2. General edit - Ctrl+Z/Y/X/C/V/A/D/T/J/G + Del/Backspace/F5 - only when NOT typing,
 //      so native input behavior (text undo/cut/paste) is never hijacked.
-//   3. View — Ctrl++/−/0/1, Ctrl+R, Ctrl+;, ' — only when not typing.
-//   4. Tools — single letters, Shift+letter, [ ], digits 0-9, X/D, Space, arrows.
+//   3. View - Ctrl+Plus, Ctrl+Minus, Ctrl+0, Ctrl+1, Ctrl+R, Ctrl+; - only when not typing.
+//   4. Tools - single letters, Shift+letter, [ ], digits 0-9, X/D, Space, arrows.
 // All edit helpers live here so App.tsx stays thin and testable.
 import { TOOLS } from "../components/ToolBar";
 import { MENUS } from "./menus";
@@ -106,7 +106,7 @@ export function isEditableTarget(el: Element | null | undefined): boolean {
   return false;
 }
 
-/** True when focus is inside an input/text field — canvas edit shortcuts must stay quiet. */
+/** True when focus is inside an input/text field - canvas edit shortcuts must stay quiet. */
 export function isEditingNow(): boolean {
   try {
     return isEditableTarget(document.activeElement);
@@ -121,10 +121,10 @@ export function isEditingNow(): boolean {
 
 /** Extra combos not printed in MENUS but required to work. */
 const COMBO_ALIASES: Record<string, string> = {
-  // Redo: Photoshop + common — Ctrl+Y OR Ctrl+Shift+Z.
+  // Redo: Photoshop + common - Ctrl+Y OR Ctrl+Shift+Z.
   "Ctrl+Shift+Z": "redo",
   "Ctrl+Y": "redo",
-  // Photoshop-style step backward — treated as undo.
+  // Photoshop-style step backward - treated as undo.
   "Ctrl+Alt+Z": "undo",
   // Merge visible / merge down without conflicting with Export (Ctrl+E).
   "Ctrl+Shift+E": "merge-all",
@@ -152,8 +152,8 @@ export function findMenuAction(combo: string): string | null {
 /** General edit shortcuts for the footer / palette / docs. Single source of truth. */
 export const EDIT_SHORTCUTS: { combo: string; label: string; desc: string }[] = [
   { combo: "Ctrl+Z", label: "Undo", desc: "Undo the last step (pixels + mask are restored)" },
-  { combo: "Ctrl+Shift+Z", label: "Redo", desc: "Redo again — Ctrl+Y alternative" },
-  { combo: "Ctrl+Y", label: "Redo", desc: "Redo again — Ctrl+Shift+Z alternative" },
+  { combo: "Ctrl+Shift+Z", label: "Redo", desc: "Redo again - Ctrl+Y alternative" },
+  { combo: "Ctrl+Y", label: "Redo", desc: "Redo again - Ctrl+Shift+Z alternative" },
   { combo: "Ctrl+Alt+Z", label: "Step Backward", desc: "Step one stroke back, Photoshop-style" },
   { combo: "Ctrl+X", label: "Cut", desc: "Cut selection/layer to clipboard + undo history" },
   { combo: "Ctrl+C", label: "Copy", desc: "Copy selection/layer (respects the active selection)" },
@@ -183,7 +183,7 @@ export const EDIT_SHORTCUTS: { combo: string; label: string; desc: string }[] = 
   { combo: "Ctrl+0 / Ctrl+1", label: "Fit / 100%", desc: "Fit to screen / actual pixels" },
   { combo: "[ / ]", label: "Brush Size", desc: "Decrease / increase brush size" },
   { combo: "Shift+[ / Shift+]", label: "Hardness", desc: "Soften / harden the brush edge" },
-  { combo: "1..0", label: "Opacity", desc: "Set brush opacity 10–100%" },
+  { combo: "1..0", label: "Opacity", desc: "Set brush opacity 10-100%" },
   { combo: "X / D", label: "Colors", desc: "Swap / reset foreground-background colors" },
   { combo: "Space", label: "Hand", desc: "Hold to pan the canvas temporarily" },
   { combo: "Arrows", label: "Nudge", desc: "Move the layer 1px (Shift = 10px)" },
@@ -359,7 +359,7 @@ async function tryWriteSystemClipboard(dataUrl: string): Promise<void> {
     const blob = await res.blob();
     await nav.clipboard.write([new ClipboardItem({ [blob.type || "image/png"]: blob })]);
   } catch {
-    /* System clipboard is optional — the in-memory fallback is enough */
+    /* System clipboard is optional - the in-memory fallback is enough */
   }
 }
 
@@ -436,11 +436,14 @@ export function copyActiveLayer(): boolean {
     const url = layerToClipboardURL(out);
     setMemClipboard(url);
     // Keep the bbox offset for paste-in-place (Shift never moves it).
+    // Plan4 Fase 1.6: also record whether the source held photo pixels, so
+    // pasting a photo stays protected while pasted strokes stay editable.
     try {
       const ox = (out as HTMLCanvasElement & { __ox?: number }).__ox ?? 0;
       const oy = (out as HTMLCanvasElement & { __oy?: number }).__oy ?? 0;
       (window as unknown as Record<string, unknown>)[`${MEM_CLIP_KEY}:ox`] = ox;
       (window as unknown as Record<string, unknown>)[`${MEM_CLIP_KEY}:oy`] = oy;
+      (window as unknown as Record<string, unknown>)[`${MEM_CLIP_KEY}:photo`] = layerManager.isPhotoLayer(id);
     } catch {
       /* ignore */
     }
@@ -567,7 +570,7 @@ export function pasteClipboardAsLayer(inPlace = false): Promise<boolean> {
             const oy = Number((window as unknown as Record<string, unknown>)[`${MEM_CLIP_KEY}:oy`] ?? 0) || 0;
             g.drawImage(img, ox, oy, iw, ih);
           } else {
-            // Draw as-is, centered — no stretching.
+            // Draw as-is, centered - no stretching.
             const dw = Math.min(iw, cur.doc.width);
             const dh = Math.min(ih, cur.doc.height);
             const sc = Math.min(1, dw / Math.max(1, iw), dh / Math.max(1, ih));
@@ -580,6 +583,14 @@ export function pasteClipboardAsLayer(inPlace = false): Promise<boolean> {
           }
           cur.addLayer(l);
           cur.setActiveLayer(l.id);
+          // Plan4 Fase 1.6: pasted photos stay protected, pasted strokes editable.
+          try {
+            if ((window as unknown as Record<string, unknown>)[`${MEM_CLIP_KEY}:photo`] === true) {
+              layerManager.markPhoto(l.id);
+            }
+          } catch {
+            /* ignore */
+          }
           cur.markDirty();
           useProStore.getState().bumpHistogram();
           resolve(true);
@@ -595,7 +606,7 @@ export function pasteClipboardAsLayer(inPlace = false): Promise<boolean> {
   });
 }
 
-/** Duplicate the active layer (Ctrl+J) — carries pixels + opacity/blend/kind. */
+/** Duplicate the active layer (Ctrl+J) - carries pixels + opacity/blend/kind. */
 export function duplicateActiveLayer(): boolean {
   try {
     const st = useEditorStore.getState();

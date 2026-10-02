@@ -150,7 +150,7 @@ export default function App() {
       const mod = e.ctrlKey || e.metaKey;
       const editing = isEditingNow();
       const key = e.key.toLowerCase();
-      // ---- Layer 1: global app — works even while typing in inputs.
+      // ---- Layer 1: global app - works even while typing in inputs.
       if (mod && key === "k") {
         e.preventDefault();
         setPalette((v) => !v);
@@ -193,7 +193,7 @@ export default function App() {
         }
         return;
       }
-      // ---- Layer 2: general edit — Undo / Redo / Step-backward.
+      // ---- Layer 2: general edit - Undo / Redo / Step-backward.
       if (matchUndo(e)) {
         e.preventDefault();
         doUndo();
@@ -284,7 +284,7 @@ export default function App() {
         else useEditorStore.getState().moveLayer(id, e.key === "]" ? 1 : -1);
         return;
       }
-      // Fill FG / BG + Delete — always via history-aware helpers.
+      // Fill FG / BG + Delete - always via history-aware helpers.
       if (!mod && e.altKey && !e.shiftKey && (e.key === "Backspace" || e.key === "Delete")) {
         e.preventDefault();
         dispatchAction("fill-fg");
@@ -477,7 +477,7 @@ export default function App() {
         nudgeActiveLayer(dx, dy);
         return;
       }
-      // , . putar view, / reset — selaras slider Rotate di bar.
+      // Comma and dot rotate the view, slash resets - mirrors the Rotate slider in the bar.
       if (!mod && !e.altKey && !e.shiftKey && (e.key === "," || e.key === "." || e.key === "/")) {
         const ed = useEditorStore.getState();
         if (e.key === ",") ed.setViewRotate(ed.viewRotate - 15);

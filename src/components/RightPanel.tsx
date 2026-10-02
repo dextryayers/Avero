@@ -53,7 +53,7 @@ import { useWorkspaceStore } from "../stores/useWorkspaceStore";
 import { showError, askConfirm, askText } from "../ui/notify";
 import { doUndo, doRedo, jumpToHistory } from "../engine/historyOps";
 import { blendToComposite } from "../engine/canvasRender";
-import { DockSlider, EmptyState } from "../ui/atoms";
+import { CollapseChevron, DockSlider, EmptyState, ScrollPager } from "../ui/atoms";
 import {
   AssetsPanel,
   DockTabBar,
@@ -160,6 +160,28 @@ export default function RightPanel() {
   const [showProps, setShowProps] = useState(true);
   // Affinity-style layer studio tabs (Layers/Effects/Styles/Text/Assets).
   const [dock, setDock] = useState<DockTab>("layers");
+  // Right-click layer menu: clamped viewport position + target layer id.
+  const [menu, setMenu] = useState<{ x: number; y: number; id: string } | null>(null);
+
+  useEffect(() => {
+    if (!menu) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenu(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menu]);
+
+  function deleteLayerFull(id: string) {
+    const st = useEditorStore.getState();
+    if (st.layers.length <= 1) return;
+    layerManager.remove(id);
+    layerManager.removeMask(id);
+    useProStore.getState().removeMaskEntry(id);
+    useProStore.getState().removeTransform(id);
+    st.removeLayer(id);
+    setMenu(null);
+  }
   // Affinity-style studio strip: colour tools above the main tab system.
   // Selecting a main tab always returns to tab content.
   const [studio, setStudio] = useState<null | "colour" | "swatches" | "stroke" | "brushes">(null);
@@ -187,6 +209,9 @@ export default function RightPanel() {
       opacity: s.brushOpacity,
       hardness: s.brushHardness,
       color: s.brushColor,
+      flow: s.brushFlow,
+      spacing: s.brushSpacing,
+      smoothing: s.brushSmoothing,
     })),
   );
   const setBrush = useEditorStore((s) => s.setBrush);
@@ -309,7 +334,29 @@ export default function RightPanel() {
           {doc.width}×{doc.height} · {layers.length} lyr
         </span>
       </div>
-      <div className="flex overflow-x-auto border-b border-[#2c2c31] bg-[#161618] text-[10px] scrollbar-thin" role="tablist" aria-label="Studio panels">
+      <ScrollPager
+        ariaLabel="Studio panels"
+        className="border-b border-[#2c2c31] bg-[#161618] py-0.5 text-[10px]"
+        jumpLabel="Panels"
+        jumpItems={tabs.map((t) => ({
+          id: t.id,
+          label: `${t.label} panel`,
+          icon: t.icon,
+          active: tab === t.id,
+          badge:
+            t.id === "adjust" && adjustments.length > 0
+              ? adjustments.length
+              : t.id === "filter" && filters.length > 0
+                ? filters.length
+                : t.id === "history" && history.length > 0
+                  ? history.length
+                  : undefined,
+        }))}
+        onJumpPick={(id) => {
+          setTab(id as Tab);
+          setStudio(null);
+        }}
+      >
         {tabs.map((t) => {
           const Icon = t.icon;
           const selected = tab === t.id;
@@ -324,7 +371,7 @@ export default function RightPanel() {
               }}
               title={`${t.label} panel`}
               className={clsx(
-                "avero-lift flex shrink-0 flex-col items-center gap-0.5 whitespace-nowrap border-b-2 px-2 pb-1.5 pt-2",
+                "avero-lift flex shrink-0 flex-col items-center gap-0.5 whitespace-nowrap rounded-t-md border-b-2 px-2 pb-1.5 pt-2 transition-colors",
                 selected
                   ? "border-[#2f7cf6] bg-[#232327] font-semibold text-white"
                   : "border-transparent text-[#6e6e78] hover:bg-[#232327] hover:text-white",
@@ -333,14 +380,14 @@ export default function RightPanel() {
               <Icon size={13} />
               <span>{t.label}</span>
               {(t.id === "adjust" && adjustments.length > 0) || (t.id === "filter" && filters.length > 0) || (t.id === "history" && history.length > 0) ? (
-                <span className="rounded bg-[#2f7cf6] px-1 font-mono text-[9px] leading-tight text-white">
+                <span className="rounded-full bg-[#2f7cf6] px-1.5 font-mono text-[9px] leading-tight text-white shadow-[0_1px_6px_rgba(47,124,246,0.5)]">
                   {t.id === "adjust" ? adjustments.length : t.id === "filter" ? filters.length : history.length}
                 </span>
               ) : null}
             </button>
           );
         })}
-      </div>
+      </ScrollPager>
       <div className="grid grid-cols-4 border-b border-[#2c2c31] bg-[#101012]" role="tablist" aria-label="Colour studio">
         {(
           [
@@ -554,6 +601,16 @@ export default function RightPanel() {
                     <div
                       key={l.id}
                       onClick={() => setActiveLayer(l.id)}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setActiveLayer(l.id);
+                        setMenu({
+                          x: Math.max(8, Math.min(e.clientX, window.innerWidth - 216)),
+                          y: Math.max(8, Math.min(e.clientY, window.innerHeight - 380)),
+                          id: l.id,
+                        });
+                      }}
                       onDoubleClick={async () => {
                         const v = await askText("Rename layer", "Layer name:", l.name);
                         if (v && v.trim()) updateLayer(l.id, { name: v.trim().slice(0, 60) });
@@ -584,7 +641,7 @@ export default function RightPanel() {
                                   e.stopPropagation();
                                   setDock("effects");
                                 }}
-                                title="Layer has effects — open the Effects panel"
+                                title="Layer has effects - open the Effects panel"
                                 className="text-[#c9a0ff] hover:text-white hover:underline"
                               >
                                 fx
@@ -689,15 +746,18 @@ export default function RightPanel() {
             </div>
 
             <div className="border-t border-[#2c2c31] p-3">
-              <button onClick={() => setShowBrush((v) => !v)} className="mb-1.5 flex w-full items-center justify-between">
+              <button onClick={() => setShowBrush((v) => !v)} aria-expanded={showBrush} className="mb-1.5 flex w-full items-center justify-between rounded-md px-1 py-0.5 transition-colors hover:bg-white/5">
                 <h4 className="avero-micro">Brush</h4>
-                <span className="font-mono text-[10px] text-[#6e6e78]">{showBrush ? "-" : "+"}</span>
+                <CollapseChevron open={showBrush} />
               </button>
               {showBrush && (
                 <div className="avero-fade-in space-y-2">
-                  <DockSlider label="Size" value={brush.size} min={1} max={200} suffix="px" title="Brush size — [ / ]" onChange={(v) => setBrush({ size: v })} />
-                  <DockSlider label="Hard" value={brush.hardness} min={0} max={100} suffix="%" title="Edge hardness — Shift+[ / ]" onChange={(v) => setBrush({ hardness: v })} />
-                  <DockSlider label="Opacity" value={brush.opacity} min={1} max={100} suffix="%" title="Brush opacity — number keys 1–0" onChange={(v) => setBrush({ opacity: v })} />
+                  <DockSlider label="Size" value={brush.size} min={1} max={200} suffix="px" title="Brush size - [ / ]" onChange={(v) => setBrush({ size: v })} />
+                  <DockSlider label="Hard" value={brush.hardness} min={0} max={100} suffix="%" title="Edge hardness - Shift+[ / ]" onChange={(v) => setBrush({ hardness: v })} />
+                  <DockSlider label="Opacity" value={brush.opacity} min={1} max={100} suffix="%" title="Brush opacity - number keys 1-0" onChange={(v) => setBrush({ opacity: v })} />
+                  <DockSlider label="Flow" value={brush.flow} min={1} max={100} suffix="%" title="Ink flow per dab - Shift+digits" onChange={(v) => setBrush({ flow: v })} />
+                  <DockSlider label="Spacing" value={brush.spacing} min={1} max={200} suffix="%" title="Distance between dabs" onChange={(v) => setBrush({ spacing: v })} />
+                  <DockSlider label="Smooth" value={brush.smoothing} min={0} max={100} suffix="%" title="Stroke stabilizer" onChange={(v) => setBrush({ smoothing: v })} />
                   <div className="flex items-center gap-2 pt-0.5">
                     <span className="group relative h-7 w-11 shrink-0 cursor-pointer overflow-hidden rounded-lg ring-1 ring-white/20 transition-all hover:ring-2 hover:ring-[#2f7cf6]" title="Brush color">
                       <span className="absolute inset-0" style={{ backgroundColor: brush.color }} />
@@ -715,9 +775,9 @@ export default function RightPanel() {
               )}
             </div>
             <div className="border-t border-[#2c2c31] p-3">
-              <button onClick={() => setShowProps((v) => !v)} className="mb-1.5 flex w-full items-center justify-between">
+              <button onClick={() => setShowProps((v) => !v)} aria-expanded={showProps} className="mb-1.5 flex w-full items-center justify-between rounded-md px-1 py-0.5 transition-colors hover:bg-white/5">
                 <h4 className="avero-micro">Layer properties</h4>
-                <span className="font-mono text-[10px] text-[#6e6e78]">{showProps ? "-" : "+"}</span>
+                <CollapseChevron open={showProps} />
               </button>
               {showProps && <TransformPanel />}
             </div>
@@ -870,6 +930,127 @@ export default function RightPanel() {
           </div>
         )}
       </div>
+      {menu &&
+        (() => {
+          const m = layers.find((l) => l.id === menu.id);
+          if (!m) return null;
+          const st = useEditorStore.getState();
+          const idx = st.layers.findIndex((l) => l.id === m.id);
+          const close = () => setMenu(null);
+          const items: {
+            icon: typeof Copy;
+            label: string;
+            hint?: string;
+            danger?: boolean;
+            disabled?: boolean;
+            run: () => void;
+          }[] = [
+            {
+              icon: PenLine,
+              label: "Rename",
+              run: async () => {
+                close();
+                const v = await askText("Rename layer", "Layer name:", m.name);
+                if (v && v.trim()) updateLayer(m.id, { name: v.trim().slice(0, 60) });
+              },
+            },
+            { icon: Copy, label: "Duplicate", hint: "Ctrl+J", run: () => { close(); duplicateLayer(m.id); } },
+            {
+              icon: ChevronUp,
+              label: "Bring to front",
+              hint: "Ctrl+Shift+]",
+              run: () => { close(); for (let i = 0; i < 99; i++) moveLayer(m.id, 1); },
+            },
+            {
+              icon: ChevronDown,
+              label: "Send to back",
+              hint: "Ctrl+Shift+[",
+              run: () => { close(); for (let i = 0; i < 99; i++) moveLayer(m.id, -1); },
+            },
+            {
+              icon: ArrowDownToLine,
+              label: "Merge down",
+              hint: "Ctrl+Shift+M",
+              disabled: idx <= 0,
+              run: () => { close(); void mergeDown(m.id); },
+            },
+            {
+              icon: CircleDashed,
+              label: "Add mask",
+              run: () => {
+                close();
+                if (m.locked || !m.visible) return;
+                useProStore.getState().ensureMask(m.id);
+                layerManager.ensureMask(m.id, st.doc.width, st.doc.height);
+                st.markDirty();
+                setTab("mask");
+              },
+            },
+            {
+              icon: Sparkles,
+              label: "Layer effects",
+              run: () => { close(); setDock("effects"); },
+            },
+            {
+              icon: Lock,
+              label: m.locked ? "Unlock" : "Lock",
+              run: () => { close(); updateLayer(m.id, { locked: !m.locked }); },
+            },
+            {
+              icon: Eye,
+              label: m.visible ? "Hide" : "Show",
+              run: () => { close(); updateLayer(m.id, { visible: !m.visible }); },
+            },
+            {
+              icon: Trash2,
+              label: "Delete",
+              danger: true,
+              disabled: layers.length <= 1,
+              run: () => deleteLayerFull(m.id),
+            },
+          ];
+          return (
+            <>
+              <div
+                className="fixed inset-0 z-50 cursor-default"
+                onClick={close}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  close();
+                }}
+              />
+              <div
+                role="menu"
+                aria-label={`Layer actions for ${m.name}`}
+                style={{ left: menu.x, top: menu.y }}
+                className="avero-pop fixed z-50 w-[200px] rounded-xl border border-white/10 bg-[#1b1b1f]/95 p-1.5 shadow-[0_16px_48px_rgba(0,0,0,0.6)] backdrop-blur-xl"
+              >
+                <div className="truncate px-2 pb-1 pt-1 text-[11px] font-semibold text-white" title={m.name}>
+                  {m.name}
+                </div>
+                {items.map((it) => {
+                  const Icon = it.icon;
+                  return (
+                    <button
+                      key={it.label}
+                      role="menuitem"
+                      disabled={it.disabled}
+                      onClick={it.run}
+                      className={clsx(
+                        "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] transition-colors disabled:opacity-40",
+                        it.danger ? "text-red-300 hover:bg-red-950/60 hover:text-red-200" : "text-[#c9c9d1] hover:bg-[#2f7cf6] hover:text-white",
+                      )}
+                    >
+                      <Icon size={13} className="shrink-0" />
+                      <span className="flex-1 truncate">{it.label}</span>
+                      {it.hint && <span className="font-mono text-[9px] opacity-60">{it.hint}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          );
+        })()}
     </div>
   );
 }

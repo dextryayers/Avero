@@ -187,6 +187,13 @@ class LayerManager {
     return this.photoLayers.has(id);
   }
 
+  // Plan4 Fase 1.4: re-arm photo protection without repainting pixels.
+  // Used when pixels arrive from paths that bypass drawImageToLayer
+  // (project reload, drag-drop, paste from a photo source).
+  markPhoto(id: string): void {
+    this.photoLayers.add(id);
+  }
+
   fillChecker(id: string) {
     const c = this.canvases.get(id);
     if (!c) return;

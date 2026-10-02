@@ -525,6 +525,9 @@ export default function CanvasArea() {
         if (!id) return;
         const c = layerManager.ensure(id, bmp.width, bmp.height);
         c.getContext("2d")!.drawImage(bmp, 0, 0);
+        // Plan4 Fase 1.5: dropped files are photos. Mark protection so brush
+        // strokes auto-layer and the eraser never eats the dropped image.
+        layerManager.markPhoto(id);
         bmp.close();
         useEditorStore.getState().markDirty();
         useProStore.getState().bumpHistogram();
@@ -5116,6 +5119,23 @@ export default function CanvasArea() {
                 setCursor(`Erasing ${nm}`);
               }
             }
+            // Plan4 Fase 1.2: photo-erasers refuse bad targets BEFORE any snapshot,
+            // history entry, or painting state. Without this the stroke starts,
+            // then every mousemove re-fires the guard notify inside
+            // eraseBackgroundTo / magicEraseAt while isPainting stays stuck,
+            // and locked layers collect phantom history entries.
+            if ((tool === "background-eraser" || tool === "magic-eraser") && strokeLayerId) {
+              const sm = useEditorStore.getState().layers.find((l) => l.id === strokeLayerId);
+              if (!sm) return;
+              if (sm.locked || !sm.visible) {
+                notify("Active layer is locked or hidden. Unlock it first.");
+                return;
+              }
+              if (sm.kind === "background") {
+                notify("Background paper is protected. Paint on a new layer to edit it.");
+                return;
+              }
+            }
             // One-time hint for heal tools (cursor text alone is missed).
             if (needsHealSource && !useProStore.getState().healSource && !healHintShown.current && !e.altKey) {
               healHintShown.current = true;
@@ -5411,7 +5431,10 @@ export default function CanvasArea() {
               else if (tool === "pattern-dots") patternStampTo(p.x, p.y, "dots");
               else if (tool === "pattern-fill") { /* click-only, ignore drag */ }
               else cloneTo(p.x, p.y);
-            } else if (isBrush || isEraser) paintTo(p.x, p.y, isEraser);
+            // Plan4 Fase 1.3: magic-eraser is click-only (one flood per click).
+            // Flooding on every mousemove dragrew the erased region and burned
+            // full-image passes per move event for no reason.
+            } else if (isBrush || (isEraser && tool !== "magic-eraser")) paintTo(p.x, p.y, isEraser);
             else if (dk2 !== null) distortTo(p.x, p.y, dk2);
             else if (rm2 !== null) retouchTo(p.x, p.y, rm2);
             else if (tool === "smudge" || tool === "liquify" || tool === "warp") {

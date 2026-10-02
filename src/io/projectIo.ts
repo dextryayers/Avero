@@ -221,6 +221,9 @@ interface AvxLayer {
   meta: LayerMeta;
   pixels: string | null;
   maskPixels: string | null;
+  // Plan4 Fase 1.4: layer held photo pixels at save time. Restored on load so
+  // brush/eraser protection survives the round-trip (omit when false).
+  photo?: boolean;
 }
 
 export interface AvxFile {
@@ -383,6 +386,7 @@ export function normalizeAvxFile(file: AvxFile): AvxFile {
       pixels: typeof l.pixels === "string" && l.pixels.startsWith("data:image/") ? l.pixels : null,
       maskPixels:
         typeof l.maskPixels === "string" && l.maskPixels.startsWith("data:image/") ? l.maskPixels : null,
+      photo: l.photo === true ? true : undefined,
     }));
   return {
     magic: AVX_MAGIC,
@@ -467,7 +471,7 @@ export async function saveAvxProject(saveAs = false): Promise<string | null> {
     } catch {
       maskPixels = null;
     }
-    return { meta: { ...l }, pixels, maskPixels };
+    return { meta: { ...l }, pixels, maskPixels, photo: layerManager.isPhotoLayer(l.id) || undefined };
   });
   const active = ed.layers.find((l) => l.id === ed.activeLayerId) ?? null;
 
@@ -715,6 +719,8 @@ export async function openAvxProject(fromPath?: string): Promise<boolean> {
         } catch {
           ctx.drawImage(img, 0, 0);
         }
+        // Plan4 Fase 1.4: re-arm photo protection dropped by the plain draw.
+        if (l.photo) layerManager.markPhoto(nid);
         okLayers += 1;
       } catch {
         /* leave the layer blank, the document still opens normally */

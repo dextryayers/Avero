@@ -63,7 +63,7 @@ function withAlpha(hex: string, opacityPct: number): string {
 /**
  * Configure the canvas shadow pipeline for drop shadow / outer glow.
  * Drop shadow wins when both are on (a single shadow slot exists).
- * Call inside save()/restore() — restore clears the shadow state.
+ * Call inside save()/restore() - restore clears the shadow state.
  */
 export function applyShadowFx(ctx: CanvasRenderingContext2D, fx: LayerEffects | undefined): void {
   const ds = fx?.dropShadow;
@@ -133,7 +133,7 @@ export function buildFxCanvas(
     try {
       g.filter = `blur(${Math.max(0, Math.min(60, ig.blur))}px)`;
     } catch {
-      /* filter unsupported — unblurred glow still reads fine */
+      /* filter unsupported - unblurred glow still reads fine */
     }
     g.globalCompositeOperation = "source-atop";
     g.drawImage(glow, 0, 0);

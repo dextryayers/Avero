@@ -16,7 +16,7 @@ import { DockSlider, EmptyState, Kbd } from "../ui/atoms";
 
 // ---------------------------------------------------------------------------
 // Affinity-style dock tabs for the Layers view: Layers | Effects | Styles |
-// Text | Assets. Every control below is live and fully working — no dead UI.
+// Text | Assets. Every control below is live and fully working - no dead UI.
 // ---------------------------------------------------------------------------
 
 export type DockTab = "layers" | "effects" | "styles" | "text" | "assets";
@@ -41,7 +41,7 @@ export function DockTabBar({ value, onChange }: { value: DockTab; onChange: (t: 
             role="tab"
             aria-selected={on}
             onClick={() => onChange(t.id)}
-            title={`${t.label} — fully working panel`}
+            title={`${t.label} - fully working panel`}
             className={clsx(
               "avero-press flex flex-1 items-center justify-center gap-1.5 rounded-lg px-1 py-1.5 text-[11px] font-medium transition-colors",
               on ? "bg-[#2f7cf6] text-white shadow-[0_2px_10px_rgba(47,124,246,0.45)]" : "text-[#8e8e98] hover:bg-white/5 hover:text-white",
@@ -217,7 +217,7 @@ export function EffectsPanel() {
       </Section>
 
       <p className="px-1 text-[10px] leading-relaxed text-[#6e6e78]">
-        Live and non-destructive — rendered every frame, editable forever. When shadow and glow are both on, the shadow takes the single canvas shadow slot.
+        Live and non-destructive - rendered every frame, editable forever. When shadow and glow are both on, the shadow takes the single canvas shadow slot.
       </p>
     </div>
   );
@@ -377,7 +377,7 @@ export function StylesPanel() {
         ))}
       </div>
       <p className="px-1 text-[10px] leading-relaxed text-[#6e6e78]">
-        One click restyles the active layer — FX, blend and opacity included. Customs live on this device.
+        One click restyles the active layer - FX, blend and opacity included. Customs live on this device.
       </p>
     </div>
   );
@@ -503,7 +503,7 @@ export function TextStylesPanel() {
                   color: p.color,
                 }}
               >
-                {p.name} — quick brown fox
+                {p.name} - quick brown fox
               </span>
               <span className="mt-1 block font-mono text-[9px] text-[#6e6e78]">
                 {p.fontFamily} · {p.fontSize}px · {p.color}{p.custom ? " · custom" : ""}
@@ -522,7 +522,7 @@ export function TextStylesPanel() {
         ))}
       </div>
       <p className="px-1 text-[10px] leading-relaxed text-[#6e6e78]">
-        Applies to the active text layer live — or becomes the default for the next one.
+        Applies to the active text layer live - or becomes the default for the next one.
       </p>
     </div>
   );
@@ -530,7 +530,7 @@ export function TextStylesPanel() {
 
 // ---------------------------------------------------------------------------
 // Assets: offline procedural patterns + gradients painted as real layers.
-// (Affinity's Stock needs the cloud — AVERO is offline-first, so the studio
+// (Affinity's Stock needs the cloud - AVERO is offline-first, so the studio
 // ships built-in paintable assets instead. Everything here really works.)
 // ---------------------------------------------------------------------------
 
@@ -665,7 +665,7 @@ export function AssetsPanel() {
         </div>
       ))}
       <p className="px-1 text-[10px] leading-relaxed text-[#6e6e78]">
-        Offline built-ins — one click paints the asset onto a fresh layer at full document size.
+        Offline built-ins - one click paints the asset onto a fresh layer at full document size.
       </p>
     </div>
   );

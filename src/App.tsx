@@ -15,9 +15,9 @@ import HomeScreen, { openImageViaDialog } from "./components/HomeScreen";
 import ExportDialog from "./components/ExportDialog";
 import Notifier from "./components/Notifier";
 import AppDialog from "./components/AppDialog";
-import { showError, askText } from "./ui/notify";
-import { openAvxProject, saveAvxProject } from "./io/projectIo";
-import { useEditorStore } from "./stores/useEditorStore";
+import { showError, showMessage, askText } from "./ui/notify";
+import { fetchStartupFile, openAvxProject, saveAvxProject } from "./io/projectIo";
+import { useEditorStore, makeLayer } from "./stores/useEditorStore";
 import { useProStore } from "./stores/useProStore";
 import { loadShortcuts } from "./stores/useWorkspaceStore";
 import {
@@ -34,7 +34,7 @@ import { useHomeStore } from "./stores/useHomeStore";
 import { useSettingsStore } from "./stores/useSettingsStore";
 import SettingsPanel from "./components/SettingsPanel";
 import { layerManager } from "./engine/layerManager";
-import { clearSelectionMask } from "./engine/selection";
+import { clearSelectionMask, drawRectSelection, featherSelection, selectionMaskCanvas } from "./engine/selection";
 import { loadRecovery, saveRecovery, clearRecovery } from "./engine/recovery";
 import { doUndo, doRedo } from "./engine/historyOps";
 
@@ -76,18 +76,16 @@ export default function App() {
     }
     setRecovery(loadRecovery());
     // Double-clicked .avx at launch: open the project straight away.
-    import("./io/projectIo").then(({ fetchStartupFile, openAvxProject }) => {
-      fetchStartupFile().then((p) => {
-        if (p) {
-          openAvxProject(p)
-            .then((ok) => {
-              if (ok) {
-                import("./ui/notify").then(({ showMessage }) => showMessage(`Opened ${p.split(/[/\\]/).pop()}`));
-              }
-            })
-            .catch((err) => showError(`Failed to open project: ${String(err)}`));
-        }
-      });
+    fetchStartupFile().then((p) => {
+      if (p) {
+        openAvxProject(p)
+          .then((ok) => {
+            if (ok) {
+              void showMessage(`Opened ${p.split(/[/\\]/).pop()}`);
+            }
+          })
+          .catch((err) => showError(`Failed to open project: ${String(err)}`));
+      }
     });
   }, []);
 
@@ -189,10 +187,8 @@ export default function App() {
       if (mod && e.key.toLowerCase() === "a" && !inInput) {
         e.preventDefault();
         const st = useEditorStore.getState();
-        import("./engine/selection").then(({ drawRectSelection }) => {
-          drawRectSelection(st.doc.width, st.doc.height, { x: 0, y: 0, w: st.doc.width, h: st.doc.height });
-          window.dispatchEvent(new Event("avero:selection-changed"));
-        });
+        drawRectSelection(st.doc.width, st.doc.height, { x: 0, y: 0, w: st.doc.width, h: st.doc.height });
+        window.dispatchEvent(new Event("avero:selection-changed"));
         return;
       }
       if (mod && e.key.toLowerCase() === "d" && !inInput) {
@@ -244,15 +240,13 @@ export default function App() {
           const st = useEditorStore.getState();
           const img = new Image();
           img.onload = () => {
-            import("./stores/useEditorStore").then(({ makeLayer }) => {
-              const l = makeLayer(`Paste`);
-              const nc = layerManager.ensure(l.id, st.doc.width, st.doc.height);
-              nc.getContext("2d")!.drawImage(img, 0, 0, st.doc.width, st.doc.height);
-              st.addLayer(l);
-              st.setActiveLayer(l.id);
-              st.markDirty();
-              useProStore.getState().bumpHistogram();
-            });
+            const l = makeLayer(`Paste`);
+            const nc = layerManager.ensure(l.id, st.doc.width, st.doc.height);
+            nc.getContext("2d")!.drawImage(img, 0, 0, st.doc.width, st.doc.height);
+            st.addLayer(l);
+            st.setActiveLayer(l.id);
+            st.markDirty();
+            useProStore.getState().bumpHistogram();
           };
           img.src = dataUrl;
         } catch {}
@@ -374,34 +368,33 @@ export default function App() {
     function onSaveEvent() {
       saveAvxProject(false)
         .then((p) => {
-          if (p) import("./ui/notify").then(({ showMessage }) => showMessage(`Saved: ${p}`));
+          if (p) void showMessage(`Saved: ${p}`);
         })
         .catch((err) => showError(`Failed to save project: ${String(err)}`));
     }
     function onOpenAvxEvent() {
       openAvxProject()
         .then((ok) => {
-          if (ok) import("./ui/notify").then(({ showMessage }) => showMessage("The .avx project opened successfully."));
+          if (ok) void showMessage("The .avx project opened successfully.");
         })
         .catch((err) => showError(`Failed to open project: ${String(err)}`));
     }
     async function onSelectEvent(e: Event) {
       const detail = (e as CustomEvent).detail as string;
-      const sel = await import("./engine/selection");
       const st = useEditorStore.getState();
       const W = st.doc.width;
       const H = st.doc.height;
       if (detail === "sel-all") {
-        sel.drawRectSelection(W, H, { x: 0, y: 0, w: W, h: H });
+        drawRectSelection(W, H, { x: 0, y: 0, w: W, h: H });
         window.dispatchEvent(new Event("avero:selection-changed"));
       } else if (detail === "sel-none") {
-        sel.clearSelectionMask();
+        clearSelectionMask();
         window.dispatchEvent(new Event("avero:selection-changed"));
       } else if (detail === "sel-reselect") {
-        sel.drawRectSelection(W, H, { x: 0, y: 0, w: W, h: H });
+        drawRectSelection(W, H, { x: 0, y: 0, w: W, h: H });
         window.dispatchEvent(new Event("avero:selection-changed"));
       } else if (detail === "sel-inverse") {
-        const c = sel.selectionMaskCanvas();
+        const c = selectionMaskCanvas();
         if (c) {
           const ctx = c.getContext("2d")!;
           const img = ctx.getImageData(0, 0, c.width, c.height);
@@ -418,7 +411,7 @@ export default function App() {
         }
       } else if (detail === "sel-feather") {
         askText("Feather Selection", "Feather radius in px (0-100):", "2").then((v) => {
-          if (v !== null && v !== "") sel.featherSelection(Math.max(0, Math.min(100, Number(v) || 0)));
+          if (v !== null && v !== "") featherSelection(Math.max(0, Math.min(100, Number(v) || 0)));
         });
       }
     }
@@ -453,15 +446,13 @@ export default function App() {
         const st = useEditorStore.getState();
         const img = new Image();
         img.onload = () => {
-          import("./stores/useEditorStore").then(({ makeLayer }) => {
-            const l = makeLayer(`Paste`);
-            const nc = layerManager.ensure(l.id, st.doc.width, st.doc.height);
-            nc.getContext("2d")!.drawImage(img, 0, 0, st.doc.width, st.doc.height);
-            st.addLayer(l);
-            st.setActiveLayer(l.id);
-            st.markDirty();
-            useProStore.getState().bumpHistogram();
-          });
+          const l = makeLayer(`Paste`);
+          const nc = layerManager.ensure(l.id, st.doc.width, st.doc.height);
+          nc.getContext("2d")!.drawImage(img, 0, 0, st.doc.width, st.doc.height);
+          st.addLayer(l);
+          st.setActiveLayer(l.id);
+          st.markDirty();
+          useProStore.getState().bumpHistogram();
         };
         img.src = dataUrl;
       }
@@ -483,9 +474,7 @@ export default function App() {
       openAvxProject(path)
         .then((ok) => {
           if (ok) {
-            import("./ui/notify").then(({ showMessage }) =>
-              showMessage(`Opened ${path.split(/[/\\]/).pop()}`),
-            );
+            void showMessage(`Opened ${path.split(/[/\\]/).pop()}`);
           }
         })
         .catch((err) => showError(`Failed to open project: ${String(err)}`));

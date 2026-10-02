@@ -4688,7 +4688,6 @@ export default function CanvasArea() {
           if (tool === "wand-flood") {
             handleWandClick(p);
             try {
-              const { expandContractSelection } = await import("../engine/selection");
               // Flood: max tolerance sweep plus grow for full-region capture.
               expandContractSelection(6);
               window.dispatchEvent(new Event("avero:selection-changed"));
@@ -4717,7 +4716,6 @@ export default function CanvasArea() {
             handleWandClick(p);
             quickLast.current = { x: p.x, y: p.y };
             try {
-              const { expandContractSelection } = await import("../engine/selection");
               expandContractSelection(tool === "object-select" ? Math.max(2, Math.round(brushSize / 6)) : Math.max(1, Math.round(brushSize / 8)));
               window.dispatchEvent(new Event("avero:selection-changed"));
             } catch { /* ignore */ }

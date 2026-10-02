@@ -10,6 +10,7 @@ import {
   featherSelection,
   hasSelection,
   inverseSelection,
+  restoreLastSelection,
 } from "../engine/selection";
 import {
   BRUSH_BLENDS,
@@ -430,10 +431,8 @@ export default function ToolOptionsBar({
       "select-last": {
         label: "Restore now",
         run: () => {
-          import("../engine/selection").then((m) => {
-            m.restoreLastSelection();
-            refreshSelection();
-          });
+          restoreLastSelection();
+          refreshSelection();
         },
       },
     };

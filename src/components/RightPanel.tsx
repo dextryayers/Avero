@@ -21,8 +21,10 @@ import {
   Palette,
   Camera,
   Package,
-  GitBranch,
   Layout,
+  LayoutGrid,
+  PenLine,
+  Brush,
   Puzzle,
   Box,
   History,
@@ -41,7 +43,7 @@ import ColorPanel from "./ColorPanel";
 import RawPanel from "./RawPanel";
 import TransformPanel from "./TransformPanel";
 import BatchPanel from "./BatchPanel";
-import GitPanel from "./GitPanel";
+import { BrushesView, ColourView, StrokeView, SwatchesView } from "./StudioViews";
 import ArtboardPanel from "./ArtboardPanel";
 import PluginPanel from "./PluginPanel";
 import MockupPanel from "./MockupPanel";
@@ -118,7 +120,6 @@ type Tab =
   | "color"
   | "raw"
   | "batch"
-  | "git"
   | "art"
   | "plugin"
   | "mockup"
@@ -135,7 +136,6 @@ const tabs: { id: Tab; label: string; icon: any }[] = [
   { id: "color", label: "Color", icon: Palette },
   { id: "raw", label: "RAW", icon: Camera },
   { id: "batch", label: "Batch", icon: Package },
-  { id: "git", label: "Git", icon: GitBranch },
   { id: "art", label: "Art", icon: Layout },
   { id: "plugin", label: "Plug", icon: Puzzle },
   { id: "mockup", label: "Mock", icon: Box },
@@ -148,10 +148,14 @@ export default function RightPanel() {
   const [kindFilter, setKindFilter] = useState<"all" | "raster" | "text" | "shape" | "background">("all");
   const [showBrush, setShowBrush] = useState(true);
   const [showProps, setShowProps] = useState(true);
+  // Affinity-style studio strip: colour tools above the main tab system.
+  // Selecting a main tab always returns to tab content.
+  const [studio, setStudio] = useState<null | "colour" | "swatches" | "stroke" | "brushes">(null);
   const workspaceTab = useWorkspaceStore((s) => s.rightTab);
   useEffect(() => {
     if (workspaceTab && (tabs as { id: string }[]).some((t) => t.id === workspaceTab)) {
       setTab(workspaceTab as Tab);
+      setStudio(null);
       useWorkspaceStore.getState().setRightTab(null);
     }
   }, [workspaceTab]);
@@ -293,6 +297,37 @@ export default function RightPanel() {
           {doc.width}×{doc.height} · {layers.length} lyr
         </span>
       </div>
+      <div className="grid grid-cols-4 border-b border-[#2c2c31] bg-[#101012]" role="tablist" aria-label="Colour studio">
+        {(
+          [
+            { id: "colour", label: "Colour", icon: Palette },
+            { id: "swatches", label: "Swatches", icon: LayoutGrid },
+            { id: "stroke", label: "Stroke", icon: PenLine },
+            { id: "brushes", label: "Brushes", icon: Brush },
+          ] as const
+        ).map((t) => {
+          const Icon = t.icon;
+          const selected = studio === t.id;
+          return (
+            <button
+              key={t.id}
+              role="tab"
+              aria-selected={selected}
+              onClick={() => setStudio(selected ? null : t.id)}
+              title={`${t.label} studio (click again to close)`}
+              className={clsx(
+                "avero-lift flex items-center justify-center gap-1.5 whitespace-nowrap border-b-2 px-1 py-2 text-[10px]",
+                selected
+                  ? "border-[#2f7cf6] bg-[#1c1c1f] font-semibold text-white"
+                  : "border-transparent text-[#6e6e78] hover:text-white",
+              )}
+            >
+              <Icon size={13} />
+              <span>{t.label}</span>
+            </button>
+          );
+        })}
+      </div>
       <div className="flex overflow-x-auto border-b border-[#2c2c31] bg-[#161618] text-[10px] scrollbar-thin" role="tablist" aria-label="Studio panels">
         {tabs.map((t) => {
           const Icon = t.icon;
@@ -302,7 +337,10 @@ export default function RightPanel() {
               key={t.id}
               role="tab"
               aria-selected={selected}
-              onClick={() => setTab(t.id)}
+              onClick={() => {
+                setTab(t.id);
+                setStudio(null);
+              }}
               title={`${t.label} panel`}
               className={clsx(
                 "avero-lift flex shrink-0 flex-col items-center gap-0.5 whitespace-nowrap border-b-2 px-2 pb-1.5 pt-2",
@@ -323,8 +361,12 @@ export default function RightPanel() {
         })}
       </div>
 
-      <div className="avero-fade-in min-h-0 flex-1 overflow-y-auto" key={tab}>
-        {tab === "layers" && (
+      <div className="avero-fade-in min-h-0 flex-1 overflow-y-auto" key={studio ?? tab}>
+        {studio === "colour" && <ColourView />}
+        {studio === "swatches" && <SwatchesView />}
+        {studio === "stroke" && <StrokeView />}
+        {studio === "brushes" && <BrushesView />}
+        {studio === null && tab === "layers" && (
           <div className="flex min-h-0 flex-col">
             <div className="flex items-center gap-1 border-b border-[#2c2c31] p-2">
               <button
@@ -609,21 +651,20 @@ export default function RightPanel() {
           </div>
         )}
 
-        {tab === "select" && <SelectionPanel />}
-        {tab === "mask" && <MaskPanel />}
-        {tab === "adjust" && <AdjustPanel />}
-        {tab === "filter" && <FilterPanel />}
-        {tab === "lab" && <NativeLabPanel />}
-        {tab === "text" && <TextShapePanel />}
-        {tab === "color" && <ColorPanel />}
-        {tab === "raw" && <RawPanel />}
-        {tab === "batch" && <BatchPanel />}
-        {tab === "git" && <GitPanel />}
-        {tab === "art" && <ArtboardPanel />}
-        {tab === "plugin" && <PluginPanel />}
-        {tab === "mockup" && <MockupPanel />}
+        {studio === null && tab === "select" && <SelectionPanel />}
+        {studio === null && tab === "mask" && <MaskPanel />}
+        {studio === null && tab === "adjust" && <AdjustPanel />}
+        {studio === null && tab === "filter" && <FilterPanel />}
+        {studio === null && tab === "lab" && <NativeLabPanel />}
+        {studio === null && tab === "text" && <TextShapePanel />}
+        {studio === null && tab === "color" && <ColorPanel />}
+        {studio === null && tab === "raw" && <RawPanel />}
+        {studio === null && tab === "batch" && <BatchPanel />}
+        {studio === null && tab === "art" && <ArtboardPanel />}
+        {studio === null && tab === "plugin" && <PluginPanel />}
+        {studio === null && tab === "mockup" && <MockupPanel />}
 
-        {tab === "history" && (
+        {studio === null && tab === "history" && (
           <div className="avero-slide-in p-2 text-[12px]">
             <div className="mb-2 flex items-center justify-between">
               <span className="font-mono text-[10px] text-[#6e6e78]">

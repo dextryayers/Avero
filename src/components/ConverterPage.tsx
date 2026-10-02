@@ -44,6 +44,7 @@ import {
   type OutputFormat,
 } from "../io/convert";
 import { WEB_FORMATS, downloadBlob, isWebInputSupported, pickSaveDirectory, supportsSaveFolder, webConvertImage, writeBlobToDir } from "../io/convertWeb";
+import { rustDecodeToDataUrl, rustImageInfo } from "../io/tauriIo";
 import { useEditorStore } from "../stores/useEditorStore";
 import { useHomeStore } from "../stores/useHomeStore";
 import { useProStore } from "../stores/useProStore";
@@ -245,7 +246,6 @@ function Row({
 
 export async function sendToEditor(path: string) {
   try {
-    const { rustImageInfo, rustDecodeToDataUrl } = await import("../io/tauriIo");
     const info = await rustImageInfo(path);
     const dataUrl = await rustDecodeToDataUrl(path, 2048);
     await openDataUrlInEditor(dataUrl, path.split(/[/\\]/).pop() ?? "Converted", info.width, info.height, path, info.file_size);

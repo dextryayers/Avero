@@ -1,15 +1,14 @@
 import { useEditorStore } from "../stores/useEditorStore";
 import { useProStore } from "../stores/useProStore";
 import Histogram from "./Histogram";
+import SwatchesGrid from "./SwatchesGrid";
 
 export default function ColorPanel() {
   const color = useProStore((s) => s.color);
   const setColor = useProStore((s) => s.setColor);
   const customSwatches = useProStore((s) => s.customSwatches);
   const addSwatch = useProStore((s) => s.addSwatch);
-  const removeSwatch = useProStore((s) => s.removeSwatch);
   const brushColor = useEditorStore((s) => s.brushColor);
-  const setBrush = useEditorStore((s) => s.setBrush);
 
   return (
     <div className="space-y-3 p-3 text-[12px]">
@@ -30,21 +29,7 @@ export default function ColorPanel() {
             No swatches yet. Pick a color, then save it here.
           </div>
         ) : (
-          <div className="grid grid-cols-8 gap-1">
-            {customSwatches.map((c) => (
-              <button
-                key={c}
-                onClick={() => setBrush({ color: c })}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  removeSwatch(c);
-                }}
-                title={`${c} - click to paint with it, right-click to delete`}
-                className="h-6 rounded border border-[#2c2c31] hover:border-white"
-                style={{ background: c }}
-              />
-            ))}
-          </div>
+          <SwatchesGrid />
         )}
       </section>
       <section>

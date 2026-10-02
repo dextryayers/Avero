@@ -1,4 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
+import { open as dlgOpen } from "@tauri-apps/plugin-dialog";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
+import { rustDecodeToDataUrl, rustImageInfo } from "./tauriIo";
 
 // Pure helpers for the Converter page. Covered by convert.test.ts.
 
@@ -290,7 +293,6 @@ export interface BatchSummary {
 export async function probeImage(path: string): Promise<ProbeResult> {
   // Photoshop files rasterize through the Tauri image backend.
   if (extOf(path) === "psd") {
-    const { rustImageInfo } = await import("./tauriIo");
     const info = await rustImageInfo(path);
     return { width: info.width, height: info.height, format: "psd", file_size: info.file_size };
   }
@@ -299,7 +301,6 @@ export async function probeImage(path: string): Promise<ProbeResult> {
 
 export async function thumbFor(path: string): Promise<string | null> {
   try {
-    const { rustDecodeToDataUrl } = await import("./tauriIo");
     return await rustDecodeToDataUrl(path, 256);
   } catch {
     return null;
@@ -335,13 +336,11 @@ export async function cancelBatch(batchId: string): Promise<boolean> {
 }
 
 export async function revealInFolder(path: string): Promise<void> {
-  const { revealItemInDir } = await import("@tauri-apps/plugin-opener");
   await revealItemInDir(path);
 }
 
 export async function browseImages(): Promise<string[]> {
-  const { open } = await import("@tauri-apps/plugin-dialog");
-  const picked = await open({
+  const picked = await dlgOpen({
     multiple: true,
     title: "Add images to convert",
     filters: [{ name: "Images", extensions: [...INPUT_EXTS] }],
@@ -351,8 +350,7 @@ export async function browseImages(): Promise<string[]> {
 }
 
 export async function pickOutputFolder(): Promise<string | null> {
-  const { open } = await import("@tauri-apps/plugin-dialog");
-  const dir = await open({
+  const dir = await dlgOpen({
     multiple: false,
     directory: true,
     canCreateDirectories: true,

@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Save, Download, ChevronDown, FileImage, FileBox, Layers } from "lucide-react";
-import { saveAvxProject, openAvxProject, exportDataUrl, type ExportFormat } from "../io/projectIo";
+import { saveAvxProject, openAvxProject, exportDataUrl, writeTextFile, type ExportFormat } from "../io/projectIo";
+import { rustSaveDataUrl } from "../io/tauriIo";
+import { save } from "@tauri-apps/plugin-dialog";
 import { useEditorStore } from "../stores/useEditorStore";
 import { showError, showMessage } from "../ui/notify";
 import clsx from "clsx";
@@ -39,9 +41,6 @@ export default function QuickExportBar({ onOpenExport }: { onOpenExport: () => v
       const { dataUrl, ext } = exportDataUrl({ format: f, quality: 92, scale: 100, matte: f === "jpg" ? "white" : "none", fileName: doc.name });
       // trigger download via canvas or tauri
       if ("__TAURI__" in window) {
-        const { save } = await import("@tauri-apps/plugin-dialog");
-        const { rustSaveDataUrl } = await import("../io/tauriIo");
-        const { writeTextFile } = await import("../io/projectIo");
         const path = await save({ defaultPath: `${doc.name.replace(/\.[^.]+$/, "")}.${ext}`, filters: [{ name: ext.toUpperCase(), extensions: [ext] }] });
         if (!path) return;
         if (f === "svg") {

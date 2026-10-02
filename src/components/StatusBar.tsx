@@ -3,8 +3,10 @@ import { useEditorStore } from "../stores/useEditorStore";
 import { useProStore } from "../stores/useProStore";
 import { isTauri, nativeBenchmark, nativeInfo, nativeStats, gpuReport, type NativeInfo } from "../io/nativeEngine";
 import { gpuBackend } from "../io/gpuBackend";
-import { layerManager } from "../engine/layerManager";
+import { clearRenderPools, layerManager } from "../engine/layerManager";
 import { showMessage, showError, askText } from "../ui/notify";
+import { smartBudget } from "../io/memoryManager";
+import { useHomeStore } from "../stores/useHomeStore";
 
 export default function StatusBar() {
   const zoom = useEditorStore((s) => s.zoom);
@@ -118,7 +120,6 @@ export default function StatusBar() {
     let alive = true;
     (async () => {
       try {
-        const { smartBudget } = await import("../io/memoryManager");
         const b = await smartBudget(doc.width, doc.height, Math.max(1, layers.length));
         if (alive) setRamMode(`${b.mode} ${b.tile ? `tile ${b.tile}` : "direct"} hist ${b.historyCap}`);
       } catch {
@@ -225,9 +226,7 @@ export default function StatusBar() {
       <button
         onClick={async () => {
           try {
-            const { clearRenderPools } = await import("../engine/layerManager");
             clearRenderPools();
-            const { useHomeStore } = await import("../stores/useHomeStore");
             const freed = useHomeStore.getState().stripHeavyRecents();
             const mb = freed > 0 ? `, freed ${(freed / 1024 / 1024).toFixed(1)}MB recents` : "";
             await showMessage(`Render pools cleared${mb}. Heavy work stays in Rust.`, "Memory Trim");

@@ -4,6 +4,7 @@ import { save } from "@tauri-apps/plugin-dialog";
 import { useEditorStore } from "../stores/useEditorStore";
 import { exportDataUrl, exportImageSmart, writeTextFile, type ExportFormat } from "../io/projectIo";
 import { rustSaveDataUrl } from "../io/tauriIo";
+import { exportPlan } from "../io/memoryManager";
 import { showError, showMessage } from "../ui/notify";
 import clsx from "clsx";
 
@@ -40,7 +41,6 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
     let alive = true;
     (async () => {
       try {
-        const { exportPlan } = await import("../io/memoryManager");
         const p = await exportPlan(doc.width, doc.height, scale);
         if (alive) setTiled(p.tiled);
       } catch {

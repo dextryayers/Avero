@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { rustDecodeToDataUrl, rustImageInfo } from "../io/tauriIo";
 
 export interface RecentFile {
   id: string;
@@ -103,7 +104,6 @@ export async function resolveRecent(r: RecentFile): Promise<{ dataUrl: string; w
   if (r.full) return { dataUrl: r.full, w: r.w, h: r.h };
   if (r.path) {
     if (r.path.toLowerCase().endsWith(".avx")) return null;
-    const { rustDecodeToDataUrl, rustImageInfo } = await import("../io/tauriIo");
     const info = await rustImageInfo(r.path);
     const dataUrl = await rustDecodeToDataUrl(r.path, 2048);
     return { dataUrl, w: info.width, h: info.height };

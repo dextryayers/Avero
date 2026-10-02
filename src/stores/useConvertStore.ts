@@ -9,6 +9,7 @@ import {
   type ConvertOptions,
   type OutputFormat,
 } from "../io/convert";
+import { webProbe } from "../io/convertWeb";
 
 export type JobStatus = "queued" | "converting" | "done" | "error" | "skipped";
 
@@ -205,7 +206,6 @@ export const useConvertStore = create<ConvertState>((set, get) => ({
     })),
 
   addFiles: async (files) => {
-    const { webProbe } = await import("../io/convertWeb");
     const st = get();
     const fresh: ConvertJob[] = files.map((f) => ({
       id: uid("job"),

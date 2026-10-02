@@ -5,6 +5,8 @@ import { useProStore } from "../stores/useProStore";
 import { useHomeStore } from "../stores/useHomeStore";
 import { layerManager } from "../engine/layerManager";
 import { clearSelectionMask, hasSelection, selectionMaskCanvas, restoreSelectionMask } from "../engine/selection";
+import { rustSaveDataUrl } from "./tauriIo";
+import { exportPlan } from "./memoryManager";
 import { getCompositeCanvas } from "../components/CanvasArea";
 
 export const AVX_MAGIC = "AVX1";
@@ -575,7 +577,6 @@ export async function saveAvxProject(saveAs = false): Promise<string | null> {
         pc.width = pw;
         pc.height = ph;
         pc.getContext("2d")!.drawImage(comp, 0, 0, pw, ph);
-        const { rustSaveDataUrl } = await import("./tauriIo");
         await rustSaveDataUrl(pc.toDataURL("image/jpeg", 0.82), previewPathFor(path));
       }
     } catch {
@@ -955,7 +956,6 @@ export async function exportImageSmart(
   onProgress?.("Planning export");
   let plan = { outW: Math.max(1, Math.round(ed.doc.width * (opts.scale / 100))), outH: Math.max(1, Math.round(ed.doc.height * (opts.scale / 100))), tiled: false, tile: 0, estMB: 0 };
   try {
-    const { exportPlan } = await import("./memoryManager");
     const p = await exportPlan(ed.doc.width, ed.doc.height, opts.scale);
     plan = { outW: p.outW, outH: p.outH, tiled: p.tiled, tile: p.tile, estMB: p.estMB };
   } catch {

@@ -1,4 +1,5 @@
 /** Memory manager: track JS heap plus Rust estimates, recommend light mode. */
+import { invoke } from "@tauri-apps/api/core";
 import { lightThresholdScale } from "../stores/useSettingsStore";
 
 export interface MemorySnapshot {
@@ -70,7 +71,6 @@ export async function smartBudget(w: number, h: number, layers: number): Promise
   })();
   try {
     if (typeof window !== "undefined" && "__TAURI__" in window) {
-      const { invoke } = await import("@tauri-apps/api/core");
       const b = await invoke<{ mode: string; tile: number; history_cap: number; total_mb: number }>(
         "cmd_ram_budget",
         { width: w, height: h, layers },
@@ -91,7 +91,6 @@ export async function exportPlan(
 ): Promise<{ outW: number; outH: number; tiled: boolean; tile: number; estMB: number }> {
   try {
     if (typeof window !== "undefined" && "__TAURI__" in window) {
-      const { invoke } = await import("@tauri-apps/api/core");
       const p = await invoke<{ out_w: number; out_h: number; tiled: boolean; tile: number; est_mb: number }>(
         "cmd_export_plan",
         { width: w, height: h, scale },

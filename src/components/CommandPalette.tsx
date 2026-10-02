@@ -12,6 +12,7 @@ import {
   rustImageInfo,
   rustSaveDataUrl,
 } from "../io/tauriIo";
+import { isTauri, nativeBenchmark, nativeInfo, nativeProcessCanvas, nativeStats } from "../io/nativeEngine";
 import { showError, showMessage } from "../ui/notify";
 
 export default function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -380,32 +381,29 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
         title: "Studio processing readiness info",
         run: async () => {
           try {
-            const { nativeInfo, isTauri } = await import("../io/nativeEngine");
             if (!isTauri()) { await showMessage("This info is only available in the desktop app."); return; }
             const info = await nativeInfo();
-            await showMessage(`Readiness: ${info.ready ? "Ready" : "Not ready"}\nAdjustment ops: 23\nFilters: 20\nAnalysis: histogram, stats, benchmark\n${info.features.join("\n")}`);
+            await showMessage(`Readiness: ${info.ready ? "Ready" : "Not ready"}\n${info.features.join("\n")}`);
           } catch (e) { await showError(String(e)); }
         },
       },
       { id: "native-gray", title: "Quick adjustment: grayscale active layer", run: async () => {
-        try { const { isTauri, nativeProcessCanvas } = await import("../io/nativeEngine"); const { layerManager } = await import("../engine/layerManager"); const st = useEditorStore.getState(); const id = st.activeLayerId; if (!isTauri() || !id) return; const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height); await nativeProcessCanvas(c, "op", { op: "gray" }); st.markDirty(); } catch (e) { await showError(String(e)); }
+        try { const st = useEditorStore.getState(); const id = st.activeLayerId; if (!isTauri() || !id) return; const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height); await nativeProcessCanvas(c, "op", { op: "gray" }); st.markDirty(); } catch (e) { await showError(String(e)); }
       } },
       { id: "native-exposure", title: "Quick adjustment: exposure +1 EV active layer", run: async () => {
-        try { const { isTauri, nativeProcessCanvas } = await import("../io/nativeEngine"); const { layerManager } = await import("../engine/layerManager"); const st = useEditorStore.getState(); const id = st.activeLayerId; if (!isTauri() || !id) return; const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height); await nativeProcessCanvas(c, "op", { op: "exposure", ev: 1.0 }); st.markDirty(); } catch (e) { await showError(String(e)); }
+        try { const st = useEditorStore.getState(); const id = st.activeLayerId; if (!isTauri() || !id) return; const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height); await nativeProcessCanvas(c, "op", { op: "exposure", ev: 1.0 }); st.markDirty(); } catch (e) { await showError(String(e)); }
       } },
       { id: "native-vibrance", title: "Quick adjustment: vibrance +30 active layer", run: async () => {
-        try { const { isTauri, nativeProcessCanvas } = await import("../io/nativeEngine"); const { layerManager } = await import("../engine/layerManager"); const st = useEditorStore.getState(); const id = st.activeLayerId; if (!isTauri() || !id) return; const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height); await nativeProcessCanvas(c, "op", { op: "vibrance", amount: 30 }); st.markDirty(); } catch (e) { await showError(String(e)); }
+        try { const st = useEditorStore.getState(); const id = st.activeLayerId; if (!isTauri() || !id) return; const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height); await nativeProcessCanvas(c, "op", { op: "vibrance", amount: 30 }); st.markDirty(); } catch (e) { await showError(String(e)); }
       } },
       { id: "native-auto-levels", title: "Quick adjustment: auto levels active layer", run: async () => {
-        try { const { isTauri, nativeProcessCanvas } = await import("../io/nativeEngine"); const { layerManager } = await import("../engine/layerManager"); const st = useEditorStore.getState(); const id = st.activeLayerId; if (!isTauri() || !id) return; const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height); await nativeProcessCanvas(c, "op", { op: "autoLevels" }); st.markDirty(); } catch (e) { await showError(String(e)); }
+        try { const st = useEditorStore.getState(); const id = st.activeLayerId; if (!isTauri() || !id) return; const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height); await nativeProcessCanvas(c, "op", { op: "autoLevels" }); st.markDirty(); } catch (e) { await showError(String(e)); }
       } },
       {
         id: "native-box",
         title: "Filter: box blur active layer",
         run: async () => {
           try {
-            const { isTauri, nativeProcessCanvas } = await import("../io/nativeEngine");
-            const { layerManager } = await import("../engine/layerManager");
             const st = useEditorStore.getState();
             const id = st.activeLayerId;
             if (!isTauri() || !id) return;
@@ -416,18 +414,16 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
         },
       },
       { id: "native-gauss", title: "Filter: gaussian sigma 2 active layer", run: async () => {
-        try { const { isTauri, nativeProcessCanvas } = await import("../io/nativeEngine"); const { layerManager } = await import("../engine/layerManager"); const st = useEditorStore.getState(); const id = st.activeLayerId; if (!isTauri() || !id) return; const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height); await nativeProcessCanvas(c, "filter", { op: "gaussian", sigma: 2.0 }); st.markDirty(); } catch (e) { await showError(String(e)); }
+        try { const st = useEditorStore.getState(); const id = st.activeLayerId; if (!isTauri() || !id) return; const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height); await nativeProcessCanvas(c, "filter", { op: "gaussian", sigma: 2.0 }); st.markDirty(); } catch (e) { await showError(String(e)); }
       } },
       { id: "native-median", title: "Filter: median denoise active layer", run: async () => {
-        try { const { isTauri, nativeProcessCanvas } = await import("../io/nativeEngine"); const { layerManager } = await import("../engine/layerManager"); const st = useEditorStore.getState(); const id = st.activeLayerId; if (!isTauri() || !id) return; const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height); await nativeProcessCanvas(c, "filter", { op: "median", radius: 2 }); st.markDirty(); } catch (e) { await showError(String(e)); }
+        try { const st = useEditorStore.getState(); const id = st.activeLayerId; if (!isTauri() || !id) return; const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height); await nativeProcessCanvas(c, "filter", { op: "median", radius: 2 }); st.markDirty(); } catch (e) { await showError(String(e)); }
       } },
       {
         id: "native-sharpen",
         title: "Filter: sharpen active layer",
         run: async () => {
           try {
-            const { isTauri, nativeProcessCanvas } = await import("../io/nativeEngine");
-            const { layerManager } = await import("../engine/layerManager");
             const st = useEditorStore.getState();
             const id = st.activeLayerId;
             if (!isTauri() || !id) return;
@@ -438,13 +434,13 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
         },
       },
       { id: "native-vignette", title: "Filter: vignette active layer", run: async () => {
-        try { const { isTauri, nativeProcessCanvas } = await import("../io/nativeEngine"); const { layerManager } = await import("../engine/layerManager"); const st = useEditorStore.getState(); const id = st.activeLayerId; if (!isTauri() || !id) return; const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height); await nativeProcessCanvas(c, "filter", { op: "vignette", amount: 0.45 }); st.markDirty(); } catch (e) { await showError(String(e)); }
+        try { const st = useEditorStore.getState(); const id = st.activeLayerId; if (!isTauri() || !id) return; const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height); await nativeProcessCanvas(c, "filter", { op: "vignette", amount: 0.45 }); st.markDirty(); } catch (e) { await showError(String(e)); }
       } },
       { id: "native-stats", title: "Analyze: active layer stats", run: async () => {
-        try { const { isTauri, nativeStats } = await import("../io/nativeEngine"); const { layerManager } = await import("../engine/layerManager"); const st = useEditorStore.getState(); const id = st.activeLayerId ?? st.layers[0]?.id; if (!isTauri() || !id) return; const c = layerManager.get(id); if (!c) return; const ctx = c.getContext("2d", { willReadFrequently: true })!; const d = ctx.getImageData(0,0,c.width,c.height); const s = await nativeStats(d.data); await showMessage(`Mean ${s.mean_r.toFixed(1)}/${s.mean_g.toFixed(1)}/${s.mean_b.toFixed(1)} Std ${s.std_r.toFixed(1)}/${s.std_g.toFixed(1)}/${s.std_b.toFixed(1)}`);} catch(e){await showError(String(e));}
+        try { const st = useEditorStore.getState(); const id = st.activeLayerId ?? st.layers[0]?.id; if (!isTauri() || !id) return; const c = layerManager.get(id); if (!c) return; const ctx = c.getContext("2d", { willReadFrequently: true })!; const d = ctx.getImageData(0,0,c.width,c.height); const s = await nativeStats(d.data); await showMessage(`Mean ${s.mean_r.toFixed(1)}/${s.mean_g.toFixed(1)}/${s.mean_b.toFixed(1)} Std ${s.std_r.toFixed(1)}/${s.std_g.toFixed(1)}/${s.std_b.toFixed(1)}`);} catch(e){await showError(String(e));}
       } },
       { id: "native-bench", title: "Analyze: benchmark", run: async () => {
-        try { const { nativeBenchmark } = await import("../io/nativeEngine"); const r = await nativeBenchmark(1920,1080,20); await showMessage(`${r.ops}\n${r.mpix_per_sec.toFixed(1)} MP/s`);}catch(e){await showError(String(e));}
+        try { const r = await nativeBenchmark(1920,1080,20); await showMessage(`${r.ops}\n${r.mpix_per_sec.toFixed(1)} MP/s`);}catch(e){await showError(String(e));}
       } },
     ];
   }, []);

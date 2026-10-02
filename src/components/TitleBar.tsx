@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { checkBackend, pickImageToOpen, rustDecodeToDataUrl, rustImageInfo } from "../io/tauriIo";
-import { openAvxProject, saveAvxProject } from "../io/projectIo";
+import { checkBackend, pickImageToOpen, pickSavePath, rustDecodeToDataUrl, rustImageInfo, rustSaveDataUrl } from "../io/tauriIo";
+import { getCompositeCanvas } from "./CanvasArea";
+import { openAvxProject, registerAvxAssociation, saveAvxProject } from "../io/projectIo";
 import { layerManager } from "../engine/layerManager";
-import { useEditorStore } from "../stores/useEditorStore";
+import { useEditorStore, makeLayer } from "../stores/useEditorStore";
+import { useWorkspaceStore } from "../stores/useWorkspaceStore";
+import { useNodeStore } from "../stores/useNodeStore";
+import { isTauri, nativeProcessCanvas } from "../io/nativeEngine";
 import { useHomeStore } from "../stores/useHomeStore";
 import { useProStore } from "../stores/useProStore";
 import { House, Search, Settings2 } from "lucide-react";
@@ -30,10 +34,7 @@ export default function TitleBar({
     checkBackend().then((r) => {
       setBackend(r.ok ? "online" : "web-only", r.info);
     });
-    import("../io/projectIo").then(({ registerAvxAssociation }) => {
-      void registerAvxAssociation();
-    });
-  }, [setBackend]);
+    void registerAvxAssociation();  }, [setBackend]);
 
   useEffect(() => {
     function close() {
@@ -115,8 +116,6 @@ export default function TitleBar({
     const ed = useEditorStore.getState();
     const pro = useProStore.getState();
     const pick = async () => {
-      const { pickSavePath, rustSaveDataUrl } = await import("../io/tauriIo");
-      const { getCompositeCanvas } = await import("./CanvasArea");
       const comp = getCompositeCanvas();
       const dataUrl = comp?.toDataURL("image/png") ?? "";
       const path = await pickSavePath(`${ed.doc.name || "avero-studio"}.png`);
@@ -207,17 +206,13 @@ export default function TitleBar({
         pro.toggleGuides();
         break;
       case "nodegraph":
-        import("../stores/useNodeStore").then(({ useNodeStore }) => {
-          useNodeStore.getState().toggle();
-          if (useNodeStore.getState().enabled) useNodeStore.getState().autoFromStack();
-        });
+        useNodeStore.getState().toggle();
+        if (useNodeStore.getState().enabled) useNodeStore.getState().autoFromStack();
         break;
       case "add-layer": {
-        import("../stores/useEditorStore").then(({ makeLayer }) => {
-          const l = makeLayer(`Layer ${ed.layers.length + 1}`);
-          layerManager.ensure(l.id, ed.doc.width, ed.doc.height);
-          ed.addLayer(l);
-        });
+        const l = makeLayer(`Layer ${ed.layers.length + 1}`);
+        layerManager.ensure(l.id, ed.doc.width, ed.doc.height);
+        ed.addLayer(l);
         break;
       }
       case "dup-layer":
@@ -225,14 +220,12 @@ export default function TitleBar({
         const id = ed.activeLayerId;
         const src = ed.layers.find((l) => l.id === id);
         if (src) {
-          import("../stores/useEditorStore").then(({ makeLayer }) => {
-            const l = makeLayer(`${src.name} copy`);
-            const nl = { ...l, opacity: src.opacity, blendMode: src.blendMode, kind: src.kind };
-            const sc = layerManager.get(src.id);
-            const dc = layerManager.ensure(nl.id, ed.doc.width, ed.doc.height);
-            if (sc) dc.getContext("2d")!.drawImage(sc, 0, 0);
-            ed.addLayer(nl);
-          });
+          const l = makeLayer(`${src.name} copy`);
+          const nl = { ...l, opacity: src.opacity, blendMode: src.blendMode, kind: src.kind };
+          const sc = layerManager.get(src.id);
+          const dc = layerManager.ensure(nl.id, ed.doc.width, ed.doc.height);
+          if (sc) dc.getContext("2d")!.drawImage(sc, 0, 0);
+          ed.addLayer(nl);
         }
         break;
       }
@@ -446,7 +439,6 @@ export default function TitleBar({
       case "f-native-emboss":
         void (async () => {
           try {
-            const { isTauri, nativeProcessCanvas } = await import("../io/nativeEngine");
             const id = ed.activeLayerId;
             if (!isTauri() || !id) return;
             const c = layerManager.get(id) ?? layerManager.ensure(id, ed.doc.width, ed.doc.height);
@@ -471,7 +463,6 @@ export default function TitleBar({
       case "a-native-contrast":
         void (async () => {
           try {
-            const { isTauri, nativeProcessCanvas } = await import("../io/nativeEngine");
             const id = ed.activeLayerId;
             if (!isTauri() || !id) return;
             const c = layerManager.get(id) ?? layerManager.ensure(id, ed.doc.width, ed.doc.height);
@@ -532,24 +523,16 @@ export default function TitleBar({
         pro.addAdjustment("shadowsHighlights");
         break;
       case "ws-retouch":
-        import("../stores/useWorkspaceStore").then(({ useWorkspaceStore }) =>
-          useWorkspaceStore.getState().setWorkspace("retouching"),
-        );
+        useWorkspaceStore.getState().setWorkspace("retouching");
         break;
       case "ws-photo":
-        import("../stores/useWorkspaceStore").then(({ useWorkspaceStore }) =>
-          useWorkspaceStore.getState().setWorkspace("photography"),
-        );
+        useWorkspaceStore.getState().setWorkspace("photography");
         break;
       case "ws-design":
-        import("../stores/useWorkspaceStore").then(({ useWorkspaceStore }) =>
-          useWorkspaceStore.getState().setWorkspace("design"),
-        );
+        useWorkspaceStore.getState().setWorkspace("design");
         break;
       case "ws-minimal":
-        import("../stores/useWorkspaceStore").then(({ useWorkspaceStore }) =>
-          useWorkspaceStore.getState().setWorkspace("minimal"),
-        );
+        useWorkspaceStore.getState().setWorkspace("minimal");
         break;
       case "onboarding":
         try {

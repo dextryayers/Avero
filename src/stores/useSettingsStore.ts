@@ -110,7 +110,10 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     } catch {
       /* ignore quota */
     }
-    // live-apply view defaults that other stores own
+    // live-apply view defaults that other stores own.
+    // NOTE: dynamic imports here are intentional cycle-breakers. useEditorStore
+    // statically imports this module (effectiveHistoryCap), so static imports
+    // back would create a module cycle. Called only on settings apply, never hot.
     try {
       const v = p as Partial<SettingsState>;
       if (typeof v.showRulersOnStart === "boolean") {

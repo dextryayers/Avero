@@ -297,37 +297,6 @@ export default function RightPanel() {
           {doc.width}×{doc.height} · {layers.length} lyr
         </span>
       </div>
-      <div className="grid grid-cols-4 border-b border-[#2c2c31] bg-[#101012]" role="tablist" aria-label="Colour studio">
-        {(
-          [
-            { id: "colour", label: "Colour", icon: Palette },
-            { id: "swatches", label: "Swatches", icon: LayoutGrid },
-            { id: "stroke", label: "Stroke", icon: PenLine },
-            { id: "brushes", label: "Brushes", icon: Brush },
-          ] as const
-        ).map((t) => {
-          const Icon = t.icon;
-          const selected = studio === t.id;
-          return (
-            <button
-              key={t.id}
-              role="tab"
-              aria-selected={selected}
-              onClick={() => setStudio(selected ? null : t.id)}
-              title={`${t.label} studio (click again to close)`}
-              className={clsx(
-                "avero-lift flex items-center justify-center gap-1.5 whitespace-nowrap border-b-2 px-1 py-2 text-[10px]",
-                selected
-                  ? "border-[#2f7cf6] bg-[#1c1c1f] font-semibold text-white"
-                  : "border-transparent text-[#6e6e78] hover:text-white",
-              )}
-            >
-              <Icon size={13} />
-              <span>{t.label}</span>
-            </button>
-          );
-        })}
-      </div>
       <div className="flex overflow-x-auto border-b border-[#2c2c31] bg-[#161618] text-[10px] scrollbar-thin" role="tablist" aria-label="Studio panels">
         {tabs.map((t) => {
           const Icon = t.icon;
@@ -356,6 +325,37 @@ export default function RightPanel() {
                   {t.id === "adjust" ? adjustments.length : t.id === "filter" ? filters.length : history.length}
                 </span>
               ) : null}
+            </button>
+          );
+        })}
+      </div>
+      <div className="grid grid-cols-4 border-b border-[#2c2c31] bg-[#101012]" role="tablist" aria-label="Colour studio">
+        {(
+          [
+            { id: "colour", label: "Colour", icon: Palette },
+            { id: "swatches", label: "Swatches", icon: LayoutGrid },
+            { id: "stroke", label: "Stroke", icon: PenLine },
+            { id: "brushes", label: "Brushes", icon: Brush },
+          ] as const
+        ).map((t) => {
+          const Icon = t.icon;
+          const selected = studio === t.id;
+          return (
+            <button
+              key={t.id}
+              role="tab"
+              aria-selected={selected}
+              onClick={() => setStudio(selected ? null : t.id)}
+              title={`${t.label} studio (click again to close)`}
+              className={clsx(
+                "avero-lift flex items-center justify-center gap-1.5 whitespace-nowrap border-b-2 px-1 py-2 text-[10px]",
+                selected
+                  ? "border-[#2f7cf6] bg-[#1c1c1f] font-semibold text-white"
+                  : "border-transparent text-[#6e6e78] hover:text-white",
+              )}
+            >
+              <Icon size={13} />
+              <span>{t.label}</span>
             </button>
           );
         })}
@@ -453,6 +453,49 @@ export default function RightPanel() {
                   <option value="background">Bg</option>
                 </select>
               </div>
+              {(() => {
+                const al = layers.find((l) => l.id === activeLayerId);
+                if (!al) return null;
+                return (
+                  <div className="flex items-center gap-1.5 border-b border-[#2c2c31] px-2 py-1.5">
+                    <span className="shrink-0 font-mono text-[10px] text-[#6e6e78]">Opacity:</span>
+                    <input
+                      type="number"
+                      value={al.opacity}
+                      min={0}
+                      max={100}
+                      disabled={al.locked}
+                      onChange={(e) => updateLayer(al.id, { opacity: Math.max(0, Math.min(100, Number(e.target.value))) })}
+                      title="Active layer opacity percent"
+                      className="h-6 w-14 shrink-0 rounded border border-[#2c2c31] bg-[#101012] px-1 font-mono text-[11px] text-white outline-none disabled:opacity-40 focus:border-[#2f7cf6]"
+                    />
+                    <span className="font-mono text-[10px] text-[#6e6e78]">%</span>
+                    <select
+                      value={al.blendMode}
+                      disabled={al.locked}
+                      onChange={(e) => updateLayer(al.id, { blendMode: e.target.value as never })}
+                      title="Active layer blend mode"
+                      className="h-6 min-w-0 flex-1 rounded border border-[#2c2c31] bg-[#101012] px-1 text-[11px] text-white disabled:opacity-40"
+                    >
+                      {BLEND_MODES.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.label}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => updateLayer(al.id, { locked: !al.locked })}
+                      title={al.locked ? "Unlock active layer" : "Lock active layer"}
+                      className={clsx(
+                        "avero-press grid h-6 w-6 shrink-0 place-items-center rounded border border-[#2c2c31]",
+                        al.locked ? "bg-[#2f7cf6] text-white" : "text-[#a7a7b0] hover:text-white",
+                      )}
+                    >
+                      <Lock size={12} />
+                    </button>
+                  </div>
+                );
+              })()}
               <ActiveLayerProps />
             </div>
 
@@ -647,6 +690,69 @@ export default function RightPanel() {
                 <span className="font-mono text-[10px] text-[#6e6e78]">{showProps ? "-" : "+"}</span>
               </button>
               {showProps && <TransformPanel />}
+            </div>
+            <div className="sticky bottom-0 flex items-center justify-center gap-1 border-t border-[#2c2c31] bg-[#161618] p-1.5">
+              <button
+                onClick={() => {
+                  const l = makeLayer(`Layer ${layers.length + 1}`);
+                  layerManager.ensure(l.id, doc.width, doc.height);
+                  useProStore.getState().ensureTransform(l.id);
+                  addLayer(l);
+                }}
+                title="New layer"
+                className="avero-press grid h-7 w-7 place-items-center rounded-md text-[#a7a7b0] hover:bg-[#232327] hover:text-white"
+              >
+                <Plus size={14} />
+              </button>
+              <button
+                onClick={() => {
+                  if (activeLayerId) duplicateLayer(activeLayerId);
+                }}
+                title="Duplicate active layer"
+                className="avero-press grid h-7 w-7 place-items-center rounded-md text-[#a7a7b0] hover:bg-[#232327] hover:text-white"
+              >
+                <Copy size={14} />
+              </button>
+              <button
+                onClick={() => {
+                  if (!activeLayerId || layers.length <= 1) return;
+                  layerManager.remove(activeLayerId);
+                  layerManager.removeMask(activeLayerId);
+                  useProStore.getState().removeMaskEntry(activeLayerId);
+                  useProStore.getState().removeTransform(activeLayerId);
+                  removeLayer(activeLayerId);
+                }}
+                disabled={layers.length <= 1}
+                title="Delete active layer"
+                className="avero-press grid h-7 w-7 place-items-center rounded-md text-[#a7a7b0] hover:bg-[#232327] hover:text-white disabled:opacity-40"
+              >
+                <Trash2 size={14} />
+              </button>
+              <button
+                onClick={() => {
+                  if (activeLayerId) void mergeDown(activeLayerId);
+                }}
+                disabled={layers.length <= 1}
+                title="Merge down"
+                className="avero-press grid h-7 w-7 place-items-center rounded-md text-[#a7a7b0] hover:bg-[#232327] hover:text-white disabled:opacity-40"
+              >
+                <ArrowDownToLine size={14} />
+              </button>
+              <span className="mx-1 h-4 w-px bg-[#2c2c31]" />
+              <button
+                title="Undo"
+                onClick={handleUndo}
+                className="avero-press grid h-7 w-7 place-items-center rounded-md text-[#a7a7b0] hover:bg-[#232327] hover:text-white"
+              >
+                <Undo2 size={14} />
+              </button>
+              <button
+                title="Redo"
+                onClick={handleRedo}
+                className="avero-press grid h-7 w-7 place-items-center rounded-md text-[#a7a7b0] hover:bg-[#232327] hover:text-white"
+              >
+                <Redo2 size={14} />
+              </button>
             </div>
           </div>
         )}

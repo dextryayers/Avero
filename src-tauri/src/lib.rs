@@ -73,6 +73,9 @@ pub fn run() {
             ram::cmd_export_plan,
             segment::cmd_segment_model_path,
             segment::cmd_segment_objects,
+            segment::cmd_segment_stuff,
+            segment::cmd_segment_text,
+            segment::cmd_segment_models_status,
             system::cmd_system_profile,
             system::cmd_engine_recommend
         ])

@@ -1,10 +1,24 @@
 import { getCompositeCanvas } from "../engine/compositeRef";
-import { isTauri, segmentModelPath, segmentObjects } from "./nativeEngine";
+import {
+  isTauri,
+  segmentModelsStatus,
+  segmentObjects,
+  segmentStuff,
+  segmentText,
+} from "./nativeEngine";
 import { makeLayer, useEditorStore } from "../stores/useEditorStore";
 import { useProStore } from "../stores/useProStore";
 import { layerManager } from "../engine/layerManager";
 import { notify, showError, showMessage } from "../ui/notify";
 import { restoreSelectionMask } from "../engine/selection";
+import {
+  clampBox,
+  dedupeSameLabel,
+  filterMinArea,
+  readingOrder,
+  sortAreaDesc,
+  type MergeBox,
+} from "../engine/segmentMerge";
 
 // Plan5 Fase 1 vertical slice: "Auto Segment Objects" palette command.
 // Runs YOLO11n-seg (Rust) on the current composite and turns every detected
@@ -37,16 +51,21 @@ export async function runAutoSegment(): Promise<void> {
     await showMessage("Nothing to segment. Open an image first.");
     return;
   }
-  let status;
+  let models;
   try {
-    status = await segmentModelPath();
+    models = await segmentModelsStatus();
   } catch (e) {
     await showError(`Segment engine unavailable: ${String(e)}`);
     return;
   }
-  if (!status.found) {
+  const missing = [
+    !models.yolo.found && `YOLO: ${models.yolo.path}`,
+    !models.stuff.found && `stuff: ${models.stuff.path}`,
+    !models.text.found && `text: ${models.text.path}`,
+  ].filter(Boolean) as string[];
+  if (!models.yolo.found && !models.stuff.found && !models.text.found) {
     await showMessage(
-      `YOLO model not found.\nPlace yolo11n-seg.onnx at:\n${status.path}\n(one-time setup; fully offline after that)`,
+      `No segment models found. Place .onnx files at:\n${missing.join("\n")}\n(one-time setup; fully offline after that)`,
       "Auto Segment",
     );
     return;
@@ -62,51 +81,133 @@ export async function runAutoSegment(): Promise<void> {
   bctx.drawImage(comp, 0, 0, bw, bh);
   const rgba = bctx.getImageData(0, 0, bw, bh).data;
 
-  notify("Segmenting objects with YOLO11...");
-  let res;
-  try {
-    res = await segmentObjects(status.path, rgba, bw, bh, 0.35);
-  } catch (e) {
-    await showError(`Segmentation failed: ${String(e)}`);
-    return;
-  }
-  const dets = res.detections.slice(0, SEG_MAX_LAYERS);
-  if (dets.length === 0) {
-    notify("No objects found. Try a photo with clearer subjects.");
+  notify("Segmenting objects (YOLO + stuff + text)...");
+  const t0 = performance.now();
+  const [yoloR, stuffR, textR] = await Promise.all([
+    models.yolo.found
+      ? segmentObjects(models.yolo.path, rgba, bw, bh, 0.35).then(
+          (r) => ({ ok: true as const, r }),
+          (e) => ({ ok: false as const, e: String(e) }),
+        )
+      : Promise.resolve({ ok: false as const, e: "model missing", missing: true as const }),
+    models.stuff.found
+      ? segmentStuff(models.stuff.path, rgba, bw, bh).then(
+          (r) => ({ ok: true as const, r }),
+          (e) => ({ ok: false as const, e: String(e) }),
+        )
+      : Promise.resolve({ ok: false as const, e: "model missing", missing: true as const }),
+    models.text.found
+      ? segmentText(models.text.path, rgba, bw, bh).then(
+          (r) => ({ ok: true as const, r }),
+          (e) => ({ ok: false as const, e: String(e) }),
+        )
+      : Promise.resolve({ ok: false as const, e: "model missing", missing: true as const }),
+  ]);
+  if (!yoloR.ok && !("missing" in yoloR)) {
+    await showError(`YOLO segmentation failed: ${yoloR.e}`);
     return;
   }
   const st = useEditorStore.getState();
-  const fx = st.doc.width / Math.max(1, res.input_width);
-  const fy = st.doc.height / Math.max(1, res.input_height);
+  const fx = st.doc.width / Math.max(1, bw);
+  const fy = st.doc.height / Math.max(1, bh);
+  const toBox = (x: number, y: number, w: number, h: number) => clampBox({ x: x * fx, y: y * fy, w: w * fx, h: h * fy }, st.doc.width, st.doc.height);
+
+  type Item = MergeBox & { maskUrl: string | null; rectMask?: boolean };
+  const items: Item[] = [];
+  let nThings = 0;
+  let nRegions = 0;
+  let nText = 0;
+  if (yoloR.ok) {
+    for (const d of yoloR.r.detections) {
+      const b = toBox(d.x, d.y, d.w, d.h);
+      items.push({
+        label: capitalize(d.label),
+        score: d.score,
+        source: "yolo",
+        ...b,
+        maskUrl: `data:image/png;base64,${d.mask_png_base64}`,
+      });
+      nThings++;
+    }
+  }
+  if (stuffR.ok) {
+    for (const r of stuffR.r.regions) {
+      const b = toBox(r.x, r.y, r.w, r.h);
+      items.push({
+        label: r.label,
+        score: Math.min(0.99, 0.5 + r.coverage),
+        source: "stuff",
+        ...b,
+        maskUrl: `data:image/png;base64,${r.mask_png_base64}`,
+      });
+      nRegions++;
+    }
+  }
+  if (textR.ok) {
+    // Name text boxes in reading order before area sorting.
+    const ordered = readingOrder(
+      textR.r.boxes.map((b) => {
+        const bb = toBox(b.x, b.y, b.w, b.h);
+        return { x: bb.x, y: bb.y, w: bb.w, h: bb.h, score: b.score };
+      }),
+      st.doc.height,
+    );
+    ordered.forEach((b, i) => {
+      items.push({ label: `Text ${i + 1}`, score: b.score, source: "text", x: b.x, y: b.y, w: b.w, h: b.h, maskUrl: null, rectMask: true });
+      nText++;
+    });
+  } else if (!("missing" in textR)) {
+    await showError(`Text segmentation failed: ${textR.e}`);
+    return;
+  }
+  if (!stuffR.ok && !("missing" in stuffR)) {
+    await showError(`Stuff segmentation failed: ${stuffR.e}`);
+    return;
+  }
+  const merged = sortAreaDesc(
+    dedupeSameLabel(filterMinArea(items, st.doc.width * st.doc.height), st.doc.width * st.doc.height).slice(0, SEG_MAX_LAYERS),
+  );
+  if (merged.length === 0) {
+    const notes = missing.length > 0 ? ` Missing models: ${missing.join(", ")}.` : "";
+    notify(`No objects found. Try a photo with clearer subjects.${notes}`);
+    return;
+  }
+  const counters = new Map<string, number>();
   let biggestId: string | null = null;
   let biggestArea = -1;
-  let biggestMask: { img: HTMLImageElement; dx: number; dy: number; dw: number; dh: number } | null = null;
-  for (let i = 0; i < dets.length; i++) {
-    const d = dets[i];
-    const dx = Math.max(0, Math.min(st.doc.width - 1, Math.round(d.x * fx)));
-    const dy = Math.max(0, Math.min(st.doc.height - 1, Math.round(d.y * fy)));
-    const dw = Math.max(2, Math.min(st.doc.width - dx, Math.round(d.w * fx)));
-    const dh = Math.max(2, Math.min(st.doc.height - dy, Math.round(d.h * fy)));
-    let mask: HTMLImageElement;
+  let biggestMask: { img: HTMLImageElement | HTMLCanvasElement; dx: number; dy: number; dw: number; dh: number } | null = null;
+  for (const it of merged) {
+    const k = (counters.get(it.label) ?? 0) + 1;
+    counters.set(it.label, k);
+    let mask: HTMLImageElement | HTMLCanvasElement;
     try {
-      mask = await loadMask(`data:image/png;base64,${d.mask_png_base64}`);
+      if (it.rectMask) {
+        const c = document.createElement("canvas");
+        c.width = it.w;
+        c.height = it.h;
+        c.getContext("2d")!.fillStyle = "#ffffff";
+        c.getContext("2d")!.fillRect(0, 0, it.w, it.h);
+        mask = c;
+      } else {
+        mask = await loadMask(it.maskUrl!);
+      }
     } catch {
       continue;
     }
-    const name = `${capitalize(d.label)} ${i + 1}`;
+    const name = `${it.label} ${k}`;
     const l = makeLayer(name);
     const nc = layerManager.ensure(l.id, st.doc.width, st.doc.height);
     const g = nc.getContext("2d")!;
-    g.drawImage(comp, dx, dy, dw, dh, dx, dy, dw, dh);
+    g.drawImage(comp, it.x, it.y, it.w, it.h, it.x, it.y, it.w, it.h);
     g.save();
     g.globalCompositeOperation = "destination-in";
-    g.drawImage(mask, dx, dy, dw, dh);
+    g.drawImage(mask, it.x, it.y, it.w, it.h);
     g.restore();
     st.addLayer(l);
-    if (dw * dh > biggestArea) {
-      biggestArea = dw * dh;
+    if (it.w * it.h > biggestArea) {
+      biggestArea = it.w * it.h;
       biggestId = l.id;
-      biggestMask = { img: mask, dx, dy, dw, dh };
+      biggestMask = { img: mask, dx: it.x, dy: it.y, dw: it.w, dh: it.h };
     }
   }
   if (biggestId) st.setActiveLayer(biggestId);
@@ -125,5 +226,9 @@ export async function runAutoSegment(): Promise<void> {
   }
   st.markDirty();
   useProStore.getState().bumpHistogram();
-  notify(`Segmented ${dets.length} objects into layers in ${res.millis} ms.`);
+  const totalMs = Math.round(performance.now() - t0);
+  const missingNote = missing.length > 0 ? ` Models missing: ${missing.join(", ")}.` : "";
+  notify(
+    `Segmented ${merged.length} objects (${nThings} things, ${nRegions} regions, ${nText} text) in ${totalMs} ms.${missingNote}`,
+  );
 }

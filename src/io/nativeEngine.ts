@@ -158,6 +158,85 @@ export async function segmentObjects(
   });
 }
 
+// --- Plan5 Fase 2/3: semantic stuff + text detection ---
+
+export interface StuffRegion {
+  label: string;
+  class_id: number;
+  coverage: number;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  mask_png_base64: string;
+}
+
+export interface StuffResult {
+  regions: StuffRegion[];
+  input_width: number;
+  input_height: number;
+  millis: number;
+}
+
+export interface TextBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  score: number;
+  mask_png_base64: string;
+}
+
+export interface TextResult {
+  boxes: TextBox[];
+  input_width: number;
+  input_height: number;
+  millis: number;
+}
+
+export interface SegmentModelsStatus {
+  yolo: SegmentModelStatus;
+  stuff: SegmentModelStatus;
+  text: SegmentModelStatus;
+}
+
+export async function segmentModelsStatus(): Promise<SegmentModelsStatus> {
+  if (!isTauri()) throw new Error("Auto Segment needs the desktop app");
+  return invoke<SegmentModelsStatus>("cmd_segment_models_status");
+}
+
+export async function segmentStuff(
+  modelPath: string,
+  rgba: Uint8ClampedArray | Uint8Array,
+  width: number,
+  height: number,
+): Promise<StuffResult> {
+  if (!isTauri()) throw new Error("Auto Segment needs the desktop app");
+  if (rgba.length !== width * height * 4) throw new Error("Segment buffer size mismatch");
+  return invoke<StuffResult>("cmd_segment_stuff", {
+    modelPath,
+    rgba: Array.from(rgba),
+    width,
+    height,
+  });
+}
+
+export async function segmentText(
+  modelPath: string,
+  rgba: Uint8ClampedArray | Uint8Array,
+  width: number,
+  height: number,
+): Promise<TextResult> {
+  if (!isTauri()) throw new Error("Auto Segment needs the desktop app");
+  if (rgba.length !== width * height * 4) throw new Error("Segment buffer size mismatch");
+  return invoke<TextResult>("cmd_segment_text", {
+    modelPath,
+    rgba: Array.from(rgba),
+    width,
+    height,
+  });
+}
+
 export async function nativeInfo(): Promise<NativeInfo> { return invoke<NativeInfo>("cmd_native_info"); }
 export async function nativeHistogram(rgba: Uint8ClampedArray | Uint8Array, width: number, height: number): Promise<NativeHistogram> {
   // Histogram full-res via IPC is costly (Array.from). Call it only for thumb/256px when possible.

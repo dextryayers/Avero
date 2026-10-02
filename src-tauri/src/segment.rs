@@ -323,25 +323,26 @@ pub fn gray_to_png_base64(gray: &[u8], w: usize, h: usize) -> Result<String, Str
 // ort session (cached per model path) + Tauri command.
 // ---------------------------------------------------------------------------
 
-static SESSION_CACHE: OnceLock<Mutex<Option<(String, ort::session::Session)>>> = OnceLock::new();
+/// Sessions cached per model path (YOLO + semantic + text live together).
+static SESSION_CACHE: OnceLock<Mutex<std::collections::HashMap<String, ort::session::Session>>> =
+    OnceLock::new();
 
 fn session_lock(
-) -> Result<std::sync::MutexGuard<'static, Option<(String, ort::session::Session)>>, String> {
+) -> Result<std::sync::MutexGuard<'static, std::collections::HashMap<String, ort::session::Session>>, String> {
     SESSION_CACHE
-        .get_or_init(|| Mutex::new(None))
+        .get_or_init(|| Mutex::new(std::collections::HashMap::new()))
         .lock()
         .map_err(|e| format!("segment session lock poisoned: {e}"))
 }
 
 fn ensure_session(model_path: &str) -> Result<(), String> {
     let mut guard = session_lock()?;
-    let stale = guard.as_ref().map(|(p, _)| p != model_path).unwrap_or(true);
-    if !stale {
+    if guard.contains_key(model_path) {
         return Ok(());
     }
     if !std::path::Path::new(model_path).is_file() {
         return Err(format!(
-            "YOLO model not found at {model_path}. Place yolo11n-seg.onnx in <exe-dir>/models/ (one-time download)."
+            "Segment model not found at {model_path}. Place the .onnx in <exe-dir>/models/ (one-time download)."
         ));
     }
     let session = ort::session::Session::builder()
@@ -352,8 +353,19 @@ fn ensure_session(model_path: &str) -> Result<(), String> {
         .map_err(|e| format!("ort threads: {e}"))?
         .commit_from_file(model_path)
         .map_err(|e| format!("load model {model_path}: {e}"))?;
-    *guard = Some((model_path.to_string(), session));
+    guard.insert(model_path.to_string(), session);
     Ok(())
+}
+
+/// Borrow a loaded session for one inference. The returned guard keeps the
+/// session alive; extracted tensors must be copied before it drops.
+fn use_session<R>(model_path: &str, f: impl FnOnce(&mut ort::session::Session) -> Result<R, String>) -> Result<R, String> {
+    ensure_session(model_path)?;
+    let mut guard = session_lock()?;
+    let session = guard
+        .get_mut(model_path)
+        .ok_or("segment session missing after load")?;
+    f(session)
 }
 
 #[tauri::command]
@@ -379,46 +391,40 @@ pub fn cmd_segment_objects(
     let s = SEG_INPUT as usize;
     let arr = ([1usize, 3, s, s], input);
 
-    ensure_session(&model_path)?;
     // Borrowed ort outputs cannot outlive the session lock, so extract owned
-    // copies inside this scope; the lock (and session borrow) ends with it.
-    let (det_data, det_dims, proto_data, proto_dims): (Vec<f32>, Vec<usize>, Vec<f32>, Vec<usize>) = {
-        let mut guard = session_lock()?;
-        let session = guard
-            .as_mut()
-            .map(|(_, s)| s)
-            .ok_or("segment session missing after load")?;
+    // copies inside use_session; the lock ends with it.
+    let (det_data, det_dims, proto_data, proto_dims): (Vec<f32>, Vec<usize>, Vec<f32>, Vec<usize>) =
+        use_session(&model_path, |session| {
+            let input_tensor = ort::value::Tensor::from_array(arr)
+                .map_err(|e| format!("ort input tensor: {e}"))?;
+            let outputs = session
+                .run(ort::inputs!["images" => input_tensor])
+                .map_err(|e| format!("segment inference: {e}"))?;
 
-        let input_tensor =
-            ort::value::Tensor::from_array(arr).map_err(|e| format!("ort input tensor: {e}"))?;
-        let outputs = session
-            .run(ort::inputs!["images" => input_tensor])
-            .map_err(|e| format!("segment inference: {e}"))?;
-
-        // Detections = rank-3 output [1, C, anchors]; protos = rank-4 [1, 32, PH, PW].
-        let mut det_data: Vec<f32> = Vec::new();
-        let mut det_dims: Vec<usize> = Vec::new();
-        let mut proto_data: Vec<f32> = Vec::new();
-        let mut proto_dims: Vec<usize> = Vec::new();
-        for (name, value) in outputs.iter() {
-            let (dims, data) = value
-                .try_extract_tensor::<f32>()
-                .map_err(|e| format!("extract {name}: {e}"))?;
-            let dims: Vec<usize> = dims.iter().map(|&d| d as usize).collect();
-            let data: Vec<f32> = data.to_vec();
-            if dims.len() == 3 {
-                det_dims = dims;
-                det_data = data;
-            } else if dims.len() == 4 {
-                proto_dims = dims;
-                proto_data = data;
+            // Detections = rank-3 output [1, C, anchors]; protos = rank-4 [1, 32, PH, PW].
+            let mut det_data: Vec<f32> = Vec::new();
+            let mut det_dims: Vec<usize> = Vec::new();
+            let mut proto_data: Vec<f32> = Vec::new();
+            let mut proto_dims: Vec<usize> = Vec::new();
+            for (name, value) in outputs.iter() {
+                let (dims, data) = value
+                    .try_extract_tensor::<f32>()
+                    .map_err(|e| format!("extract {name}: {e}"))?;
+                let dims: Vec<usize> = dims.iter().map(|&d| d as usize).collect();
+                let data: Vec<f32> = data.to_vec();
+                if dims.len() == 3 {
+                    det_dims = dims;
+                    det_data = data;
+                } else if dims.len() == 4 {
+                    proto_dims = dims;
+                    proto_data = data;
+                }
             }
-        }
-        if det_data.is_empty() || proto_data.is_empty() {
-            return Err("unexpected YOLO outputs (need rank-3 detections + rank-4 protos)".into());
-        }
-        (det_data, det_dims, proto_data, proto_dims)
-    };
+            if det_data.is_empty() || proto_data.is_empty() {
+                return Err("unexpected YOLO outputs (need rank-3 detections + rank-4 protos)".into());
+            }
+            Ok((det_data, det_dims, proto_data, proto_dims))
+        })?;
 
     let ch = det_dims[1];
     let anchors = det_dims[2];
@@ -435,6 +441,20 @@ pub fn cmd_segment_objects(
 
     let dets = decode_yolo_seg(&det_data, anchors, nc, conf_thr);
     let kept = nms_classwise(dets, SEG_NMS_IOU, SEG_MAX_DET);
+
+    // full-frame luminance guide for edge refinement
+    let uw = w as usize;
+    let uh = h as usize;
+    let guide_full: Vec<u8> = {
+        let mut g = vec![0u8; uw * uh];
+        for i in 0..uw * uh {
+            let r = rgba[i * 4] as u32;
+            let gg = rgba[i * 4 + 1] as u32;
+            let b = rgba[i * 4 + 2] as u32;
+            g[i] = ((r * 299 + gg * 587 + b * 114) / 1000) as u8;
+        }
+        g
+    };
 
     use rayon::prelude::*;
     let mut out: Vec<SegmentDetection> = kept
@@ -458,12 +478,25 @@ pub fn cmd_segment_objects(
             if crop.is_empty() {
                 return None;
             }
-            // cap PNG size, keep aspect
+            // cap PNG size, keep aspect, then snap edges to the photo
             let sc = (SEG_MASK_PNG_SIDE as f32 / bw.max(bh)).min(1.0);
             let mw = ((bw * sc).round() as usize).max(2);
             let mh = ((bh * sc).round() as usize).max(2);
             let up = upscale_gray(&crop, cw, ch, mw, mh);
-            let png = gray_to_png_base64(&up, mw, mh).ok()?;
+            let ix0 = (x0.floor() as isize).clamp(0, uw as isize - 1) as usize;
+            let iy0 = (y0.floor() as isize).clamp(0, uh as isize - 1) as usize;
+            let ix1 = (x1.ceil() as isize).clamp(1, uw as isize) as usize;
+            let iy1 = (y1.ceil() as isize).clamp(1, uh as isize) as usize;
+            let gw = (ix1 - ix0).max(1);
+            let gh = (iy1 - iy0).max(1);
+            let mut gcrop = vec![0u8; gw * gh];
+            for y in 0..gh {
+                for x in 0..gw {
+                    gcrop[y * gw + x] = guide_full[(iy0 + y) * uw + (ix0 + x)];
+                }
+            }
+            let refined = guided_refine(&up, &upscale_gray(&gcrop, gw, gh, mw, mh), mw, mh, 4, 0.01);
+            let png = gray_to_png_base64(&refined, mw, mh).ok()?;
             let label = COCO_LABELS.get(d.class_id).copied().unwrap_or("object");
             Some(SegmentDetection {
                 label: label.to_string(),
@@ -644,5 +677,718 @@ mod tests {
         let p = default_model_path();
         assert!(p.ends_with("yolo11n-seg.onnx"));
         assert!(p.contains("models"));
+    }
+
+    #[test]
+    fn ade_labels_ground_truth_spot_checks() {
+        assert_eq!(ADE_LABELS.len(), 150);
+        assert_eq!(ADE_LABELS[25], "house");
+        assert_eq!(ADE_LABELS[1], "building");
+        assert_eq!(ADE_LABELS[2], "sky");
+        assert_eq!(ADE_LABELS[6], "road");
+        assert_eq!(ADE_LABELS[21], "water");
+        // stuff targets reference real class ids
+        for (id, _) in STUFF_TARGETS {
+            assert!((id as usize) < 150);
+            assert_ne!(ADE_LABELS[id as usize], "");
+        }
+        assert!(!ADE_LABELS.iter().any(|l| l.contains("cloud")));
+    }
+
+    #[test]
+    fn connected_components_splits_and_filters() {
+        // plus shape + isolated dot + single speck (filtered)
+        let mut bin = vec![0u8; 8 * 8];
+        let on = |x: usize, y: usize, b: &mut Vec<u8>| b[y * 8 + x] = 255;
+        on(1, 1, &mut bin);
+        on(2, 1, &mut bin);
+        on(1, 2, &mut bin);
+        on(6, 6, &mut bin);
+        on(7, 6, &mut bin);
+        on(0, 7, &mut bin);
+        let regs = connected_components(&bin, 8, 8, 2);
+        assert_eq!(regs.len(), 2);
+        assert_eq!((regs[0].x0, regs[0].y0, regs[0].x1, regs[0].y1), (1, 1, 3, 3));
+        assert_eq!(regs[0].count, 3);
+        assert_eq!((regs[1].x0, regs[1].y0, regs[1].x1, regs[1].y1), (6, 6, 8, 7));
+        // empty / degenerate inputs never panic
+        assert!(connected_components(&[], 0, 0, 1).is_empty());
+        assert!(connected_components(&[0u8; 4], 2, 2, 99).is_empty());
+    }
+
+    #[test]
+    fn guided_filter_preserves_aligned_edges() {
+        // mask and guide share one hard edge: the filter must keep it sharp
+        // (a plain blur would smear both sides toward mid gray).
+        let w = 12;
+        let h = 12;
+        let mut mask = vec![0u8; w * h];
+        let mut guide = vec![0u8; w * h];
+        for y in 0..h {
+            for x in 0..w {
+                if x >= 6 {
+                    mask[y * w + x] = 255;
+                    guide[y * w + x] = 255;
+                }
+            }
+        }
+        let out = guided_refine(&mask, &guide, w, h, 2, 0.01);
+        assert_eq!(out.len(), w * h);
+        let col = |x: usize| -> f32 {
+            (0..h).map(|y| out[y * w + x] as f32).sum::<f32>() / h as f32
+        };
+        assert!(col(5) < 100.0, "dark side smeared: {}", col(5));
+        assert!(col(6) > 155.0, "bright side smeared: {}", col(6));
+        let mean: f32 = out.iter().map(|&v| v as f32).sum::<f32>() / (w * h) as f32;
+        assert!((mean - 127.5).abs() < 12.0, "mean drifted: {mean}");
+    }
+
+    #[test]
+    fn box_blur_uniform_stays_put() {
+        let src = vec![100f32; 25];
+        let out = box_blur(&src, 5, 5, 2);
+        assert_eq!(out.len(), 25);
+        assert!(out.iter().all(|&v| (v - 100.0).abs() < 0.01));
+        assert!(box_blur(&[], 0, 0, 2).is_empty());
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Plan5 Fase 2: semantic stuff (ADE20K) - house, sky, clouds, land, water.
+// ---------------------------------------------------------------------------
+
+pub const SEG_ADE_INPUT: u32 = 512;
+pub const SEG_ADE_CLASSES: usize = 150;
+
+/// Ground truth order from the mmseg ADE20K dataset definition
+/// (xueyingliu/SegFormer_onnx mmseg/datasets/ade.py, 0-based).
+pub const ADE_LABELS: [&str; 150] = [
+    "wall", "building", "sky", "floor", "tree", "ceiling", "road", "bed",
+    "windowpane", "grass", "cabinet", "sidewalk", "person", "earth", "door",
+    "table", "mountain", "plant", "curtain", "chair", "car", "water", "painting",
+    "sofa", "shelf", "house", "sea", "mirror", "rug", "field", "armchair", "seat",
+    "fence", "desk", "rock", "wardrobe", "lamp", "bathtub", "railing", "cushion",
+    "base", "box", "column", "signboard", "chest of drawers", "counter", "sand",
+    "sink", "skyscraper", "fireplace", "refrigerator", "grandstand", "path",
+    "stairs", "runway", "case", "pool table", "pillow", "screen door", "stairway",
+    "river", "bridge", "bookcase", "blind", "coffee table", "toilet", "flower",
+    "book", "hill", "bench", "countertop", "stove", "palm", "kitchen island",
+    "computer", "swivel chair", "boat", "bar", "arcade machine", "hovel", "bus",
+    "towel", "light", "truck", "tower", "chandelier", "awning", "streetlight",
+    "booth", "television receiver", "airplane", "dirt track", "apparel", "pole",
+    "land", "bannister", "escalator", "ottoman", "bottle", "buffet", "poster",
+    "stage", "van", "ship", "fountain", "conveyer belt", "canopy", "washer",
+    "plaything", "swimming pool", "stool", "barrel", "basket", "waterfall",
+    "tent", "bag", "minibike", "cradle", "oven", "ball", "food", "step", "tank",
+    "trade name", "microwave", "pot", "animal", "bicycle", "lake", "dishwasher",
+    "screen", "blanket", "sculpture", "hood", "sconce", "vase", "traffic light",
+    "tray", "ashcan", "fan", "pier", "crt screen", "plate", "monitor",
+    "bulletin board", "shower", "radiator", "glass", "clock", "flag",
+];
+
+/// Curated stuff targets (class id, display label). Things (person, car, ...)
+/// are owned by YOLO instances and excluded here to avoid duplicate layers.
+pub const STUFF_TARGETS: [(u8, &str); 23] = [
+    (25, "House"), (1, "Building"), (2, "Sky"), (6, "Road"), (9, "Grass"),
+    (4, "Tree"), (21, "Water"), (16, "Mountain"), (26, "Sea"), (29, "Field"),
+    (11, "Sidewalk"), (13, "Earth"), (46, "Sand"), (60, "River"), (68, "Hill"),
+    (72, "Palm"), (52, "Path"), (32, "Fence"), (61, "Bridge"), (84, "Tower"),
+    (48, "Skyscraper"), (128, "Lake"), (94, "Land"),
+];
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StuffRegion {
+    pub label: String,
+    pub class_id: usize,
+    pub coverage: f32,
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
+    pub mask_png_base64: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StuffResult {
+    pub regions: Vec<StuffRegion>,
+    pub input_width: u32,
+    pub input_height: u32,
+    pub millis: u128,
+}
+
+/// Connected component region, half-open [x0,x1) x [y0,y1).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CcRegion {
+    pub x0: usize,
+    pub y0: usize,
+    pub x1: usize,
+    pub y1: usize,
+    pub count: usize,
+}
+
+/// 4-connected components over a binary (nonzero = foreground) mask.
+pub fn connected_components(binary: &[u8], w: usize, h: usize, min_pixels: usize) -> Vec<CcRegion> {
+    if w == 0 || h == 0 || binary.len() < w * h {
+        return Vec::new();
+    }
+    let mut seen = vec![false; w * h];
+    let mut out = Vec::new();
+    let mut stack = Vec::new();
+    for y in 0..h {
+        for x in 0..w {
+            let s = y * w + x;
+            if binary[s] == 0 || seen[s] {
+                continue;
+            }
+            let (mut x0, mut y0, mut x1, mut y1) = (x, y, x + 1, y + 1);
+            let mut count = 0usize;
+            stack.clear();
+            stack.push(s);
+            seen[s] = true;
+            while let Some(p) = stack.pop() {
+                let px = p % w;
+                let py = p / w;
+                count += 1;
+                if px < x0 { x0 = px; }
+                if py < y0 { y0 = py; }
+                if px + 1 > x1 { x1 = px + 1; }
+                if py + 1 > y1 { y1 = py + 1; }
+                if px > 0 {
+                    let q = p - 1;
+                    if binary[q] != 0 && !seen[q] { seen[q] = true; stack.push(q); }
+                }
+                if px + 1 < w {
+                    let q = p + 1;
+                    if binary[q] != 0 && !seen[q] { seen[q] = true; stack.push(q); }
+                }
+                if py > 0 {
+                    let q = p - w;
+                    if binary[q] != 0 && !seen[q] { seen[q] = true; stack.push(q); }
+                }
+                if py + 1 < h {
+                    let q = p + w;
+                    if binary[q] != 0 && !seen[q] { seen[q] = true; stack.push(q); }
+                }
+            }
+            if count >= min_pixels.max(1) {
+                out.push(CcRegion { x0, y0, x1, y1, count });
+            }
+        }
+    }
+    out
+}
+
+/// Box blur via integral image (clamped edges), the workhorse of guided filter.
+fn box_blur(src: &[f32], w: usize, h: usize, r: usize) -> Vec<f32> {
+    if w == 0 || h == 0 {
+        return Vec::new();
+    }
+    let mut sat = vec![0f32; (w + 1) * (h + 1)];
+    for y in 0..h {
+        let mut row = 0f32;
+        for x in 0..w {
+            row += src[y * w + x];
+            sat[(y + 1) * (w + 1) + (x + 1)] = sat[y * (w + 1) + (x + 1)] + row;
+        }
+    }
+    let at = |x: isize, y: isize| -> f32 {
+        let x = x.clamp(0, w as isize) as usize;
+        let y = y.clamp(0, h as isize) as usize;
+        sat[y * (w + 1) + x]
+    };
+    let ri = r as isize;
+    let mut out = vec![0f32; w * h];
+    for y in 0..h {
+        for x in 0..w {
+            // Inclusive clamped window [xa..xb]x[ya..yb]; SAT uses +1 edges.
+            let xa = (x as isize - ri).max(0);
+            let xb = (x as isize + ri).min(w as isize - 1);
+            let ya = (y as isize - ri).max(0);
+            let yb = (y as isize + ri).min(h as isize - 1);
+            let sum = at(xb + 1, yb + 1) - at(xa, yb + 1) - at(xb + 1, ya) + at(xa, ya);
+            let area = ((xb - xa + 1) * (yb - ya + 1)) as f32;
+            out[y * w + x] = sum / area.max(1.0);
+        }
+    }
+    out
+}
+
+/// Guided filter: snap a soft mask to the guide image edges.
+/// mask/guide are 0-255 grayscale of identical size. Returns refined 0-255.
+pub fn guided_refine(mask: &[u8], guide: &[u8], w: usize, h: usize, radius: usize, eps: f32) -> Vec<u8> {
+    assert_eq!(mask.len(), w * h);
+    assert_eq!(guide.len(), w * h);
+    let n = w * h;
+    let guide_f: Vec<f32> = guide.iter().map(|&v| v as f32 / 255.0).collect();
+    let mask_f: Vec<f32> = mask.iter().map(|&v| v as f32 / 255.0).collect();
+    let mean_i = box_blur(&guide_f, w, h, radius);
+    let mean_p = box_blur(&mask_f, w, h, radius);
+    let mut corr_i = vec![0f32; n];
+    let mut corr_ip = vec![0f32; n];
+    for i in 0..n {
+        corr_i[i] = guide_f[i] * guide_f[i];
+        corr_ip[i] = guide_f[i] * mask_f[i];
+    }
+    let corr_i = box_blur(&corr_i, w, h, radius);
+    let corr_ip = box_blur(&corr_ip, w, h, radius);
+    let mut a = vec![0f32; n];
+    let mut b = vec![0f32; n];
+    for i in 0..n {
+        let var_i = (corr_i[i] - mean_i[i] * mean_i[i]).max(0.0);
+        let cov = corr_ip[i] - mean_i[i] * mean_p[i];
+        a[i] = cov / (var_i + eps);
+        b[i] = mean_p[i] - a[i] * mean_i[i];
+    }
+    let mean_a = box_blur(&a, w, h, radius);
+    let mean_b = box_blur(&b, w, h, radius);
+    let mut out = vec![0u8; n];
+    for i in 0..n {
+        out[i] = ((mean_a[i] * guide_f[i] + mean_b[i]).clamp(0.0, 1.0) * 255.0 + 0.5) as u8;
+    }
+    out
+}
+
+/// ImageNet normalize + NCHW f32 tensor for 512-square semantic input.
+fn semantic_input(rgba: &[u8], w: u32, h: u32) -> Result<Vec<f32>, String> {
+    const MEAN: [f32; 3] = [0.485, 0.456, 0.406];
+    const STD: [f32; 3] = [0.229, 0.224, 0.225];
+    let s = SEG_ADE_INPUT as usize;
+    let mut out = vec![0f32; 3 * s * s];
+    for y in 0..s {
+        for x in 0..s {
+            // plain resize (SegFormer export expects square 512)
+            let sx = ((x as f32 + 0.5) * w as f32 / s as f32 - 0.5).round() as i64;
+            let sy = ((y as f32 + 0.5) * h as f32 / s as f32 - 0.5).round() as i64;
+            let sx = sx.clamp(0, w as i64 - 1) as usize;
+            let sy = sy.clamp(0, h as i64 - 1) as usize;
+            let i = (sy * w as usize + sx) * 4;
+            for c in 0..3 {
+                out[c * s * s + y * s + x] = (rgba[i + c] as f32 / 255.0 - MEAN[c]) / STD[c];
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// Class map from a semantic model, accepting EITHER float logits
+/// [1,150,H,W] (argmax here) OR int64 class ids [1,H,W]/[1,1,H,W] (some mmseg
+/// exports bake argmax into the graph, as this one does).
+/// Returns (classes, w, h).
+fn run_class_map(
+    model_path: &str,
+    input_name: &str,
+    tensor: Vec<f32>,
+    dims: [usize; 4],
+    num_classes: usize,
+) -> Result<(Vec<u8>, usize, usize), String> {
+    use_session(model_path, |session| {
+        let input_tensor = ort::value::Tensor::from_array((dims, tensor))
+            .map_err(|e| format!("ort input tensor: {e}"))?;
+        let outputs = session
+            .run(ort::inputs![input_name => input_tensor])
+            .map_err(|e| format!("segment inference: {e}"))?;
+        let mut float_out: Option<(Vec<usize>, Vec<f32>)> = None;
+        let mut int_out: Option<(Vec<usize>, Vec<i64>)> = None;
+        for (name, value) in outputs.iter() {
+            if let Ok((shape, data)) = value.try_extract_tensor::<f32>() {
+                let shape: Vec<usize> = shape.iter().map(|&d| d as usize).collect();
+                if shape.len() == 4 {
+                    float_out = Some((shape, data.to_vec()));
+                }
+            } else if let Ok((shape, data)) = value.try_extract_tensor::<i64>() {
+                let shape: Vec<usize> = shape.iter().map(|&d| d as usize).collect();
+                if shape.len() == 3 || shape.len() == 4 {
+                    int_out = Some((shape, data.to_vec()));
+                }
+            } else {
+                return Err(format!("extract {name}: unsupported tensor type"));
+            }
+        }
+        if let Some((shape, data)) = float_out {
+            if shape.len() != 4 || shape[1] != num_classes {
+                return Err(format!("unexpected semantic dims: {shape:?}"));
+            }
+            let (lw, lh) = (shape[3], shape[2]);
+            let mut cls = vec![0u8; lw * lh];
+            for y in 0..lh {
+                for x in 0..lw {
+                    let mut best = f32::NEG_INFINITY;
+                    let mut bi = 0usize;
+                    for c in 0..num_classes {
+                        let v = data[c * lw * lh + y * lw + x];
+                        if v > best {
+                            best = v;
+                            bi = c;
+                        }
+                    }
+                    cls[y * lw + x] = bi.min(255) as u8;
+                }
+            }
+            return Ok((cls, lw, lh));
+        }
+        if let Some((shape, data)) = int_out {
+            let (lw, lh) = (shape[shape.len() - 1], shape[shape.len() - 2]);
+            let mut cls = vec![0u8; lw * lh];
+            for (i, v) in data.iter().enumerate().take(lw * lh) {
+                cls[i] = (*v).clamp(0, 255) as u8;
+            }
+            return Ok((cls, lw, lh));
+        }
+        Err("no rank-3/4 output from semantic model".to_string())
+    })
+}
+
+#[tauri::command]
+pub fn cmd_segment_stuff(
+    model_path: String,
+    rgba: Vec<u8>,
+    width: u32,
+    height: u32,
+) -> Result<StuffResult, String> {
+    let t0 = std::time::Instant::now();
+    let w = width.max(8).min(4096);
+    let h = height.max(8).min(4096);
+    if rgba.len() != (w as usize) * (h as usize) * 4 {
+        return Err(format!("RGBA size mismatch: got {} bytes for {w}x{h}", rgba.len()));
+    }
+    let input = semantic_input(&rgba, w, h)?;
+    let (cls, lw, lh) = run_class_map(&model_path, "img", input, [1, 3, 512, 512], SEG_ADE_CLASSES)?;
+    // nearest upscale to input size (labels must not blend)
+    let uw = w as usize;
+    let uh = h as usize;
+    let mut full = vec![0u8; uw * uh];
+    for y in 0..uh {
+        for x in 0..uw {
+            let sx = ((x as f32 + 0.5) * lw as f32 / uw as f32 - 0.5).round() as isize;
+            let sy = ((y as f32 + 0.5) * lh as f32 / uh as f32 - 0.5).round() as isize;
+            let sx = sx.clamp(0, lw as isize - 1) as usize;
+            let sy = sy.clamp(0, lh as isize - 1) as usize;
+            full[y * uw + x] = cls[sy * lw + sx];
+        }
+    }
+    // grayscale guide for refinement (luminance of the input)
+    let guide: Vec<u8> = {
+        let mut g = vec![0u8; uw * uh];
+        for i in 0..uw * uh {
+            let r = rgba[i * 4] as u32;
+            let gg = rgba[i * 4 + 1] as u32;
+            let b = rgba[i * 4 + 2] as u32;
+            g[i] = ((r * 299 + gg * 587 + b * 114) / 1000) as u8;
+        }
+        g
+    };
+    let frame_area = (uw * uh) as f32;
+    let mut regions: Vec<StuffRegion> = Vec::new();
+    use rayon::prelude::*;
+    let per_class: Vec<(u8, &str, Vec<CcRegion>)> = STUFF_TARGETS
+        .par_iter()
+        .map(|&(cid, _label)| {
+            let mut bin = vec![0u8; uw * uh];
+            for i in 0..uw * uh {
+                if full[i] == cid {
+                    bin[i] = 255;
+                }
+            }
+            let min_px = ((frame_area * 0.005).round() as usize).max(64);
+            let mut regs = connected_components(&bin, uw, uh, min_px);
+            regs.sort_by(|a, b| {
+                let ca = (a.x1 - a.x0) * (a.y1 - a.y0);
+                let cb = (b.x1 - b.x0) * (b.y1 - b.y0);
+                cb.cmp(&ca)
+            });
+            regs.truncate(8);
+            (cid, "", regs)
+        })
+        .collect();
+    for (cid, _l, regs) in per_class {
+        let label = STUFF_TARGETS.iter().find(|(c, _)| *c == cid).map(|(_, l)| *l).unwrap_or("Region");
+        for r in regs {
+            let bw = (r.x1 - r.x0).max(1);
+            let bh = (r.y1 - r.y0).max(1);
+            // crop binary mask + guide, refine edges, cap PNG size
+            let mut crop = vec![0u8; bw * bh];
+            let mut gcrop = vec![0u8; bw * bh];
+            for y in 0..bh {
+                for x in 0..bw {
+                    let gx = r.x0 + x;
+                    let gy = r.y0 + y;
+                    crop[y * bw + x] = if full[gy * uw + gx] == cid { 255 } else { 0 };
+                    gcrop[y * bw + x] = guide[gy * uw + gx];
+                }
+            }
+            let sc = (SEG_MASK_PNG_SIDE as f32 / bw.max(bh) as f32).min(1.0);
+            let mw = ((bw as f32 * sc).round() as usize).max(2);
+            let mh = ((bh as f32 * sc).round() as usize).max(2);
+            let small = upscale_gray(&crop, bw, bh, mw, mh);
+            let gsmall = upscale_gray(&gcrop, bw, bh, mw, mh);
+            let refined = guided_refine(&small, &gsmall, mw, mh, 4, 0.01);
+            let png = gray_to_png_base64(&refined, mw, mh).unwrap_or_default();
+            if png.is_empty() {
+                continue;
+            }
+            regions.push(StuffRegion {
+                label: label.to_string(),
+                class_id: cid as usize,
+                coverage: (bw * bh) as f32 / frame_area,
+                x: r.x0 as f32,
+                y: r.y0 as f32,
+                w: bw as f32,
+                h: bh as f32,
+                mask_png_base64: png,
+            });
+        }
+    }
+    // Clouds: bright blobs inside the sky mask (ADE20K has no cloud class).
+    {
+        let mut sky = vec![0u8; uw * uh];
+        let mut guide = vec![0u8; uw * uh];
+        for i in 0..uw * uh {
+            if full[i] == 2 {
+                let r = rgba[i * 4] as u32;
+                let g = rgba[i * 4 + 1] as u32;
+                let b = rgba[i * 4 + 2] as u32;
+                let lum = (r * 299 + g * 587 + b * 114) / 1000;
+                guide[i] = lum as u8;
+                if lum > 195 {
+                    sky[i] = 255;
+                }
+            }
+        }
+        let min_px = ((frame_area * 0.002).round() as usize).max(32);
+        let mut regs = connected_components(&sky, uw, uh, min_px);
+        regs.sort_by(|a, b| {
+            let ca = (a.x1 - a.x0) * (a.y1 - a.y0);
+            let cb = (b.x1 - b.x0) * (b.y1 - b.y0);
+            cb.cmp(&ca)
+        });
+        regs.truncate(8);
+        for r in regs {
+            let bw = (r.x1 - r.x0).max(1);
+            let bh = (r.y1 - r.y0).max(1);
+            let mut crop = vec![0u8; bw * bh];
+            let mut gcrop = vec![0u8; bw * bh];
+            for y in 0..bh {
+                for x in 0..bw {
+                    crop[y * bw + x] = sky[(r.y0 + y) * uw + (r.x0 + x)];
+                    gcrop[y * bw + x] = guide[(r.y0 + y) * uw + (r.x0 + x)];
+                }
+            }
+            let sc = (SEG_MASK_PNG_SIDE as f32 / bw.max(bh) as f32).min(1.0);
+            let mw = ((bw as f32 * sc).round() as usize).max(2);
+            let mh = ((bh as f32 * sc).round() as usize).max(2);
+            let refined = guided_refine(
+                &upscale_gray(&crop, bw, bh, mw, mh),
+                &upscale_gray(&gcrop, bw, bh, mw, mh),
+                mw,
+                mh,
+                4,
+                0.01,
+            );
+            let png = gray_to_png_base64(&refined, mw, mh).unwrap_or_default();
+            if png.is_empty() {
+                continue;
+            }
+            regions.push(StuffRegion {
+                label: "Clouds".to_string(),
+                class_id: 200,
+                coverage: (bw * bh) as f32 / frame_area,
+                x: r.x0 as f32,
+                y: r.y0 as f32,
+                w: bw as f32,
+                h: bh as f32,
+                mask_png_base64: png,
+            });
+        }
+    }
+    regions.sort_by(|a, b| {
+        (b.w * b.h)
+            .partial_cmp(&(a.w * a.h))
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    regions.truncate(24);
+    Ok(StuffResult {
+        regions,
+        input_width: w,
+        input_height: h,
+        millis: t0.elapsed().as_millis(),
+    })
+}
+
+// ---------------------------------------------------------------------------
+// Plan5 Fase 3: DBNet text detection (boxes; OCR content is plan6).
+// ---------------------------------------------------------------------------
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TextBox {
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
+    pub score: f32,
+    pub mask_png_base64: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TextResult {
+    pub boxes: Vec<TextBox>,
+    pub input_width: u32,
+    pub input_height: u32,
+    pub millis: u128,
+}
+
+pub const TEXT_MAX_SIDE: u32 = 960;
+pub const TEXT_PROB_THRESH: f32 = 0.3;
+
+/// White bbox mask PNG (text boxes are rectangles by design here).
+fn white_rect_png(w: usize, h: usize) -> Result<String, String> {
+    gray_to_png_base64(&vec![255u8; w * h], w, h)
+}
+
+#[tauri::command]
+pub fn cmd_segment_text(
+    model_path: String,
+    rgba: Vec<u8>,
+    width: u32,
+    height: u32,
+) -> Result<TextResult, String> {
+    let t0 = std::time::Instant::now();
+    let w = width.max(8).min(4096);
+    let h = height.max(8).min(4096);
+    if rgba.len() != (w as usize) * (h as usize) * 4 {
+        return Err(format!("RGBA size mismatch: got {} bytes for {w}x{h}", rgba.len()));
+    }
+    // work scale (no upscale) + pad to multiples of 32
+    let sc = (TEXT_MAX_SIDE as f32 / w.max(h) as f32).min(1.0);
+    let ww = ((w as f32 * sc).round() as usize).max(32);
+    let hh = ((h as f32 * sc).round() as usize).max(32);
+    let pw = ((ww + 31) / 32) * 32;
+    let ph = ((hh + 31) / 32) * 32;
+    const MEAN: [f32; 3] = [0.485, 0.456, 0.406];
+    const STD: [f32; 3] = [0.229, 0.224, 0.225];
+    let mut input = vec![0f32; 3 * pw * ph];
+    for y in 0..ph {
+        for x in 0..pw {
+            let sx = ((x as f32 + 0.5) * ww as f32 / pw as f32 - 0.5).round() as i64;
+            let sy = ((y as f32 + 0.5) * hh as f32 / ph as f32 - 0.5).round() as i64;
+            let sx = sx.clamp(0, ww as i64 - 1) as usize;
+            let sy = sy.clamp(0, hh as i64 - 1) as usize;
+            let ox = ((sx as f32 + 0.5) / sc).round() as i64;
+            let oy = ((sy as f32 + 0.5) / sc).round() as i64;
+            let ox = ox.clamp(0, w as i64 - 1) as usize;
+            let oy = oy.clamp(0, h as i64 - 1) as usize;
+            let i = (oy * w as usize + ox) * 4;
+            for c in 0..3 {
+                input[c * pw * ph + y * pw + x] = (rgba[i + c] as f32 / 255.0 - MEAN[c]) / STD[c];
+            }
+        }
+    }
+    let (map, map_dims) = use_session(&model_path, |session| {
+        let tensor = ort::value::Tensor::from_array(([1usize, 3, ph, pw], input))
+            .map_err(|e| format!("ort input tensor: {e}"))?;
+        let outputs = session
+            .run(ort::inputs!["x" => tensor])
+            .map_err(|e| format!("text inference: {e}"))?;
+        let mut best: Option<(Vec<f32>, Vec<usize>)> = None;
+        for (name, value) in outputs.iter() {
+            let (shape, data) = value
+                .try_extract_tensor::<f32>()
+                .map_err(|e| format!("extract {name}: {e}"))?;
+            let shape: Vec<usize> = shape.iter().map(|&d| d as usize).collect();
+            if shape.len() == 4 {
+                best = Some((data.to_vec(), shape));
+            }
+        }
+        best.ok_or_else(|| "no rank-4 output from text model".to_string())
+    })?;
+    let mw = map_dims[3];
+    let mh = map_dims[2];
+    if map.len() < mw * mh {
+        return Err("text map truncated".into());
+    }
+    // threshold -> components -> expand 1.5x -> score by mean prob
+    let mut bin = vec![0u8; mw * mh];
+    for i in 0..mw * mh {
+        if map[i] >= TEXT_PROB_THRESH {
+            bin[i] = 255;
+        }
+    }
+    let min_px = ((mw * mh) as f32 * 0.0002).round() as usize;
+    let regs = connected_components(&bin, mw, mh, min_px.max(16));
+    // map stride back to input pixels
+    let stride_x = pw as f32 / mw as f32 / sc;
+    let stride_y = ph as f32 / mh as f32 / sc;
+    let mut boxes: Vec<TextBox> = Vec::new();
+    for r in regs {
+        let mut sum = 0f64;
+        let mut cnt = 0usize;
+        for y in r.y0..r.y1 {
+            for x in r.x0..r.x1 {
+                sum += map[y * mw + x] as f64;
+                cnt += 1;
+            }
+        }
+        if cnt == 0 {
+            continue;
+        }
+        let score = (sum / cnt as f64) as f32;
+        let cx = (r.x0 + r.x1) as f32 / 2.0;
+        let cy = (r.y0 + r.y1) as f32 / 2.0;
+        let bw = (r.x1 - r.x0) as f32 * 1.5;
+        let bh = (r.y1 - r.y0) as f32 * 1.5;
+        let x0 = ((cx - bw / 2.0) * stride_x).clamp(0.0, w as f32);
+        let y0 = ((cy - bh / 2.0) * stride_y).clamp(0.0, h as f32);
+        let x1 = ((cx + bw / 2.0) * stride_x).clamp(0.0, w as f32);
+        let y1 = ((cy + bh / 2.0) * stride_y).clamp(0.0, h as f32);
+        let fw = (x1 - x0).max(2.0);
+        let fh = (y1 - y0).max(2.0);
+        let mw2 = (fw.min(160.0).round() as usize).max(2);
+        let mh2 = (fh.min(160.0).round() as usize).max(2);
+        let png = white_rect_png(mw2, mh2)?;
+        boxes.push(TextBox {
+            x: x0,
+            y: y0,
+            w: fw,
+            h: fh,
+            score,
+            mask_png_base64: png,
+        });
+    }
+    boxes.sort_by(|a, b| {
+        (b.w * b.h)
+            .partial_cmp(&(a.w * a.h))
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    boxes.truncate(24);
+    Ok(TextResult {
+        boxes,
+        input_width: w,
+        input_height: h,
+        millis: t0.elapsed().as_millis(),
+    })
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SegmentModelsStatus {
+    pub yolo: SegmentModelStatus,
+    pub stuff: SegmentModelStatus,
+    pub text: SegmentModelStatus,
+}
+
+fn status_for(file: &str) -> SegmentModelStatus {
+    let base = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+        .unwrap_or_else(|| std::path::PathBuf::from("."));
+    let path = base.join("models").join(file).to_string_lossy().into_owned();
+    let found = std::path::Path::new(&path).is_file();
+    SegmentModelStatus { found, path }
+}
+
+#[tauri::command]
+pub fn cmd_segment_models_status() -> SegmentModelsStatus {
+    SegmentModelsStatus {
+        yolo: status_for("yolo11n-seg.onnx"),
+        stuff: status_for("segformer-b1-ade.onnx"),
+        text: status_for("dbnet.onnx"),
     }
 }

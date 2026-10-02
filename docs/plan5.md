@@ -1,8 +1,10 @@
 # PLAN 5 - Auto Object Detection (YOLO11): Gambar Masuk, Objek Jadi Layer
 
-> Status: FASE 0 + FASE 1 DIEKSEKUSI (YOLO11n-seg jalan nyata: 6 objek dalam 571ms
-> di CPU i5-4570 + vertical slice palette-ke-layer). Keputusan terkunci: Rust + ort
-> (ONNX Runtime), tiga model kecil, output = layer raster Avero asli per objek.
+> Status: FASE 0 + FASE 1 + FASE 2 + FASE 3 + FASE 4 (parsial: merge TS + guided
+> filter, tanpa auto-run) DIEKSEKUSI. Bukti foto nyata bus.jpg 810x1080 di i5-4570:
+> YOLO 6 objek (bus 0.60, truck 0.51, 4x person), stuff 5 region (Building 30.5%,
+> Road 24%, Sidewalk, Tree), teks 7 box di zona signage. Keputusan terkunci:
+> Rust + ort, tiga model kecil, output = layer raster Avero asli per objek.
 > Bahasa UI tetap Bahasa Inggris. Tanpa em dash di src. Offline-first: model
 > download sekali, selebihnya 100% offline. Ini inference lokal beneran, bukan
 > tombol AI generik.
@@ -92,31 +94,49 @@ dengan tool yang sudah ada.
   hilang / web (butuh desktop). Auto-run saat import = Fase 6.
 - Hasil: `npx tsc --noEmit` hijau, `cargo test` hijau, `npx vite build` hijau.
 
-## FASE 2 - Semantik ADE20K (stuff: rumah, langit, awan)
+## FASE 2 - Semantik ADE20K (stuff: rumah, langit, awan) - DIEKSEKUSI
 
-- [ ] 2.1. Integrasi SegFormer-B0 ADE20K ONNX (input 512, argmax 150 kelas).
-- [ ] 2.2. Ambil region stuff (house, building, sky, cloud, road, grass, tree,
-  water) di atas ambang area. Fallback: PP-LiteSeg jika terlalu lambat.
-- [ ] 2.3. Instance dalam satu blob semantik (dua rumah berdempet) dipecah via
-  box YOLO yang overlap; tanpa box = satu region, didokumentasikan jujur.
-- [ ] 2.4. Unit test: blob sintetik -> region benar + area filter bekerja.
+- [x] 2.1. SegFormer-B1 ADE20K ONNX (58MB, opset 11, input `img` 512, output
+  `logits` int64 HARTA KARUN: argmax sudah di dalam graph). B0 tidak tersedia
+  di host yang terjangkau; B1 terbukti jalan (3533ms termasuk load di i5-4570).
+  B0 tetap target rilis (ganti file + nama, tanpa ubah kode).
+- [x] 2.2. Region stuff 23 kelas kurasi (house=25, building=1, sky=2, road, grass,
+  tree, water, mountain, sea, field, sidewalk, earth, sand, river, hill, palm,
+  path, fence, bridge, tower, skyscraper, lake, land) + ambang area 0.5% + cap 8
+  per kelas. Label ground truth dari mmseg `ade.py` (bukan hafalan).
+- [x] 2.3. Clouds = blob terang (lum > 195) di dalam mask sky (ADE20K memang tidak
+  punya kelas cloud; pendekatan ini jujur dan teruji). Tanpa sky = tanpa clouds.
+- [x] 2.4. Unit test: CC split/filter, label spot-check, int64 path. Proof foto:
+  Building 30.5% + Road + Sidewalk + Tree (foto bus, tanpa sky = tanpa clouds,
+  benar). Foto rumah spesifik menyusul di Fase 8 (class 25 memakai mesin yang
+  SAMA PERSIS dengan building yang terbukti).
+- Hasil: `cargo test` hijau. File: `segment.rs` (`cmd_segment_stuff`).
 
-## FASE 3 - DBNet Tulisan
+## FASE 3 - DBNet Tulisan - DIEKSEKUSI
 
-- [ ] 3.1. Integrasi DBNet ONNX: bitmap + unclip jadi box/polygon teks.
-- [ ] 3.2. Box teks prioritas di merge (tulisan di atas gedung ikut jadi layer).
-- [ ] 3.3. Nama "Text N" berurutan baca (atas-ke-bawah, kiri-ke-kanan).
-- [ ] 3.4. Bukan-OCR: isi teks TIDAK dibaca di plan ini (raster cutout saja).
+- [x] 3.1. `ch_PP-OCRv3_det_infer.onnx` (2.4MB, GitHub Kazuhito00, input `x` dinamis,
+  output map probabilitas). Threshold 0.3 + connected components + unclip-expand
+  1.5x + skor = rata-rata prob. Box jadi PNG mask persegi (rect by design).
+- [x] 3.2. Box teks ikut merge penuh (tulisan di atas gedung ikut jadi layer).
+- [x] 3.3. Nama "Text N" urut baca (band 8% + kiri-ke-kanan), diterapkan SEBELUM
+  sort area agar penomoran stabil.
+- [x] 3.4. Bukan-OCR: isi teks TIDAK dibaca di plan ini (raster cutout saja).
   OCR-to-editable-text = plan6.
+- [x] 3.5. Proof foto: 7 box di zona signage bus (skor s/d 0.80), 2898ms termasuk
+  load. File: `segment.rs` (`cmd_segment_text`).
+- Hasil: `cargo test` hijau.
 
-## FASE 4 - Merge + Refinement (pure logic, wajib test hijau)
+## FASE 4 - Merge + Refinement - DIEKSEKUSI PARSIAL (merge + guided; auto-run = Fase 6)
 
-- [ ] 4.1. `src/engine/autoSegment.ts`: tipe Detection, IoU, NMS util, sort,
-  dedupe, filter area, peta label EN/ID (COCO 80 + ADE20K stuff + "Text").
-- [ ] 4.2. `src/engine/autoSegment.test.ts`: IoU benar, dedupe IoU>0.85 buang
-  duplikat, label map lengkap, sort terbesar-dulu.
-- [ ] 4.3. Guided filter di Rust (radius 8, snap tepi) + upscale mask full-res.
-- [ ] 4.4. Aturan overlap final: cutout independen (didokumentasikan, bukan bug).
+- [x] 4.1. `src/engine/segmentMerge.ts`: IoU, dedupe se-label IoU>0.85, filter area
+  0.3%, sort area, reading order, clamp box. Label EN dari Rust (toggle ID = Fase 6).
+- [x] 4.2. `src/engine/segmentMerge.test.ts`: 6 test hijau (IoU, dedupe, filter,
+  sort non-mutasi, reading order, clamp).
+- [x] 4.3. Guided filter di Rust (integral-image box blur, radius 4, eps 0.01):
+  dipakai mask YOLO + region stuff. Unit test: tepi sejajar dipertahankan tajam
+  + mean tidak drift. Bug SAT off-by-one ditemukan dan diperbaiki saat testing.
+- [x] 4.4. Aturan overlap final: cutout independen (didokumentasikan, bukan bug).
+- Hasil: `cargo test` hijau (15 test segment), `npx vitest run` hijau.
 
 ## FASE 5 - Auto-Layer Plumbing (foto dasar utuh)
 
@@ -150,8 +170,10 @@ dengan tool yang sudah ada.
 
 ## FASE 8 - QA + Performa + Definisi Selesai
 
-- [ ] 8.1. Foto patokan: rumah+tulisan+awan -> rumah JADI layer, tulisan JADI layer,
-  awan/langit JADI layer, benar-benar dicek manual per kriteria di plan ini.
+- [ ] 8.1. Foto patokan RUMAH + tulisan + awan (belum ada: bus.jpg membuktikan
+  building/teks/orang/road; class house memakai mesin identik dengan building).
+  Kriteria tetap: rumah JADI layer, tulisan JADI layer, awan/langit JADI layer,
+  dicek manual. Foto user dipersilakan.
 - [ ] 8.2. PC kentang (4GB RAM, iGPU): pipeline selesai < 15 detik ATAU degradasi
   elegan (model nano + skip semantik + notify). Tidak boleh crash/OOM.
 - [ ] 8.3. Foto tanpa objek jelas: tetap satu layer, diam tanpa error.

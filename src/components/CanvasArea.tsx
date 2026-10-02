@@ -53,6 +53,13 @@ import {
   drawDocBacking,
   drawWorkspaceBackground,
 } from "../engine/canvasRender";
+import {
+  applyShadowFx,
+  buildFxCanvas,
+  hasDirectFx,
+  hasTempFx,
+  releaseFxCanvas,
+} from "../engine/layerFx";
 import { gpuBackend, gpuBackendSyncFallback } from "../io/gpuBackend";
 import ToolOptionsBar from "./ToolOptionsBar";
 import { TOOL_LABEL } from "./ToolBar";
@@ -737,12 +744,26 @@ export default function CanvasArea() {
         cctx.scale(t.scaleX, t.scaleY);
         cctx.translate(-comp.width / 2, -comp.height / 2);
       }
+      // Layer FX (non-destructive, live): drop shadow + outer glow ride the
+      // canvas shadow pipeline; stroke + inner glow pre-compose into a pooled
+      // temp. Both respect the transform above. save/restore isolates state.
+      const fx = l.fx;
+      if (hasDirectFx(fx)) applyShadowFx(cctx, fx);
+      let drawSrc: HTMLCanvasElement = src;
+      let fxTemp: HTMLCanvasElement | null = null;
+      if (fx && hasTempFx(fx)) {
+        const built = buildFxCanvas(src, fx, comp.width, comp.height);
+        if (built) {
+          fxTemp = built;
+          drawSrc = built;
+        }
+      }
       if (l.clipped && belowAlpha) {
         // draw src to temp, cut by below alpha, then draw to comp
         const bctx = belowAlpha.getContext("2d")!;
         const tmp = getScratch(comp.width, comp.height);
         const tctx = tmp.getContext("2d")!;
-        tctx.drawImage(src, 0, 0);
+        tctx.drawImage(drawSrc, 0, 0);
         tctx.globalCompositeOperation = "destination-in";
         tctx.drawImage(belowAlpha, 0, 0);
         cctx.drawImage(tmp, 0, 0);
@@ -750,7 +771,7 @@ export default function CanvasArea() {
         bctx.clearRect(0, 0, belowAlpha.width, belowAlpha.height);
         bctx.drawImage(comp, 0, 0);
       } else {
-        cctx.drawImage(src, 0, 0);
+        cctx.drawImage(drawSrc, 0, 0);
         if (needsClip && belowAlpha) {
           const bctx = belowAlpha.getContext("2d")!;
           bctx.clearRect(0, 0, belowAlpha.width, belowAlpha.height);
@@ -758,6 +779,7 @@ export default function CanvasArea() {
         }
       }
       cctx.restore();
+      if (fxTemp) releaseFxCanvas(fxTemp);
     });
     if (belowAlpha) releaseScratch(belowAlpha);
 

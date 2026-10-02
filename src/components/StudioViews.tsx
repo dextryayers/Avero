@@ -7,6 +7,7 @@ import { TOOL_FAMILIES } from "./ToolBar";
 import { notify } from "../ui/notify";
 import ColorWheel, { hexToRgb, hslToRgb, rgbToHex, rgbToHsl } from "./ColorWheel";
 import SwatchesGrid from "./SwatchesGrid";
+import { DockSlider } from "../ui/atoms";
 
 // ---- Colour: Affinity-style wheel + H/S/L + opacity, all live on brush ----
 export function ColourView() {
@@ -26,7 +27,12 @@ export function ColourView() {
     "h-6 w-full min-w-0 rounded border border-[#2c2c31] bg-[#101012] px-1 font-mono text-[11px] text-white outline-none focus:border-[#2f7cf6]";
   return (
     <div className="space-y-2.5 p-3">
-      <ColorWheel size={168} />
+      <div
+        className="mx-auto w-fit rounded-full p-1.5"
+        style={{ filter: "drop-shadow(0 6px 20px rgba(0,0,0,0.5))" }}
+      >
+        <ColorWheel size={184} />
+      </div>
       <div className="grid grid-cols-3 gap-1.5">
         {(
           [
@@ -43,27 +49,23 @@ export function ColourView() {
               min={f.min}
               max={f.max}
               onChange={(e) => f.set(Number(e.target.value))}
+              aria-label={`${f.k} value`}
               className={numCls}
             />
           </label>
         ))}
       </div>
-      <div>
-        <div className="mb-1 flex justify-between text-[11px] text-[#a7a7b0]">
-          <span>Opacity</span>
-          <span className="font-mono text-white">{brushOpacity}%</span>
-        </div>
-        <input
-          type="range"
-          min={1}
-          max={100}
-          value={brushOpacity}
-          onChange={(e) => setBrush({ opacity: Number(e.target.value) })}
-          className="h-1 w-full accent-[#2f7cf6]"
-        />
-      </div>
+      <DockSlider
+        label="Opacity"
+        value={brushOpacity}
+        min={1}
+        max={100}
+        suffix="%"
+        title="Brush opacity — number keys 1–0"
+        onChange={(v) => setBrush({ opacity: v })}
+      />
       <div className="flex items-center gap-2">
-        <span className="h-7 w-11 shrink-0 rounded border border-[#2c2c31]" style={{ background: brushColor }} title="Current brush color" />
+        <span className="h-7 w-11 shrink-0 rounded-lg ring-1 ring-white/20" style={{ background: brushColor }} title="Current brush color" />
         <input
           key={brushColor}
           defaultValue={brushColor}
@@ -78,12 +80,13 @@ export function ColourView() {
             if (e.key === "Enter") (e.target as HTMLInputElement).blur();
           }}
           title="Hex color, Enter to apply"
-          className="h-7 min-w-0 flex-1 rounded border border-[#2c2c31] bg-[#101012] px-2 font-mono text-[11px] uppercase text-white outline-none focus:border-[#2f7cf6]"
+          aria-label="Hex color"
+          className="h-7 min-w-0 flex-1 rounded-lg border border-white/10 bg-[#101012] px-2 font-mono text-[11px] uppercase tabular-nums text-white outline-none transition-colors focus:border-[#2f7cf6]"
         />
         <button
           onClick={() => addSwatch(brushColor)}
           title="Save to swatches"
-          className="avero-press h-7 shrink-0 rounded bg-[#232327] px-2 text-[11px] text-white hover:bg-[#2c2c31]"
+          className="avero-press h-7 shrink-0 rounded-lg bg-[#2f7cf6] px-2.5 text-[11px] font-semibold text-white shadow-[0_2px_8px_rgba(47,124,246,0.4)] hover:bg-[#3b8bff]"
         >
           Save
         </button>
@@ -101,7 +104,7 @@ export function SwatchesView() {
       <button
         onClick={() => addSwatch(brushColor)}
         title={`Save current brush color ${brushColor}`}
-        className="avero-press w-full rounded-md bg-[#232327] py-1.5 text-[11px] font-semibold text-white hover:bg-[#2c2c31]"
+        className="avero-press w-full rounded-lg bg-[#2f7cf6] py-1.5 text-[11px] font-bold text-white shadow-[0_2px_10px_rgba(47,124,246,0.45)] hover:bg-[#3b8bff]"
       >
         + Save current ({brushColor})
       </button>
@@ -149,29 +152,28 @@ export function StrokeView() {
           {meta ? "No shape selected — editing defaults for the next shape." : "Select a shape layer to edit its stroke live."}
         </p>
       )}
-      <div>
-        <div className="mb-1 flex justify-between text-[#a7a7b0]">
-          <span>Width</span>
-          <span className="font-mono text-white">{width}px</span>
-        </div>
-        <input
-          type="range"
-          min={0}
-          max={64}
-          value={width}
-          onChange={(e) => patch({ strokeWidth: Number(e.target.value) })}
-          className="h-1 w-full accent-[#2f7cf6]"
-        />
-      </div>
+      <DockSlider
+        label="Width"
+        value={width}
+        min={0}
+        max={64}
+        suffix="px"
+        title="Stroke width"
+        onChange={(v) => patch({ strokeWidth: v })}
+      />
       <label className="flex items-center gap-2 text-[#a7a7b0]">
         Color
-        <input
-          type="color"
-          value={stroke}
-          onChange={(e) => patch({ stroke: e.target.value })}
-          className="h-7 w-12 cursor-pointer rounded border border-[#2c2c31] bg-transparent"
-        />
-        <span className="font-mono uppercase text-white">{stroke}</span>
+        <span className="group relative h-7 w-12 shrink-0 cursor-pointer overflow-hidden rounded-lg ring-1 ring-white/20 transition-all hover:ring-2 hover:ring-[#2f7cf6]" title="Stroke color">
+          <span className="absolute inset-0" style={{ backgroundColor: stroke }} />
+          <input
+            type="color"
+            value={stroke}
+            onChange={(e) => patch({ stroke: e.target.value })}
+            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+            aria-label="Stroke color"
+          />
+        </span>
+        <span className="font-mono text-[11px] uppercase tabular-nums text-white">{stroke}</span>
       </label>
     </div>
   );

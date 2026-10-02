@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Eye,
-  EyeOff,
   Lock,
   Plus,
   Trash2,
@@ -11,8 +10,10 @@ import {
   Redo2,
   Copy,
   ArrowDownToLine,
+  CircleDashed,
   Layers,
   Scan,
+  Sparkles,
   Square,
   Sliders,
   Filter,
@@ -52,6 +53,15 @@ import { useWorkspaceStore } from "../stores/useWorkspaceStore";
 import { showError, askConfirm, askText } from "../ui/notify";
 import { doUndo, doRedo, jumpToHistory } from "../engine/historyOps";
 import { blendToComposite } from "../engine/canvasRender";
+import { DockSlider, EmptyState } from "../ui/atoms";
+import {
+  AssetsPanel,
+  DockTabBar,
+  EffectsPanel,
+  StylesPanel,
+  TextStylesPanel,
+  type DockTab,
+} from "./LayerStudio";
 
 export const BLEND_MODES: { id: string; label: string; group: string }[] = [
   { id: "normal", label: "Normal", group: "Normal" },
@@ -148,6 +158,8 @@ export default function RightPanel() {
   const [kindFilter, setKindFilter] = useState<"all" | "raster" | "text" | "shape" | "background">("all");
   const [showBrush, setShowBrush] = useState(true);
   const [showProps, setShowProps] = useState(true);
+  // Affinity-style layer studio tabs (Layers/Effects/Styles/Text/Assets).
+  const [dock, setDock] = useState<DockTab>("layers");
   // Affinity-style studio strip: colour tools above the main tab system.
   // Selecting a main tab always returns to tab content.
   const [studio, setStudio] = useState<null | "colour" | "swatches" | "stroke" | "brushes">(null);
@@ -361,12 +373,18 @@ export default function RightPanel() {
         })}
       </div>
 
-      <div className="avero-fade-in min-h-0 flex-1 overflow-y-auto" key={studio ?? tab}>
+      {studio === null && tab === "layers" && <DockTabBar value={dock} onChange={setDock} />}
+
+      <div className="avero-fade-in min-h-0 flex-1 overflow-y-auto" key={`${studio ?? tab}-${dock}`}>
         {studio === "colour" && <ColourView />}
         {studio === "swatches" && <SwatchesView />}
         {studio === "stroke" && <StrokeView />}
         {studio === "brushes" && <BrushesView />}
-        {studio === null && tab === "layers" && (
+        {studio === null && tab === "layers" && dock === "effects" && <EffectsPanel />}
+        {studio === null && tab === "layers" && dock === "styles" && <StylesPanel />}
+        {studio === null && tab === "layers" && dock === "text" && <TextStylesPanel />}
+        {studio === null && tab === "layers" && dock === "assets" && <AssetsPanel />}
+        {studio === null && tab === "layers" && dock === "layers" && (
           <div className="flex min-h-0 flex-col">
             <div className="flex items-center gap-1 border-b border-[#2c2c31] p-2">
               <button
@@ -457,8 +475,8 @@ export default function RightPanel() {
                 const al = layers.find((l) => l.id === activeLayerId);
                 if (!al) return null;
                 return (
-                  <div className="flex items-center gap-1.5 border-b border-[#2c2c31] px-2 py-1.5">
-                    <span className="shrink-0 font-mono text-[10px] text-[#6e6e78]">Opacity:</span>
+                  <div className="flex items-center gap-1.5 border-b border-[#2c2c31] bg-[#161618] px-2 py-1.5">
+                    <span className="shrink-0 text-[11px] font-medium text-[#8e8e98]">Opacity:</span>
                     <input
                       type="number"
                       value={al.opacity}
@@ -467,7 +485,8 @@ export default function RightPanel() {
                       disabled={al.locked}
                       onChange={(e) => updateLayer(al.id, { opacity: Math.max(0, Math.min(100, Number(e.target.value))) })}
                       title="Active layer opacity percent"
-                      className="h-6 w-14 shrink-0 rounded border border-[#2c2c31] bg-[#101012] px-1 font-mono text-[11px] text-white outline-none disabled:opacity-40 focus:border-[#2f7cf6]"
+                      aria-label="Active layer opacity percent"
+                      className="h-6 w-14 shrink-0 rounded-lg border border-white/10 bg-[#101012] px-1 font-mono text-[11px] tabular-nums text-white outline-none transition-colors disabled:opacity-40 focus:border-[#2f7cf6]"
                     />
                     <span className="font-mono text-[10px] text-[#6e6e78]">%</span>
                     <select
@@ -475,7 +494,8 @@ export default function RightPanel() {
                       disabled={al.locked}
                       onChange={(e) => updateLayer(al.id, { blendMode: e.target.value as never })}
                       title="Active layer blend mode"
-                      className="h-6 min-w-0 flex-1 rounded border border-[#2c2c31] bg-[#101012] px-1 text-[11px] text-white disabled:opacity-40"
+                      aria-label="Active layer blend mode"
+                      className="h-6 min-w-0 flex-1 rounded-lg border border-white/10 bg-[#101012] px-1 text-[11px] text-white outline-none transition-colors disabled:opacity-40 focus:border-[#2f7cf6]"
                     >
                       {BLEND_MODES.map((b) => (
                         <option key={b.id} value={b.id}>
@@ -486,9 +506,10 @@ export default function RightPanel() {
                     <button
                       onClick={() => updateLayer(al.id, { locked: !al.locked })}
                       title={al.locked ? "Unlock active layer" : "Lock active layer"}
+                      aria-pressed={al.locked}
                       className={clsx(
-                        "avero-press grid h-6 w-6 shrink-0 place-items-center rounded border border-[#2c2c31]",
-                        al.locked ? "bg-[#2f7cf6] text-white" : "text-[#a7a7b0] hover:text-white",
+                        "avero-press grid h-6 w-6 shrink-0 place-items-center rounded-lg border transition-colors",
+                        al.locked ? "border-[#2f7cf6] bg-[#2f7cf6] text-white shadow-[0_2px_8px_rgba(47,124,246,0.4)]" : "border-white/10 text-[#a7a7b0] hover:text-white",
                       )}
                     >
                       <Lock size={12} />
@@ -499,137 +520,172 @@ export default function RightPanel() {
               <ActiveLayerProps />
             </div>
 
-            <div className="p-2">
-              {[...layers]
-                .reverse()
-                .filter(
-                  (l) =>
-                    (kindFilter === "all" || l.kind === kindFilter) &&
-                    (query.trim() === "" || l.name.toLowerCase().includes(query.trim().toLowerCase())),
-                )
-                .map((l) => {
-                const active = l.id === activeLayerId;
-                const accelerated = blendToComposite(l.blendMode) !== "source-over" || l.blendMode === "normal";
-                return (
-                  <div
-                    key={l.id}
-                    onClick={() => setActiveLayer(l.id)}
-                    onDoubleClick={async () => {
-                      const v = await askText("Rename layer", "Layer name:", l.name);
-                      if (v && v.trim()) updateLayer(l.id, { name: v.trim().slice(0, 60) });
-                    }}
-                    title="Click select · double-click rename"
-                    className={clsx(
-                      "avero-lift mb-1.5 rounded-md border p-2",
-                      active ? "border-[#2f7cf6] bg-[#232327]" : "border-[#2c2c31] bg-[#161618]",
-                    )}
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <LayerThumb id={l.id} w={doc.width} h={doc.height} />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              updateLayer(l.id, { visible: !l.visible });
-                            }}
-                            title={l.visible ? "Hide" : "Show"}
-                            className="avero-lift text-[#a7a7b0] hover:text-white"
-                          >
-                            {l.visible ? <Eye size={14} /> : <EyeOff size={14} />}
-                          </button>
-                          <span className="flex-1 truncate text-[12px] font-medium text-white">
-                            {l.name}{" "}
-                            <span className="rounded border border-[#2c2c31] bg-[#101012] px-1 text-[9px] text-[#6e6e78]">{l.kind}</span>
-                            {!accelerated && <span className="ml-1 text-[9px] text-[#d9a441]">cpu</span>}
-                            {masks[l.id]?.hasMask && (
-                              <span className="ml-1 rounded border border-[#2c2c31] bg-[#101012] px-1 text-[9px] text-[#8fb6f5]" title="Layer has a mask">
-                                mask
-                              </span>
+            <div className="space-y-1 p-2">
+              {(() => {
+                const vis = [...layers]
+                  .reverse()
+                  .filter(
+                    (l) =>
+                      (kindFilter === "all" || l.kind === kindFilter) &&
+                      (query.trim() === "" || l.name.toLowerCase().includes(query.trim().toLowerCase())),
+                  );
+                if (vis.length === 0) {
+                  return (
+                    <EmptyState
+                      title={layers.length === 0 ? "No layers" : "No matches"}
+                      hint={layers.length === 0 ? "Add a layer to start." : "Try a different search or kind filter."}
+                    />
+                  );
+                }
+                const kindLabel: Record<string, string> = {
+                  raster: "Layer",
+                  background: "Background",
+                  text: "Text",
+                  shape: "Shape",
+                  group: "Group",
+                  fill: "Fill",
+                };
+                return vis.map((l) => {
+                  const active = l.id === activeLayerId;
+                  const accelerated = blendToComposite(l.blendMode) !== "source-over" || l.blendMode === "normal";
+                  const hasFx =
+                    !!l.fx && (!!l.fx.dropShadow?.enabled || !!l.fx.outerGlow?.enabled || !!l.fx.innerGlow?.enabled || !!l.fx.stroke?.enabled);
+                  return (
+                    <div
+                      key={l.id}
+                      onClick={() => setActiveLayer(l.id)}
+                      onDoubleClick={async () => {
+                        const v = await askText("Rename layer", "Layer name:", l.name);
+                        if (v && v.trim()) updateLayer(l.id, { name: v.trim().slice(0, 60) });
+                      }}
+                      title="Click to select · double-click to rename"
+                      className={clsx(
+                        "avero-lift cursor-pointer rounded-xl border px-2 py-1.5 transition-colors",
+                        active
+                          ? "border-[#2f7cf6]/60 bg-[#232327] shadow-[0_2px_12px_rgba(47,124,246,0.25)]"
+                          : "border-[#2c2c31] bg-[#161618] hover:border-[#3a3a41] hover:bg-[#1b1b1f]",
+                      )}
+                    >
+                      <div className="flex items-center gap-2">
+                        <LayerThumb id={l.id} w={doc.width} h={doc.height} />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-[12px] font-medium text-white">
+                            {l.name} <span className="font-normal text-[#6e6e78]">({kindLabel[l.kind] ?? l.kind})</span>
+                          </div>
+                          <div className="mt-0.5 flex items-center gap-1.5 font-mono text-[9px] text-[#6e6e78]">
+                            <span className="tabular-nums">{l.opacity}%</span>
+                            <span className="truncate">{BLEND_MODES.find((b) => b.id === l.blendMode)?.label ?? l.blendMode}</span>
+                            {!accelerated && <span className="text-[#d9a441]">cpu</span>}
+                            {masks[l.id]?.hasMask && <span className="text-[#8fb6f5]" title="Layer has a mask">mask</span>}
+                            {l.clipped && <span className="text-[#7ad69e]" title="Clipped to the layer below">clip</span>}
+                            {hasFx && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDock("effects");
+                                }}
+                                title="Layer has effects — open the Effects panel"
+                                className="text-[#c9a0ff] hover:text-white hover:underline"
+                              >
+                                fx
+                              </button>
                             )}
-                            {l.clipped && (
-                              <span className="ml-1 rounded border border-[#2c2c31] bg-[#101012] px-1 text-[9px] text-[#7ad69e]" title="Clipped to the layer below">
-                                clip
-                              </span>
-                            )}
-                          </span>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              updateLayer(l.id, { locked: !l.locked });
-                            }}
-                            title={l.locked ? "Unlock" : "Lock"}
-                            className={clsx(
-                              l.locked ? "text-[#d9a441]" : "text-[#a7a7b0] hover:text-white",
-                            )}
-                          >
-                            <Lock size={13} />
-                          </button>
+                          </div>
                         </div>
-                      </div>
-                    </div>
-                    <div className="mt-2 flex items-center gap-2 text-[10px] text-[#a7a7b0]">
-                      <span className="w-10 font-mono">Op {l.opacity}</span>
-                      <input
-                        type="range"
-                        min={0}
-                        max={100}
-                        value={l.opacity}
-                        onChange={(e) => updateLayer(l.id, { opacity: Number(e.target.value) })}
-                        className="h-1 flex-1"
-                      />
-                      <select
-                        value={l.blendMode}
-                        onChange={(e) => updateLayer(l.id, { blendMode: e.target.value as never })}
-                        title={accelerated ? "GPU-accelerated blend" : "CPU fallback blend"}
-                        className="max-w-[104px] rounded border border-[#2c2c31] bg-[#161618] px-1 py-0.5 text-[10px] text-white"
-                      >
-                        {BLEND_MODES.map((b) => (
-                          <option key={b.id} value={b.id}>
-                            {b.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="mt-1 flex items-center justify-between">
-                      <label className="flex items-center gap-1 text-[10px] text-[#a7a7b0]">
-                        <input
-                          type="checkbox"
-                          checked={!!l.clipped}
-                          onChange={(e) => updateLayer(l.id, { clipped: e.target.checked })}
-                        />{" "}
-                        Clip
-                      </label>
-                      <div className="flex gap-1">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            duplicateLayer(l.id);
+                            updateLayer(l.id, { locked: !l.locked });
                           }}
-                          title="Duplicate layer"
-                          className="rounded p-1 text-[#a7a7b0] hover:bg-[#2c2c31] hover:text-white"
+                          title={l.locked ? "Unlock layer" : "Lock layer"}
+                          aria-pressed={l.locked}
+                          className={clsx("shrink-0 rounded-md p-1 transition-colors", l.locked ? "text-[#d9a441]" : "text-[#4a4a52] hover:text-white")}
                         >
-                          <Copy size={12} />
+                          <Lock size={13} />
                         </button>
                         <button
-                          onClick={() => moveLayer(l.id, 1)}
-                          title="Move up"
-                          className="rounded p-1 text-[#a7a7b0] hover:bg-[#2c2c31] hover:text-white"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            updateLayer(l.id, { visible: !l.visible });
+                          }}
+                          title={l.visible ? "Hide layer" : "Show layer"}
+                          aria-pressed={l.visible}
+                          className={clsx(
+                            "grid h-5 w-5 shrink-0 place-items-center rounded-md border transition-colors",
+                            l.visible
+                              ? "border-[#2f7cf6]/60 bg-[#2f7cf6]/20 text-white"
+                              : "border-[#3a3a41] text-transparent hover:text-[#6e6e78]",
+                          )}
                         >
-                          <ChevronUp size={12} />
-                        </button>
-                        <button
-                          onClick={() => moveLayer(l.id, -1)}
-                          title="Move down"
-                          className="rounded p-1 text-[#a7a7b0] hover:bg-[#2c2c31] hover:text-white"
-                        >
-                          <ChevronDown size={12} />
+                          <Eye size={12} />
                         </button>
                       </div>
+                      {active && (
+                        <div className="avero-fade-in mt-1.5 space-y-1.5 border-t border-white/5 pt-2" onClick={(e) => e.stopPropagation()}>
+                          <DockSlider
+                            compact
+                            value={l.opacity}
+                            min={0}
+                            max={100}
+                            suffix="%"
+                            disabled={l.locked}
+                            title="Layer opacity"
+                            onChange={(v) => updateLayer(l.id, { opacity: v })}
+                          />
+                          <div className="flex items-center gap-1">
+                            <select
+                              value={l.blendMode}
+                              disabled={l.locked}
+                              onChange={(e) => updateLayer(l.id, { blendMode: e.target.value as never })}
+                              title={accelerated ? "GPU-accelerated blend" : "CPU fallback blend"}
+                              className="h-6 min-w-0 flex-1 rounded-md border border-[#2c2c31] bg-[#101012] px-1 text-[10px] text-white outline-none disabled:opacity-40 focus:border-[#2f7cf6]"
+                            >
+                              {BLEND_MODES.map((b) => (
+                                <option key={b.id} value={b.id}>
+                                  {b.label}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={() => updateLayer(l.id, { clipped: !l.clipped })}
+                              disabled={l.locked}
+                              title="Clip to the layer below"
+                              aria-pressed={!!l.clipped}
+                              className={clsx(
+                                "h-6 shrink-0 rounded-md px-2 text-[10px] font-medium transition-colors disabled:opacity-40",
+                                l.clipped ? "bg-[#2f7cf6]/20 text-[#8fb6f5] ring-1 ring-[#2f7cf6]/50" : "bg-white/5 text-[#8e8e98] hover:text-white",
+                              )}
+                            >
+                              Clip
+                            </button>
+                            <button
+                              onClick={() => duplicateLayer(l.id)}
+                              title="Duplicate layer (Ctrl+J)"
+                              className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-[#a7a7b0] hover:bg-white/5 hover:text-white"
+                            >
+                              <Copy size={12} />
+                            </button>
+                            <button
+                              onClick={() => moveLayer(l.id, 1)}
+                              title="Move up (Ctrl+])"
+                              className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-[#a7a7b0] hover:bg-white/5 hover:text-white"
+                            >
+                              <ChevronUp size={12} />
+                            </button>
+                            <button
+                              onClick={() => moveLayer(l.id, -1)}
+                              title="Move down (Ctrl+[)"
+                              className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-[#a7a7b0] hover:bg-white/5 hover:text-white"
+                            >
+                              <ChevronDown size={12} />
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                });
+              })()}
             </div>
 
             <div className="border-t border-[#2c2c31] p-3">
@@ -638,49 +694,23 @@ export default function RightPanel() {
                 <span className="font-mono text-[10px] text-[#6e6e78]">{showBrush ? "-" : "+"}</span>
               </button>
               {showBrush && (
-                <div className="avero-fade-in">
-              <label className="mb-1 flex justify-between text-[11px] text-[#a7a7b0]">
-                Size <span className="font-mono text-white">{brush.size}px</span>
-              </label>
-              <input
-                type="range"
-                min={1}
-                max={200}
-                value={brush.size}
-                onChange={(e) => setBrush({ size: Number(e.target.value) })}
-                className="w-full"
-              />
-              <label className="mb-1 mt-1 flex justify-between text-[11px] text-[#a7a7b0]">
-                Hardness <span className="font-mono text-white">{brush.hardness}%</span>
-              </label>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={brush.hardness}
-                onChange={(e) => setBrush({ hardness: Number(e.target.value) })}
-                className="w-full"
-              />
-              <label className="mb-1 mt-1 flex justify-between text-[11px] text-[#a7a7b0]">
-                Opacity <span className="font-mono text-white">{brush.opacity}%</span>
-              </label>
-              <input
-                type="range"
-                min={1}
-                max={100}
-                value={brush.opacity}
-                onChange={(e) => setBrush({ opacity: Number(e.target.value) })}
-                className="w-full"
-              />
-              <div className="mt-1.5 flex items-center gap-2">
-                <input
-                  type="color"
-                  value={brush.color}
-                  onChange={(e) => setBrush({ color: e.target.value })}
-                  className="h-7 w-11 cursor-pointer rounded border border-[#2c2c31] bg-transparent"
-                />
-                <span className="font-mono text-[11px] text-[#a7a7b0]">{brush.color}</span>
-              </div>
+                <div className="avero-fade-in space-y-2">
+                  <DockSlider label="Size" value={brush.size} min={1} max={200} suffix="px" title="Brush size — [ / ]" onChange={(v) => setBrush({ size: v })} />
+                  <DockSlider label="Hard" value={brush.hardness} min={0} max={100} suffix="%" title="Edge hardness — Shift+[ / ]" onChange={(v) => setBrush({ hardness: v })} />
+                  <DockSlider label="Opacity" value={brush.opacity} min={1} max={100} suffix="%" title="Brush opacity — number keys 1–0" onChange={(v) => setBrush({ opacity: v })} />
+                  <div className="flex items-center gap-2 pt-0.5">
+                    <span className="group relative h-7 w-11 shrink-0 cursor-pointer overflow-hidden rounded-lg ring-1 ring-white/20 transition-all hover:ring-2 hover:ring-[#2f7cf6]" title="Brush color">
+                      <span className="absolute inset-0" style={{ backgroundColor: brush.color }} />
+                      <input
+                        type="color"
+                        value={brush.color}
+                        onChange={(e) => setBrush({ color: e.target.value })}
+                        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                        aria-label="Brush color"
+                      />
+                    </span>
+                    <span className="font-mono text-[11px] uppercase tabular-nums text-[#a7a7b0]">{brush.color}</span>
+                  </div>
                 </div>
               )}
             </div>
@@ -733,10 +763,39 @@ export default function RightPanel() {
                   if (activeLayerId) void mergeDown(activeLayerId);
                 }}
                 disabled={layers.length <= 1}
-                title="Merge down"
+                title="Merge down (Ctrl+Shift+M)"
                 className="avero-press grid h-7 w-7 place-items-center rounded-md text-[#a7a7b0] hover:bg-[#232327] hover:text-white disabled:opacity-40"
               >
                 <ArrowDownToLine size={14} />
+              </button>
+              <span className="mx-1 h-4 w-px bg-[#2c2c31]" />
+              <button
+                onClick={() => {
+                  const st = useEditorStore.getState();
+                  const id = st.activeLayerId;
+                  if (!id) return;
+                  const m = st.layers.find((l) => l.id === id);
+                  if (!m || m.locked || !m.visible) return;
+                  useProStore.getState().ensureMask(id);
+                  layerManager.ensureMask(id, st.doc.width, st.doc.height);
+                  st.markDirty();
+                  setTab("mask");
+                  setDock("layers");
+                }}
+                title="Add a mask to the active layer and open the Mask panel"
+                className="avero-press grid h-7 w-7 place-items-center rounded-md text-[#a7a7b0] hover:bg-[#232327] hover:text-white"
+              >
+                <CircleDashed size={14} />
+              </button>
+              <button
+                onClick={() => {
+                  if (!activeLayerId) return;
+                  setDock("effects");
+                }}
+                title="Open layer effects for the active layer"
+                className="avero-press grid h-7 w-7 place-items-center rounded-md text-[#a7a7b0] hover:bg-[#232327] hover:text-white"
+              >
+                <Sparkles size={14} />
               </button>
               <span className="mx-1 h-4 w-px bg-[#2c2c31]" />
               <button

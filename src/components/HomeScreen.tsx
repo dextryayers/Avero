@@ -688,7 +688,7 @@ export default function HomeScreen() {
                     { t: "Precise masking", d: "Select, feather, refine edge, paint mask. Hold Shift to add to selection.", tag: "Select", icon: Wand2 },
                     { t: "Natural retouch", d: "Spot Heal (J), Healing Brush, Clone Stamp (S), Patch. Alt+click sets the source.", tag: "Retouch", icon: Sparkles },
                     { t: "Cinematic grading", d: "Exposure, HSL, Vibrance, Warmth, Vignette, Grain. Tiled processing keeps it smooth.", tag: "Color", icon: Star },
-                    { t: "Variants without duplicates", d: "Git tab stores snapshots and branches plus a compare slider for variants.", tag: "Git", icon: Layers },
+                    { t: "History that restores pixels", d: "Undo steps back through real snapshots. Click any step in the Hist panel to jump.", tag: "History", icon: Clock },
                     { t: "Save .avx projects", d: "Ctrl+S saves layers and edits intact. Reopen identical every time.", tag: "Project", icon: FileBox },
                     { t: "Export to many formats", d: "PNG, JPG, WEBP, BMP, SVG, TIFF with flexible matte and scaling.", tag: "Export", icon: Globe },
                   ].map((c) => (

@@ -20,6 +20,82 @@ import { duplicateActiveLayer, layerViaCut, deleteActivePixels } from "../app/sh
 import { hasSelection, selectionMaskCanvas } from "../engine/selection";
 
 
+// Plan4 Fase 19: Image Size resamples every layer and mask smoothly, scales
+// document-space annotations (guides, pins, paths, text anchors, transform
+// offsets), then clears history (old pixel snapshots no longer match the new
+// size) and selection. Document-level op like crop: applies to all layers.
+function resampleDocument(W: number, H: number) {
+  const st = useEditorStore.getState();
+  const ow = st.doc.width;
+  const oh = st.doc.height;
+  if (W === ow && H === oh) {
+    void showMessage("Image is already that size.");
+    return;
+  }
+  const sx = W / Math.max(1, ow);
+  const sy = H / Math.max(1, oh);
+  const scaled = (c: HTMLCanvasElement): HTMLCanvasElement => {
+    const t = document.createElement("canvas");
+    t.width = W;
+    t.height = H;
+    const g = t.getContext("2d")!;
+    g.imageSmoothingEnabled = true;
+    g.imageSmoothingQuality = "high";
+    g.drawImage(c, 0, 0, W, H);
+    return t;
+  };
+  for (const l of st.layers) {
+    const wasPhoto = layerManager.isPhotoLayer(l.id);
+    const oldC = layerManager.get(l.id);
+    const oldM = layerManager.getMask(l.id);
+    layerManager.remove(l.id);
+    layerManager.removeMask(l.id);
+    const nc = layerManager.ensure(l.id, W, H);
+    if (oldC) nc.getContext("2d")!.drawImage(scaled(oldC), 0, 0);
+    if (wasPhoto) layerManager.markPhoto(l.id);
+    if (oldM) {
+      const mc = layerManager.ensureMask(l.id, W, H);
+      mc.getContext("2d")!.drawImage(scaled(oldM), 0, 0);
+    }
+  }
+  useProStore.setState((s) => ({
+    guidesH: s.guidesH.map((v) => Math.round(v * sy)),
+    guidesV: s.guidesV.map((v) => Math.round(v * sx)),
+    notes: s.notes.map((n) => ({ ...n, x: Math.round(n.x * sx), y: Math.round(n.y * sy) })),
+    counts: s.counts.map((c) => ({ ...c, x: Math.round(c.x * sx), y: Math.round(c.y * sy) })),
+    samplers: s.samplers.map((p) => ({ ...p, x: Math.round(p.x * sx), y: Math.round(p.y * sy) })),
+    slices: s.slices.map((sl) => ({
+      ...sl,
+      x: Math.round(sl.x * sx),
+      y: Math.round(sl.y * sy),
+      w: Math.max(1, Math.round(sl.w * sx)),
+      h: Math.max(1, Math.round(sl.h * sy)),
+    })),
+    paths: s.paths.map((p) => ({
+      ...p,
+      points: p.points.map((pt) => ({ x: Math.round(pt.x * sx), y: Math.round(pt.y * sy) })),
+    })),
+    textSpecs: Object.fromEntries(
+      Object.entries(s.textSpecs).map(([id, spec]) => [
+        id,
+        spec.x === undefined || spec.y === undefined ? spec : { ...spec, x: Math.round(spec.x * sx), y: Math.round(spec.y * sy) },
+      ]),
+    ),
+    transforms: Object.fromEntries(
+      Object.entries(s.transforms).map(([id, t]) => [id, { ...t, x: t.x * sx, y: t.y * sy }]),
+    ),
+  }));
+  useProStore.getState().clearMeasures();
+  st.setDocSize(W, H);
+  st.clearHistory();
+  clearSelectionMask();
+  window.dispatchEvent(new Event("avero:selection-changed"));
+  st.markDirty();
+  useProStore.getState().bumpHistogram();
+  window.dispatchEvent(new Event("avero:fit-zoom"));
+  void showMessage(`Resampled to ${W}x${H}. History cleared.`);
+}
+
 export default function TitleBar({
   onOpenCommand,
   onOpenExport,

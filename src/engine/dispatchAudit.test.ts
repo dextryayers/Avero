@@ -296,6 +296,74 @@ describe("plan4 dispatch audit: every sub-tool resolves", () => {
     expect(dupes).toEqual([]);
   });
 
+  it("plan4 fase 20: every tool shows the designed top bar kind", () => {
+    const marquee = new Set([
+      "select-rect", "select-ellipse", "single-row", "single-column", "select-rounded",
+      "select-square", "select-circle", "select-stadium", "select-crosshair",
+      "select-lasso", "select-polygon", "magnetic-lasso", "lasso-straight",
+      "object-select", "quick-select",
+    ]);
+    const auto = new Set([
+      "wand", "wand-plus", "wand-minus", "wand-flood", "color-range", "select-subject",
+      "sky-select", "background-select", "focus-select", "range-skin", "range-sky", "range-greens",
+    ]);
+    const clickSel = new Set([
+      "select-grow", "select-shrink", "select-feather", "select-border", "select-last",
+      "select-inverse-click", "select-feather-2", "select-feather-4", "select-feather-12",
+      "select-grow-2", "select-grow-8", "select-border-4", "select-border-12",
+    ]);
+    const overlays = new Set([
+      "crop-thirds", "crop-diagonal", "crop-triangle-guide", "crop-golden-spiral", "crop-center-dot",
+    ]);
+    const mism: string[] = [];
+    for (const f of TOOL_FAMILIES) {
+      for (const t of f.tools) {
+        const id = t.id as ToolId;
+        let expected: string;
+        switch (f.id) {
+          case "move": expected = "move"; break;
+          case "select":
+            expected = clickSel.has(t.id) ? "select-click" : marquee.has(t.id) ? "select-marquee" : "UNEXPECTED-TOOL";
+            break;
+          case "lasso":
+            expected = auto.has(t.id) ? "select-auto" : marquee.has(t.id) ? "select-marquee" : "UNEXPECTED-TOOL";
+            break;
+          case "crop":
+            expected = overlays.has(t.id)
+              ? "crop-overlay"
+              : t.id === "frame"
+                ? "shape"
+                : t.id === "slice" || t.id === "slice-select"
+                  ? "click"
+                  : "crop";
+            break;
+          case "measure": expected = t.id === "eyedropper" ? "eyedropper" : "measure"; break;
+          case "brush": expected = "paint"; break;
+          case "eraser": expected = "eraser"; break;
+          case "heal": expected = t.id === "healing-brush" || t.id === "patch" ? "clone" : "retouch"; break;
+          case "stamp": expected = t.id === "history-brush" || t.id === "art-history-brush" ? "paint" : "clone"; break;
+          case "tone": expected = "retouch"; break;
+          case "detail": expected = "retouch"; break;
+          case "paint": expected = t.id.startsWith("gradient") ? "gradient" : "fill"; break;
+          case "vector": expected = "pen"; break;
+          case "type": expected = "text"; break;
+          case "shape": expected = "shape"; break;
+          case "navigate": expected = "navigate"; break;
+          case "localfx": expected = "retouch"; break;
+          default: expected = "UNEXPECTED-FAMILY"; break;
+        }
+        let got: string;
+        try {
+          got = topBarKindOf(id);
+        } catch {
+          got = "THREW";
+        }
+        if (got !== expected) mism.push(`${f.id}/${t.id}: got ${got}, want ${expected}`);
+      }
+    }
+    expect(mism).toEqual([]);
+  });
+
   it("no orphan engine entries: every registered id exists in the toolbar", () => {
     const known = new Set(all.map((t) => t.id));
     const orphans: string[] = [];

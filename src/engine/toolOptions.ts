@@ -138,9 +138,11 @@ const TEXT_ALL = new Set<string>([
   "text-fire", "text-ice", "text-retro",
 ]);
 
+// Plan4 Fase 20: "frame" drag-creates (dispatch shape) so it gets the live
+// shape bar (fill/stroke/width), not the generic click bar.
 const CLICK_ALL = new Set<string>([
   "ai-bg-remove", "ai-subject", "ai-upscale", "ai-denoise", "ai-colorize", "ai-sky",
-  "slice", "slice-select", "frame", "pattern-fill",
+  "slice", "slice-select", "pattern-fill",
 ]);
 
 export function topBarKindOf(tool: ToolId): TopBarKind {

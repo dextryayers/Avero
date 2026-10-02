@@ -2,12 +2,12 @@
 
 > Status: FASE 1 + FASE 2 + FASE 3 + FASE 5 + FASE 6 + FASE 7 + FASE 8 + FASE 9
 > + FASE 10 + FASE 11 + FASE 12 + FASE 13 + FASE 14 + FASE 15 + FASE 16 + FASE 17
-> + FASE 18 DIEKSEKUSI (eraser 6/6, move 7/7, marquee 22/22, crop 25/25,
-> measure 22/22, brush 59/59, heal 39/39, stamp 10/10, tone 36/36, detail 58/58,
-> paint 19/19, vector 11/11, type 19/19, shape 35/35, navigate 13/13,
-> localfx 17/17, right side full).
-> Fase 4, 19-20 berjalan berurutan. Setiap sub-tool diverifikasi satu per satu
-> sesuai peran dan fungsinya.
+> + FASE 18 + FASE 19 + FASE 20 DIEKSEKUSI (eraser 6/6, move 7/7, marquee 22/22,
+> crop 25/25, measure 22/22, brush 59/59, heal 39/39, stamp 10/10, tone 36/36,
+> detail 58/58, paint 19/19, vector 11/11, type 19/19, shape 35/35, navigate 13/13,
+> localfx 17/17, right side full, head real, topbar per-kind).
+> Tersisa Fase 4 (Lasso/Wand, berikut antrian). Setiap sub-tool diverifikasi
+> satu per satu sesuai peran dan fungsinya.
 > Baseline: plan3 Fase 0-17 (klaim 422 sub-tools). Plan4 adalah PART 2: menutup lubang
 > yang masih terbukti ada di kode (bukan klaim), dengan harness audit otomatis sebagai bukti.
 > Bahasa UI tetap Bahasa Inggris. Tanpa em dash di src. Tanpa AI tools di workspace.
@@ -351,30 +351,52 @@
 - Kunci: tiap aksi panel memanggil store/engine nyata + guard + notify.
 - Hasil: `npx tsc --noEmit` hijau, `npx vitest run` hijau.
 
-## FASE 19 - Head Tools (TitleBar + menu + palette + settings)
+## FASE 19 - Head Tools (TitleBar + menu + palette + settings) - DIEKSEKUSI
 
-- [ ] 19.1. Tiap item MENUS menjalankan aksi NYATA (tidak ada fallback palette untuk
-  aksi inti edit/layer/select/view). Daftar pengecualian palette didokumentasikan.
-- [ ] 19.2. Undo/redo menu via historyOps (pixel pulih, bukan meta saja).
-- [ ] 19.3. Fill FG/BG, clear-fill, content-aware, merge, layer-copy/cut bekerja real.
-- [ ] 19.4. CommandPalette: semua entri run + recent + navigasi keyboard.
-- [ ] 19.5. Settings: tiap tab menerapkan + Shortcuts tab sinkron EDIT_SHORTCUTS.
+- [x] 19.1. Semua 16 fallback palette menjadi aksi NYATA: lock-layer (toggle),
+  clip-mask (toggle), add-mask (ensure + guard), layer-opacity (prompt 0-100),
+  blend-mode (navigasi ke Layers), select-mask (navigasi ke Select),
+  color-range + select-subject (arm tool), histogram (navigasi ke Color),
+  filter-gallery (navigasi ke Filter), prefs (buka Settings), tips (pesan),
+  trim (bbox alpha + crop-rect), img-size (resample penuh + skala anotasi),
+  canvas-size (crop-rect center, shrink + expand). File: `TitleBar.tsx`.
+- [x] 19.2. Group Layers NYATA: multi-select (Ctrl+click toggle, Shift+click range,
+  single click), header grup collapsible, toolbar Group, context Ungroup,
+  aksi menu Ctrl+G, groupId persist .avx. File: `useEditorStore.ts`,
+  `RightPanel.tsx`, `TitleBar.tsx`, `projectIo.ts`.
+- [x] 19.3. doCropRect diekstrak dari applyCrop (satu jalur crop/trim/canvas-size,
+  expand didukung, paper refill bg, mask default reveal) + event `avero:crop-rect`.
+  File: `CanvasArea.tsx`.
+- [x] 19.4. Undo/redo via historyOps, fill/merge/layer-copy/cut real (fase lalu,
+  terverifikasi tetap hijau).
+- [x] 19.5. CommandPalette: semua entri run + recent + navigasi keyboard; semua event
+  `avero:` yang dipakai ada listener-nya.
+- [x] 19.6. Settings: semua tab menerapkan + Shortcuts tab sinkron EDIT_SHORTCUTS.
+- Kunci: tidak ada item menu yang berakhir buntu.
+- Hasil: `npx tsc --noEmit` hijau, `npx vitest run` hijau, `npx vite build` hijau.
 
-## FASE 20 - Top Tools (ToolOptionsBar semua kind)
+## FASE 20 - Top Tools (ToolOptionsBar semua kind) - DIEKSEKUSI
 
-- [ ] 20.1. Tiap TopBarKind (paint/retouch/eraser/clone/select-marquee/select-auto/
-  select-click/crop/crop-overlay/shape/text/pen/gradient/fill/measure/navigate/move/
-  eyedropper/click) menampilkan kontrol LIVE yang tepat (bukan hint generik).
-- [ ] 20.2. Auto-hide + mini chip + More popover + slider elegan tetap mulus.
-- [ ] 20.3. Harness: `topBarKindOf` total atas ToolId + runMap select-click sinkron.
+- [x] 20.1. Kontrak topbar dikunci per tool untuk 17/17 family (400+ tools): tiap tool
+  menampilkan kind yang dirancang (paint/retouch/eraser/clone/select-marquee/
+  select-auto/select-click/crop/crop-overlay/shape/text/pen/gradient/fill/measure/
+  navigate/move/eyedropper/click), bukan fallback generik.
+- [x] 20.2. FIX: `frame` (drag-create, dispatch shape) menampilkan bar click generik.
+  Sekarang bar shape live (fill/stroke/width). File: `toolOptions.ts` (CLICK_ALL).
+- [x] 20.3. Auto-hide + mini chip + More popover + slider elegan tidak regresi
+  (terverifikasi via typecheck + build).
+- [x] 20.4. Harness: `plan4 fase 20` di `dispatchAudit.test.ts` (mismatch = fail).
+- Kunci: tidak ada tool yang bar-nya salah jenis.
+- Hasil: `npx tsc --noEmit` hijau, `npx vitest run` hijau, `npx vite build` hijau.
 
 ---
 
 ## Definisi selesai plan4
 
-- [ ] Fase 1-20 checklist hijau seluruhnya.
-- [ ] `npx tsc --noEmit` hijau, `npx vitest run` hijau, `npx vite build` hijau.
-- [ ] Harness `dispatchAudit.test.ts` hijau (0 tool tanpa dispatch, 0 duplikat family).
-- [ ] Skenario kertas: fresh-doc + photo-doc + reload-avx + drop/paste: kertas utuh,
-  foto utuh, stroke selalu undoable.
-- [ ] Tidak ada string Indonesia di UI, tidak ada em dash di src, tidak ada AI tools.
+- [ ] Fase 1-20 checklist hijau seluruhnya (tersisa Fase 4).
+- [x] `npx tsc --noEmit` hijau, `npx vitest run` hijau, `npx vite build` hijau.
+- [x] Harness `dispatchAudit.test.ts` hijau (0 tool tanpa dispatch, 0 duplikat family,
+  kontrak topbar per-kind hijau).
+- [x] Skenario kertas: fresh-doc + photo-doc + reload-avx + drop/paste: kertas utuh,
+  foto utuh, stroke selalu undoable (regression test hijau).
+- [x] Tidak ada string Indonesia di UI, tidak ada em dash di src, tidak ada AI tools.

@@ -17,24 +17,39 @@ import Notifier from "./components/Notifier";
 import AppDialog from "./components/AppDialog";
 import { showError, showMessage, askText } from "./ui/notify";
 import { fetchStartupFile, openAvxProject, saveAvxProject } from "./io/projectIo";
-import { useEditorStore, makeLayer } from "./stores/useEditorStore";
+import { useEditorStore } from "./stores/useEditorStore";
 import { useProStore } from "./stores/useProStore";
 import { loadShortcuts } from "./stores/useWorkspaceStore";
 import {
+  adjustBrushHardness,
+  adjustBrushOpacity,
   adjustBrushSize,
   comboOf,
+  copyActiveLayer,
+  cutActiveLayer,
   cycleFamily,
+  deleteActivePixels,
   dispatchAction,
+  duplicateActiveLayer,
   findMenuAction,
+  isEditingNow,
+  layerViaCut,
+  matchRedo,
+  matchUndo,
+  nudgeActiveLayer,
+  pasteClipboardAsLayer,
+  resetBrushColors,
   selectFamilyFirst,
+  setBrushOpacityDigit,
   spaceDown,
   spaceUp,
+  swapBrushColors,
 } from "./app/shortcuts";
 import { useHomeStore } from "./stores/useHomeStore";
 import { useSettingsStore } from "./stores/useSettingsStore";
 import SettingsPanel from "./components/SettingsPanel";
 import { layerManager } from "./engine/layerManager";
-import { clearSelectionMask, drawRectSelection, featherSelection, selectionMaskCanvas } from "./engine/selection";
+import { clearSelectionMask, drawRectSelection, hasSelection, inverseSelection, restoreLastSelection } from "./engine/selection";
 import { loadRecovery, saveRecovery, clearRecovery } from "./engine/recovery";
 import { doUndo, doRedo } from "./engine/historyOps";
 
@@ -118,33 +133,12 @@ export default function App() {
     Object.entries(shortcuts).forEach(([tool, key]) => {
       inv[key.toLowerCase()] = tool;
     });
-    // lightweight in-memory clipboard for Ctrl+X/C/V
-    // Path A: cap clipboard at 2048px on the long side so base64 PNG stays manageable for 4K.
-    const clipKey = "__avero_clipboard" as const;
-    function getClip(): string | null {
-      try { return (window as any)[clipKey] as string | null; } catch { return null; }
-    }
-    function setClip(v: string | null) { try { (window as any)[clipKey] = v; } catch {} }
-    function layerToClipboardURL(c: HTMLCanvasElement): string {
-      try {
-        const maxSide = 2048;
-        const m = Math.max(c.width, c.height);
-        if (m <= maxSide) return c.toDataURL("image/png");
-        const sc = maxSide / m;
-        const t = document.createElement("canvas");
-        t.width = Math.max(1, Math.round(c.width * sc));
-        t.height = Math.max(1, Math.round(c.height * sc));
-        t.getContext("2d")!.drawImage(c, 0, 0, t.width, t.height);
-        return t.toDataURL("image/png");
-      } catch {
-        return c.toDataURL("image/png");
-      }
-    }
     function onKey(e: KeyboardEvent) {
       const mod = e.ctrlKey || e.metaKey;
-      const ae = document.activeElement?.tagName;
-      const inInput = ae === "INPUT" || ae === "TEXTAREA" || (ae === "SELECT" as any);
-      if (mod && e.key.toLowerCase() === "k") {
+      const editing = isEditingNow();
+      const key = e.key.toLowerCase();
+      // ---- Lapisan 1: global app — jalan bahkan saat mengetik di input.
+      if (mod && key === "k") {
         e.preventDefault();
         setPalette((v) => !v);
         return;
@@ -154,130 +148,218 @@ export default function App() {
         window.dispatchEvent(new Event("avero:toggle-settings"));
         return;
       }
-      if (mod && e.key.toLowerCase() === "s") {
+      if (mod && key === "s") {
         e.preventDefault();
-        if (inInput) return;
+        // Simpan boleh dari mana saja (termasuk saat mengetik nama layer).
         saveAvxProject(e.shiftKey).catch((err) => showError(`Failed to save project: ${String(err)}`));
         return;
       }
-      if (mod && e.key.toLowerCase() === "e") {
+      if (mod && !e.shiftKey && !e.altKey && key === "e") {
         e.preventDefault();
-        if (inInput) return;
+        if (editing) return;
         setExportOpen(true);
         return;
       }
-      if (mod && e.key.toLowerCase() === "o") {
+      if (mod && !e.shiftKey && !e.altKey && key === "o") {
         e.preventDefault();
-        if (inInput) return;
+        if (editing) return;
         openImageViaDialog();
         return;
       }
-      if (mod && e.key.toLowerCase() === "z" && !e.shiftKey) {
+      if (mod && !e.shiftKey && !e.altKey && key === "n") {
         e.preventDefault();
-        if (inInput) return;
+        if (editing) return;
+        dispatchAction("new-doc");
+        return;
+      }
+      // Saat mengetik teks: biarkan shortcut native browser (undo/cut/paste
+      // teks, panah, spasi) bekerja. Hanya lapisan 1 + Escape yang boleh jalan.
+      if (editing) {
+        if (e.key === "Escape") {
+          (document.activeElement as HTMLElement | null)?.blur?.();
+        }
+        return;
+      }
+      // ---- Lapisan 2: edit umum — Undo / Redo / Step-backward.
+      if (matchUndo(e)) {
+        e.preventDefault();
         doUndo();
         return;
       }
-      if ((mod && e.key.toLowerCase() === "y") || (mod && e.shiftKey && e.key.toLowerCase() === "z")) {
+      if (matchRedo(e)) {
         e.preventDefault();
-        if (inInput) return;
         doRedo();
         return;
       }
-      if (mod && e.key.toLowerCase() === "a" && !inInput) {
+      if (mod && !e.shiftKey && !e.altKey && key === "a") {
         e.preventDefault();
         const st = useEditorStore.getState();
         drawRectSelection(st.doc.width, st.doc.height, { x: 0, y: 0, w: st.doc.width, h: st.doc.height });
         window.dispatchEvent(new Event("avero:selection-changed"));
         return;
       }
-      if (mod && e.key.toLowerCase() === "d" && !inInput) {
+      if (mod && !e.shiftKey && !e.altKey && key === "d") {
         e.preventDefault();
         clearSelectionMask();
         window.dispatchEvent(new Event("avero:selection-changed"));
         return;
       }
-      if (mod && e.key.toLowerCase() === "t" && !inInput) {
+      if (mod && e.shiftKey && !e.altKey && key === "d") {
         e.preventDefault();
-        useEditorStore.getState().setTool("move");
+        // Reselect: kembalikan seleksi terakhir (bukan select-all).
+        if (!restoreLastSelection()) {
+          const st = useEditorStore.getState();
+          drawRectSelection(st.doc.width, st.doc.height, { x: 0, y: 0, w: st.doc.width, h: st.doc.height });
+        }
+        window.dispatchEvent(new Event("avero:selection-changed"));
         return;
       }
-      if (mod && e.key.toLowerCase() === "c" && !inInput) {
+      if (mod && e.shiftKey && !e.altKey && key === "i") {
         e.preventDefault();
-        try {
-          const st = useEditorStore.getState();
-          const id = st.activeLayerId;
-          if (!id) return;
-          const c = layerManager.get(id);
-          if (!c) return;
-          setClip(layerToClipboardURL(c));
-        } catch {}
+        inverseSelection();
+        window.dispatchEvent(new Event("avero:selection-changed"));
         return;
       }
-      if (mod && e.key.toLowerCase() === "x" && !inInput) {
+      if (mod && !e.shiftKey && !e.altKey && key === "t") {
         e.preventDefault();
-        try {
-          const st = useEditorStore.getState();
-          const id = st.activeLayerId;
-          if (!id) return;
-          const c = layerManager.get(id);
-          if (!c) return;
-          setClip(layerToClipboardURL(c));
-          const ctx = c.getContext("2d")!;
-          ctx.clearRect(0, 0, c.width, c.height);
-          st.markDirty();
-          useProStore.getState().bumpHistogram();
+        useEditorStore.getState().setTool("transform-free");
+        return;
+      }
+      // Cut / Copy hormati seleksi + tulis clipboard sistem (best-effort).
+      if (mod && !e.shiftKey && !e.altKey && key === "c") {
+        e.preventDefault();
+        copyActiveLayer();
+        return;
+      }
+      if (mod && e.shiftKey && !e.altKey && key === "c") {
+        e.preventDefault();
+        copyActiveLayer();
+        return;
+      }
+      if (mod && !e.shiftKey && !e.altKey && key === "x") {
+        e.preventDefault();
+        cutActiveLayer();
+        return;
+      }
+      // Paste normal (tengah, proporsional) vs Paste in Place (offset asal).
+      if (mod && !e.altKey && key === "v") {
+        e.preventDefault();
+        void pasteClipboardAsLayer(e.shiftKey);
+        return;
+      }
+      // Duplikat / via-cut / urutan layer.
+      if (mod && !e.shiftKey && !e.altKey && key === "j") {
+        e.preventDefault();
+        duplicateActiveLayer();
+        return;
+      }
+      if (mod && e.shiftKey && !e.altKey && key === "j") {
+        e.preventDefault();
+        if (!layerViaCut()) duplicateActiveLayer();
+        return;
+      }
+      if (mod && !e.shiftKey && !e.altKey && key === "g") {
+        e.preventDefault();
+        dispatchAction("group");
+        return;
+      }
+      if (mod && !e.altKey && (e.key === "]" || e.key === "[")) {
+        e.preventDefault();
+        const id = useEditorStore.getState().activeLayerId;
+        if (!id) return;
+        if (e.shiftKey) dispatchAction(e.key === "]" ? "layer-top" : "layer-bottom");
+        else useEditorStore.getState().moveLayer(id, e.key === "]" ? 1 : -1);
+        return;
+      }
+      // Fill FG / BG + Delete — selalu via helper ber-history.
+      if (!mod && e.altKey && !e.shiftKey && (e.key === "Backspace" || e.key === "Delete")) {
+        e.preventDefault();
+        dispatchAction("fill-fg");
+        return;
+      }
+      if (mod && !e.shiftKey && !e.altKey && (e.key === "Backspace" || e.key === "Delete")) {
+        e.preventDefault();
+        // Ctrl+Backspace = isi BG (standar), Backspace biasa = hapus piksel.
+        if (e.key === "Backspace") dispatchAction("fill-bg");
+        else deleteActivePixels();
+        return;
+      }
+      if ((e.key === "Delete" || e.key === "Backspace") && !mod && !e.altKey) {
+        // Jangan cegah navigasi-history browser saat fokus di luar kanvas?
+        // Di editor, Delete selalu berarti hapus piksel.
+        e.preventDefault();
+        deleteActivePixels();
+        return;
+      }
+      // Crop commit/cancel via keyboard.
+      if (e.key === "Enter" && !mod && !e.altKey) {
+        const t = useEditorStore.getState().tool as string;
+        if (t === "crop" || t.startsWith("crop-") || t === "perspective-crop" || t === "crop-straighten") {
+          e.preventDefault();
+          window.dispatchEvent(new Event("avero:crop-apply"));
+          return;
+        }
+      }
+      if (e.key === "Escape" && !mod && !e.altKey && !e.shiftKey) {
+        const t = useEditorStore.getState().tool as string;
+        if (t === "crop" || t.startsWith("crop-") || t === "perspective-crop" || t === "crop-straighten") {
+          e.preventDefault();
+          window.dispatchEvent(new Event("avero:crop-cancel"));
+          return;
+        }
+        if (hasSelection()) {
+          e.preventDefault();
           clearSelectionMask();
           window.dispatchEvent(new Event("avero:selection-changed"));
-        } catch {}
+          return;
+        }
         return;
       }
-      if (mod && e.key.toLowerCase() === "v" && !inInput) {
+      // ---- Lapisan 3: view cepat.
+      if (mod && !e.shiftKey && !e.altKey && (e.key === "+" || e.key === "=")) {
         e.preventDefault();
-        const dataUrl = getClip();
-        if (!dataUrl) return;
-        try {
-          const st = useEditorStore.getState();
-          const img = new Image();
-          img.onload = () => {
-            const l = makeLayer(`Paste`);
-            const nc = layerManager.ensure(l.id, st.doc.width, st.doc.height);
-            nc.getContext("2d")!.drawImage(img, 0, 0, st.doc.width, st.doc.height);
-            st.addLayer(l);
-            st.setActiveLayer(l.id);
-            st.markDirty();
-            useProStore.getState().bumpHistogram();
-          };
-          img.src = dataUrl;
-        } catch {}
+        const ed = useEditorStore.getState();
+        ed.setZoom(ed.zoom + 25);
         return;
       }
-      if ((e.key === "Delete" || e.key === "Backspace") && !inInput) {
+      if (mod && !e.shiftKey && !e.altKey && e.key === "-") {
         e.preventDefault();
-        // delete selection contents on the active layer
-        try {
-          const st = useEditorStore.getState();
-          const id = st.activeLayerId;
-          if (id) {
-            const c = layerManager.get(id);
-            if (c) {
-              clearSelectionMask();
-              window.dispatchEvent(new Event("avero:selection-changed"));
-            }
-          }
-        } catch {}
-        clearSelectionMask();
-        window.dispatchEvent(new Event("avero:selection-changed"));
+        const ed = useEditorStore.getState();
+        ed.setZoom(ed.zoom - 25);
         return;
       }
-      if (!mod && !e.shiftKey) {
+      if (mod && !e.shiftKey && !e.altKey && e.key === "0") {
+        e.preventDefault();
+        window.dispatchEvent(new Event("avero:fit-zoom"));
+        return;
+      }
+      if (mod && !e.shiftKey && !e.altKey && e.key === "1") {
+        e.preventDefault();
+        useEditorStore.getState().setZoom(100);
+        return;
+      }
+      // ---- Lapisan 4: huruf tool tunggal (tanpa Ctrl/Alt) + angka + X/D.
+      if (!mod && !e.altKey && !e.shiftKey) {
         const t = e.key.toLowerCase();
-        const ae = document.activeElement?.tagName;
-        if (ae === "INPUT" || ae === "TEXTAREA") return;
+        // Angka 1..0 = opasitas kuas ala Photoshop (Shift+angka = Flow).
+        if (/^[0-9]$/.test(e.key)) {
+          e.preventDefault();
+          setBrushOpacityDigit(e.key, false);
+          return;
+        }
+        if (t === "x") {
+          e.preventDefault();
+          swapBrushColors();
+          return;
+        }
+        if (t === "d") {
+          e.preventDefault();
+          resetBrushColors();
+          return;
+        }
         const ed = useEditorStore.getState();
         const pro = useProStore.getState();
-        // M toggles rect/ellipse, U cycles shapes, R/J/O/G/P Photoshop-style cycling
-        // Manual 2026: expanded orders so every new manual sub-tool reachable via keyboard.
+        // M/U/R/O/G/P/J: putar sub-tool sekeluarga (semua manual 2026 terjangkau).
         if (t === "m") {
           const order = ["select-rect", "select-ellipse", "select-square", "select-rounded"] as const;
           const i = order.indexOf(ed.tool as (typeof order)[number]);
@@ -323,40 +405,77 @@ export default function App() {
         }
         const tool = inv[t];
         if (tool) {
-          ed.setTool(tool as any);
+          ed.setTool(tool as never);
           if (t === "l" || t === "w") {
             pro.setSelKind(t === "l" ? "lasso" : "wand");
           }
-        } else {
-          selectFamilyFirst(t.toUpperCase());
+          return;
         }
+        if (selectFamilyFirst(t.toUpperCase())) return;
+      }
+      // Shift+angka = Flow kuas.
+      if (!mod && !e.altKey && e.shiftKey && /^[0-9]$/.test(e.key)) {
+        e.preventDefault();
+        setBrushOpacityDigit(e.key, true);
+        return;
       }
 
-      // Global menu actions matching the shortcuts listed in the menu
-      const hasMod = e.ctrlKey || e.metaKey || e.altKey;
-      const isLetter = e.key.length === 1 && /[a-z]/i.test(e.key);
-      if (hasMod || !isLetter) {
-        const act = findMenuAction(comboOf(e));
-        if (act && !inInput) {
-          e.preventDefault();
-          dispatchAction(act);
+      // ---- Lapisan 5: sisa aksi menu generik (Levels Ctrl+L, Curves Ctrl+M, ...).
+      {
+        const hasMod = e.ctrlKey || e.metaKey || e.altKey;
+        const isLetter = e.key.length === 1 && /[a-z]/i.test(e.key);
+        if (hasMod || !isLetter) {
+          const act = findMenuAction(comboOf(e));
+          if (act) {
+            e.preventDefault();
+            dispatchAction(act);
+            return;
+          }
+        }
+      }
+      // Shift+huruf: putar keluarga tool (M marquee, R blur/sharpen/smudge, ...).
+      {
+        const hasMod = e.ctrlKey || e.metaKey || e.altKey;
+        const isLetter = e.key.length === 1 && /[a-z]/i.test(e.key);
+        if (!hasMod && e.shiftKey && isLetter) {
+          if (cycleFamily(e.key.toUpperCase())) e.preventDefault();
           return;
         }
       }
-      if (inInput) return;
-      // Shift+letter: tool family cycling (M marquee, R blur/sharpen/smudge, etc.)
-      if (!hasMod && e.shiftKey && isLetter) {
-        if (cycleFamily(e.key.toUpperCase())) e.preventDefault();
-        return;
-      }
-      if (!hasMod && (e.key === "[" || e.key === "]")) {
-        adjustBrushSize(e.key === "]" ? 5 : -5);
+      // [ ] ukuran kuas, Shift+[ ] hardness, Ctrl+[ ] / Alt+[ ] opasitas/flow.
+      if (!mod && e.key !== undefined && (e.key === "[" || e.key === "]" || e.key === "{" || e.key === "}")) {
+        if (e.altKey) adjustBrushOpacity(e.key === "]" || e.key === "}" ? 10 : -10);
+        else if (e.key === "{" || e.key === "}") adjustBrushHardness(e.key === "}" ? 10 : -10);
+        else if (e.shiftKey) adjustBrushHardness(e.key === "]" ? 10 : -10);
+        else adjustBrushSize(e.key === "]" ? 5 : -5);
         e.preventDefault();
         return;
       }
-      if (e.key === " " && !hasMod) {
-        spaceDown();
+      if (mod && !e.shiftKey && e.altKey && (e.key === "[" || e.key === "]")) {
         e.preventDefault();
+        adjustBrushOpacity(e.key === "]" ? 10 : -10);
+        return;
+      }
+      // Panah: geser layer 1px (Shift = 10px), riwayat digabung.
+      if (!mod && !e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+        e.preventDefault();
+        const step = e.shiftKey ? 10 : 1;
+        const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
+        const dy = e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0;
+        nudgeActiveLayer(dx, dy);
+        return;
+      }
+      // , . putar view, / reset — selaras slider Rotate di bar.
+      if (!mod && !e.altKey && !e.shiftKey && (e.key === "," || e.key === "." || e.key === "/")) {
+        const ed = useEditorStore.getState();
+        if (e.key === ",") ed.setViewRotate(ed.viewRotate - 15);
+        else if (e.key === ".") ed.setViewRotate(ed.viewRotate + 15);
+        else ed.setViewRotate(0);
+        e.preventDefault();
+        return;
+      }
+      if (e.key === " " && !mod && !e.altKey) {
+        if (spaceDown()) e.preventDefault();
       }
     }
     function onKeyUp(e: KeyboardEvent) {
@@ -391,25 +510,16 @@ export default function App() {
         clearSelectionMask();
         window.dispatchEvent(new Event("avero:selection-changed"));
       } else if (detail === "sel-reselect") {
-        drawRectSelection(W, H, { x: 0, y: 0, w: W, h: H });
+        // Perbaikan: kembalikan seleksi terakhir, bukan select-all.
+        if (!restoreLastSelection()) {
+          drawRectSelection(W, H, { x: 0, y: 0, w: W, h: H });
+        }
         window.dispatchEvent(new Event("avero:selection-changed"));
       } else if (detail === "sel-inverse") {
-        const c = selectionMaskCanvas();
-        if (c) {
-          const ctx = c.getContext("2d")!;
-          const img = ctx.getImageData(0, 0, c.width, c.height);
-          const d = img.data;
-          for (let i = 0; i < d.length; i += 4) {
-            const a = d[i + 3];
-            d[i] = 255;
-            d[i + 1] = 255;
-            d[i + 2] = 255;
-            d[i + 3] = 255 - a;
-          }
-          ctx.putImageData(img, 0, 0);
-          window.dispatchEvent(new Event("avero:selection-changed"));
-        }
+        inverseSelection();
+        window.dispatchEvent(new Event("avero:selection-changed"));
       } else if (detail === "sel-feather") {
+        const { featherSelection } = await import("./engine/selection");
         askText("Feather Selection", "Feather radius in px (0-100):", "2").then((v) => {
           if (v !== null && v !== "") featherSelection(Math.max(0, Math.min(100, Number(v) || 0)));
         });
@@ -417,45 +527,12 @@ export default function App() {
     }
     function onClipEvent(e: Event) {
       const detail = (e as CustomEvent).detail as string;
-      const ae = document.activeElement?.tagName;
-      if (ae === "INPUT" || ae === "TEXTAREA") return;
-      // simulate Ctrl+C/X/V via KeyboardEvent dispatch to reuse the same handler
-      const key = detail === "cut" ? "x" : detail === "copy" ? "c" : detail === "paste" ? "v" : "";
-      if (!key) return;
-      const ev = new KeyboardEvent("keydown", { key, ctrlKey: true, bubbles: true });
-      window.dispatchEvent(ev);
-      // direct fallback if the KeyboardEvent is unhandled (listener checks e.ctrlKey)
-      // call clipboard logic directly
-      if (detail === "copy" || detail === "cut") {
-        try {
-          const st = useEditorStore.getState();
-          const id = st.activeLayerId;
-          if (!id) return;
-          const c = layerManager.get(id);
-          if (!c) return;
-          (window as any).__avero_clipboard = layerToClipboardURL(c);
-          if (detail === "cut") {
-            c.getContext("2d")!.clearRect(0, 0, c.width, c.height);
-            st.markDirty();
-            useProStore.getState().bumpHistogram();
-          }
-        } catch {}
-      } else if (detail === "paste") {
-        const dataUrl = (window as any).__avero_clipboard as string | null;
-        if (!dataUrl) return;
-        const st = useEditorStore.getState();
-        const img = new Image();
-        img.onload = () => {
-          const l = makeLayer(`Paste`);
-          const nc = layerManager.ensure(l.id, st.doc.width, st.doc.height);
-          nc.getContext("2d")!.drawImage(img, 0, 0, st.doc.width, st.doc.height);
-          st.addLayer(l);
-          st.setActiveLayer(l.id);
-          st.markDirty();
-          useProStore.getState().bumpHistogram();
-        };
-        img.src = dataUrl;
-      }
+      if (isEditingNow()) return;
+      // Langsung pakai helper terpusat (riwayat + seleksi + paste proporsional).
+      if (detail === "copy") copyActiveLayer();
+      else if (detail === "cut") cutActiveLayer();
+      else if (detail === "paste") void pasteClipboardAsLayer(false);
+      else if (detail === "paste-place") void pasteClipboardAsLayer(true);
     }
     function onSettingsEvent() {
       openSettingsRef.current();
@@ -561,7 +638,7 @@ export default function App() {
 
       <div className="flex items-center gap-2 border-t border-[#2c2c31] bg-[#1c1c1f] px-3 py-1 font-mono text-[10px] text-[#6e6e78]">
         <span>
-          AVERO STUDIO v2.0.0. Ctrl+S saves .avx. Ctrl+E exports. Ctrl+K all actions. Ctrl+, settings.
+          AVERO STUDIO v2.0.0. Ctrl+Z/Y undo-redo · Ctrl+X/C/V cut-copy-paste · Ctrl+Shift+V in place · [ ] brush · 1-0 opacity · X/D colors · Space hand · Ctrl+S save · Ctrl+E export · Ctrl+K actions
         </span>
         <button
           onClick={() => {

@@ -120,6 +120,93 @@ input[type="range"] {
   accent-color: var(--color-accent-500);
 }
 
+/* ---- Modern top-options-bar sliders: elegant, bukan bawaan tua ---- */
+input[type="range"].avero-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 16px;
+  background: transparent;
+  cursor: pointer;
+  --avero-fill: 50%;
+}
+input[type="range"].avero-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, #2f7cf6 var(--avero-fill), #34343b var(--avero-fill));
+}
+input[type="range"].avero-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 3px solid #2f7cf6;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.55);
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+input[type="range"].avero-slider:hover::-webkit-slider-thumb {
+  transform: scale(1.18);
+  border-color: #3b8bff;
+}
+input[type="range"].avero-slider:active::-webkit-slider-thumb {
+  transform: scale(1.05);
+  border-color: #3b8bff;
+}
+input[type="range"].avero-slider:focus-visible {
+  outline: 2px solid #2f7cf6;
+  outline-offset: 2px;
+  border-radius: 9999px;
+}
+input[type="range"].avero-slider::-moz-range-track {
+  height: 4px;
+  border-radius: 9999px;
+  background: #34343b;
+}
+input[type="range"].avero-slider::-moz-range-progress {
+  height: 4px;
+  border-radius: 9999px;
+  background: #2f7cf6;
+}
+input[type="range"].avero-slider::-moz-range-thumb {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: #fff;
+  border: 3px solid #2f7cf6;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.55);
+}
+
+/* ---- Top bar drop-in + popover (transform hanya di inner, tidak tabrakan
+      dengan -translate-x-1/2 milik wrapper) ---- */
+.avero-drop-in {
+  animation: avero-drop-in 0.22s cubic-bezier(0.32, 0.9, 0.35, 1) both;
+}
+@keyframes avero-drop-in {
+  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.avero-popover-in {
+  animation: avero-popover-in 0.16s ease-out both;
+  transform-origin: top center;
+}
+@keyframes avero-popover-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.avero-chip-in {
+  animation: avero-chip-in 0.18s ease-out both;
+}
+@keyframes avero-chip-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+/* Fade mask di tepi bar agar konten panjang terpotong elegan tanpa scrollbar */
+.avero-fade-x {
+  mask-image: linear-gradient(90deg, transparent, black 12px, black calc(100% - 12px), transparent);
+}
+
 /* Interactive animations stay on transform and opacity only so they
    ride the compositor thread and never add RAM pressure. */
 .avero-press {
@@ -204,6 +291,9 @@ input[type="range"] {
 .avero-no-anim .avero-bar,
 .avero-no-anim .avero-fade-in,
 .avero-no-anim .avero-slide-in,
+.avero-no-anim .avero-drop-in,
+.avero-no-anim .avero-popover-in,
+.avero-no-anim .avero-chip-in,
 .avero-no-anim .avero-lift,
 .avero-no-anim .avero-ring-pulse,
 .avero-no-anim .avero-shimmer::after {

@@ -162,18 +162,17 @@ export default function TitleBar({
       case "palette":
         onOpenCommand();
         break;
-      case "undo": {
-        const e = ed.undoMeta();
-        if (e) {
-          layerManager.restore(e.layerId, e.snapshot);
-          if (e.maskSnapshot) layerManager.restoreMask(e.layerId, e.maskSnapshot);
-          ed.markDirty();
-          pro.bumpHistogram();
-        }
+      case "undo":
+        void (async () => {
+          const { doUndo } = await import("../engine/historyOps");
+          doUndo();
+        })();
         break;
-      }
       case "redo":
-        ed.redoMeta();
+        void (async () => {
+          const { doRedo } = await import("../engine/historyOps");
+          doRedo();
+        })();
         break;
       case "fit":
         window.dispatchEvent(new Event("avero:fit-zoom"));
@@ -217,23 +216,52 @@ export default function TitleBar({
       }
       case "dup-layer":
       case "layer-copy": {
-        const id = ed.activeLayerId;
-        const src = ed.layers.find((l) => l.id === id);
-        if (src) {
-          const l = makeLayer(`${src.name} copy`);
-          const nl = { ...l, opacity: src.opacity, blendMode: src.blendMode, kind: src.kind };
-          const sc = layerManager.get(src.id);
-          const dc = layerManager.ensure(nl.id, ed.doc.width, ed.doc.height);
-          if (sc) dc.getContext("2d")!.drawImage(sc, 0, 0);
-          ed.addLayer(nl);
-        }
+        void (async () => {
+          const s = await import("../app/shortcuts");
+          if (!(await import("../engine/selection")).hasSelection()) {
+            s.duplicateActiveLayer();
+            return;
+          }
+          // Layer via Copy: salin seleksi ke layer baru, aslinya tetap.
+          try {
+            const st = useEditorStore.getState();
+            const id = st.activeLayerId;
+            if (!id) return;
+            const src = layerManager.get(id);
+            const sel = (await import("../engine/selection")).selectionMaskCanvas();
+            if (!src || !sel) {
+              s.duplicateActiveLayer();
+              return;
+            }
+            const moved = document.createElement("canvas");
+            moved.width = src.width;
+            moved.height = src.height;
+            const mg = moved.getContext("2d")!;
+            mg.drawImage(src, 0, 0);
+            mg.globalCompositeOperation = "destination-in";
+            mg.drawImage(sel, 0, 0);
+            const meta = st.layers.find((l) => l.id === id);
+            const l = makeLayer(`${meta?.name ?? "Layer"} copy`);
+            const nc = layerManager.ensure(l.id, st.doc.width, st.doc.height);
+            nc.getContext("2d")!.drawImage(moved, 0, 0);
+            st.addLayer(l);
+            st.setActiveLayer(l.id);
+            st.markDirty();
+          } catch {
+            /* abaikan */
+          }
+        })();
         break;
       }
       case "layer-cut":
-        onOpenCommand();
+        void (async () => {
+          const s = await import("../app/shortcuts");
+          if (!s.layerViaCut()) s.duplicateActiveLayer();
+        })();
         break;
       case "del-layer":
         if (ed.activeLayerId && ed.layers.length > 1) ed.removeLayer(ed.activeLayerId);
+        else void showMessage("Cannot delete the last layer. Delete pixels instead (Del).");
         break;
       case "layer-up":
         if (ed.activeLayerId) ed.moveLayer(ed.activeLayerId, 1);
@@ -251,9 +279,130 @@ export default function TitleBar({
           for (let i = 0; i < 99; i++) ed.moveLayer(ed.activeLayerId, -1);
         }
         break;
-      case "merge-down":
+      case "merge-down": {
+        // Gabung layer aktif ke layer di bawahnya (hormati opacity sederhana).
+        try {
+          const st = useEditorStore.getState();
+          const idx = st.layers.findIndex((l) => l.id === st.activeLayerId);
+          if (idx <= 0) {
+            void showMessage("Merge Down: no layer below.");
+            break;
+          }
+          const top = st.layers[idx];
+          const below = st.layers[idx - 1];
+          const tc = layerManager.get(top.id);
+          const bc = layerManager.get(below.id) ?? layerManager.ensure(below.id, st.doc.width, st.doc.height);
+          if (!tc) break;
+          const snap = layerManager.snapshot(below.id);
+          const g = bc.getContext("2d")!;
+          g.save();
+          g.globalAlpha = Math.max(0, Math.min(1, top.opacity / 100));
+          g.drawImage(tc, 0, 0);
+          g.restore();
+          if (snap) st.pushHistory({ label: "Merge down", layerId: below.id, snapshot: snap });
+          st.removeLayer(top.id);
+          st.setActiveLayer(below.id);
+          st.markDirty();
+          pro.bumpHistogram();
+        } catch (e) {
+          void showError(`Merge failed: ${String(e)}`);
+        }
+        break;
+      }
       case "merge-all":
-      case "flatten":
+      case "flatten": {
+        // Ratakan semua layer tampak ke layer bawah (non-destruktif: snapshot per layer).
+        try {
+          const st = useEditorStore.getState();
+          const vis = st.layers.filter((l) => l.visible);
+          if (vis.length < 2) {
+            void showMessage("Nothing to merge.");
+            break;
+          }
+          const bottom = vis[0];
+          const snap = layerManager.snapshot(bottom.id);
+          const bc = layerManager.get(bottom.id) ?? layerManager.ensure(bottom.id, st.doc.width, st.doc.height);
+          const g = bc.getContext("2d")!;
+          for (let i = 1; i < vis.length; i++) {
+            const c = layerManager.get(vis[i].id);
+            if (!c) continue;
+            g.save();
+            g.globalAlpha = Math.max(0, Math.min(1, vis[i].opacity / 100));
+            g.drawImage(c, 0, 0);
+            g.restore();
+          }
+          if (snap) st.pushHistory({ label: a === "flatten" ? "Flatten" : "Merge all", layerId: bottom.id, snapshot: snap });
+          // Hapus layer atas (bawah dipertahankan sebagai hasil).
+          for (let i = vis.length - 1; i >= 1; i--) {
+            if (st.layers.length > 1) st.removeLayer(vis[i].id);
+          }
+          st.setActiveLayer(bottom.id);
+          st.markDirty();
+          pro.bumpHistogram();
+        } catch (e) {
+          void showError(`Merge failed: ${String(e)}`);
+        }
+        break;
+      }
+      case "clear-fill":
+        void (async () => {
+          const s = await import("../app/shortcuts");
+          s.deleteActivePixels();
+        })();
+        break;
+      case "fill-fg":
+      case "fill-bg": {
+        void (async () => {
+          try {
+            const st = useEditorStore.getState();
+            const id = st.activeLayerId;
+            if (!id) return;
+            const meta = st.layers.find((l) => l.id === id);
+            if (!meta || meta.locked || !meta.visible) {
+              void showMessage("Active layer is locked or hidden.");
+              return;
+            }
+            const c = layerManager.get(id) ?? layerManager.ensure(id, st.doc.width, st.doc.height);
+            const snap = layerManager.snapshot(id);
+            const color = a === "fill-fg" ? st.brushColor : st.bgColor;
+            const g = c.getContext("2d")!;
+            const sel = (await import("../engine/selection")).hasSelection()
+              ? (await import("../engine/selection")).selectionMaskCanvas()
+              : null;
+            g.save();
+            if (sel) {
+              // Isi hanya dalam seleksi: potong via mask sementara.
+              const tmp = document.createElement("canvas");
+              tmp.width = c.width;
+              tmp.height = c.height;
+              const tg = tmp.getContext("2d")!;
+              tg.fillStyle = color;
+              tg.fillRect(0, 0, tmp.width, tmp.height);
+              tg.globalCompositeOperation = "destination-in";
+              tg.drawImage(sel, 0, 0);
+              g.drawImage(tmp, 0, 0);
+            } else {
+              g.fillStyle = color;
+              g.fillRect(0, 0, c.width, c.height);
+            }
+            g.restore();
+            if (snap) st.pushHistory({ label: a === "fill-fg" ? "Fill FG" : "Fill BG", layerId: id, snapshot: snap });
+            st.markDirty();
+            pro.bumpHistogram();
+          } catch (e) {
+            void showError(`Fill failed: ${String(e)}`);
+          }
+        })();
+        break;
+      }
+      case "content-aware":
+        // Arahkan ke tool Content Fill agar klik berikutnya mengisi seleksi.
+        ed.setTool("content-fill");
+        void (async () => {
+          const { hasSelection } = await import("../engine/selection");
+          if (!hasSelection()) void showMessage("Content-Aware: make a selection first, then click the canvas.");
+        })();
+        break;
       case "group":
       case "add-mask":
       case "clip-mask":
@@ -263,10 +412,6 @@ export default function TitleBar({
       case "select-mask":
       case "color-range":
       case "select-subject":
-      case "content-aware":
-      case "clear-fill":
-      case "fill-fg":
-      case "fill-bg":
       case "trim":
       case "prefs":
       case "histogram":
@@ -295,6 +440,9 @@ export default function TitleBar({
         break;
       case "paste":
         window.dispatchEvent(new CustomEvent("avero:clip", { detail: "paste" }));
+        break;
+      case "paste-place":
+        window.dispatchEvent(new CustomEvent("avero:clip", { detail: "paste-place" }));
         break;
       case "auto-tone":
       case "auto-contrast":
@@ -339,7 +487,7 @@ export default function TitleBar({
         ed.setTool("crop");
         break;
       case "free-transform":
-        ed.setTool("move");
+        ed.setTool("transform-free");
         break;
       case "rotate-cw":
       case "canvas-cw": {

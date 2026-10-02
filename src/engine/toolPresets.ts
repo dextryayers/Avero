@@ -80,8 +80,10 @@ export const PAINT_TOOLS = new Set<ToolId>([
 export function paintPreset(tool: ToolId, userHard: number): PaintPreset {
   switch (tool) {
     case "pencil":
-    case "sketch-ink":
       return { hardness: 100, alphaMul: 1, composite: "source-over", sizeMul: 1 };
+    // Plan4 Fase 6: ink draws a finer crisp line than the full-pixel pencil.
+    case "sketch-ink":
+      return { hardness: 100, alphaMul: 1, composite: "source-over", sizeMul: 0.85 };
     case "sketch-marker":
       return { hardness: 85, alphaMul: 0.95, composite: "source-over", sizeMul: 1 };
     case "sketch-felt":
@@ -159,14 +161,18 @@ export function paintPreset(tool: ToolId, userHard: number): PaintPreset {
     case "fur-short":
       return { hardness: 55, alphaMul: 0.7, composite: "multiply", sizeMul: 0.9, scatter: true };
     case "airbrush":
-    case "art-watercolor":
     case "art-glaze":
       return { hardness: 0, alphaMul: 0.22, composite: "source-over", sizeMul: 1 };
+    // Plan4 Fase 6: watercolor is a broader, fainter wash; airbrush builds up.
+    case "art-watercolor":
+      return { hardness: 0, alphaMul: 0.18, composite: "source-over", sizeMul: 1.25 };
     case "soft-brush":
       return { hardness: 0, alphaMul: 0.7, composite: "source-over", sizeMul: 1.15 };
     case "sketch-pastel":
-    case "sketch-chalk":
       return { hardness: 15, alphaMul: 0.55, composite: "source-over", sizeMul: 1.1, scatter: true };
+    // Plan4 Fase 6: chalk is dustier (larger, fainter); pastel stays denser.
+    case "sketch-chalk":
+      return { hardness: 10, alphaMul: 0.45, composite: "source-over", sizeMul: 1.25, scatter: true };
     case "sketch-charcoal":
       return { hardness: 30, alphaMul: 0.8, composite: "multiply", sizeMul: 1 };
     case "sketch-highlighter":

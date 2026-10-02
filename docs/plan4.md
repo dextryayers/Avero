@@ -1,7 +1,9 @@
 # PLAN 4 - Part 2: Eraser Paper Bug TOTAL + Full Upgrade Fungsi Semua Tools
 
-> Status: FASE 1 DIEKSEKUSI (E1.1-E1.6 + regression test). Fase 2-20 berjalan berurutan,
-> satu fase = satu family tools (+ sub-tools-nya), masing-masing dengan sub-todo sendiri.
+> Status: FASE 1 + FASE 2 + FASE 3 + FASE 5 + FASE 6 + FASE 7 DIEKSEKUSI
+> (eraser total, move 7/7, marquee 22/22, crop 25/25, measure 22/22, brush 59/59).
+> Fase 4, 8-20 berjalan berurutan. Setiap sub-tool diverifikasi satu per satu
+> sesuai peran dan fungsinya.
 > Baseline: plan3 Fase 0-17 (klaim 422 sub-tools). Plan4 adalah PART 2: menutup lubang
 > yang masih terbukti ada di kode (bukan klaim), dengan harness audit otomatis sebagai bukti.
 > Bahasa UI tetap Bahasa Inggris. Tanpa em dash di src. Tanpa AI tools di workspace.
@@ -58,32 +60,59 @@
   File: `shortcuts.ts`.
 - [x] 1.7. Regression test: `normalizeAvxFile` menjaga `photo`, `needsFreshPaintLayer`
   tetap, semantik `resolveEraserTarget` tak berubah (13 test lama hijau).
+- [x] 1.8. `eraser-block` SEJATI: sebelumnya disc identik dengan `eraser-hard`.
+  Sekarang `blockEraseTo` mencap kotak axis-aligned (selection-aware, Strength live
+  via destination-out alpha). File: `CanvasArea.tsx`.
+- [x] 1.9. Strength (opacity) + Flow LIVE untuk semua paint eraser (round sprite +
+  block). Sebelumnya alpha dipaksa 1 sehingga slider Strength mati. `eraser-hard`
+  tetap full force by design. File: `CanvasArea.tsx` (`paintTo`).
 - Kunci: kertas TIDAK PERNAH jadi target erase lewat jalur APAPUN (stroke, clear,
-  flood, photo-eraser). Foto TERLINDUNGI lintas save/load/drop/paste.
+  flood, photo-eraser). Foto TERLINDUNGI lintas save/load/drop/paste. Tiap sub-tool
+  berbeda perilaku sesuai perannya (disc/soft/block/tolerance/flood).
 - Hasil: `npx tsc --noEmit` hijau, `npx vitest run` hijau, `npx vite build` hijau.
 
 ---
 
-## FASE 2 - Family Move (7 tools)
+## FASE 2 - Family Move (7 tools) - DIEKSEKUSI
 
-- [ ] 2.1. `move`: drag + snap + cursor + guard lock/hidden/no-layer di choke point.
-- [ ] 2.2. `artboard`: drag create + registrasi store + guard.
-- [ ] 2.3. `path-select`: pick vector teratas + notify kosong + guard.
-- [ ] 2.4. `direct-select`: rotate drag + live re-render + guard.
-- [ ] 2.5. `move-auto`: alpha pick + drag + guard.
-- [ ] 2.6. `transform-free`: ensureTransform + drag + panel.
-- [ ] 2.7. `align-center`: klik + Center Now + history + guard.
-- [ ] 2.8. Harness: 7/7 `dispatchKindOf` = move, topbar kind move, shortcut unik.
+- [x] 2.1. `move`: drag + snap (guides/grid/center) + cursor + guard lock/hidden/no-layer
+  di choke point. Terverifikasi di branch mousedown + mousemove.
+- [x] 2.2. `artboard`: drag create via shapeDrag kind artboard + registrasi store rect
+  aktual + guard. Terverifikasi.
+- [x] 2.3. `path-select`: pick vector/text teratas + notify kosong + guard + drag lanjut.
+- [x] 2.4. `direct-select`: mousedown guard spec+lock, drag rotate live re-render,
+  mouseup clear. Terverifikasi.
+- [x] 2.5. `move-auto`: alpha pick topmost + fall through drag + guard.
+- [x] 2.6. `transform-free`: ensureTransform + drag + Transform panel + handles.
+- [x] 2.7. `align-center`: klik + Center Now + history "Align center" + guard.
+- [x] 2.8. FIX MoveDrag origin baca active layer FRESH (anti-teleport setelah move-auto /
+  path-select switch layer di handler yang sama). File: `CanvasArea.tsx`.
+- [x] 2.9. Harness: 7/7 tool terdaftar + `dispatchKindOf` sesuai desain (6 move + artboard
+  shape). File: `dispatchAudit.test.ts`.
+- Kunci: tidak ada teleport layer, tidak ada drag tanpa guard.
+- Hasil: `npx tsc --noEmit` hijau, `npx vitest run` hijau.
 
-## FASE 3 - Family Select Marquee (22 tools)
+## FASE 3 - Family Select Marquee (22 tools) - DIEKSEKUSI
 
-- [ ] 3.1. `select-rect` / `ellipse` / `square` / `rounded` / `circle` / `stadium` /
-  `crosshair`: drag + lock proporsional + feather/expand + selMode modifier.
-- [ ] 3.2. `single-row` / `single-column`: klik 1px + drag diabaikan.
-- [ ] 3.3. Click-ops `grow(+2/+8)` / `shrink` / `feather(2/4/6/12)` / `border(4/12)` /
-  `last` / `inverse-click`: guard tanpa-seleksi (notify, bukan diam) + event + ants.
-- [ ] 3.4. Harness: marquee di MARQUEE_TOOLS, click-ops di CLICK_TOOLS + runMap top bar
-  sinkron (tidak ada aksi tanpa handler).
+- [x] 3.1. `select-rect`: drag + commit rect + combineMode (selMode + Shift add /
+  Alt subtract override) + feather/expand + event + ants.
+- [x] 3.2. `select-ellipse` (+Shift kunci lingkaran) / `select-circle` (selalu lingkaran):
+  drag lock + commit ellipse. Terverifikasi.
+- [x] 3.3. `select-square`: square lock live + commit re-lock + feather.
+- [x] 3.4. `select-rounded` (radius 24) / `select-stadium` (radius 9999): commit
+  rounded-rect + feather. Terverifikasi.
+- [x] 3.5. FIX `select-crosshair`: move handler dulu pre-double drag DAN commit mirror
+  lagi = area 4x salah. Sekarang state mentah, preview mirror, commit mirror sekali.
+  File: `CanvasArea.tsx` (move + preview render).
+- [x] 3.6. `single-row` / `single-column`: klik 1px full-span + drag diabaikan
+  (preview tetap 1px) + commit 1px.
+- [x] 3.7. Click-ops `grow(+2/+8)` / `shrink` / `feather(2/4/6/12)` / `border(4/12)` /
+  `last` / `inverse-click`: guard tanpa-seleksi (notify, bukan diam) + cursor +
+  event + ants. Terverifikasi satu per satu di branch mousedown.
+- [x] 3.8. Harness: 22/22 tool, marquee = selection, click-ops = click.
+  File: `dispatchAudit.test.ts`.
+- Kunci: tidak ada marquee yang commit bentuk salah, tidak ada click-op yang diam.
+- Hasil: `npx tsc --noEmit` hijau, `npx vitest run` hijau.
 
 ## FASE 4 - Family Lasso/Wand (18 tools)
 
@@ -94,33 +123,58 @@
   `sky-select` / `background-select` / `focus-select`: seed + tolerance + feather + cursor.
 - [ ] 4.5. Harness: tidak ada AI tools di workspace, tiap mode RETOUCH/wand berbeda.
 
-## FASE 5 - Family Crop (25 tools)
+## FASE 5 - Family Crop (25 tools) - DIEKSEKUSI
 
-- [ ] 5.1. `crop` + 13 rasio: ratio lock + Enter/Esc + preview + handles.
-- [ ] 5.2. `perspective-crop` / `crop-straighten`: notify jujur + rotate reset + history.
-- [ ] 5.3. `slice` / `slice-select` / `frame`: create/select/move + highlight.
-- [ ] 5.4. 5 overlay: render live + subscription refresh.
-- [ ] 5.5. Harness: semua di IS_CROP_TOOL + CROP_RATIOS, crop undoable per layer.
+- [x] 5.1. `crop` + 13 rasio + free: ratio lock live di mousemove + preview + handles.
+  Rect persist sampai Apply/Cancel.
+- [x] 5.2. `perspective-crop`: rect crop + notify jujur. `crop-straighten`: rotate reset
+  + label history manusiawi + undo per layer.
+- [x] 5.3. `slice`: drag create + commit. `slice-select`: hit pick + move + fallback
+  create + notify. `frame`: drag create via shape path.
+- [x] 5.4. 5 overlay: render live di rect crop + pills top bar + klik overlay kembali
+  ke crop. Terverifikasi.
+- [x] 5.5. FIX single keyboard path: useEffect Enter/Esc lokal di CanvasArea DIHAPUS
+  (double-apply + fire saat mengetik di input). Satu jalur via App event.
+  File: `CanvasArea.tsx`.
+- [x] 5.6. Apply tanpa rect + area <2px: notify jelas (tidak diam). History label
+  manusiawi per rasio ("Crop 16:9", bukan "Crop crop-169"). File: `CanvasArea.tsx`.
+- [x] 5.7. Harness: 25/25, rasio = crop, slice/select/overlay = click, frame = shape
+  (drag-create, bukan click util). File: `dispatchAudit.test.ts`.
+- Kunci: tidak ada crop yang apply ganda, tidak ada Enter yang bocor ke input.
+- Hasil: `npx tsc --noEmit` hijau, `npx vitest run` hijau.
 
-## FASE 6 - Family Measure (22 tools)
+## FASE 6 - Family Measure (22 tools) - DIEKSEKUSI
 
-- [ ] 6.1. `eyedropper` + 4 sampler: pick + pin + brush color + cursor.
-- [ ] 6.2. `ruler` / `angle` / `area` / `protractor` / `ruler-triple` / `measure-dpi`:
-  drag + label unit + max 20 + triple chain.
-- [ ] 6.3. `note` / `note-color` / `count` / `count-auto`: dialog + pin + nomor unik.
-- [ ] 6.4. `guide-mid` / `guide-thirds` / `guide-clear-one` / `guide-clear` /
-  `grid-toggle` / `grid-pixel` / `snap-toggle`: toggle tepat + guard jarak + notify.
-- [ ] 6.5. Harness: CLICK_TOOLS vs MEASURE_DRAG_TOOLS sinkron dengan branch CanvasArea,
-  tombol Clear top bar menghapus jenis yang tepat.
+- [x] 6.1. `eyedropper`: pick composite/current (sample mode) + kembali ke brush.
+  4 sampler: pin + set brush color (avg 5x5/3x3/11x11) + cursor.
+- [x] 6.2. `ruler` / `angle` / `area` / `protractor` / `ruler-triple` / `measure-dpi`:
+  drag + label unit px/in/cm + triple chain + notify MP/cetak.
+- [x] 6.3. `note` / `note-color` (cycling 4 warna) / `count` (nomor max+1) / `count-auto`
+  (blob max 99 + clear dulu): dialog + pin + cursor.
+- [x] 6.4. `guide-mid` / `guide-thirds` / `guide-clear-one` (guard 25px + notify jauh) /
+  `guide-clear` / `grid-toggle` / `grid-pixel` (8px + notify zoom) / `snap-toggle`:
+  toggle tepat + notify. Terverifikasi satu per satu di branch mousedown.
+- [x] 6.5. Harness: 22/22, dropper = eyedropper, drag = measure, sisanya click.
+  File: `dispatchAudit.test.ts`.
+- Kunci: tidak ada measure tool yang klik-nya diam.
+- Hasil: `npx tsc --noEmit` hijau, `npx vitest run` hijau.
 
-## FASE 7 - Family Brush (59 tools)
+## FASE 7 - Family Brush (59 tools) - DIEKSEKUSI
 
-- [ ] 7.1. 7 klasik + 8 sketch + 8 art + 6 manual: cabang engine eksplisit per tool.
-- [ ] 7.2. 30 Atelier II: registry PAINT_TOOLS + preset distinct (pairwise test).
-- [ ] 7.3. Proteksi kertas+foto: fresh paint layer + toast (termasuk flag T4/T5).
-- [ ] 7.4. Flow/Spacing/Jitter/Smoothing/Angle/Round/Blend live + mask path.
-- [ ] 7.5. Harness: tiap paint tool punya preset eksplisit atau default generik by design
-  yang terdokumentasi (tidak ada fallback diam-diam).
+- [x] 7.1. 7 klasik + 8 sketch + 8 art + 6 manual: cabang engine eksplisit per tool
+  di `paintTo` (history/mixer/pattern/overlay/poster/color-replace). Terverifikasi.
+- [x] 7.2. 30 Atelier II: registry PAINT_TOOLS + preset distinct pairwise.
+- [x] 7.3. FIX 3 pasangan kloningan (harness menemukan, bukan klaim): `sketch-ink`
+  vs `pencil` (ink sizeMul 0.85, garis lebih halus), `art-watercolor` vs `airbrush`
+  (wash 1.25x lebih lebar + faint), `sketch-chalk` vs `sketch-pastel` (chalk dustier
+  1.25x + faint). File: `toolPresets.ts`.
+- [x] 7.4. Proteksi kertas+foto: fresh paint layer + toast (termasuk flag T4/T5/T6).
+- [x] 7.5. Flow/Spacing/Jitter/Smoothing/Angle/Round/Blend live + mask path.
+  Terverifikasi di `paintTo`.
+- [x] 7.6. Harness: 59/59 di PAINT_TOOLS + dispatch paint + fingerprint distinct
+  (kecuali `brush` generik by design + 10 cabang engine). File: `dispatchAudit.test.ts`.
+- Kunci: tidak ada dua brush bernama beda yang berperilaku identik.
+- Hasil: `npx tsc --noEmit` hijau, `npx vitest run` hijau.
 
 ## FASE 8 - Family Heal (39 tools)
 

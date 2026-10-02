@@ -60,6 +60,7 @@ import {
   hasTempFx,
   releaseFxCanvas,
 } from "../engine/layerFx";
+import { CROP_RATIO_PILLS } from "../engine/toolOptions";
 import { gpuBackend, gpuBackendSyncFallback } from "../io/gpuBackend";
 import ToolOptionsBar from "./ToolOptionsBar";
 import { TOOL_LABEL } from "./ToolBar";
@@ -920,12 +921,24 @@ export default function CanvasArea() {
       ctx.restore();
     }
 
-    // drag rect preview
+    // drag rect preview (crosshair mirrors around the start point, like commit)
     if (selDrag) {
-      const x = ox + Math.min(selDrag.x0, selDrag.x1) * s;
-      const y = oy + Math.min(selDrag.y0, selDrag.y1) * s;
-      const wpx = Math.abs(selDrag.x1 - selDrag.x0) * s;
-      const hpx = Math.abs(selDrag.y1 - selDrag.y0) * s;
+      let rx0 = selDrag.x0;
+      let ry0 = selDrag.y0;
+      let rx1 = selDrag.x1;
+      let ry1 = selDrag.y1;
+      if ((tool as string) === "select-crosshair") {
+        const w = selDrag.x1 - selDrag.x0;
+        const h = selDrag.y1 - selDrag.y0;
+        rx0 = selDrag.x0 - w;
+        ry0 = selDrag.y0 - h;
+        rx1 = selDrag.x0 + w;
+        ry1 = selDrag.y0 + h;
+      }
+      const x = ox + Math.min(rx0, rx1) * s;
+      const y = oy + Math.min(ry0, ry1) * s;
+      const wpx = Math.abs(rx1 - rx0) * s;
+      const hpx = Math.abs(ry1 - ry0) * s;
       ctx.save();
       ctx.setLineDash([6, 4]);
       ctx.lineDashOffset = -ants;
@@ -1554,11 +1567,18 @@ export default function CanvasArea() {
       retouchTo(x, y, "posterize");
       return;
     }
+    // Plan4 Fase 1: true pixel-block eraser. eraser-hard stays a solid disc;
+    // eraser-block stamps axis-aligned squares for pixel-precise sprite work.
+    if (curTool === "eraser-block") {
+      ctx.restore();
+      blockEraseTo(x, y, Math.max(1, brushSize), (brushOpacity / 100) * flowMul, aid);
+      return;
+    }
     // Generic preset path covers brush/pencil/airbrush/soft + all sketch/art variants.
     const preset = paintPreset(curTool, brushHardness);
-    const isHardErase = curTool === "eraser-hard" || curTool === "eraser-block";
+    const isHardErase = curTool === "eraser-hard";
     const isSoftErase = curTool === "eraser-soft";
-    const effHard = isSoftErase ? 0 : curTool === "eraser-block" ? 100 : (preset.hardness ?? brushHardness);
+    const effHard = isSoftErase ? 0 : (preset.hardness ?? brushHardness);
     const effAlpha =
       curTool === "pencil" || curTool === "sketch-ink" || isHardErase
         ? 1
@@ -1567,14 +1587,41 @@ export default function CanvasArea() {
     // Fase E brush blend override: a non-normal blend wins over the preset composite.
     const blendOverride = st.brushBlend && st.brushBlend !== "source-over" ? st.brushBlend : null;
     ctx.globalCompositeOperation = erase || isHardErase ? "destination-out" : (blendOverride ?? preset.composite);
-    ctx.globalAlpha = erase ? 1 : effAlpha;
+    // Plan4 Fase 1: eraser strokes honor Strength (opacity) and Flow like any
+    // brush. eraser-hard keeps full force via effAlpha = 1 above by design.
+    ctx.globalAlpha = effAlpha;
     // scatter for chalk/pastel: jitter second stamp
     const sp = brushSpriteEx(effSize, effHard, erase || isHardErase ? "#000000" : brushColor, st.brushAngle ?? 0, st.brushRound ?? 100);
     stampLine(ctx, sp, effSize, last.x, last.y, x, y, true, { spacingPct, jitter: jitterPct });
     if (preset.scatter) {
-      ctx.globalAlpha = (erase ? 1 : effAlpha) * 0.5;
+      ctx.globalAlpha = effAlpha * 0.5;
       const off = effSize * 0.35;
       stampLine(ctx, sp, effSize * 0.6, last.x + off, last.y - off, x + off, y - off, true, { spacingPct, jitter: jitterPct });
+    }
+    ctx.restore();
+    lastPos.current = { x, y };
+    markDirty();
+  }
+
+  // Plan4 Fase 1: pixel-block eraser. Stamps axis-aligned squares along the
+  // dab path (selection-aware, history comes from the stroke snapshot taken
+  // at mousedown). Resolves through resolveEraserTarget like the other paint
+  // erasers, so paper and photos are never touched.
+  function blockEraseTo(x: number, y: number, size: number, alpha: number, forceId?: string) {
+    const aid = forceId ?? useEditorStore.getState().activeLayerId;
+    if (!aid) return;
+    const meta = useEditorStore.getState().layers.find((l) => l.id === aid);
+    if (!meta || meta.locked || !meta.visible) return;
+    const c = layerManager.ensure(aid, doc.width, doc.height);
+    const ctx = c.getContext("2d")!;
+    const last = lastPos.current ?? { x, y };
+    const side = Math.max(1, Math.round(size));
+    ctx.save();
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+    for (const { px, py } of dabPath(last.x, last.y, x, y)) {
+      if (hasSelection() && !inSel(px, py)) continue;
+      ctx.fillRect(Math.round(px - side / 2), Math.round(py - side / 2), side, side);
     }
     ctx.restore();
     lastPos.current = { x, y };
@@ -3070,7 +3117,12 @@ export default function CanvasArea() {
 
   function applyCrop() {
     const st = useEditorStore.getState();
-    if (!cropDrag) return;
+    // Plan4 Fase 4: applying with no rect tells the user instead of dying
+    // silently. Safe: this only runs from Apply / Enter, one path only.
+    if (!cropDrag) {
+      notify("Crop: drag an area on the canvas first, then Apply.");
+      return;
+    }
     const curTool = st.tool as string;
     const x = Math.max(0, Math.floor(Math.min(cropDrag.x0, cropDrag.x1)));
     const y = Math.max(0, Math.floor(Math.min(cropDrag.y0, cropDrag.y1)));
@@ -3078,12 +3130,21 @@ export default function CanvasArea() {
     const h = Math.min(st.doc.height - y, Math.floor(Math.abs(cropDrag.y1 - cropDrag.y0)));
     if (w < 2 || h < 2) {
       setCropDrag(null);
+      notify("Crop area too small. Drag a larger area.");
       return;
     }
+    // Human history labels per ratio (no more "Crop crop-169" in Hist panel).
+    const ratioPill = CROP_RATIO_PILLS.find((p) => p.id === curTool);
+    const cropLabel =
+      curTool === "crop-straighten"
+        ? "Straighten crop"
+        : curTool === "perspective-crop"
+          ? "Perspective crop"
+          : `Crop ${ratioPill ? ratioPill.label : curTool}`;
     // snapshot all layers so crop can be undone per layer
     st.layers.forEach((l) => {
       const snap = layerManager.snapshot(l.id);
-      if (snap) st.pushHistory({ label: curTool === "crop-straighten" ? "Straighten crop" : `Crop ${curTool}`, layerId: l.id, snapshot: snap });
+      if (snap) st.pushHistory({ label: cropLabel, layerId: l.id, snapshot: snap });
     });
     const pro = useProStore.getState();
     const oldW = st.doc.width;
@@ -3757,18 +3818,10 @@ export default function CanvasArea() {
     useProStore.getState().bumpHistogram();
   }
 
-  // Enter applies crop, Esc cancels. Active for all crop preset tools.
-  useEffect(() => {
-    if (!isCrop || !cropDrag) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Enter") applyCrop();
-      if (e.key === "Escape") setCropDrag(null);
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tool, cropDrag, isCrop]);
-
+  // Plan4 Fase 4: Enter/Esc for crop travel a single path now (App keyboard
+  // handler dispatches avero:crop-apply / avero:crop-cancel to the options
+  // bar). The old local keydown double-applied crops and, worse, applied them
+  // while typing in text fields because it never checked the focus target.
   // Eyedropper: pick color from the composite then return to brush.
   function pickColor(p: { x: number; y: number }) {
     const pro = useProStore.getState();
@@ -4418,8 +4471,13 @@ export default function CanvasArea() {
                 return;
               }
             }
-            const t = transforms[activeLayerId ?? ""];
-            moveDrag.current = { sx: e.clientX, sy: e.clientY, ox: t?.x ?? 0, oy: t?.y ?? 0 };
+            // Plan4 Fase 2.5: read the FRESH active layer for the drag origin.
+            // move-auto / path-select may have just switched it above while the
+            // closure still holds the old one, which teleported the newly picked
+            // layer to the previous layer's origin on the first move.
+            const freshMoveId = useEditorStore.getState().activeLayerId;
+            const freshT = useProStore.getState().transforms[freshMoveId ?? ""];
+            moveDrag.current = { sx: e.clientX, sy: e.clientY, ox: freshT?.x ?? 0, oy: freshT?.y ?? 0 };
             return;
           }
           if (isCrop) {
@@ -5349,13 +5407,9 @@ export default function CanvasArea() {
               setSelDrag({ ...selDrag, x1: selDrag.x0 + Math.sign(w || 1) * m, y1: selDrag.y0 + Math.sign(h || 1) * m });
               return;
             }
-            // Crosshair: symmetric drag around the start point.
-            if (tool === "select-crosshair") {
-              const w = p.x - selDrag.x0;
-              const h = p.y - selDrag.y0;
-              setSelDrag({ x0: selDrag.x0, y0: selDrag.y0, x1: selDrag.x0 + w * 2, y1: selDrag.y0 + h * 2 });
-              return;
-            }
+            // Plan4 Fase 3: crosshair keeps the RAW drag here (start + pointer).
+            // Mirroring happens once at preview and once at commit. The old code
+            // pre-doubled the drag AND mirrored at commit, producing 4x areas.
             setSelDrag({ ...selDrag, x1: p.x, y1: p.y });
             return;
           }

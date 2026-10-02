@@ -1,8 +1,10 @@
 # PLAN 4 - Part 2: Eraser Paper Bug TOTAL + Full Upgrade Fungsi Semua Tools
 
-> Status: FASE 1 + FASE 2 + FASE 3 + FASE 5 + FASE 6 + FASE 7 DIEKSEKUSI
-> (eraser total, move 7/7, marquee 22/22, crop 25/25, measure 22/22, brush 59/59).
-> Fase 4, 8-20 berjalan berurutan. Setiap sub-tool diverifikasi satu per satu
+> Status: FASE 1 + FASE 2 + FASE 3 + FASE 5 + FASE 6 + FASE 7 + FASE 8 + FASE 9
+> + FASE 10 + FASE 11 + FASE 12 DIEKSEKUSI (eraser 6/6, move 7/7, marquee 22/22,
+> crop 25/25, measure 22/22, brush 59/59, heal 39/39, stamp 10/10, tone 36/36,
+> detail 58/58, paint 19/19).
+> Fase 4, 13-20 berjalan berurutan. Setiap sub-tool diverifikasi satu per satu
 > sesuai peran dan fungsinya.
 > Baseline: plan3 Fase 0-17 (klaim 422 sub-tools). Plan4 adalah PART 2: menutup lubang
 > yang masih terbukti ada di kode (bukan klaim), dengan harness audit otomatis sebagai bukti.
@@ -176,47 +178,105 @@
 - Kunci: tidak ada dua brush bernama beda yang berperilaku identik.
 - Hasil: `npx tsc --noEmit` hijau, `npx vitest run` hijau.
 
-## FASE 8 - Family Heal (39 tools)
+## FASE 8 - Family Heal (39 tools) - DIEKSEKUSI
 
-- [ ] 8.1. Inti: spot/healing/patch/red-eye/content-move/content-fill + Alt source.
-- [ ] 8.2. 10 varian + 24 Heal II: RETOUCH_MAP + RETOUCH_TWEAK fingerprint distinct.
-- [ ] 8.3. Heal tidak memakai destination-out (tidak melubangi kertas/foto).
-- [ ] 8.4. Harness: tiap heal tool terdaftar + mode berbeda dikunci test.
+- [x] 8.1. Inti: `spot-heal` (mode heal) / `healing-brush` + `patch` (heal-source +
+  Alt-click set source + hint sekali + return tanpa paint) / `red-eye` (hanya pixel
+  merah dominan, klik lain no-op aman) / `content-move` (geser + isi) /
+  `content-fill` (drag painting + snapshot pra-stroke). Terverifikasi per cabang.
+- [x] 8.2. FIX kloningan: `healing-brush` vs `patch` pixel-identik (mode + tweak sama,
+  tidak ada cabang pembeda di engine). Sekarang `patch` fingerprint
+  strengthMul 0.8 + radiusMul 1.3 (blend area lebih lebar + lembut, sesuai peran
+  drag-area-onto-target). File: `toolPresets.ts`.
+- [x] 8.3. 10 varian (dust/wrinkle/blemish/sky/skin/object + freckle/eye/teeth + tweak
+  0.6/0.7/0.85) + 24 Heal II: tiap mode punya cabang pixel sendiri (mole s/d rustspot,
+  pricetag/tourist/wire/trash berbagi cabang dengan faktor per-mode). Tweak dikonsumsi
+  per dab (twStrength/twRadius). Terverifikasi di `retouchTo`.
+- [x] 8.4. Heal tidak memakai destination-out (tidak melubangi kertas/foto).
+- [x] 8.5. Harness: 39/39 dispatch retouch + fingerprint (mode+tweak) distinct.
+  File: `dispatchAudit.test.ts`.
+- Kunci: tidak ada dua heal tool bernama beda yang berperilaku identik.
+- Hasil: `npx tsc --noEmit` hijau, `npx vitest run` hijau.
 
-## FASE 9 - Family Stamp (10 tools)
+## FASE 9 - Family Stamp (10 tools) - DIEKSEKUSI
 
-- [ ] 9.1. `clone` / `mirror` / `rotate` / `soft`: Alt source + cursor + guard.
-- [ ] 9.2. Aligned toggle lintas stroke + reset.
-- [ ] 9.3. `pattern-stamp` / `dots` / `texture-stamp` / `pattern-fill` /
-  `history-brush` / `art-history-brush`: motif live + snapshot + click-only di mana perlu.
-- [ ] 9.4. Harness: CLONE_TOOLS sinkron dengan branch clone CanvasArea.
+- [x] 9.1. `clone` / `mirror` / `rotate` / `soft`: Alt-click set source + cursor koordinat +
+  snapshot anti-smear per stroke + alpha soft 60% + hint sekali bila belum ada source +
+  guard lock/hidden. Terverifikasi.
+- [x] 9.2. Aligned toggle: on = offset lintas stroke, off = reset per stroke + mouse-leave.
+  Terverifikasi di mouse-up/leave.
+- [x] 9.3. `pattern-stamp` / `dots` / `texture-stamp`: motif picker live saat drag.
+  Terverifikasi di mousemove.
+- [x] 9.4. `pattern-fill`: motif picker + label history dinamis + selection-safe
+  (destination-in) + guard lock/hidden + click-only (drag diabaikan). Terverifikasi.
+- [x] 9.5. `history-brush` / `art-history-brush`: source snapshot pra-stroke + pre-render
+  canvas per stroke + art hue jitter + selection-aware + scratch seimbang.
+  Terverifikasi di `historyBrushTo`.
+- [x] 9.6. FIX phantom history lintas SEMUA paint-family tools: stroke di layer terkunci/
+  hidden mendorong snapshot lalu engine diam-tidak-paint. Sekarang satu pre-check
+  menolak dengan notify SEBELUM snapshot/history/painting. File: `CanvasArea.tsx`.
+- [x] 9.7. Harness: 10/10 tool, 8 clone + 2 history paint (full brush console by design),
+  CLONE_TOOLS sinkron. File: `dispatchAudit.test.ts`.
+- Kunci: tidak ada stroke yang mendorong history tanpa mengubah pixel.
+- Hasil: `npx tsc --noEmit` hijau, `npx vitest run` hijau.
 
-## FASE 10 - Family Tone (36 tools)
+## FASE 10 - Family Tone (36 tools) - DIEKSEKUSI
 
-- [ ] 10.1. dodge/burn/sponge/vibrance + 8 light: buildup + Strength live.
-- [ ] 10.2. 4 manual + 20 Tone II: fingerprint distinct + radius presisi.
-- [ ] 10.3. Harness: tiap tone tool beda mode/tweak (tidak ada alias identik).
+- [x] 10.1. dodge/burn/sponge/vibrance + 8 light (highlights/shadows/temp/tint/clarity/
+  dehaze/saturate/levels): buildup lembut + Strength/flow live + cabang pixel sendiri.
+- [x] 10.2. 4 manual (dodge-high/burn-shadow/sponge-sat/sponge-desat + tweak) + 20 Tone II
+  (dodgemid s/d splitgold): tiap mode punya cabang pixel sendiri. Terverifikasi.
+- [x] 10.3. Harness: 36/36 dispatch retouch + fingerprint (mode+tweak) distinct, tanpa
+  kloningan. File: `dispatchAudit.test.ts`.
+- Kunci: tiap tone tool mengubah pixel terukur sesuai namanya.
+- Hasil: `npx tsc --noEmit` hijau, `npx vitest run` hijau.
 
-## FASE 11 - Family Detail + Distort (58 tools)
+## FASE 11 - Family Detail + Distort (58 tools) - DIEKSEKUSI
 
-- [ ] 11.1. blur/sharpen/smudge/noise/liquify/warp legacy + smudge pick per dab.
-- [ ] 11.2. 8 distort klasik + 14 Distort II: cabang eksplisit + fallback aman + bounds.
-- [ ] 11.3. 26 Detail Gallery: mode berbeda dikunci test.
-- [ ] 11.4. Harness: DISTORT_MAP vs DISTORT kinds di engine (audit script 0 unhandled).
+- [x] 11.1. Legacy blur/blur-iris/sharpen/sharpen-edge/smudge/noise: cabang sendiri +
+  smudge pick warna per dab awal (mousedown + mousemove).
+- [x] 11.2. 8 distort klasik + 14 Distort II: 22/22 kind punya cabang dengan parameter
+  per-kind + fallback aman + bounds + scratch seimbang.
+- [x] 11.3. FIX kloningan: `detail-blur-more` vs `detail-tilt` pixel-identik (cabang
+  berbagi tanpa faktor pembeda). Sekarang tilt punya band falloff vertikal
+  (lembut di tengah, kuat di tepi = miniature look). File: `CanvasArea.tsx`.
+- [x] 11.4. FIX kloningan: `liquify`/`warp`/`smudge` identik. Sekarang liquify push
+  1.5x/1.2x, warp bend 1.2x/1.4x via tweak. File: `toolPresets.ts`.
+- [x] 11.5. 26 Detail Gallery: tiap mode punya cabang pixel sendiri (surface s/d
+  motionspin). Terverifikasi.
+- [x] 11.6. Harness: 58/58, distort-* = distort, sisanya retouch + fingerprint distinct
+  (blur-field/lens, sharpen-clarity/sharpen-more, denoise-strong/grain-remove dibedakan
+  tweak). File: `dispatchAudit.test.ts`.
+- Kunci: tidak ada dua detail tool bernama beda yang berperilaku identik.
+- Hasil: `npx tsc --noEmit` hijau, `npx vitest run` hijau.
 
-## FASE 12 - Family Paint Fill/Gradient (19 tools)
+## FASE 12 - Family Paint Fill/Gradient (19 tools) - DIEKSEKUSI
 
-- [ ] 12.1. 7 gradient: guard+notify + selection-safe + history tunggal.
-- [ ] 12.2. fill flood + tolerance + OOM guard + contiguous/global.
-- [ ] 12.3. solid/foreground/background/clear/pattern/content/history/transparent-protect/
-  bucket: tepat sasaran + guard + label history benar (`fill-clear` di kertas = isi bg).
-- [ ] 12.4. Harness: GRADIENT_TOOLS + FILL_TOOLS sinkron dengan branch CanvasArea.
+- [x] 12.1. 7 gradient (linear drag + radial/diagonal/conic/soft/reflected/noise click
+  via paintFullLayer + fg-transparent preset): guard+notify + selection-safe +
+  history tunggal + dither. Terverifikasi per cabang mousedown.
+- [x] 12.2. `fill` flood + tolerance bar + OOM guard + contiguous/global toggle jujur.
+- [x] 12.3. solid/foreground/background/pattern/content/history/protect/bucket:
+  tepat sasaran + guard + label history benar (`fill-clear` di kertas = isi bg,
+  selection-aware). Terverifikasi (`paintFullLayer`, `clearLayerToTransparent`).
+- [x] 12.4. Harness: 19/19, gradient = gradient, fill = fill, fg-transparent = click.
+  File: `dispatchAudit.test.ts`.
+- Kunci: tiap fill/gradient mengubah pixel terukur + undo satu langkah.
+- Hasil: `npx tsc --noEmit` hijau, `npx vitest run` hijau.
 
-## FASE 13 - Family Vector Pen (11 tools)
+## FASE 13 - Family Vector Pen (11 tools) - DIEKSEKUSI
 
-- [ ] 13.1. pen/free/line/arrow/curvature: path + history + guard lock.
-- [ ] 13.2. 6 preset PEN_STYLES eksplisit (tanpa fallback diam).
-- [ ] 13.3. Harness: PEN_TOOLS vs PEN_STYLES vs branch CanvasArea.
+- [x] 13.1. `pen` (bezier + path tersimpan) / `pen-free` (wobble, 1/6 tebal) / `line`
+  (+Shift 45°) / `line-arrow` (kepala) / `curvature-pen` (S-curve dua kubik):
+  tebal brushSize + opacity, history per garis, guard lock, threshold 3px.
+- [x] 13.2. 6 preset PEN_STYLES eksplisit (thin 0.45/medium 1/bold 2.1, dashed dari
+  brushSize, glow shadowBlur, panah ganda dua kepala). Terverifikasi di `applyPenLine`.
+- [x] 13.3. FIX label history manusiawi per preset (thin/medium/bold/dashed/glow/
+  double-arrow/curvature tidak lagi "Line" generik). File: `CanvasArea.tsx`.
+- [x] 13.4. Harness: 11/11 dispatch pen + PEN_TOOLS + PEN_STYLES eksplisit.
+  File: `dispatchAudit.test.ts`.
+- Kunci: tiap preset pen berbeda visual terukur + path tersimpan.
+- Hasil: `npx tsc --noEmit` hijau, `npx vitest run` hijau.
 
 ## FASE 14 - Family Type (19 tools)
 

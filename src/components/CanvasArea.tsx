@@ -2296,7 +2296,12 @@ export default function CanvasArea() {
                 d[i + 2] = Math.max(0, Math.min(255, B + (B - avg) * amt2));
               } else if (mode === "blur-more" || mode === "tilt" || mode === "lens") {
                 const avg = (R + G + B) / 3;
-                const f = mode === "lens" ? 0.75 : 0.55;
+                // Plan4 Fase 11: tilt-shift band falloff. blur-more stays uniform
+                // extra-strong, lens stays creamy, tilt blurs harder away from
+                // the dab center band for the miniature look (previously the
+                // three were pixel-identical for blur-more/tilt).
+                const band = mode === "tilt" ? 0.45 + 0.55 * Math.min(1, Math.abs(dy)) : 1;
+                const f = (mode === "lens" ? 0.75 : 0.55) * band;
                 d[i] = Math.round(R + (avg - R) * f * k);
                 d[i + 1] = Math.round(G + (avg - G) * f * k);
                 d[i + 2] = Math.round(B + (avg - B) * f * k);
@@ -3059,7 +3064,9 @@ export default function CanvasArea() {
     }
     const snap = layerManager.snapshot(id);
     const cur = st.tool as string;
-    if (snap) st.pushHistory({ label: cur === "pen-free" ? "Freeform pen" : cur === "line-arrow" ? "Arrow line" : tool === "pen" ? "Pen stroke" : "Line", layerId: id, snapshot: snap });
+    // Plan4 Fase 13: human history names for every pen preset (no more
+    // generic "Line" for thin/medium/bold/dashed/glow/double-arrow/curvature).
+    if (snap) st.pushHistory({ label: cur === "pen-free" ? "Freeform pen" : cur === "line-arrow" ? "Arrow line" : cur === "pen" ? "Pen stroke" : cur === "line" ? "Line" : (TOOL_LABEL[cur as ToolId] ?? "Pen stroke"), layerId: id, snapshot: snap });
     const c = layerManager.ensure(id, st.doc.width, st.doc.height);
     const ctx = c.getContext("2d")!;
     const ps = penStyleOf(st.tool);
@@ -5152,6 +5159,18 @@ export default function CanvasArea() {
               if (!paintLayerToastShown.current) {
                 paintLayerToastShown.current = true;
                 notify("Painting on a new transparent layer. The paper and photos stay protected.");
+              }
+            }
+            // Plan4 Fase 9: never open a stroke (and never push history) on a
+            // locked or hidden target. Without this every paint-family tool
+            // collected a phantom history entry on locked layers while the
+            // engine silently painted nothing.
+            if (strokeLayerId) {
+              const sm0 = useEditorStore.getState().layers.find((l) => l.id === strokeLayerId);
+              if (!sm0) return;
+              if (sm0.locked || !sm0.visible) {
+                notify("Active layer is locked or hidden. Unlock it first.");
+                return;
               }
             }
             // Eraser targets the created item, never the background photo.

@@ -461,6 +461,9 @@ export const RETOUCH_TWEAK: Partial<Record<ToolId, RetouchTweak>> = {
   "heal-freckle": { strengthMul: 0.6 },
   "heal-eye": { strengthMul: 0.7 },
   "heal-teeth": { strengthMul: 0.85 },
+  // Plan4 Fase 8: patch drags whole areas, so it blends wider and gentler than
+  // the precise healing-brush (previously pixel-identical clones).
+  "patch": { strengthMul: 0.8, radiusMul: 1.3 },
   // Tone manual variants: bolder than the light brushes they mirror.
   "dodge-high": { strengthMul: 1.25, radiusMul: 0.8 },
   "burn-shadow": { strengthMul: 1.25, radiusMul: 0.8 },
@@ -470,6 +473,14 @@ export const RETOUCH_TWEAK: Partial<Record<ToolId, RetouchTweak>> = {
   "denoise-strong": { strengthMul: 1.3 },
   "sharpen-clarity": { strengthMul: 0.75 },
   "blur-field": { strengthMul: 1.15, radiusMul: 1.3 },
+  // Plan4 Fase 8/11: heal-sky cleans wide areas softly, heal-object erases
+  // harder (previously pixel-identical to heal-dust through the shared branch).
+  "heal-sky": { strengthMul: 0.85, radiusMul: 1.6 },
+  "heal-object": { strengthMul: 1.15, radiusMul: 1.1 },
+  // Plan4 Fase 11: liquify pushes harder and warp bends wider than a plain
+  // finger smudge (previously all three were pixel-identical smudge strokes).
+  "liquify": { strengthMul: 1.5, radiusMul: 1.2 },
+  "warp": { strengthMul: 1.2, radiusMul: 1.4 },
 };
 
 export type DistortKind =

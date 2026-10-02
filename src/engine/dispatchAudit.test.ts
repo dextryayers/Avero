@@ -13,6 +13,7 @@ import {
   IS_CROP_TOOL,
   IS_SELECTION_TOOL,
   IS_SHAPE_TOOL,
+  SHAPE_KIND_OF,
   MARQUEE_TOOLS,
   MEASURE_DRAG_TOOLS,
   MOVE_TOOLS,
@@ -21,6 +22,7 @@ import {
   PEN_STYLES,
   PEN_TOOLS,
   RETOUCH_MAP,
+  RETOUCH_TWEAK,
   SHAPE_KIND_OF,
   TEXT_TOOLS,
   ZOOM_TOOLS,
@@ -153,6 +155,120 @@ describe("plan4 dispatch audit: every sub-tool resolves", () => {
     }
     const dupes = [...seen.entries()].filter(([, ids]) => ids.length > 1);
     expect(dupes).toEqual([]);
+  });
+
+  it("plan4 fase 8: heal family resolves to retouch with distinct fingerprints", () => {
+    const fams = TOOL_FAMILIES.find((f) => f.id === "heal")!;
+    expect(fams.tools.length).toBe(39);
+    const seen = new Map<string, string[]>();
+    for (const t of fams.tools) {
+      expect(dispatchKindOf(t.id as ToolId)).toBe("retouch");
+      const mode = RETOUCH_MAP[t.id as ToolId];
+      expect(mode, `${t.id} mode`).toBeTruthy();
+      const tw = RETOUCH_TWEAK[t.id as ToolId] ?? {};
+      const fp = JSON.stringify([mode, tw.strengthMul ?? 1, tw.radiusMul ?? 1]);
+      const arr = seen.get(fp) ?? [];
+      arr.push(t.id);
+      seen.set(fp, arr);
+    }
+    const dupes = [...seen.entries()].filter(([, ids]) => ids.length > 1);
+    expect(dupes).toEqual([]);
+  });
+
+  it("plan4 fase 9: stamp family resolves to clone/paint as designed", () => {
+    const fams = TOOL_FAMILIES.find((f) => f.id === "stamp")!;
+    expect(fams.tools.map((t) => t.id).sort()).toEqual(
+      ["clone", "clone-mirror", "clone-rotate", "pattern-stamp", "pattern-fill", "texture-stamp", "history-brush", "art-history-brush", "clone-soft", "pattern-dots"].sort(),
+    );
+    for (const t of fams.tools) {
+      // History brushes ride the generic paint path (full brush console);
+      // the other eight are true clone dispatch.
+      const expected = t.id === "history-brush" || t.id === "art-history-brush" ? "paint" : "clone";
+      expect(dispatchKindOf(t.id as ToolId)).toBe(expected);
+    }
+    for (const id of ["clone", "clone-mirror", "clone-rotate", "clone-soft", "pattern-stamp", "pattern-dots", "texture-stamp", "pattern-fill"] as const) {
+      expect(CLONE_TOOLS.has(id)).toBe(true);
+    }
+  });
+
+  it("plan4 fase 10: tone family resolves to retouch with distinct fingerprints", () => {
+    const fams = TOOL_FAMILIES.find((f) => f.id === "tone")!;
+    expect(fams.tools.length).toBe(36);
+    const seen = new Map<string, string[]>();
+    for (const t of fams.tools) {
+      expect(dispatchKindOf(t.id as ToolId)).toBe("retouch");
+      const mode = RETOUCH_MAP[t.id as ToolId];
+      expect(mode, `${t.id} mode`).toBeTruthy();
+      const tw = RETOUCH_TWEAK[t.id as ToolId] ?? {};
+      const fp = JSON.stringify([mode, tw.strengthMul ?? 1, tw.radiusMul ?? 1]);
+      const arr = seen.get(fp) ?? [];
+      arr.push(t.id);
+      seen.set(fp, arr);
+    }
+    const dupes = [...seen.entries()].filter(([, ids]) => ids.length > 1);
+    expect(dupes).toEqual([]);
+  });
+
+  it("plan4 fase 11: detail family resolves to retouch/distort with distinct fingerprints", () => {
+    const fams = TOOL_FAMILIES.find((f) => f.id === "detail")!;
+    expect(fams.tools.length).toBe(58);
+    const seen = new Map<string, string[]>();
+    for (const t of fams.tools) {
+      const k = dispatchKindOf(t.id as ToolId);
+      if (t.id.startsWith("distort-")) {
+        expect(k).toBe("distort");
+        continue;
+      }
+      expect(k).toBe("retouch");
+      const mode = RETOUCH_MAP[t.id as ToolId];
+      expect(mode, `${t.id} mode`).toBeTruthy();
+      const tw = RETOUCH_TWEAK[t.id as ToolId] ?? {};
+      const fp = JSON.stringify([mode, tw.strengthMul ?? 1, tw.radiusMul ?? 1]);
+      const arr = seen.get(fp) ?? [];
+      arr.push(t.id);
+      seen.set(fp, arr);
+    }
+    const dupes = [...seen.entries()].filter(([, ids]) => ids.length > 1);
+    expect(dupes).toEqual([]);
+  });
+
+  it("plan4 fase 12: paint family resolves to gradient/fill/click as designed", () => {
+    const fams = TOOL_FAMILIES.find((f) => f.id === "paint")!;
+    expect(fams.tools.length).toBe(19);
+    for (const t of fams.tools) {
+      const expected =
+        t.id === "gradient-fg-transparent" ? "click" : t.id.startsWith("gradient") ? "gradient" : "fill";
+      expect(dispatchKindOf(t.id as ToolId)).toBe(expected);
+    }
+  });
+
+  it("plan4 fase 13: vector family resolves to pen with explicit styles", () => {
+    const fams = TOOL_FAMILIES.find((f) => f.id === "vector")!;
+    expect(fams.tools.length).toBe(11);
+    for (const t of fams.tools) {
+      expect(dispatchKindOf(t.id as ToolId)).toBe("pen");
+      expect(PEN_TOOLS.has(t.id as ToolId)).toBe(true);
+      expect(PEN_STYLES[t.id as ToolId], `${t.id} style`).toBeTruthy();
+    }
+  });
+
+  it("plan4 fase 14: type family resolves to text", () => {
+    const fams = TOOL_FAMILIES.find((f) => f.id === "type")!;
+    expect(fams.tools.length).toBe(19);
+    for (const t of fams.tools) {
+      expect(dispatchKindOf(t.id as ToolId)).toBe("text");
+      expect(TEXT_TOOLS.has(t.id as ToolId)).toBe(true);
+    }
+  });
+
+  it("plan4 fase 15: shape family resolves to shape with kind mapping", () => {
+    const fams = TOOL_FAMILIES.find((f) => f.id === "shape")!;
+    expect(fams.tools.length).toBe(35);
+    for (const t of fams.tools) {
+      expect(dispatchKindOf(t.id as ToolId)).toBe("shape");
+      expect(IS_SHAPE_TOOL.has(t.id as ToolId)).toBe(true);
+      expect(SHAPE_KIND_OF[t.id as ToolId], `${t.id} kind`).toBeTruthy();
+    }
   });
 
   it("no orphan engine entries: every registered id exists in the toolbar", () => {

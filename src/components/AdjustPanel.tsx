@@ -83,7 +83,7 @@ function NativeRow({
         <button
           disabled={busy}
           onClick={onApply}
-          className="shrink-0 rounded-md bg-[#2f7cf6] px-2.5 py-1 text-[10px] font-semibold text-white hover:bg-[#3b8bff] disabled:opacity-40"
+          className="avero-press shrink-0 rounded-md bg-[#2f7cf6] px-2.5 py-1 text-[10px] font-semibold text-white hover:bg-[#3b8bff] disabled:opacity-40"
         >
           {busy ? "..." : "Apply"}
         </button>

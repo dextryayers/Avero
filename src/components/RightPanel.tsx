@@ -292,17 +292,20 @@ export default function RightPanel() {
           {doc.width}×{doc.height} · {layers.length} lyr
         </span>
       </div>
-      <div className="flex overflow-x-auto border-b border-[#2c2c31] bg-[#161618] text-[10px] scrollbar-thin">
+      <div className="flex overflow-x-auto border-b border-[#2c2c31] bg-[#161618] text-[10px] scrollbar-thin" role="tablist" aria-label="Studio panels">
         {tabs.map((t) => {
           const Icon = t.icon;
+          const selected = tab === t.id;
           return (
             <button
               key={t.id}
+              role="tab"
+              aria-selected={selected}
               onClick={() => setTab(t.id)}
-              title={`${t.label} - professional panel`}
+              title={`${t.label} panel`}
               className={clsx(
-                "avero-lift flex shrink-0 flex-col items-center gap-0.5 border-b-2 px-2.5 pb-1.5 pt-2",
-                tab === t.id
+                "avero-lift flex shrink-0 flex-col items-center gap-0.5 whitespace-nowrap border-b-2 px-2 pb-1.5 pt-2",
+                selected
                   ? "border-[#2f7cf6] bg-[#232327] font-semibold text-white"
                   : "border-transparent text-[#6e6e78] hover:bg-[#232327] hover:text-white",
               )}

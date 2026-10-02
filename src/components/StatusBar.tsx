@@ -138,7 +138,7 @@ export default function StatusBar() {
   const chipOn = "rounded px-1.5 py-0.5 bg-[#2f7cf6] text-white";
 
   return (
-    <div className="flex h-7 shrink-0 items-center gap-3 border-t border-[#2c2c31] bg-[#1c1c1f] px-3 text-[11px] text-[#6e6e78]">
+    <div className="flex h-7 shrink-0 items-center gap-0 divide-x divide-[#232327] border-t border-[#2c2c31] bg-[#1c1c1f] px-3 text-[11px] text-[#6e6e78] [&>*:nth-child(n+2)]:pl-3">
       <div className="flex items-center gap-2">
         <input
           type="range"
@@ -146,10 +146,13 @@ export default function StatusBar() {
           max={400}
           value={Math.min(400, zoom)}
           onChange={(e) => setZoom(Number(e.target.value))}
+          title="Zoom"
+          aria-label="Zoom"
           className="h-1 w-24"
         />
         <button
           onClick={() => setZoom(100)}
+          title="Set zoom 100%"
           className="rounded px-1.5 py-0.5 font-mono text-white hover:bg-[#2c2c31]"
         >
           {zoom}%

@@ -1,7 +1,8 @@
 import { useEditorStore } from "../stores/useEditorStore";
 import { useProStore } from "../stores/useProStore";
 import { layerManager } from "../engine/layerManager";
-import { renderShapeToLayer, renderTextToLayer } from "../engine/textShape";
+import { notify } from "../ui/notify";
+import { renderShapeToLayer, renderTextFxToLayer } from "../engine/textShape";
 
 export default function TextShapePanel() {
   const activeLayerId = useEditorStore((s) => s.activeLayerId);
@@ -15,18 +16,29 @@ export default function TextShapePanel() {
   const tspec = activeLayerId ? textSpecs[activeLayerId] : undefined;
   const sspec = activeLayerId ? shapeSpecs[activeLayerId] : undefined;
 
+  function guardActive(): boolean {
+    const meta = layers.find((l) => l.id === activeLayerId);
+    if (!activeLayerId || !meta || meta.locked || !meta.visible) {
+      notify("Active layer is locked or hidden. Unlock it first.");
+      return false;
+    }
+    return true;
+  }
+
   function applyText(patch: Partial<NonNullable<typeof tspec>>) {
-    if (!activeLayerId || !tspec) return;
+    if (!activeLayerId || !tspec || !guardActive()) return;
     const next = { ...tspec, ...patch };
     setTextSpec(activeLayerId, next);
     const c = layerManager.get(activeLayerId);
-    if (c) renderTextToLayer(c, next);
+    // plan3 Fase 14: re-render with the stored effect + anchor so edits
+    // neither collapse fx nor teleport the text.
+    if (c) renderTextFxToLayer(c, next, next.fx ?? "none", next.x ?? 60, next.y ?? 120);
     useEditorStore.getState().markDirty();
     useProStore.getState().bumpHistogram();
   }
 
   function applyShape(patch: Partial<NonNullable<typeof sspec>>) {
-    if (!activeLayerId || !sspec) return;
+    if (!activeLayerId || !sspec || !guardActive()) return;
     const next = { ...sspec, ...patch };
     setShapeSpec(activeLayerId, next);
     const c = layerManager.get(activeLayerId);

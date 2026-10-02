@@ -9,10 +9,12 @@ export interface TextSpec {
   italic: boolean;
   tracking: number; // px antar huruf
   leading: number; // line height multiplier
+  fx?: string; // "none" or one of the Type family effects; unknown values render base
+  x?: number; // creation anchor, keeps panel edits from jumping the text
+  y?: number;
 }
 
-export function renderTextToLayer(canvas: HTMLCanvasElement, spec: TextSpec, x = 60, y = 120) {
-  const ctx = canvas.getContext("2d")!;
+export function renderTextToLayer(canvas: HTMLCanvasElement, spec: TextSpec, x = 60, y = 120) {  const ctx = canvas.getContext("2d")!;
   ctx.save();
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   const style = `${spec.italic ? "italic " : ""}${spec.bold ? "700 " : "400 "}${spec.fontSize}px "${spec.fontFamily}", system-ui, sans-serif`;
@@ -32,6 +34,171 @@ export function renderTextToLayer(canvas: HTMLCanvasElement, spec: TextSpec, x =
     cy += lh;
   });
   ctx.restore();
+}
+
+// plan3 Fase 14: single fx renderer shared by creation (CanvasArea), panel
+// edits (TextShapePanel) and top bar edits (ToolOptionsBar), so effects
+// survive property changes instead of collapsing to base text.
+export function renderTextFxToLayer(canvas: HTMLCanvasElement, spec: TextSpec, fx: string, x: number, y: number) {
+  const ctx = canvas.getContext("2d")!;
+  if (fx === "none" || fx === "arc") {
+    if (fx === "arc") {
+      ctx.save();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.font = `700 ${spec.fontSize}px Inter, system-ui, sans-serif`;
+      ctx.fillStyle = spec.color;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      const cx = Math.round(x);
+      const cy = Math.round(y) + spec.fontSize;
+      const chars = spec.text.split("");
+      const spread = Math.min(2.4, 0.32 * chars.length);
+      chars.forEach((ch, i) => {
+        const t = chars.length === 1 ? 0 : i / (chars.length - 1) - 0.5;
+        const a = t * spread;
+        ctx.save();
+        ctx.translate(cx + Math.sin(a) * spec.fontSize * 3, cy - Math.cos(a) * spec.fontSize * 1.1);
+        ctx.rotate(a * 0.9);
+        ctx.fillText(ch, 0, 0);
+        ctx.restore();
+      });
+      ctx.restore();
+    } else {
+      renderTextToLayer(canvas, spec, Math.round(x), Math.round(y));
+    }
+  } else if (fx === "outline") {
+    renderTextToLayer(canvas, { ...spec, color: "transparent" }, Math.round(x), Math.round(y));
+    ctx.save();
+    ctx.font = `700 ${spec.fontSize}px Inter, system-ui, sans-serif`;
+    ctx.strokeStyle = "#2f7cf6";
+    ctx.lineWidth = Math.max(2, spec.fontSize / 14);
+    ctx.strokeText(spec.text, Math.round(x), Math.round(y) + spec.fontSize * 0.2);
+    ctx.restore();
+  } else if (fx === "glow") {
+    renderTextToLayer(canvas, spec, Math.round(x), Math.round(y));
+    ctx.save();
+    ctx.globalCompositeOperation = "source-over";
+    ctx.shadowColor = "#2f7cf6";
+    ctx.shadowBlur = spec.fontSize / 2;
+    ctx.font = `700 ${spec.fontSize}px Inter, system-ui, sans-serif`;
+    ctx.fillStyle = spec.color;
+    ctx.fillText(spec.text, Math.round(x), Math.round(y) + spec.fontSize * 0.2);
+    ctx.restore();
+  } else if (fx === "shadow") {
+    ctx.save();
+    ctx.font = `700 ${spec.fontSize}px Inter, system-ui, sans-serif`;
+    ctx.fillStyle = "rgba(0,0,0,0.85)";
+    ctx.fillText(spec.text, Math.round(x) + 6, Math.round(y) + spec.fontSize * 0.2 + 6);
+    ctx.fillStyle = spec.color;
+    ctx.fillText(spec.text, Math.round(x), Math.round(y) + spec.fontSize * 0.2);
+    ctx.restore();
+  } else if (fx === "3d") {
+    ctx.save();
+    ctx.font = `700 ${spec.fontSize}px Inter, system-ui, sans-serif`;
+    for (let i = 6; i >= 1; i--) {
+      ctx.fillStyle = i === 1 ? "#ffffff" : `rgb(${30 + i * 8},${60 + i * 8},${140 + i * 10})`;
+      ctx.fillText(spec.text, Math.round(x) + i, Math.round(y) + spec.fontSize * 0.2 + i);
+    }
+    ctx.restore();
+  } else if (fx === "neon") {
+    ctx.save();
+    ctx.font = `700 ${spec.fontSize}px Inter, system-ui, sans-serif`;
+    ctx.textBaseline = "top";
+    ctx.shadowColor = "#38e1ff";
+    ctx.shadowBlur = spec.fontSize * 0.6;
+    ctx.strokeStyle = "#bffbff";
+    ctx.lineWidth = Math.max(2, spec.fontSize / 18);
+    ctx.strokeText(spec.text, Math.round(x), Math.round(y));
+    ctx.shadowBlur = spec.fontSize * 0.25;
+    ctx.fillStyle = "#e8feff";
+    ctx.fillText(spec.text, Math.round(x), Math.round(y));
+    ctx.restore();
+  } else if (fx === "gradient") {
+    ctx.save();
+    ctx.font = `700 ${spec.fontSize}px Inter, system-ui, sans-serif`;
+    ctx.textBaseline = "top";
+    const gx = ctx.createLinearGradient(x, y, x + spec.fontSize * 4, y + spec.fontSize);
+    gx.addColorStop(0, "#2f7cf6");
+    gx.addColorStop(0.5, "#9b5cff");
+    gx.addColorStop(1, "#ff7ad9");
+    ctx.fillStyle = gx;
+    const lines = spec.text.split("\n");
+    let cy = Math.round(y);
+    lines.forEach((line) => {
+      ctx.fillText(line, Math.round(x), cy);
+      cy += spec.fontSize * 1.25;
+    });
+    ctx.restore();
+  } else if (fx === "typewriter" || fx === "blocky") {
+    renderTextToLayer(canvas, spec, Math.round(x), Math.round(y));
+  } else if (fx === "condensed" || fx === "expanded") {
+    renderTextToLayer(canvas, spec, Math.round(x), Math.round(y));
+  } else if (fx === "emboss") {
+    ctx.save();
+    ctx.font = `700 ${spec.fontSize}px Inter, system-ui, sans-serif`;
+    ctx.textBaseline = "top";
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.fillText(spec.text, Math.round(x) - 2, Math.round(y) - 2);
+    ctx.fillStyle = "rgba(0,0,0,0.85)";
+    ctx.fillText(spec.text, Math.round(x) + 2, Math.round(y) + 2);
+    ctx.fillStyle = "#c9c9d1";
+    ctx.fillText(spec.text, Math.round(x), Math.round(y));
+    ctx.restore();
+  } else if (fx === "engrave") {
+    ctx.save();
+    ctx.font = `700 ${spec.fontSize}px Inter, system-ui, sans-serif`;
+    ctx.textBaseline = "top";
+    ctx.fillStyle = "rgba(0,0,0,0.9)";
+    ctx.fillText(spec.text, Math.round(x) - 1, Math.round(y) - 1);
+    ctx.fillStyle = "rgba(255,255,255,0.5)";
+    ctx.fillText(spec.text, Math.round(x) + 1, Math.round(y) + 1);
+    ctx.fillStyle = "#6e6e78";
+    ctx.fillText(spec.text, Math.round(x), Math.round(y));
+    ctx.restore();
+  } else if (fx === "chrome" || fx === "fire" || fx === "ice") {
+    ctx.save();
+    ctx.font = `700 ${spec.fontSize}px Inter, system-ui, sans-serif`;
+    ctx.textBaseline = "top";
+    const gx = ctx.createLinearGradient(0, y, 0, y + spec.fontSize * 1.2);
+    if (fx === "chrome") {
+      gx.addColorStop(0, "#f5f7fa");
+      gx.addColorStop(0.45, "#8a94a6");
+      gx.addColorStop(0.55, "#3c4252");
+      gx.addColorStop(1, "#d7dce5");
+    } else if (fx === "fire") {
+      gx.addColorStop(0, "#ffe259");
+      gx.addColorStop(0.5, "#ff7518");
+      gx.addColorStop(1, "#c81d25");
+    } else {
+      gx.addColorStop(0, "#e8feff");
+      gx.addColorStop(0.5, "#7dd7f0");
+      gx.addColorStop(1, "#1d4fa1");
+    }
+    ctx.fillStyle = gx;
+    ctx.fillText(spec.text, Math.round(x), Math.round(y));
+    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    ctx.fillRect(Math.round(x), Math.round(y) + spec.fontSize * 0.28, ctx.measureText(spec.text).width, 2);
+    if (fx === "fire" || fx === "ice") {
+      ctx.shadowColor = fx === "fire" ? "#ff7518" : "#38e1ff";
+      ctx.shadowBlur = spec.fontSize * 0.35;
+      ctx.fillStyle = gx;
+      ctx.fillText(spec.text, Math.round(x), Math.round(y));
+    }
+    ctx.restore();
+  } else if (fx === "retro") {
+    ctx.save();
+    ctx.font = `700 ${spec.fontSize}px Inter, system-ui, sans-serif`;
+    ctx.textBaseline = "top";
+    ctx.fillStyle = "#0f766e";
+    ctx.fillText(spec.text, Math.round(x) + 8, Math.round(y) + 8);
+    ctx.fillStyle = "#f5e6c8";
+    ctx.fillText(spec.text, Math.round(x) + 4, Math.round(y) + 4);
+    ctx.fillStyle = "#c2410c";
+    ctx.fillText(spec.text, Math.round(x), Math.round(y));
+    ctx.restore();
+  } else {
+    renderTextToLayer(canvas, spec, Math.round(x), Math.round(y));
+  }
 }
 
 export type ShapeKind =

@@ -50,7 +50,7 @@ function NativeFRow({
     <div className="rounded-md border border-[#2c2c31] bg-[#232327] p-2.5">
       <div className="flex items-start justify-between gap-2">
         <div><div className="text-[11px] font-semibold text-white">{label}</div><div className="text-[10px] text-[#6e6e78]">{desc}</div></div>
-        <button disabled={busy} onClick={onApply} className="shrink-0 rounded-md bg-[#2f7cf6] px-2.5 py-1 text-[10px] font-semibold text-white hover:bg-[#3b8bff] disabled:opacity-40">{busy ? "..." : "Apply"}</button>
+        <button disabled={busy} onClick={onApply} className="avero-press shrink-0 rounded-md bg-[#2f7cf6] px-2.5 py-1 text-[10px] font-semibold text-white hover:bg-[#3b8bff] disabled:opacity-40">{busy ? "..." : "Apply"}</button>
       </div>
       {children && <div className="mt-2 space-y-1.5">{children}</div>}
     </div>
@@ -166,7 +166,7 @@ export default function FilterPanel() {
       </div>
 
       <div className="space-y-2">
-        <div className="avero-micro">Artistik</div>
+        <div className="avero-micro">Artistic</div>
         <div className="grid gap-2">
           <NativeFRow label="Emboss" desc="no params" busy={busy === "emboss"} onApply={() => runFilter({ op: "emboss" }, "emboss")} />
           <NativeFRow label="Find Edges" desc="inverted Sobel" busy={busy === "edges"} onApply={() => runFilter({ op: "findEdges" }, "edges")} />
@@ -185,7 +185,7 @@ export default function FilterPanel() {
       </div>
 
       <div className="space-y-2">
-        <div className="avero-micro">Sinematik</div>
+        <div className="avero-micro">Cinematic</div>
         <div className="grid gap-2">
           <NativeFRow label="Vignette" desc="darken edges 0..1" busy={busy === "vignette"} onApply={() => runFilter({ op: "vignette", amount: p.vignette }, "vignette")}>
             <Row label="Amount" value={p.vignette} min={0} max={1} step={0.05} onChange={(v) => setP({ ...p, vignette: v })} />

@@ -240,6 +240,7 @@ export type RetouchMode =
   | "blemish"
   | "sky"
   | "skin"
+  | "surface"
   | "object"
   | "sepia"
   | "bw"
@@ -367,7 +368,7 @@ export const RETOUCH_MAP: Partial<Record<ToolId, RetouchMode>> = {
   "burn-shadow": "shadows",
   "sponge-sat": "saturate",
   "sponge-desat": "desat",
-  "blur-surface": "blur",
+  "blur-surface": "surface",
   "blur-field": "lens",
   "sharpen-clarity": "sharpen-more",
   "denoise-strong": "grain-remove",
@@ -438,6 +439,31 @@ export const RETOUCH_MAP: Partial<Record<ToolId, RetouchMode>> = {
   "lens-bubble": "lensbubble",
   "motion-zoom": "motionzoom",
   "motion-spin": "motionspin",
+};
+
+// Manual-variant tuning (plan3 Fase 8-10): tools that share an engine mode
+// get their own fingerprint so no two named tools behave identically.
+// strengthMul scales stroke strength, radiusMul scales the dab window.
+// Base tools carry no entry (implicit 1.0); every alias must carry one.
+export interface RetouchTweak {
+  strengthMul?: number;
+  radiusMul?: number;
+}
+
+export const RETOUCH_TWEAK: Partial<Record<ToolId, RetouchTweak>> = {
+  // Heal manual variants: gentler than their base modes for delicate subjects.
+  "heal-freckle": { strengthMul: 0.6 },
+  "heal-eye": { strengthMul: 0.7 },
+  "heal-teeth": { strengthMul: 0.85 },
+  // Tone manual variants: bolder than the light brushes they mirror.
+  "dodge-high": { strengthMul: 1.25, radiusMul: 0.8 },
+  "burn-shadow": { strengthMul: 1.25, radiusMul: 0.8 },
+  "sponge-sat": { strengthMul: 1.2 },
+  "sponge-desat": { strengthMul: 0.7 },
+  // Detail manual variants: tuned to their named job.
+  "denoise-strong": { strengthMul: 1.3 },
+  "sharpen-clarity": { strengthMul: 0.75 },
+  "blur-field": { strengthMul: 1.15, radiusMul: 1.3 },
 };
 
 export type DistortKind =

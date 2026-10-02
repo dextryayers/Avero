@@ -3,7 +3,7 @@ import { useProStore } from "../stores/useProStore";
 import { TOOL_LABEL } from "./ToolBar";
 import { layerManager } from "../engine/layerManager";
 import { notify } from "../ui/notify";
-import { renderShapeToLayer, renderTextToLayer } from "../engine/textShape";
+import { renderShapeToLayer, renderTextFxToLayer } from "../engine/textShape";
 import {
   clearSelectionMask,
   expandContractSelection,
@@ -69,7 +69,7 @@ function Toggle({ label, on, onClick, title }: { label: string; on: boolean; onC
     <button
       onClick={onClick}
       title={title}
-      className={`shrink-0 rounded-md px-2 py-1 transition-colors ${on ? "bg-[#2f7cf6] text-white" : "bg-[#232327] text-[#a7a7b0] hover:text-white"}`}
+      className={`avero-press shrink-0 rounded-md px-2 py-1 transition-colors ${on ? "bg-[#2f7cf6] text-white" : "bg-[#232327] text-[#a7a7b0] hover:text-white"}`}
     >
       {label}
     </button>
@@ -81,7 +81,7 @@ function Action({ label, onClick, title, primary }: { label: string; onClick: ()
     <button
       onClick={onClick}
       title={title}
-      className={`shrink-0 rounded-md px-2.5 py-1 font-semibold transition-colors ${primary ? "bg-[#2f7cf6] text-white hover:bg-[#2563d4]" : "bg-[#232327] text-white hover:bg-[#2c2c31]"}`}
+      className={`avero-press shrink-0 rounded-md px-2.5 py-1 font-semibold transition-colors ${primary ? "bg-[#2f7cf6] text-white hover:bg-[#2563d4]" : "bg-[#232327] text-white hover:bg-[#2c2c31]"}`}
     >
       {label}
     </button>
@@ -116,6 +116,11 @@ function patchShape(patch: Record<string, string | number>) {
   const id = ed.activeLayerId;
   const cur = id ? pro.shapeSpecs[id] : undefined;
   if (id && cur) {
+    const meta = ed.layers.find((l) => l.id === id);
+    if (!meta || meta.locked || !meta.visible) {
+      notify("Active layer is locked or hidden. Unlock it first.");
+      return;
+    }
     const next = { ...cur, ...patch };
     pro.setShapeSpec(id, next);
     const c = layerManager.get(id);
@@ -138,10 +143,15 @@ function patchText(patch: Record<string, string | number | boolean>) {
   const id = ed.activeLayerId;
   const cur = id ? pro.textSpecs[id] : undefined;
   if (id && cur) {
+    const meta = ed.layers.find((l) => l.id === id);
+    if (!meta || meta.locked || !meta.visible) {
+      notify("Active layer is locked or hidden. Unlock it first.");
+      return;
+    }
     const next = { ...cur, ...patch };
     pro.setTextSpec(id, next);
     const c = layerManager.get(id);
-    if (c) renderTextToLayer(c, next);
+    if (c) renderTextFxToLayer(c, next, next.fx ?? "none", next.x ?? 60, next.y ?? 120);
     ed.markDirty();
     return;
   }
@@ -535,6 +545,11 @@ export default function ToolOptionsBar({
               const ed = useEditorStore.getState();
               const id = ed.activeLayerId;
               if (!id) return;
+              const meta = ed.layers.find((l) => l.id === id);
+              if (!meta || meta.locked || !meta.visible) {
+                notify("Active layer is locked or hidden. Unlock it first.");
+                return;
+              }
               const pro = useProStore.getState();
               pro.ensureTransform(id);
               const cur = pro.transforms[id] ?? { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 };
@@ -549,6 +564,11 @@ export default function ToolOptionsBar({
               const ed = useEditorStore.getState();
               const id = ed.activeLayerId;
               if (!id) return;
+              const meta = ed.layers.find((l) => l.id === id);
+              if (!meta || meta.locked || !meta.visible) {
+                notify("Active layer is locked or hidden. Unlock it first.");
+                return;
+              }
               const pro = useProStore.getState();
               pro.ensureTransform(id);
               const cur = pro.transforms[id] ?? { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 };

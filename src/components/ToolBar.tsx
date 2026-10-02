@@ -897,7 +897,7 @@ export default function ToolBar() {
   }
 
   return (
-    <div className="flex shrink-0">
+    <div className="relative flex shrink-0">
       {/* Slim icon bar - one button per family, no duplicates */}
       <div className="flex w-[56px] flex-col items-center gap-0.5 overflow-y-auto border-r border-[#2c2c31] bg-[#1c1c1f] py-2">
         {TOOL_FAMILIES.map((f) => {
@@ -942,9 +942,11 @@ export default function ToolBar() {
         </div>
       </div>
 
-      {/* Expandable sidebar with descriptions, search, collapsible groups */}
+      {/* Expandable sidebar with descriptions, search, collapsible groups.
+          Floating overlay (Affinity-style studio flyout): canvas width stays
+          stable whether the panel is open or closed. */}
       {expanded && (
-        <div className="avero-slide-in flex w-[264px] flex-col border-r border-[#2c2c31] bg-[#161618]">
+        <div className="avero-slide-in absolute bottom-0 left-[56px] top-0 z-40 flex w-[264px] flex-col border-r border-[#2c2c31] bg-[#161618] shadow-2xl">
           <div className="flex items-center gap-2 border-b border-[#2c2c31] p-2">
             <Search size={13} className="shrink-0 text-[#6e6e78]" />
             <input
@@ -953,6 +955,13 @@ export default function ToolBar() {
               placeholder="Search tools..."
               className="w-full bg-transparent text-[12px] text-white outline-none placeholder:text-[#6e6e78]"
             />
+            <button
+              onClick={() => setExpanded(false)}
+              title="Close tool panel"
+              className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-[#6e6e78] hover:bg-[#232327] hover:text-white"
+            >
+              <ChevronLeft size={14} />
+            </button>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
             {filtered.map((f) => {
@@ -982,23 +991,19 @@ export default function ToolBar() {
                           <button
                             key={t.id}
                             onClick={() => setTool(t.id)}
-                            title={`${t.label} (${t.shortcut}) - ${t.usage}`}
+                            title={`${t.label} (${t.shortcut}) - ${t.description} ${t.usage}`}
                             className={clsx(
-                              "mb-1 w-full rounded-md border px-2 py-1.5 text-left",
+                              "avero-press mb-0.5 flex w-full items-center gap-2 rounded-md border px-2 py-1.5 text-left",
                               active
                                 ? "border-[#2f7cf6] bg-[#232327]"
                                 : "border-transparent hover:border-[#2c2c31] hover:bg-[#232327]",
                             )}
                           >
-                            <div className="flex items-center gap-2">
-                              <Icon size={14} className={active ? "text-white" : "text-[#a7a7b0]"} />
-                              <span className={clsx("flex-1 text-[12px] font-medium", active ? "text-white" : "text-[#c9c9d1]")}>
-                                {t.label}
-                              </span>
-                              <span className="font-mono text-[9px] text-[#6e6e78]">{t.shortcut}</span>
-                            </div>
-                            <div className="mt-0.5 pl-6 text-[11px] leading-snug text-[#6e6e78]">{t.description}</div>
-                            <div className="mt-0.5 pl-6 text-[10px] italic leading-snug text-[#4a4a52]">{t.usage}</div>
+                            <Icon size={14} className={clsx("shrink-0", active ? "text-white" : "text-[#a7a7b0]")} />
+                            <span className={clsx("flex-1 truncate text-[12px] font-medium", active ? "text-white" : "text-[#c9c9d1]")}>
+                              {t.label}
+                            </span>
+                            <span className="font-mono text-[9px] text-[#6e6e78]">{t.shortcut}</span>
                           </button>
                         );
                       })}
@@ -1019,7 +1024,7 @@ export default function ToolBar() {
 
       {/* Flyout for current family when sidebar closed */}
       {!expanded && openFamily && (
-        <div key={openFamily} className="avero-slide-in w-[220px] border-r border-[#2c2c31] bg-[#161618] p-1.5">
+        <div key={openFamily} className="avero-slide-in absolute bottom-0 left-[56px] top-0 z-40 w-[220px] overflow-y-auto border-r border-[#2c2c31] bg-[#161618] p-1.5 shadow-2xl">
           {(() => {
             const f = TOOL_FAMILIES.find((x) => x.id === openFamily);
             if (!f) return null;
@@ -1029,6 +1034,13 @@ export default function ToolBar() {
                   <span className="text-[11px] font-semibold text-white">{f.label}</span>
                   <span className="rounded border border-[#2c2c31] bg-[#101012] px-1 py-px font-mono text-[9px] text-[#a7a7b0]">{f.shortcut}</span>
                   <span className="rounded bg-[#2f7cf6] px-1 py-px font-mono text-[9px] text-white">{f.tools.length}</span>
+                  <button
+                    onClick={() => setOpenFamily(null)}
+                    title="Close family panel"
+                    className="ml-auto grid h-5 w-5 place-items-center rounded text-[#6e6e78] hover:bg-[#232327] hover:text-white"
+                  >
+                    <ChevronLeft size={12} />
+                  </button>
                 </div>
                 <div className="mb-2 px-1 text-[10.5px] text-[#6e6e78]">{f.description}</div>
                 {f.tools.map((t) => {
@@ -1039,22 +1051,14 @@ export default function ToolBar() {
                       key={t.id}
                       onClick={() => setTool(t.id)}
                       className={clsx(
-                        "avero-press mb-1 w-full rounded-md px-2 py-1.5 text-left",
+                        "avero-press mb-0.5 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px]",
                         active ? "bg-[#2f7cf6] text-white" : "text-[#c9c9d1] hover:bg-[#232327]",
                       )}
-                      title={`${t.label} (${t.shortcut}) - ${t.usage}`}
+                      title={`${t.label} (${t.shortcut}) - ${t.description} ${t.usage}`}
                     >
-                      <div className="flex items-center gap-2 text-[12px]">
-                        <Icon size={14} />
-                        <span className="flex-1">{t.label}</span>
-                        <span className={clsx("font-mono text-[9px]", active ? "text-white/70" : "text-[#6e6e78]")}>{t.shortcut}</span>
-                      </div>
-                      <div className={clsx("mt-0.5 text-[10px]", active ? "text-white/70" : "text-[#6e6e78]")}>
-                        {t.description}
-                      </div>
-                      <div className={clsx("mt-0.5 text-[10px] italic", active ? "text-white/60" : "text-[#4a4a52]")}>
-                        {t.usage}
-                      </div>
+                      <Icon size={14} className="shrink-0" />
+                      <span className="flex-1 truncate">{t.label}</span>
+                      <span className={clsx("font-mono text-[9px]", active ? "text-white/70" : "text-[#6e6e78]")}>{t.shortcut}</span>
                     </button>
                   );
                 })}

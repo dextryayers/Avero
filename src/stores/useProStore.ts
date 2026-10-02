@@ -181,6 +181,9 @@ interface ProState {
       italic: boolean;
       tracking: number;
       leading: number;
+      fx?: string;
+      x?: number;
+      y?: number;
     }
   >;
   shapeSpecs: Record<

@@ -8,6 +8,8 @@ import {
   IS_SHAPE_TOOL,
   MARQUEE_TOOLS,
   PEN_STYLES,
+  RETOUCH_MAP,
+  RETOUCH_TWEAK,
   SHAPE_KIND_OF,
   dispatchKindOf,
   isPaintTool,
@@ -233,6 +235,36 @@ describe("total usability lock (every tool one by one)", () => {
     for (const [id, h] of Object.entries(TOOL_HINT)) {
       if (h.includes("\u2014")) bad.push(id);
     }
+    expect(bad).toEqual([]);
+  });
+
+  it("aliased retouch modes: base untweaked, every alias fingerprinted", () => {
+    // Documented intentional shares (same role by design, not clones):
+    // smudge engine for smudge/liquify/warp; source-heal for healing-brush/patch.
+    const INTENTIONAL_SHARES = new Set(["smudge", "heal-source"]);
+    const byMode = new Map<string, string[]>();
+    for (const [id, mode] of Object.entries(RETOUCH_MAP)) {
+      if (!mode) continue;
+      const arr = byMode.get(mode) ?? [];
+      arr.push(id);
+      byMode.set(mode, arr);
+    }
+    const bad: string[] = [];
+    for (const [mode, ids] of byMode) {
+      if (ids.length < 2 || INTENTIONAL_SHARES.has(mode)) continue;
+      const untweaked = ids.filter((id) => !RETOUCH_TWEAK[id as ToolId]);
+      if (untweaked.length !== 1) bad.push(`${mode}: ${untweaked.length} untweaked`);
+      for (const id of ids) {
+        const tw = RETOUCH_TWEAK[id as ToolId];
+        if (!tw) continue;
+        const sm = tw.strengthMul ?? 1;
+        const rm = tw.radiusMul ?? 1;
+        if (sm < 0.2 || sm > 2 || rm < 0.5 || rm > 2 || (sm === 1 && rm === 1)) {
+          bad.push(`${id}: invalid tweak`);
+        }
+      }
+    }
+    expect(byMode.size).toBeGreaterThan(0);
     expect(bad).toEqual([]);
   });
 });

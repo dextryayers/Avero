@@ -26,7 +26,7 @@ import { applyAdjustmentToImageData, applyRawDevelop } from "../engine/adjustmen
 import { fitThumb, panForCenter, viewportRect } from "../engine/viewport";
 import { applyFilterToCanvas } from "../engine/filters";
 import { applySoftProof, convertWorkingSpace } from "../engine/color";
-import { renderShapeToLayer, renderTextToLayer } from "../engine/textShape";
+import { renderShapeToLayer, renderTextFxToLayer } from "../engine/textShape";
 import {
   CROP_OVERLAY_TOOLS,
   CROP_RATIOS,
@@ -39,6 +39,7 @@ import {
   paintPreset,
   penStyleOf,
   retouchModeOf,
+  RETOUCH_TWEAK,
   type CropOverlayKind,
   type DistortKind,
   type RetouchMode,
@@ -1844,8 +1845,12 @@ export default function CanvasArea() {
     const ctx = c.getContext("2d", { willReadFrequently: true })!;
     const edSt = useEditorStore.getState();
     const flowMul = Math.max(1, Math.min(100, edSt.brushFlow ?? 100)) / 100;
-    const strength = (brushOpacity / 100) * flowMul;
-    const r = Math.max(1, brushSize / 2);
+    // plan3 Fase 8-10: manual-variant fingerprint so aliased tools differ.
+    const tweak = RETOUCH_TWEAK[edSt.tool as ToolId] ?? {};
+    const twStrength = Math.max(0.2, Math.min(2, tweak.strengthMul ?? 1));
+    const twRadius = Math.max(0.5, Math.min(2, tweak.radiusMul ?? 1));
+    const strength = (brushOpacity / 100) * flowMul * twStrength;
+    const r = Math.max(1, (brushSize / 2) * twRadius);
     for (const { px, py } of dabPath(last.x, last.y, x, y, edSt.brushSpacing ?? 22)) {
       if (!inSel(px, py)) continue;
       const sx = Math.round(px - r);
@@ -1991,7 +1996,7 @@ export default function CanvasArea() {
           mode === "grain-remove" || mode === "sharpen-more" || mode === "blur-more" ||
           mode === "tilt" || mode === "lens" || mode === "motion" ||
           mode === "dust" || mode === "wrinkle" || mode === "blemish" ||
-          mode === "sky" || mode === "skin" || mode === "object" ||
+          mode === "sky" || mode === "skin" || mode === "object" || mode === "surface" ||
           mode === "sepia" || mode === "bw" || mode === "filmfade" ||
           mode === "splittone" || mode === "hdr" ||
           mode === "mole" || mode === "acne" || mode === "scarfade" ||
@@ -2129,6 +2134,31 @@ export default function CanvasArea() {
                 d[i] = Math.round(R + (avg - R) * f * k);
                 d[i + 1] = Math.round(G + (avg - G) * f * k);
                 d[i + 2] = Math.round(B + (avg - B) * f * k);
+              } else if (mode === "surface") {
+                // Edge-aware smooth: 3x3 average, blend weight collapses near edges.
+                let sr = 0;
+                let sg = 0;
+                let sb = 0;
+                let mn = 255;
+                let mx = 0;
+                for (let oy = -1; oy <= 1; oy++) {
+                  for (let ox = -1; ox <= 1; ox++) {
+                    const cx2 = Math.min(s - 1, Math.max(0, xx + ox));
+                    const cy2 = Math.min(s - 1, Math.max(0, yy + oy));
+                    const j = (cy2 * s + cx2) * 4;
+                    sr += d[j];
+                    sg += d[j + 1];
+                    sb += d[j + 2];
+                    const lum = (d[j] + d[j + 1] + d[j + 2]) / 3;
+                    if (lum < mn) mn = lum;
+                    if (lum > mx) mx = lum;
+                  }
+                }
+                const edge = mx - mn;
+                const wgt = edge < 28 ? k : k * Math.max(0, 1 - (edge - 28) / 60);
+                d[i] = Math.round(R + (sr / 9 - R) * wgt);
+                d[i + 1] = Math.round(G + (sg / 9 - G) * wgt);
+                d[i + 2] = Math.round(B + (sb / 9 - B) * wgt);
               } else if (mode === "sharpen-more" || mode === "blemish") {
                 const avg = (R + G + B) / 3;
                 const amt2 = (mode === "blemish" ? 0.5 : 0.8) * k + 0.15;
@@ -2703,6 +2733,10 @@ export default function CanvasArea() {
           ctx.transform(1, 0, slant, 1, 0, 0);
           ctx.globalAlpha = 0.95;
           ctx.drawImage(tmp, -s / 2, -s / 2, s, s);
+        } else {
+          // Defensive: unknown kinds restore pixels instead of leaving a hole.
+          ctx.globalAlpha = 1;
+          ctx.drawImage(tmp, 0, 0);
         }
         ctx.restore();
         releaseScratch(tmp);
@@ -2732,7 +2766,10 @@ export default function CanvasArea() {
     const id = st.activeLayerId;
     if (!id) return;
     const meta = st.layers.find((l) => l.id === id);
-    if (!meta || meta.locked || !meta.visible) return;
+    if (!meta || meta.locked || !meta.visible) {
+      notify("Active layer is locked or hidden. Unlock it first.");
+      return;
+    }
     const snap = layerManager.snapshot(id);
     if (snap) st.pushHistory({ label: "Paint bucket fill", layerId: id, snapshot: snap });
     const c = layerManager.ensure(id, st.doc.width, st.doc.height);
@@ -2887,7 +2924,10 @@ export default function CanvasArea() {
     const id = st.activeLayerId;
     if (!id) return;
     const meta = st.layers.find((l) => l.id === id);
-    if (!meta || meta.locked || !meta.visible) return;
+    if (!meta || meta.locked || !meta.visible) {
+      notify("Active layer is locked or hidden. Unlock it first.");
+      return;
+    }
     const snap = layerManager.snapshot(id);
     const cur = st.tool as string;
     if (snap) st.pushHistory({ label: cur === "pen-free" ? "Freeform pen" : cur === "line-arrow" ? "Arrow line" : tool === "pen" ? "Pen stroke" : "Line", layerId: id, snapshot: snap });
@@ -3006,7 +3046,10 @@ export default function CanvasArea() {
     const id = st.activeLayerId;
     if (!id) return;
     const meta = st.layers.find((l) => l.id === id);
-    if (!meta || meta.locked || !meta.visible) return;
+    if (!meta || meta.locked || !meta.visible) {
+      notify("Active layer is locked or hidden. Unlock it first.");
+      return;
+    }
     const snap = layerManager.snapshot(id);
     if (snap) st.pushHistory({ label: "Radial gradient", layerId: id, snapshot: snap });
     const c = layerManager.ensure(id, st.doc.width, st.doc.height);
@@ -3097,21 +3140,46 @@ export default function CanvasArea() {
       return;
     }
     const snap = layerManager.snapshot(id);
-    if (snap) st.pushHistory({ label: "Clear fill", layerId: id, snapshot: snap });
+    if (snap) st.pushHistory({ label: meta.kind === "background" ? "Clear to background" : "Clear fill", layerId: id, snapshot: snap });
     const c = layerManager.ensure(id, st.doc.width, st.doc.height);
     const ctx = c.getContext("2d")!;
+    // plan3 Fase 0/12: clearing the paper refills the background color
+    // (Photoshop Delete semantics) instead of punching transparency holes.
+    const paperFill = meta.kind === "background" ? st.bgColor || "#ffffff" : null;
     const sel = selectionMaskCanvas();
     if (sel && hasSelection()) {
+      if (paperFill) {
+        const tmp = document.createElement("canvas");
+        tmp.width = c.width;
+        tmp.height = c.height;
+        const tctx = tmp.getContext("2d")!;
+        tctx.globalAlpha = st.brushOpacity / 100;
+        tctx.fillStyle = paperFill;
+        tctx.fillRect(0, 0, tmp.width, tmp.height);
+        tctx.globalCompositeOperation = "destination-in";
+        tctx.globalAlpha = 1;
+        tctx.drawImage(sel, 0, 0);
+        ctx.save();
+        ctx.drawImage(tmp, 0, 0);
+        ctx.restore();
+      } else {
+        ctx.save();
+        ctx.globalCompositeOperation = "destination-out";
+        ctx.drawImage(sel, 0, 0);
+        ctx.restore();
+      }
+    } else if (paperFill) {
       ctx.save();
-      ctx.globalCompositeOperation = "destination-out";
-      ctx.drawImage(sel, 0, 0);
+      ctx.globalAlpha = st.brushOpacity / 100;
+      ctx.fillStyle = paperFill;
+      ctx.fillRect(0, 0, c.width, c.height);
       ctx.restore();
     } else {
       ctx.clearRect(0, 0, c.width, c.height);
     }
     st.markDirty();
     useProStore.getState().bumpHistogram();
-    setCursor("Cleared");
+    setCursor(paperFill ? `Paper ${paperFill}` : "Cleared");
   }
 
   function applyDiamondGradient(x: number, y: number) {
@@ -3119,7 +3187,10 @@ export default function CanvasArea() {
     const id = st.activeLayerId;
     if (!id) return;
     const meta = st.layers.find((l) => l.id === id);
-    if (!meta || meta.locked || !meta.visible) return;
+    if (!meta || meta.locked || !meta.visible) {
+      notify("Active layer is locked or hidden. Unlock it first.");
+      return;
+    }
     const snap = layerManager.snapshot(id);
     if (snap) st.pushHistory({ label: "Diamond gradient", layerId: id, snapshot: snap });
     const c = layerManager.ensure(id, st.doc.width, st.doc.height);
@@ -3552,7 +3623,10 @@ export default function CanvasArea() {
     const id = st.activeLayerId;
     if (!id) return;
     const meta = st.layers.find((l) => l.id === id);
-    if (!meta || meta.locked || !meta.visible) return;
+    if (!meta || meta.locked || !meta.visible) {
+      notify("Active layer is locked or hidden. Unlock it first.");
+      return;
+    }
     const snap = layerManager.snapshot(id);
     if (snap) st.pushHistory({ label: "Gradient", layerId: id, snapshot: snap });
     const c = layerManager.ensure(id, st.doc.width, st.doc.height);
@@ -3692,6 +3766,11 @@ export default function CanvasArea() {
       italic: td.italic,
       tracking: fx === "blocky" ? 6 : td.tracking,
       leading: td.leading,
+      // plan3 Fase 14: anchor + effect travel with the spec so panel/top-bar
+      // edits re-render the same look at the same position.
+      fx,
+      x: Math.round(p.x),
+      y: Math.round(p.y),
     };
     if (vertical && !presetText) spec.text = spec.text.split("").join("\n");
     if (fx === "arc" && !presetText) spec.text = "ARC TEXT";
@@ -3710,170 +3789,8 @@ export default function CanvasArea() {
     if (fx === "retro" && !presetText) spec.text = "RETRO";
     pro.setTextSpec(l.id, spec);
     const c = layerManager.ensure(l.id, doc.width, doc.height);
-    const ctx = c.getContext("2d")!;
-    if (fx === "none" || fx === "arc") {
-      if (fx === "arc") {
-        // arched banner: per-char rotation along an arc
-        ctx.save();
-        ctx.clearRect(0, 0, c.width, c.height);
-        ctx.font = `700 ${spec.fontSize}px Inter, system-ui, sans-serif`;
-        ctx.fillStyle = spec.color;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        const cx = Math.round(p.x);
-        const cy = Math.round(p.y) + spec.fontSize;
-        const chars = spec.text.split("");
-        const spread = Math.min(2.4, 0.32 * chars.length);
-        chars.forEach((ch, i) => {
-          const t = chars.length === 1 ? 0 : i / (chars.length - 1) - 0.5;
-          const a = t * spread;
-          const px = cx + Math.sin(a) * spec.fontSize * 3;
-          const py = cy - Math.cos(a) * spec.fontSize * 1.1;
-          ctx.save();
-          ctx.translate(px, py);
-          ctx.rotate(a * 0.9);
-          ctx.fillText(ch, 0, 0);
-          ctx.restore();
-        });
-        ctx.restore();
-      } else {
-        renderTextToLayer(c, spec, Math.round(p.x), Math.round(p.y));
-      }
-    } else if (fx === "outline") {
-      renderTextToLayer(c, { ...spec, color: "transparent" }, Math.round(p.x), Math.round(p.y));
-      ctx.save();
-      ctx.font = `700 ${spec.fontSize}px Inter, system-ui, sans-serif`;
-      ctx.strokeStyle = "#2f7cf6";
-      ctx.lineWidth = Math.max(2, spec.fontSize / 14);
-      ctx.strokeText(spec.text, Math.round(p.x), Math.round(p.y) + spec.fontSize * 0.2);
-      ctx.restore();
-    } else if (fx === "glow") {
-      renderTextToLayer(c, spec, Math.round(p.x), Math.round(p.y));
-      ctx.save();
-      ctx.globalCompositeOperation = "source-over";
-      ctx.shadowColor = "#2f7cf6";
-      ctx.shadowBlur = spec.fontSize / 2;
-      ctx.font = `700 ${spec.fontSize}px Inter, system-ui, sans-serif`;
-      ctx.fillStyle = spec.color;
-      ctx.fillText(spec.text, Math.round(p.x), Math.round(p.y) + spec.fontSize * 0.2);
-      ctx.restore();
-    } else if (fx === "shadow") {
-      ctx.save();
-      ctx.font = `700 ${spec.fontSize}px Inter, system-ui, sans-serif`;
-      ctx.fillStyle = "rgba(0,0,0,0.85)";
-      ctx.fillText(spec.text, Math.round(p.x) + 6, Math.round(p.y) + spec.fontSize * 0.2 + 6);
-      ctx.fillStyle = spec.color;
-      ctx.fillText(spec.text, Math.round(p.x), Math.round(p.y) + spec.fontSize * 0.2);
-      ctx.restore();
-    } else if (fx === "3d") {
-      // Manual extruded stack: 6 offset layers dark to light.
-      ctx.save();
-      ctx.font = `700 ${spec.fontSize}px Inter, system-ui, sans-serif`;
-      for (let i = 6; i >= 1; i--) {
-        ctx.fillStyle = i === 1 ? "#ffffff" : `rgb(${30 + i * 8},${60 + i * 8},${140 + i * 10})`;
-        ctx.fillText(spec.text, Math.round(p.x) + i, Math.round(p.y) + spec.fontSize * 0.2 + i);
-      }
-      ctx.restore();
-    } else if (fx === "neon") {
-      ctx.save();
-      ctx.font = `700 ${spec.fontSize}px Inter, system-ui, sans-serif`;
-      ctx.textBaseline = "top";
-      ctx.shadowColor = "#38e1ff";
-      ctx.shadowBlur = spec.fontSize * 0.6;
-      ctx.strokeStyle = "#bffbff";
-      ctx.lineWidth = Math.max(2, spec.fontSize / 18);
-      ctx.strokeText(spec.text, Math.round(p.x), Math.round(p.y));
-      ctx.shadowBlur = spec.fontSize * 0.25;
-      ctx.fillStyle = "#e8feff";
-      ctx.fillText(spec.text, Math.round(p.x), Math.round(p.y));
-      ctx.restore();
-    } else if (fx === "gradient") {
-      ctx.save();
-      ctx.font = `700 ${spec.fontSize}px Inter, system-ui, sans-serif`;
-      ctx.textBaseline = "top";
-      const gx = ctx.createLinearGradient(p.x, p.y, p.x + spec.fontSize * 4, p.y + spec.fontSize);
-      gx.addColorStop(0, "#2f7cf6");
-      gx.addColorStop(0.5, "#9b5cff");
-      gx.addColorStop(1, "#ff7ad9");
-      ctx.fillStyle = gx;
-      const lines = spec.text.split("\n");
-      let cy = Math.round(p.y);
-      lines.forEach((line) => {
-        ctx.fillText(line, Math.round(p.x), cy);
-        cy += spec.fontSize * 1.25;
-      });
-      ctx.restore();
-    } else if (fx === "typewriter" || fx === "blocky") {
-      // Monospace stack (blocky adds wide tracking via spec).
-      renderTextToLayer(c, spec, Math.round(p.x), Math.round(p.y));
-    } else if (fx === "condensed" || fx === "expanded") {
-      renderTextToLayer(c, spec, Math.round(p.x), Math.round(p.y));
-    } else if (fx === "emboss") {
-      ctx.save();
-      ctx.font = `700 ${spec.fontSize}px Inter, system-ui, sans-serif`;
-      ctx.textBaseline = "top";
-      ctx.fillStyle = "rgba(255,255,255,0.85)";
-      ctx.fillText(spec.text, Math.round(p.x) - 2, Math.round(p.y) - 2);
-      ctx.fillStyle = "rgba(0,0,0,0.85)";
-      ctx.fillText(spec.text, Math.round(p.x) + 2, Math.round(p.y) + 2);
-      ctx.fillStyle = "#c9c9d1";
-      ctx.fillText(spec.text, Math.round(p.x), Math.round(p.y));
-      ctx.restore();
-    } else if (fx === "engrave") {
-      ctx.save();
-      ctx.font = `700 ${spec.fontSize}px Inter, system-ui, sans-serif`;
-      ctx.textBaseline = "top";
-      ctx.fillStyle = "rgba(0,0,0,0.9)";
-      ctx.fillText(spec.text, Math.round(p.x) - 1, Math.round(p.y) - 1);
-      ctx.fillStyle = "rgba(255,255,255,0.5)";
-      ctx.fillText(spec.text, Math.round(p.x) + 1, Math.round(p.y) + 1);
-      ctx.fillStyle = "#6e6e78";
-      ctx.fillText(spec.text, Math.round(p.x), Math.round(p.y));
-      ctx.restore();
-    } else if (fx === "chrome" || fx === "fire" || fx === "ice") {
-      // Metallic and elemental gradient fills with a soft sheen line.
-      ctx.save();
-      ctx.font = `700 ${spec.fontSize}px Inter, system-ui, sans-serif`;
-      ctx.textBaseline = "top";
-      const gx = ctx.createLinearGradient(0, p.y, 0, p.y + spec.fontSize * 1.2);
-      if (fx === "chrome") {
-        gx.addColorStop(0, "#f5f7fa");
-        gx.addColorStop(0.45, "#8a94a6");
-        gx.addColorStop(0.55, "#3c4252");
-        gx.addColorStop(1, "#d7dce5");
-      } else if (fx === "fire") {
-        gx.addColorStop(0, "#ffe259");
-        gx.addColorStop(0.5, "#ff7518");
-        gx.addColorStop(1, "#c81d25");
-      } else {
-        gx.addColorStop(0, "#e8feff");
-        gx.addColorStop(0.5, "#7dd7f0");
-        gx.addColorStop(1, "#1d4fa1");
-      }
-      ctx.fillStyle = gx;
-      ctx.fillText(spec.text, Math.round(p.x), Math.round(p.y));
-      ctx.fillStyle = "rgba(255,255,255,0.35)";
-      ctx.fillRect(Math.round(p.x), Math.round(p.y) + spec.fontSize * 0.28, ctx.measureText(spec.text).width, 2);
-      if (fx === "fire" || fx === "ice") {
-        ctx.shadowColor = fx === "fire" ? "#ff7518" : "#38e1ff";
-        ctx.shadowBlur = spec.fontSize * 0.35;
-        ctx.fillStyle = gx;
-        ctx.fillText(spec.text, Math.round(p.x), Math.round(p.y));
-      }
-      ctx.restore();
-    } else if (fx === "retro") {
-      // Double hard offset shadows in cream and teal.
-      ctx.save();
-      ctx.font = `700 ${spec.fontSize}px Inter, system-ui, sans-serif`;
-      ctx.textBaseline = "top";
-      ctx.fillStyle = "#0f766e";
-      ctx.fillText(spec.text, Math.round(p.x) + 8, Math.round(p.y) + 8);
-      ctx.fillStyle = "#f5e6c8";
-      ctx.fillText(spec.text, Math.round(p.x) + 4, Math.round(p.y) + 4);
-      ctx.fillStyle = "#c2410c";
-      ctx.fillText(spec.text, Math.round(p.x), Math.round(p.y));
-      ctx.restore();
-    }
+    // plan3 Fase 14: single shared fx renderer (see textShape.renderTextFxToLayer).
+    renderTextFxToLayer(c, spec, fx, Math.round(p.x), Math.round(p.y));
     st.addLayer({ ...l, kind: "text" });
     st.setActiveLayer(l.id);
     lastPaintRef.current = l.id;
@@ -4014,7 +3931,10 @@ export default function CanvasArea() {
     const id = st.activeLayerId;
     if (!id) return;
     const meta = st.layers.find((l) => l.id === id);
-    if (!meta || meta.locked || !meta.visible) return;
+    if (!meta || meta.locked || !meta.visible) {
+      notify("Active layer is locked or hidden. Unlock it first.");
+      return;
+    }
     const snap = layerManager.snapshot(id);
     if (snap) st.pushHistory({ label: "Curvature pen", layerId: id, snapshot: snap });
     const c = layerManager.ensure(id, st.doc.width, st.doc.height);

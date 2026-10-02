@@ -49,6 +49,16 @@ body {
   user-select: none;
 }
 
+/* Focus ring global untuk navigasi keyboard: satu gaya di seluruh app */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+[role="tab"]:focus-visible,
+[role="slider"]:focus-visible {
+  outline: 2px solid #2f7cf6;
+  outline-offset: 1px;
+}
+
 /* Kartu panel datar: border 1px, tanpa shadow warna, tanpa gradien */
 .avero-card {
   background: #1c1c1f;

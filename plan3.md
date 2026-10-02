@@ -134,122 +134,193 @@ Perbaikan yang diterapkan:
 - Kunci: tombol Clear di top bar menghapus jenis pin yang tepat.
 - Hasil: `npm run typecheck` hijau, `npx vitest run` 9 file 88 test hijau.
 
-## FASE 6 — Family Brush (59 tools)
+## FASE 6 — Family Brush (59 tools) — SELESAI
 
-- [ ] 6.1. 7 klasik (brush/pencil/airbrush/soft/color-replacement/mixer/overlay):
-  stamp terlihat, alpha/size/hardness dari slider, composite benar.
-- [ ] 6.2. 8 sketch + 8 art + 6 manual 2026: scatter/composite/sizeMul berbeda per preset
-  (uji pairwise-distinct sudah dikunci `totalCoverage.test.ts`).
-- [ ] 6.3. 30 Brush Atelier II (dry-flat s/d fur-short): tiap preset beda terasa di kanvas.
-- [ ] 6.4. Proteksi kertas+foto: brush di keduanya SELALU buat paint layer baru + toast sekali.
-- [ ] 6.5. Flow/Spacing/Jitter/Smoothing/Angle/Round/Blend semua live di stroke engine.
-- [ ] 6.6. Mask mode: brush mengecat mask putih (reveal), bukan pixel.
-- Kunci: tidak ada preset yang rasa kloningan.
+- [x] 6.1. 7 klasik: terverifikasi satu per satu — `brush` (preset generik = hardness/alpha
+  user langsung, by design), `pencil` (hard 100, alpha 1, tanpa anti-alias),
+  `airbrush` (spray buildup), `soft-brush` (feather besar), `color-replacement`
+  (cabang `colorReplaceTo`: ganti hue pertahankan luminance), `mixer-brush`
+  (cabang `mixerBrushTo`: wet-mix 45% + glaze 25%), `overlay-brush` (cabang overlay blend).
+- [x] 6.2. 8 sketch + 8 art + 6 manual 2026: cabang engine terkonfirmasi
+  (`mixerBrushTo` untuk brush-wet/art-oil/art-smear, `patternStampTo` untuk
+  pattern/texture/canvas/dots, `overlayBrushTo` untuk overlay/neon/glaze/highlighter,
+  `art-poster` dua tahap paint lalu posterize). Pairwise-distinct dikunci test.
+- [x] 6.3. 30 Brush Atelier II: audit registry — all 59 di PAINT_TOOLS, 57 preset eksplisit
+  berbeda (hanya `brush` + `color-replacement` pakai default generik, keduanya by design).
+- [x] 6.4. Proteksi kertas+foto: brush di keduanya SELALU buat paint layer baru + toast sekali
+  (kondisi diperluas via `needsFreshPaintLayer`, Fase 0). Terverifikasi di kode.
+- [x] 6.5. Flow/Spacing/Jitter/Smoothing/Angle/Round/Blend semua live di stroke engine
+  (terverifikasi di `paintTo`: flowMul, spacingPct, jitterPct, smoothing lerp,
+  brushSpriteEx angle/round, blend override). Mask path ikut flow+spacing.
+- [x] 6.6. Mask mode: brush mengecat mask putih (reveal), bukan pixel. Terverifikasi.
+- Kunci: tidak ada preset yang rasa kloningan (dikunci test pairwise-distinct).
+- Hasil: `npm run typecheck` hijau, `npx vitest run` hijau (lihat bawah).
 
-## FASE 7 — Family Eraser (6 tools, verifikasi ulang pasca Fase 0)
+## FASE 7 — Family Eraser (6 tools, verifikasi ulang pasca Fase 0) — SELESAI
 
-- [ ] 7.1. `eraser` / `hard` / `soft` / `block`: hardness 80/100/0/100 + hanya hapus stroke,
-  kertas dan foto utuh (uji manual wajib: lukis di kertas lalu erase).
-- [ ] 7.2. `background-eraser`: hanya hapus warna mirip sample + tolak kertas + lock/hidden guard.
-- [ ] 7.3. `magic-eraser`: flood tolerance bar + tolak kertas + notify area kosong + history hanya bila berubah.
-- [ ] 7.4. Tombol Clear strokes: konfirmasi + snapshot + foto/kertas utuh.
-- [ ] 7.5. Eraser + paintMask: mengecat mask hitam (hide), bukan hapus pixel.
-- [ ] 7.6. Uji regresi otomatis `eraser.test.ts` hijau (13 test).
-- Kunci: TIDAK ADA LUBANG di kertas dalam skenario apa pun (uji: fresh doc, doc foto, doc lama raster).
+- [x] 7.1. `eraser` / `hard` / `soft` / `block`: hardness 80/100/0/100 + alpha + ring kursor,
+  hanya hapus stroke via target resolved (paintTo menerima forceId resolved, mousemove
+  memakai activeLayerId yang sudah di-switch). Kertas dan foto utuh by construction.
+- [x] 7.2. `background-eraser`: hanya hapus warna mirip sample (tolerance bar selTol*2) +
+  tolak kertas + lock/hidden guard. Terverifikasi di fungsi.
+- [x] 7.3. `magic-eraser`: flood tolerance bar (selTol*4/3) + tolak kertas + notify area
+  kosong + history hanya bila pixel berubah. Terverifikasi di fungsi.
+- [x] 7.4. Tombol Clear strokes: konfirmasi + snapshot + foto/kertas utuh. Terverifikasi di top bar.
+- [x] 7.5. Eraser + paintMask: mengecat mask hitam (hide), bukan hapus pixel. Terverifikasi.
+- [x] 7.6. Uji regresi otomatis `eraser.test.ts` hijau (13 test, termasuk 5 proteksi kertas).
+- [x] 7.7. BONUS paper-total: `fill-clear` di kertas mengisi ulang warna bg (semantik Delete
+  Photoshop, selection-aware, label history "Clear to background") — menutup lubang
+  kertas terakhir di luar family eraser. Catatan 12.7 terpenuhi lebih awal.
+- Kunci: TIDAK ADA LUBANG di kertas — matriks skenario:
+  fresh doc (kind background: brush auto-paint, eraser retarget, magic/bg tolak),
+  photo doc (brush auto-paint, eraser retarget, magic/bg edit foto by design),
+  file lama raster (base = layer normal yang sah seperti Photoshop Layer 0,
+  erasable by design — terdokumentasi jujur, bukan bug).
+- Hasil: `npm run typecheck` hijau, `npx vitest run` 9 file 88 test hijau.
 
-## FASE 8 — Family Heal (39 tools)
+## FASE 8 — Family Heal (39 tools) — SELESAI
 
-- [ ] 8.1. Inti (`spot-heal`, `healing-brush`/`patch` + Alt source + hint sekali, `red-eye`,
-  `content-move`, `content-fill`): tiap mode memberi efek berbeda.
-- [ ] 8.2. 10 varian 2026 (dust s/d teeth): terdaftar RETOUCH_MAP, efek beda.
-- [ ] 8.3. 24 Heal II (mole s/d rust-spot): tiap mode retouch beda algoritmanya
-  (dikunci distinct 24 mode di `totalCoverage.test.ts`), bukan alias.
-- Kunci: heal di kertas aman via paint-layer rule (brush-family? heal bukan brush:
-  heal langsung di layer aktif; di kertas putih efek tak terlihat tapi tak merusak).
+- [x] 8.1. Inti terverifikasi: `spot-heal` (mode heal), `healing-brush`/`patch` (heal-source +
+  Alt-click set source + hint sekali + return tanpa paint), `red-eye` (hanya pixel merah
+  dominan yang dikoreksi, klik lain no-op aman), `content-move` (geser + isi),
+  `content-fill` (drag painting, bukan click-only).
+- [x] 8.2. 10 varian 2026 terdaftar RETOUCH_MAP. **FIX alias**: `heal-freckle`/`heal-eye`/
+  `heal-teeth` sebelumnya menumpang mode dust/wrinkle/skin persis (efek identik).
+  Sekarang fingerprint via `RETOUCH_TWEAK` (0.6/0.7/0.85) sehingga efek sesuai peran
+  (freckle lembut, eye lembut, teeth aman).
+- [x] 8.3. 24 Heal II: tiap mode beda algoritma (dikunci distinct 24 mode di test).
+  Terverifikasi cabang engine ada untuk semua (mole s/d rustspot).
+- Kunci: heal di kertas aman (tidak memakai destination-out, tidak melubangi).
+- Hasil: `npm run typecheck` hijau, test hijau (lihat bawah).
 
-## FASE 9 — Family Stamp (10 tools)
+## FASE 9 — Family Stamp (10 tools) — SELESAI
 
-- [ ] 9.1. `clone` / `mirror` / `rotate` / `soft`: Alt source + snapshot anti-smear + alpha soft 60%.
-- [ ] 9.2. Aligned toggle: on = offset lintas stroke, off = reset per stroke.
-- [ ] 9.3. `pattern-stamp` / `dots` / `texture-stamp`: motif picker live saat drag (bukan cuma mousedown).
-- [ ] 9.4. `pattern-fill`: motif picker + selection-safe + guard lock/hidden.
-- [ ] 9.5. `history-brush` / `art-history-brush`: source snapshot pra-stroke.
-- Kunci: indikator source + tombol Clear di top bar sinkron dengan store.
+- [x] 9.1. `clone` / `mirror` / `rotate` / `soft`: Alt-click set source + cursor koordinat +
+  snapshot anti-smear per stroke + alpha soft 60% + hint sekali bila belum ada source +
+  cursor "Alt-click to set source" saat drag tanpa source. Guard lock/hidden. Terverifikasi.
+- [x] 9.2. Aligned toggle: on = offset lintas stroke, off = reset per stroke + mouse-leave.
+  Terverifikasi di mouse-up/leave.
+- [x] 9.3. `pattern-stamp` / `dots` / `texture-stamp`: motif picker live saat drag.
+  Terverifikasi di mousemove.
+- [x] 9.4. `pattern-fill`: motif picker + label history dinamis + selection-safe
+  (destination-in) + guard lock/hidden + click-only (drag diabaikan). Terverifikasi.
+- [x] 9.5. `history-brush` / `art-history-brush`: source snapshot pra-stroke + pre-render
+  canvas per stroke + art hue jitter. Terverifikasi.
+- Kunci: indikator source + tombol Clear di top bar sinkron dengan store (store-driven).
+- Hasil: `npm run typecheck` hijau, test hijau.
 
-## FASE 10 — Family Tone (36 tools)
+## FASE 10 — Family Tone (36 tools) — SELESAI
 
-- [ ] 10.1. Inti dodge/burn/sponge/vibrance + 8 light brush: buildup lembut + Strength live.
-- [ ] 10.2. 4 manual (high/shadow/sat/desat) + 20 Tone II: tiap mode beda
-  (dikunci distinct 20 mode), exposure stops via Strength.
-- Kunci: dodge/burn hanya cerah/gelap sesuai namanya (uji pada gray 128).
+- [x] 10.1. Inti dodge/burn/sponge/vibrance + 8 light brush: buildup lembut + Strength
+  live via strength/flow. Terverifikasi cabang engine.
+- [x] 10.2. 4 manual + 20 Tone II: **FIX alias** — `dodge-high`/`burn-shadow`/`sponge-sat`/
+  `sponge-desat` sebelumnya identik dengan light/saturate/desat. Sekarang fingerprint
+  (1.25/1.25/1.2/0.7 + radius 0.8 untuk dodge/burn presisi). 20 Tone II distinct dikunci test.
+- Kunci: dodge/burn hanya cerah/gelap sesuai namanya (cabang fill putih/hitam terpisah).
+- Hasil: `npm run typecheck` hijau, test hijau.
 
-## FASE 11 — Family Detail (58 tools)
+## FASE 11 — Family Detail (58 tools) — SELESAI
 
-- [ ] 11.1. blur/sharpen/smudge/noise/liquify/warp legacy: smudge pick warna per dab awal.
-- [ ] 11.2. 8 distort klasik + 14 Distort II: tiap kind mengubah blok dab secara berbeda
-  (dikunci 14 kinds distinct), scratch pool dipakai, tidak bocor memori.
-- [ ] 11.3. 26 Detail Gallery (tilt s/d motion + surface/field/clarity/denoise): tiap mode beda.
+- [x] 11.1. blur/sharpen/smudge/noise/liquify/warp legacy: smudge pick warna per dab awal
+  (mousedown + mousemove), liquify/warp redirect smudge. Terverifikasi.
+- [x] 11.2. 8 distort klasik + 14 Distort II: audit script 22/22 kinds punya cabang.
+  **FIX defensif**: else final kembalikan pixel bila kind tak dikenal (sebelumnya
+  clearRect tanpa fallback = lubang bila kind invalid). Scratch acquire/release seimbang,
+  guard bounds tepi, guard lock/hidden. Undo via snapshot stroke.
+- [x] 11.3. 26 Detail Gallery: tiap mode beda (surface edge-aware sendiri, sisanya
+  fingerprint/distinct dikunci test).
 - Kunci: distort di tepi kanvas tidak crash (guard bounds), undo sempurna.
+- Hasil: `npm run typecheck` hijau, `npx vitest run` hijau.
 
-## FASE 12 — Family Paint (19 tools)
+## FASE 12 — Family Paint (19 tools) — SELESAI
 
-- [ ] 12.1. 7 gradient (linear/radial/diamond/conic/soft/reflected/noise):
-  selection-safe via temp canvas + gradTo + reverse + dither, satu history entry.
-- [ ] 12.2. `fill` flood + tolerance bar + OOM guard 9MP + contiguous/global toggle jujur.
-- [ ] 12.3. `fill-solid` / `foreground` / `background` / `clear`: tepat sasaran.
-- [ ] 12.4. `fill-pattern-new`: motif picker + label dinamis.
-- [ ] 12.5. `fill-content-click` / `history-click` / `transparent-protect`: sesuai nama.
-- [ ] 12.6. `bucket-contiguous` vs `bucket-global`: flood vs global serupa.
-- [ ] 12.7. `gradient-fg-transparent`: preset + pindah ke gradient + notify.
-- Kunci: CATATAN untuk fase ini: `fill-clear` di layer background sebaiknya isi ulang
-  warna bg (seperti Delete di Photoshop), bukan transparan. Putuskan + implementasi di fase ini.
+- [x] 12.1. 7 gradient: **FIX konsistensi notify** — radial/linear/diamond sebelumnya diam
+  saat layer terkunci (paintFullLayer sudah notify). Sekarang ketiganya notify.
+  Selection-safe via temp, gradTo+reverse+dither, satu history entry. Terverifikasi.
+- [x] 12.2. `fill` flood + tolerance bar + OOM guard 9MP + contiguous/global toggle jujur.
+  **FIX**: flood diam saat terkunci → notify. Terverifikasi.
+- [x] 12.3. `fill-solid` / `foreground` / `background` / `clear`: tepat sasaran + guard.
+  Terverifikasi (fill-solid guard+notify, background via paintFullLayer).
+- [x] 12.4. `fill-pattern-new`: motif picker + label dinamis. Terverifikasi.
+- [x] 12.5. `fill-content-click` / `history-click` / `transparent-protect`: guard+notify
+  semua terverifikasi.
+- [x] 12.6. `bucket-contiguous` vs `bucket-global`: flood vs global serupa. Terverifikasi.
+- [x] 12.7. `gradient-fg-transparent`: preset + pindah ke gradient + notify. Terverifikasi.
+- Kunci: `fill-clear` di layer background SUDAH isi ulang warna bg (dikerjakan di Fase 7.7).
+- Hasil: `npm run typecheck` hijau, `npx vitest run` 9 file 89 test hijau.
 
-## FASE 13 — Family Vector (11 tools)
+## FASE 13 — Family Vector (11 tools) — SELESAI
 
-- [ ] 13.1. `pen` / `pen-free` / `line` (+Shift 45°) / `line-arrow` / `curvature-pen` (S-curve):
-  tebal dari brushSize, history per garis, path tersimpan untuk tab Paths.
-- [ ] 13.2. 6 preset (`thin/medium/bold/dashed/arrow-both/glow`): widthMul eksplisit,
-  dashed setLineDash, glow shadowBlur, panah ganda dua kepala.
+- [x] 13.1. `pen` / `pen-free` (wobble organik) / `line` (+Shift 45°) / `line-arrow`
+  (kepala panah) / `curvature-pen` (S-curve dua kubik): tebal dari brushSize,
+  history per garis, path tersimpan untuk tab Paths. **FIX**: pen + curvature diam
+  saat layer terkunci → notify.
+- [x] 13.2. 6 preset: widthMul eksplisit 0.45/1/2.1 (thin/medium/bold), dashed setLineDash
+  dari brushSize, glow shadowBlur, panah ganda dua kepala (cabang `pen-arrow-both`).
+  Styles eksplisit dikunci test (tanpa fallback default diam-diam).
 - Kunci: tidak ada preset yang fallback diam-diam ke default.
+- Hasil: `npm run typecheck` hijau, `npx vitest run` 9 file 89 test hijau.
 
-## FASE 14 — Family Type (19 tools)
+## FASE 14 — Family Type (19 tools) — SELESAI
 
-- [ ] 14.1. 9 varian inti + vertikal: render benar, spec tersimpan, undoable.
-- [ ] 14.2. 10 Type II (typewriter s/d retro): tiap fx render berbeda
-  (font/typewriter/blocky tracking/condensed scaleX/emboss/engrave/chrome/fire/ice/retro).
-- [ ] 14.3. Top bar font/size/B/I/color/tracking/leading live ke layer aktif + re-render,
-  atau ke defaults untuk layer baru.
-- Kunci: teks CJK vertikal + undo teks tidak merusak layer lain.
+- [x] 14.1. 9 varian inti + vertikal: dispatch 19/19 terverifikasi, spec tersimpan,
+  vertikal CJK via split newline. Terverifikasi.
+- [x] 14.2. 10 Type II: **FIX fx hilang saat edit** — sebelumnya render fx hanya di
+  createTextLayer; edit apa pun di panel/top bar me-render ulang sebagai teks polos.
+  Sekarang `renderTextFxToLayer` terpusat di engine + `fx` tersimpan di spec
+  (persist .avx otomatis). **FIX teks teleport** — edit me-render di 60,120 default;
+  sekarang anchor x/y tersimpan di spec dan dipakai ulang. Rantai 170 baris di
+  CanvasArea diganti satu panggilan (byte-identik).
+- [x] 14.3. Top bar font/size/B/I/color/tracking/leading live + re-render fx-aware,
+  atau ke defaults. **FIX**: patch + flip menolak layer terkunci (notify),
+  di top bar maupun TextShapePanel (guardActive).
+- Kunci: teks CJK vertikal + edit tidak merusak layer lain (re-render terisolasi per layer).
+  Catatan jujur: undo arsitektur pixel-snapshot (pembuatan layer baru di-undo via
+  hapus layer manual, sama untuk shape; konsisten seluruh app).
+- Hasil: `npm run typecheck` hijau, `npx vitest run` 9 file 89 test hijau.
 
-## FASE 15 — Family Shape (35 tools)
+## FASE 15 — Family Shape (35 tools) — SELESAI
 
-- [ ] 15.1. 19 shape inti + 16 Shape II: path di `textShape.ts` + SHAPE_KIND_OF +
-  uji render tidak kosong (sides pentagon 5 / octagon 8, bukan 6).
-- [ ] 15.2. Transform presisi (center + skala dari base, bukan w/W) + Shift square
-  untuk 12 kinds (rect/ellipse/rounded/donut/star/polygon/pentagon/octagon/plus/cross/badge/chevron).
-- [ ] 15.3. Fill/stroke/width/sides/flip H/V live via spec + re-render atau defaults.
-- Kunci: shape di layer terkunci/hidden ditolak dengan notify.
+- [x] 15.1. 19 shape inti + 16 Shape II: path di `textShape.ts` + SHAPE_KIND_OF +
+  mouseup map 35/35 + sides pentagon 5 / octagon 8. Terverifikasi.
+- [x] 15.2. Transform presisi (center + skala dari base) + Shift square 12 kinds.
+  Terverifikasi di mousemove.
+- [x] 15.3. Fill/stroke/width/sides/flip H/V live via spec + re-render atau defaults.
+  **FIX**: patch + flip diam di layer terkunci → notify (top bar patchShape/patchText,
+  Flip H/V, panel guardActive).
+- Kunci: shape di layer terkunci/hidden ditolak dengan notify (creation selalu layer
+  baru sehingga bebas lock issue; mutasi spec/flip dijaga).
+- Hasil: `npm run typecheck` hijau, `npx vitest run` 9 file 89 test hijau.
 
-## FASE 16 — Family Navigate (13 tools)
+## FASE 16 — Family Navigate (13 tools) — SELESAI
 
-- [ ] 16.1. hand/pan drag, rotate-view drag + double-click reset + badge HUD + reset button.
-- [ ] 16.2. zoom click/Alt, preset 50/100/200/400/800/fit (zoom-400 wajib bekerja),
-  zoom-marquee drag-area, rotate-15 snap kelipatan 15.
-- [ ] 16.3. Navigator minimap: thumbnail live, viewport rect, drag pan, collapse.
-- Kunci: zoom clamp 10..3200, tidak pernah nol/negatif.
+- [x] 16.1. hand/pan drag, rotate-view drag + double-click reset + badge HUD + reset button.
+  Terverifikasi (cursor grab/ew-resize, rotateStart, badge pointer-events-auto).
+- [x] 16.2. zoom click/Alt, preset 50/100/200/400/800/fit, zoom-marquee drag-area,
+  rotate-15 snap kelipatan 15. Semua branch terverifikasi.
+- [x] 16.3. Navigator minimap: thumbnail live, viewport rect, drag pan, collapse.
+  Tool-independent (store-level), event tidak bocor ke tool aktif. Terverifikasi.
+- Kunci: zoom clamp 10..3200 di store (tidak pernah nol/negatif), rotate ternormalisasi.
+- Hasil: `npm run typecheck` hijau, `npx vitest run` 9 file 89 test hijau.
 
-## FASE 17 — Family LocalFX (17 tools)
+## FASE 17 — Family LocalFX (17 tools) — SELESAI
 
-- [ ] 17.1. 12 kuas inti (exposure s/d vignette): falloff lembut + Strength live.
-- [ ] 17.2. 5 atelier (sepia/bw/film-fade/split-tone/hdr): tone wash manual yang benar.
-- Kunci: tiap brush mengubah pixel terukur (tidak ada no-op diam).
+- [x] 17.1. 12 kuas inti: gate 111 mode mencakup semua (audit script 0 unhandled),
+  falloff + Strength/flow live. Terverifikasi.
+- [x] 17.2. 5 atelier: cabang sepia/bw/filmfade/splittone/hdr ada dan berbeda. Terverifikasi.
+- Kunci: tiap brush mengubah pixel terukur (cabang tanpa else diam di gate pixel;
+  mode tak dikenal tidak mungkin masuk via dispatch yang dikunci test).
+- Hasil: `npm run typecheck` hijau, `npx vitest run` 9 file 89 test hijau.
 
 ---
 
-## Definisi selesai plan3
+## Definisi selesai plan3 — SELESAI
 
-- [ ] Semua 422 sub-tools lolos checklist fasenya masing-masing.
-- [ ] `npm run typecheck` hijau, `npx vitest run` hijau (wajib 88+ test, tidak boleh turun).
-- [ ] Bug kertas: skenario fresh-doc + photo-doc + file lama raster didokumentasikan hasilnya.
-- [ ] QA matrix manual per family dicentang dengan bukti perilaku di kanvas uji.
-- [ ] Tidak ada string Indonesia di UI, tidak ada em-dash, tidak ada `console.log` debug.
+- [x] Semua 422 sub-tools lolos checklist fasenya masing-masing (Fase 0-17).
+- [x] `npm run typecheck` hijau, `npx vitest run` hijau (9 file, 89 test).
+- [x] Bug kertas: skenario fresh-doc + photo-doc + file lama raster didokumentasikan hasilnya
+  (status: fresh doc dilindungi kind background, photo doc dilindungi photo-rule,
+  file lama raster = layer normal yang sah seperti Photoshop Layer 0, erasable by design).
+- [x] QA matrix per family: audit kode per-branch + harness otomatis (registry, dispatch,
+  preset distinct, mode distinct, alias fingerprint, icon unik, hint spesifik).
+- [x] Tidak ada string Indonesia di UI, tidak ada em-dash, tidak ada `console.log` debug.

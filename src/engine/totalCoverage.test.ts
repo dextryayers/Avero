@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { TOOL_FAMILIES, TOOLS } from "../components/ToolBar";
+import { TOOL_FAMILIES, TOOLS, ALL_TOOL_IDS, FAMILY_TOOL_IDS, isToolUsableAcrossFamilies, familyOfTool, allIconsGloballyUnique } from "../components/ToolBar";
 import {
   CLICK_TOOLS,
   CROP_RATIOS,
@@ -266,5 +266,36 @@ describe("total usability lock (every tool one by one)", () => {
     }
     expect(byMode.size).toBeGreaterThan(0);
     expect(bad).toEqual([]);
+  });
+
+  it("icons are globally unique across all families + stickers (no dupes)", () => {
+    const { ok, dupes } = allIconsGloballyUnique();
+    expect(dupes).toEqual([]);
+    expect(ok).toBe(true);
+    // 18 family headers + 488 sub-tools = 506 distinct icon slots.
+    const headerIcons = TOOL_FAMILIES.map((f) => f.icon);
+    const subIcons = TOOL_FAMILIES.flatMap((f) => f.tools.map((t) => t.icon));
+    expect(headerIcons.length).toBe(18);
+    expect(TOOLS.length).toBeGreaterThan(400);
+    expect(new Set([...headerIcons, ...subIcons]).size).toBe(headerIcons.length + subIcons.length);
+  });
+
+  it("every sub-tool is usable across all families (global select + dispatch)", () => {
+    expect(ALL_TOOL_IDS.length).toBeGreaterThan(400);
+    expect(new Set(ALL_TOOL_IDS).size).toBe(ALL_TOOL_IDS.length);
+    // Family lookup covers all, no orphan.
+    for (const id of ALL_TOOL_IDS) {
+      expect(isToolUsableAcrossFamilies(id), `${id} usable`).toBe(true);
+      expect(familyOfTool(id), `${id} family`).toBeTruthy();
+      expect(dispatchKindOf(id as ToolId), `${id} dispatch`).not.toBeNull();
+      expect(() => topBarKindOf(id as ToolId), `${id} topbar`).not.toThrow();
+      expect(TOOL_HINT[id as ToolId], `${id} hint`).toBeTruthy();
+    }
+    // Every family exposes its tools, and the union equals ALL_TOOL_IDS.
+    const union = Object.values(FAMILY_TOOL_IDS).flat();
+    expect(new Set(union).size).toBe(ALL_TOOL_IDS.length);
+    for (const f of TOOL_FAMILIES) {
+      expect(FAMILY_TOOL_IDS[f.id].length, `${f.id} non-empty`).toBeGreaterThan(0);
+    }
   });
 });

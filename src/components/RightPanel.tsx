@@ -158,7 +158,7 @@ const tabs: { id: Tab; label: string; icon: any }[] = [
   { id: "objects", label: "Objects", icon: Box },
 ];
 
-export default function RightPanel() {
+export default function RightPanel({ dual = false, onToggleLeft }: { dual?: boolean; onToggleLeft?: () => void } = {}) {
   const [tab, setTab] = useState<Tab>("layers");
   const [query, setQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<"all" | "raster" | "text" | "shape" | "background">("all");
@@ -216,6 +216,15 @@ export default function RightPanel() {
   // Affinity-style studio strip: colour tools above the main tab system.
   // Selecting a main tab always returns to tab content.
   const [studio, setStudio] = useState<null | "colour" | "swatches" | "stroke" | "brushes">(null);
+  // Dual column dock: when paired with ColorDock on the right, this column
+  // owns Layers and friends while Color tabs live in ColorDock.
+  const stripTabs = dual ? tabs.filter((t) => t.id !== "color") : tabs;
+  useEffect(() => {
+    if (dual) {
+      setStudio(null);
+      setTab((t) => (t === "color" ? "layers" : t));
+    }
+  }, [dual]);
   const workspaceTab = useWorkspaceStore((s) => s.rightTab);
   useEffect(() => {
     if (workspaceTab && (tabs as { id: string }[]).some((t) => t.id === workspaceTab)) {
@@ -364,9 +373,18 @@ export default function RightPanel() {
   }
 
   return (
-    <div className="avero-contain flex w-[308px] shrink-0 flex-col border-l border-[#2c2c31] bg-[#1c1c1f]">
+    <div className={`avero-contain flex ${dual ? "w-[232px]" : "w-[308px]"} shrink-0 flex-col border-l border-[#2c2c31] bg-[#1c1c1f]`}>
       <div className="flex items-center gap-2 border-b border-[#2c2c31] bg-[#161618] px-2.5 py-2">
         <span className="avero-micro">Properties</span>
+        {dual && onToggleLeft && (
+          <button
+            onClick={onToggleLeft}
+            title="Hide Layers column"
+            className="grid h-6 w-6 place-items-center rounded-md text-[#a7a7b0] hover:bg-[#232327] hover:text-white"
+          >
+            <Layers size={13} />
+          </button>
+        )}
         <span className="ml-auto font-mono text-[10px] tabular-nums text-[#6e6e78]">
           {doc.width}×{doc.height} · {layers.length} lyr
         </span>
@@ -375,7 +393,7 @@ export default function RightPanel() {
         ariaLabel="Studio panels"
         className="border-b border-[#2c2c31] bg-[#161618] py-0.5 text-[10px]"
         jumpLabel="Panels"
-        jumpItems={tabs.map((t) => ({
+        jumpItems={stripTabs.map((t) => ({
           id: t.id,
           label: `${t.label} panel`,
           icon: t.icon,
@@ -394,7 +412,7 @@ export default function RightPanel() {
           setStudio(null);
         }}
       >
-        {tabs.map((t) => {
+        {stripTabs.map((t) => {
           const Icon = t.icon;
           const selected = tab === t.id;
           return (
@@ -425,6 +443,7 @@ export default function RightPanel() {
           );
         })}
       </ScrollPager>
+      {!dual && (
       <div className="grid grid-cols-4 border-b border-[#2c2c31] bg-[#101012]" role="tablist" aria-label="Colour studio">
         {(
           [
@@ -456,6 +475,7 @@ export default function RightPanel() {
           );
         })}
       </div>
+      )}
 
       {studio === null && tab === "layers" && <DockTabBar value={dock} onChange={setDock} />}
 

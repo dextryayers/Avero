@@ -41,6 +41,7 @@ pub fn run() {
             io::cmd_write_text_file,
             io::cmd_write_text_atomic,
             io::cmd_register_avx_association,
+            io::cmd_avx_assoc_status,
             io::cmd_register_image_association,
             io::cmd_startup_file,
             io::cmd_startup_image,

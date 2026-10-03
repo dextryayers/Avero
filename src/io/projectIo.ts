@@ -229,6 +229,25 @@ export async function registerAvxAssociation(): Promise<void> {
   }
 }
 
+export interface AvxAssocStatus {
+  exe: string;
+  ext_default: string;
+  prog_default: string;
+  friendly: string;
+  icon: string;
+  open_cmd: string;
+}
+
+// Baca status registrasi .avx tanpa mengubah apa pun.
+export async function avxAssocStatus(): Promise<AvxAssocStatus | null> {
+  if (!isTauri()) return null;
+  try {
+    return await invoke<AvxAssocStatus>("cmd_avx_assoc_status");
+  } catch {
+    return null;
+  }
+}
+
 // Create a dedicated `<parent>/<Name>/` folder + `images/`; linked to the new document.
 // Appends ` - 2`, ` - 3`, ... when the name is taken so projects never mix.
 // The .avx file itself is written on Save (dialog defaults into this folder).
@@ -739,6 +758,16 @@ export async function saveAvxProject(saveAs = false, onStage?: (msg: string) => 
     h: doc.height,
     size: json.length,
   });
+  // Re-pin .avx association after every save so Explorer keeps showing
+  // "Avero Project Design" with the Avero icon even if another app
+  // briefly claimed .avx. Murah, idempotent, best-effort.
+  if (isTauri()) {
+    try {
+      await invoke("cmd_register_avx_association");
+    } catch {
+      /* best effort */
+    }
+  }
   return path;
 }
 

@@ -2,8 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { useEditorStore, makeLayer, type ToolId } from "../stores/useEditorStore";
 import { useProStore } from "../stores/useProStore";
 import { useArtboardStore } from "../stores/useArtboardStore";
-import { useHomeStore } from "../stores/useHomeStore";
-import { triggerAutoSegment } from "../io/autoSegmentTrigger";
 import { layerManager } from "../engine/layerManager";
 import { fitZoom } from "../engine/canvasMath";
 import {
@@ -287,6 +285,7 @@ export default function CanvasArea() {
   const [lassoPts, setLassoPts] = useState<{ x: number; y: number }[]>([]);
   const [ants, setAnts] = useState(0);
   const [dragging, setDragging] = useState(false);
+  const [importing, setImporting] = useState(false);
   const lastPos = useRef<{ x: number; y: number } | null>(null);
   const panning = useRef<{ sx: number; sy: number; px: number; py: number } | null>(null);
   const moveDrag = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null);
@@ -496,71 +495,20 @@ export default function CanvasArea() {
     return () => window.removeEventListener("avero:crop-rect", onCropRect);
   }, []);
 
-  // Drag and drop image files from Explorer straight into a layer
+  // Drag and drop image files from Explorer: dokumen kosong dibuka sebagai
+  // dokumen baru, dokumen berisi karya ditambah sebagai layer proporsional.
   async function handleDrop(e: React.DragEvent) {
     e.preventDefault();
     setDragging(false);
     const f = e.dataTransfer.files?.[0];
     if (!f || !f.type.startsWith("image/")) return;
     try {
-      const bmp = await createImageBitmap(f);
-      const st = useEditorStore.getState();
-      st.openDocument(f.name, bmp.width, bmp.height, null, f.size);
-      // recent thumb from bitmap (small), full only when file is under 2MB
-      let thumb: string | null = null;
-      let full: string | null = null;
-      try {
-        const t = document.createElement("canvas");
-        const sc = Math.min(1, 480 / Math.max(bmp.width, bmp.height));
-        t.width = Math.max(1, Math.round(bmp.width * sc));
-        t.height = Math.max(1, Math.round(bmp.height * sc));
-        t.getContext("2d")!.drawImage(bmp, 0, 0, t.width, t.height);
-        thumb = t.toDataURL("image/jpeg", 0.72);
-        if (f.size < 2_000_000) {
-          full = await new Promise((resolve) => {
-            const r = new FileReader();
-            r.onload = () => resolve(r.result as string);
-            r.onerror = () => resolve(null);
-            r.readAsDataURL(f);
-          });
-        }
-      } catch {
-        /* ignore */
-      }
-      useHomeStore.getState().pushRecent({
-        name: f.name,
-        path: null,
-        thumb,
-        full,
-        w: bmp.width,
-        h: bmp.height,
-        size: f.size,
-      });
-      useHomeStore.getState().setHome(false);
-      try {
-        const { useObjectStore } = await import("../stores/useObjectStore");
-        useObjectStore.getState().clearObjects();
-      } catch {
-        /* ignore */
-      }
-      setTimeout(() => {
-        const id =
-          useEditorStore.getState().activeLayerId ?? useEditorStore.getState().layers[0]?.id;
-        if (!id) return;
-        const c = layerManager.ensure(id, bmp.width, bmp.height);
-        c.getContext("2d")!.drawImage(bmp, 0, 0);
-        // Plan4 Fase 1.5: dropped files are photos. Mark protection so brush
-        // strokes auto-layer and the eraser never eats the dropped image.
-        layerManager.markPhoto(id);
-        bmp.close();
-        useEditorStore.getState().markDirty();
-        useProStore.getState().bumpHistogram();
-        fitToView();
-        void triggerAutoSegment();
-      }, 60);
-      } catch {
-        /* ignore unreadable file */
-      }
+      const { dropImageFile } = await import("../io/importImage");
+      await dropImageFile(f);
+      fitToView();
+    } catch {
+      /* ignore unreadable file */
+    }
   }
 
   // Marching ants animation
@@ -5856,6 +5804,31 @@ export default function CanvasArea() {
           />
         )}
         <ToolOptionsBar onApplyCrop={applyCrop} onCancelCrop={() => setCropDrag(null)} />
+        {/* Top-left Import: tambah gambar eksternal sebagai layer baru, proporsional */}
+        <div className="absolute left-3 top-3 z-20 flex items-center gap-1.5">
+          <button
+            onClick={() => {
+              if (importing) return;
+              setImporting(true);
+              import("../io/importImage")
+                .then(({ importImageAsLayer }) => importImageAsLayer())
+                .finally(() => setImporting(false));
+            }}
+            disabled={importing}
+            title="Import gambar sebagai layer baru (proporsional, tanpa stretch)"
+            className="flex h-8 items-center gap-1.5 rounded-lg border border-white/10 bg-[#1b1b1f]/95 px-3 text-[12px] font-semibold text-white shadow-[0_8px_28px_rgba(0,0,0,0.55)] backdrop-blur-xl transition-colors hover:border-[#2f7cf6]/60 hover:bg-[#232327] disabled:opacity-60"
+          >
+            {importing ? (
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+            ) : (
+              <span className="text-[14px] leading-none">+</span>
+            )}
+            {importing ? "Importing..." : "Import"}
+          </button>
+          <span className="hidden rounded-md border border-[#2c2c31] bg-[#1c1c1f]/95 px-2 py-1.5 font-mono text-[10px] text-[#6e6e78] backdrop-blur-xl xl:block">
+            drop file = tambah layer
+          </span>
+        </div>
         {/* Bottom-left HUD: position, tool, layer and status info */}
         <div className="pointer-events-none absolute bottom-3 left-3 flex max-w-[70%] items-center gap-2 overflow-hidden rounded-md border border-[#2c2c31] bg-[#1c1c1f] px-2.5 py-1.5 font-mono text-[10px] text-[#a7a7b0]">
           <span className="shrink-0 rounded bg-[#2f7cf6] px-1.5 py-0.5 font-semibold text-white">{TOOL_LABEL[tool] ?? tool}</span>
@@ -5944,7 +5917,7 @@ export default function CanvasArea() {
         {dragging && (
           <div className="pointer-events-none absolute inset-4 grid place-items-center rounded-lg border border-dashed border-[#2f7cf6] bg-[#101012]">
             <div className="rounded-md border border-[#2c2c31] bg-[#1c1c1f] px-4 py-2 text-[12px] text-white">
-              Release to open image
+              Release to import image as layer
             </div>
           </div>
         )}

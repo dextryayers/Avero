@@ -484,6 +484,15 @@ export default function RightPanel() {
               </button>
               <button
                 onClick={() => {
+                  void import("../io/importImage").then(({ importImageAsLayer }) => importImageAsLayer());
+                }}
+                title="Import gambar eksternal sebagai layer baru (proporsional, tanpa stretch)"
+                className="flex items-center gap-1 rounded-md border border-[#2f7cf6]/40 bg-[#2f7cf6]/10 px-2 py-1 text-[11px] font-semibold text-[#9ec1ff] transition-colors hover:bg-[#2f7cf6]/20 hover:text-white"
+              >
+                <Folder size={13} /> Import
+              </button>
+              <button
+                onClick={() => {
                   if (!activeLayerId) return;
                   // Free pixel + mask canvases too (store alone would leak them).
                   layerManager.remove(activeLayerId);

@@ -282,6 +282,8 @@ fn register_avx_windows() -> Result<(), String> {
         .map_err(|e| format!("Registry write failed: {e}"))?;
     prog.set_value("FriendlyTypeName", &"Avero Project Design")
         .map_err(|e| format!("Registry write failed: {e}"))?;
+    prog.set_value("InfoTip", &"Avero Project Design - native AVERO STUDIO project")
+        .map_err(|e| format!("Registry write failed: {e}"))?;
     // 3) Document icon = the authentic Avero icon (exe index 0, built from
     //    logo.png -> icon.ico). Quoted path survives spaces in install dir.
     let (icon, _) = hkcu
@@ -325,7 +327,67 @@ fn register_avx_windows() -> Result<(), String> {
     if let Ok((shell_open, _)) = hkcu.create_subkey(format!("{app_path}\\shell\\open\\command")) {
         let _ = shell_open.set_value("", &format!("\"{exe_s}\" \"%1\""));
     }
+    // 7) Defensive repair: installer Tauri dan versi lama bisa memakai ProgID
+    //    lain. Bila kunci itu sudah ada, selaraskan display dan icon-nya ke
+    //    Avero asli agar Type tetap "Avero Project Design" siapa pun yang menang.
+    for cand in ["com.averostudio.studio.avx", "AVERO STUDIO.avx", "Avero Project Design"] {
+        if cand == "AveroProjectDesign" {
+            continue;
+        }
+        let key_path = format!("Software\\Classes\\{cand}");
+        if let Ok(existing) = hkcu.open_subkey(&key_path) {
+            let _ = existing.set_value("", &"Avero Project Design");
+            let _ = existing.set_value("FriendlyTypeName", &"Avero Project Design");
+            if let Ok((di, _)) = hkcu.create_subkey(format!("{key_path}\\DefaultIcon")) {
+                let _ = di.set_value("", &format!("\"{exe_s}\",0"));
+            }
+        }
+    }
     Ok(())
+}
+
+#[derive(serde::Serialize)]
+pub struct AvxAssocStatus {
+    pub exe: String,
+    pub ext_default: String,
+    pub prog_default: String,
+    pub friendly: String,
+    pub icon: String,
+    pub open_cmd: String,
+}
+
+/// Diagnose current .avx registration without changing anything.
+/// Frontend memakai ini untuk memastikan Type sudah "Avero Project Design"
+/// dan icon menunjuk ke exe Avero asli.
+#[tauri::command]
+pub fn cmd_avx_assoc_status() -> Result<AvxAssocStatus, String> {
+    #[cfg(target_os = "windows")]
+    {
+        use winreg::{enums::*, RegKey};
+        let exe = std::env::current_exe()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+        let get = |path: &str| -> String {
+            hkcu
+                .open_subkey(path)
+                .and_then(|k| k.get_value(""))
+                .map(|s: String| s)
+                .unwrap_or_default()
+        };
+        Ok(AvxAssocStatus {
+            exe,
+            ext_default: get("Software\\Classes\\.avx"),
+            prog_default: get("Software\\Classes\\AveroProjectDesign"),
+            friendly: get("Software\\Classes\\AveroProjectDesign"),
+            icon: get("Software\\Classes\\AveroProjectDesign\\DefaultIcon"),
+            open_cmd: get("Software\\Classes\\AveroProjectDesign\\shell\\open\\command"),
+        })
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err("File association is handled by the installer on this OS".into())
+    }
 }
 
 /// First existing .avx path in a CLI arg list (double-click / Open With).

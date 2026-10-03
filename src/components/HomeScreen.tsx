@@ -175,7 +175,13 @@ export default function HomeScreen() {
   const [dw, setDw] = useState("1920");
   const [dh, setDh] = useState("1080");
   const [bg, setBg] = useState<"white" | "black" | "transparent">("white");
-  const [pfolder, setPfolder] = useState<string | null>(null);
+  const [pfolder, setPfolder] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem("avero:lastProjectParent") || null;
+    } catch {
+      return null;
+    }
+  });
   const [creating, setCreating] = useState(false);
   const [createStage, setCreateStage] = useState("");
   const [folderBusy, setFolderBusy] = useState(false);
@@ -197,6 +203,11 @@ export default function HomeScreen() {
       const dir = await pickProjectFolder();
       if (dir) {
         setPfolder(dir);
+        try {
+          localStorage.setItem("avero:lastProjectParent", dir);
+        } catch {
+          /* storage is a bonus */
+        }
         setFormError(null);
         setFormInfo(null);
       } else {
@@ -623,8 +634,12 @@ export default function HomeScreen() {
                               </div>
                             )}
                             {r.path?.toLowerCase().endsWith(".avx") && (
-                              <span className="absolute left-2 top-2 rounded border border-[#2c2c31] bg-[#101012] px-1.5 py-px font-mono text-[9px] text-[#8fb6f5]">
-                                .avx
+                              <span
+                                className="absolute left-2 top-2 flex items-center gap-1 rounded-md border border-[#2f7cf6]/40 bg-[#0e0e10]/95 px-1.5 py-1 font-mono text-[9px] font-bold text-[#9ec1ff] backdrop-blur"
+                                title="Avero Project Design"
+                              >
+                                <img src="/logo.png" alt="" className="h-3.5 w-3.5 rounded-[4px] object-cover" />
+                                Avero Project Design
                               </span>
                             )}
                           </div>
@@ -851,8 +866,14 @@ export default function HomeScreen() {
                   }}
                   placeholder="Untitled-1"
                   maxLength={80}
+                  spellCheck={false}
                   className="h-10 w-full rounded-xl border border-white/[0.08] bg-[#0e0e10] px-3 text-[13px] text-white outline-none placeholder:text-[#4a4a52] focus:border-[#2f7cf6]"
                 />
+                {/[\\/:*?"<>|]/.test(dn) && (
+                  <div className="mt-1.5 text-[10.5px] text-[#d9a441]">
+                    Saved as {sanitizeProjectName(dn.trim() || "Untitled")}.avx
+                  </div>
+                )}
               </label>
 
               <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-end gap-2">
@@ -932,13 +953,16 @@ export default function HomeScreen() {
                   }}
                   title="Live aspect preview"
                 />
-                <span className="text-white">{nw > 0 && nh > 0 ? `${nw}×${nh}` : "0×0"}</span>
+                <span className="text-white">{nw > 0 && nh > 0 ? `${nw}x${nh}` : "0x0"}</span>
                 <span className="h-1 w-1 rounded-full bg-white/15" />
                 <span>{newMp} MP</span>
                 <span className="h-1 w-1 rounded-full bg-white/15" />
-                <span>±{newMb} MB/layer</span>
+                <span>{newMb} MB/layer</span>
                 <span className="h-1 w-1 rounded-full bg-white/15" />
                 <span className="capitalize">{bg}</span>
+                <span className="rounded-md bg-white/[0.06] px-1.5 py-px text-[#c9c9d1]">
+                  {nw === nh ? "Square" : nw > nh ? "Landscape" : "Portrait"}
+                </span>
                 {nw * nh > 2048 * 2048 && <span className="ml-auto rounded-md bg-[#2f7cf6]/15 px-1.5 py-px text-[#8fb6f5]">tiled path</span>}
               </div>
 
@@ -962,7 +986,14 @@ export default function HomeScreen() {
                   </div>
                   {pfolder && (
                     <button
-                      onClick={() => setPfolder(null)}
+                      onClick={() => {
+                        setPfolder(null);
+                        try {
+                          localStorage.removeItem("avero:lastProjectParent");
+                        } catch {
+                          /* ignore */
+                        }
+                      }}
                       disabled={creating || folderBusy}
                       title="Use in-memory project instead"
                       className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-white/10 bg-[#161618] text-[#a7a7b0] transition hover:border-[#e5534b]/50 hover:text-white disabled:opacity-40"

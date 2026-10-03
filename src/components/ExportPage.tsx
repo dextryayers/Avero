@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   BadgeCheck,
+  Copy,
   Cpu,
   Download,
   FileImage,
@@ -121,13 +122,22 @@ export default function ExportPage({ onBack }: { onBack: () => void }) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        void doExport();
+        return;
+      }
       const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
-      if (e.key === "Escape") onBack();
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) {
+        if (e.key === "Escape") (t as HTMLElement).blur();
+        return;
+      }
+      if (e.key === "Escape" && !busy) onBack();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onBack]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onBack, busy, format, quality, scale, matte, name]);
 
   async function doExport() {
     if (busy) return;
@@ -390,14 +400,33 @@ export default function ExportPage({ onBack }: { onBack: () => void }) {
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Untitled"
                 maxLength={80}
+                spellCheck={false}
                 className="h-10 min-w-0 flex-1 rounded-xl border border-white/[0.08] bg-[#0e0e10] px-3 text-[13px] text-white outline-none placeholder:text-[#4a4a52] focus:border-[#2f7cf6]"
               />
               <span className="shrink-0 rounded-lg border border-[#2f7cf6]/30 bg-[#2f7cf6]/10 px-2 py-2 font-mono text-[11px] font-bold text-[#8fb6f5]">
                 .{format}
               </span>
+              <button
+                onClick={() => {
+                  try {
+                    void navigator.clipboard?.writeText(outFile);
+                  } catch {
+                    /* clipboard is a bonus */
+                  }
+                }}
+                title="Copy file name"
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/[0.08] bg-[#0e0e10] text-[#a7a7b0] transition hover:border-white/20 hover:text-white"
+              >
+                <Copy size={14} />
+              </button>
             </div>
+            {/[\\/:*?"<>|]/.test(name) && (
+              <div className="mt-1.5 text-[10.5px] leading-snug text-[#d9a441]">
+                Illegal characters are replaced with _ on save.
+              </div>
+            )}
             <div className="mt-2 truncate rounded-lg border border-white/[0.06] bg-[#0e0e10] px-2.5 py-2 font-mono text-[10.5px] text-[#8f8f98]">
-              → {outFile} · {outW}×{outH} · ±{approx}
+              {outFile} · {outW}x{outH} · {approx} · Ctrl+Enter exports
             </div>
 
             {showQuality && !isAvx && (

@@ -28,6 +28,7 @@ import { clearRecovery } from "../engine/recovery";
 import { layerManager } from "../engine/layerManager";
 import { showError, askConfirm } from "../ui/notify";
 import { modelManifest, modelStatus, downloadModel, deleteModel, type ModelInfo, type ModelStatus } from "../io/nativeEngine";
+import { listen } from "@tauri-apps/api/event";
 import clsx from "clsx";
 
 function Seg<T extends string | number>({
@@ -866,7 +867,6 @@ function SegmentModelManager() {
     window.addEventListener("avero:segment-progress", onWindow);
     (async () => {
       try {
-        const { listen } = await import("@tauri-apps/api/event");
         if (!alive) return;
         unlisten = await listen("avero:segment-progress", (ev) => {
           const d = ev.payload as { file: string; pct: number };

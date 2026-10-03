@@ -7,6 +7,7 @@ import { clearRenderPools, layerManager } from "../engine/layerManager";
 import { showMessage, showError, askText } from "../ui/notify";
 import { smartBudget } from "../io/memoryManager";
 import { useHomeStore } from "../stores/useHomeStore";
+import { listen } from "@tauri-apps/api/event";
 
 export default function StatusBar() {
   const zoom = useEditorStore((s) => s.zoom);
@@ -51,7 +52,6 @@ export default function StatusBar() {
     (async () => {
       try {
         if (!isTauri()) return;
-        const { listen } = await import("@tauri-apps/api/event");
         if (!alive) return;
         unlisten = await listen("avero:segment-progress", (ev) => {
           const d = ev.payload as { file: string; pct: number };

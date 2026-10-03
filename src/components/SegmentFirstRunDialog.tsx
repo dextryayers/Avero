@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { modelManifest, modelStatus, downloadModel, type ModelInfo, type ModelStatus } from "../io/nativeEngine";
+import { listen } from "@tauri-apps/api/event";
 import { notify } from "../ui/notify";
 
 // Plan5 Fase 6.3: first-run dialog. Asks the user to download AI models once.
@@ -66,7 +67,6 @@ export function SegmentFirstRunDialog({ onDone }: Props) {
     window.addEventListener("avero:segment-progress", onWindow);
     (async () => {
       try {
-        const { listen } = await import("@tauri-apps/api/event");
         if (!alive) return;
         unlisten = await listen("avero:segment-progress", (ev) => {
           const d = ev.payload as { file: string; pct: number };

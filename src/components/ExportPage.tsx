@@ -153,8 +153,10 @@ export default function ExportPage({ onBack }: { onBack: () => void }) {
                     key={f.id}
                     onClick={() => setFormat(f.id)}
                     className={clsx(
-                      "flex w-full items-center gap-2.5 rounded-md border px-3 py-2 text-left",
-                      format === f.id ? "border-[#2f7cf6] bg-[#2f7cf6]/10" : "border-[#2c2c31] bg-[#161618] hover:border-[#3a3a41]",
+                      "avero-lift flex w-full items-center gap-2.5 rounded-md border px-3 py-2 text-left transition-all",
+                      format === f.id
+                        ? "border-[#2f7cf6] bg-[#2f7cf6]/10 shadow-[0_0_12px_rgba(47,124,246,0.25)]"
+                        : "border-[#2c2c31] bg-[#161618] hover:-translate-y-px hover:border-[#3a3a41] hover:bg-[#1a1a1e]",
                     )}
                   >
                     {f.id === "avx" ? (
@@ -166,9 +168,16 @@ export default function ExportPage({ onBack }: { onBack: () => void }) {
                     )}
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[11px] text-[#c9c9d1]">{f.id === "avx" ? "AVX Project" : f.desc}</span>
-                      <span className="block font-mono text-[10px] text-[#6e6e78]">
-                        {f.id === "avx" ? "layers, masks, history-safe" : f.alpha ? (f.rust ? "alpha · native" : "alpha") : "no alpha"}
-                        {f.rust ? " · desktop" : ""}
+                      <span className="mt-0.5 flex items-center gap-1 font-mono text-[10px] text-[#6e6e78]">
+                        {f.id === "avx" ? (
+                          <span className="rounded bg-[#2f7cf6]/20 px-1 py-px text-[9px] font-bold text-[#8fb6f5]">PROJECT</span>
+                        ) : (
+                          <>
+                            {f.rust && <span className="rounded bg-[#7ad69e]/15 px-1 py-px text-[9px] font-bold text-[#7ad69e]">NATIVE</span>}
+                            {!f.rust && <span className="rounded bg-[#232327] px-1 py-px text-[9px] font-bold text-[#a7a7b0]">FAST</span>}
+                            <span>{f.alpha ? "alpha" : "no alpha"}</span>
+                          </>
+                        )}
                       </span>
                     </span>
                   </button>
@@ -180,7 +189,16 @@ export default function ExportPage({ onBack }: { onBack: () => void }) {
 
         <div className="flex min-h-[280px] flex-col items-center justify-center rounded-lg border border-[#2c2c31] bg-[#161618] p-4">
           {preview ? (
-            <img src={preview} alt="Export preview" className="max-h-[46vh] max-w-full rounded border border-[#2c2c31] object-contain" />
+            <div
+              className="rounded border border-[#2c2c31]"
+              style={{
+                backgroundImage:
+                  "conic-gradient(#232327 0 25%, #161618 0 50%, #232327 0 75%, #161618 0)",
+                backgroundSize: "16px 16px",
+              }}
+            >
+              <img src={preview} alt="Export preview" className="block max-h-[46vh] max-w-full rounded object-contain" />
+            </div>
           ) : (
             <div className="text-[12px] text-[#6e6e78]">No preview available. Open an image first.</div>
           )}
@@ -267,12 +285,16 @@ export default function ExportPage({ onBack }: { onBack: () => void }) {
         <span className="font-mono text-[11px] text-[#6e6e78]">
           {name.trim() || "Untitled"}.{format} · {outW} x {outH}
         </span>
+        <span className="hidden font-mono text-[10px] text-[#4a4a52] md:block">
+          file manager opens at your file after export
+        </span>
         <div className="ml-auto flex gap-2">
           <button onClick={onBack} className="rounded-md bg-[#232327] px-4 py-2 text-[12px] text-white hover:bg-[#2c2c31]">
             Cancel
           </button>
-          <button onClick={doExport} disabled={busy} className="avero-btn-primary rounded-md px-5 py-2 text-[12px] font-semibold text-white disabled:opacity-50">
-            {busy ? stage || "Exporting..." : "Export"}
+          <button onClick={doExport} disabled={busy} className="avero-btn-primary relative overflow-hidden rounded-md px-5 py-2 text-[12px] font-semibold text-white disabled:opacity-50">
+            {busy && <span className="avero-shimmer absolute inset-0" />}
+            <span className="relative">{busy ? stage || "Exporting..." : "Export"}</span>
           </button>
         </div>
       </div>

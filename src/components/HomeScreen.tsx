@@ -30,11 +30,11 @@ import { useHomeStore, resolveRecent, type RecentFile } from "../stores/useHomeS
 import { useEditorStore } from "../stores/useEditorStore";
 import { useProStore } from "../stores/useProStore";
 import { layerManager } from "../engine/layerManager";
-import { openAvxProject, pickProjectFolder, createNewProjectWithFolder, joinPath, sanitizeProjectName } from "../io/projectIo";
+import { openAvxProject, pickProjectFolder, createNewProjectWithFolder, joinPath, sanitizeProjectName, prepareFreshDocument } from "../io/projectIo";
 import { useConvertStore } from "../stores/useConvertStore";
 import ConverterPage from "./ConverterPage";
 import { pickImageToOpen, rustDecodeToDataUrl, rustImageInfo } from "../io/tauriIo";
-import { showError, showMessage } from "../ui/notify";
+import { showError, showMessage, askConfirm } from "../ui/notify";
 import { triggerAutoSegment } from "../io/autoSegmentTrigger";
 import { useObjectStore } from "../stores/useObjectStore";
 import clsx from "clsx";
@@ -177,6 +177,7 @@ export default function HomeScreen() {
   const [bg, setBg] = useState<"white" | "black" | "transparent">("white");
   const [pfolder, setPfolder] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [createStage, setCreateStage] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [formInfo, setFormInfo] = useState<string | null>(null);
   const isDesktop = typeof window !== "undefined" && "__TAURI__" in window;
@@ -224,8 +225,15 @@ export default function HomeScreen() {
       setFormError("Width and height must be between 1 and 16384 px.");
       return;
     }
+    // Huge canvases allocate ~4 bytes per pixel per layer: confirm before
+    // committing to a document that needs hundreds of MB per stroke.
+    if (cw * ch > 64 * 1024 * 1024) {
+      const mp = ((cw * ch) / 1_000_000).toFixed(0);
+      if (!(await askConfirm(`This canvas is ${mp} MP (about ${((cw * ch * 4) / 1024 / 1024).toFixed(0)} MB per layer). Continue?`))) return;
+    }
     setFormError(null);
     setCreating(true);
+    setCreateStage("Preparing folder");
     try {
       const clean = sanitizeProjectName(name.trim() || "Untitled");
       // Word-like: require a dedicated project folder as the home for images/assets.
@@ -233,6 +241,7 @@ export default function HomeScreen() {
       let folder = pfolder;
       try {
         if (isDesktop && !folder) {
+          setCreateStage("Waiting for folder");
           const picked = await pickProjectFolder();
           if (!picked) {
             setFormError("Choose a folder to hold the project and its images, then press Create again.");
@@ -248,13 +257,17 @@ export default function HomeScreen() {
       let projectFolder: string | null = null;
       if (folder) {
         try {
+          setCreateStage("Creating folder");
           projectFolder = await createNewProjectWithFolder(clean, folder);
         } catch (e) {
           setFormError(String(e));
           return;
         }
       }
-      layerManager.clear();
+      // Yield so the stage label paints before the heavy canvas allocation.
+      setCreateStage("Preparing canvas");
+      await new Promise((r) => setTimeout(r, 30));
+      prepareFreshDocument();
       newDocument(clean, cw, ch, projectFolder);
       const id = useEditorStore.getState().activeLayerId;
       if (id) {
@@ -274,6 +287,7 @@ export default function HomeScreen() {
       }
     } finally {
       setCreating(false);
+      setCreateStage("");
     }
   }
 
@@ -746,9 +760,9 @@ export default function HomeScreen() {
               <div className="ml-auto flex items-center gap-1 font-mono text-[10px] text-[#6e6e78]">
                 <span className="rounded border border-[#2f7cf6] bg-[#2f7cf6]/15 px-1.5 py-px text-[#8fb6f5]">1 Canvas</span>
                 <span>→</span>
-                <span className="rounded border border-[#2c2c31] bg-[#101012] px-1.5 py-px">2 Folder</span>
+                <span className={clsx("rounded border px-1.5 py-px", pfolder ? "border-[#2f7cf6] bg-[#2f7cf6]/15 text-[#8fb6f5]" : "border-[#2c2c31] bg-[#101012]")}>2 Folder</span>
                 <span>→</span>
-                <span className="rounded border border-[#2c2c31] bg-[#101012] px-1.5 py-px">3 Create</span>
+                <span className={clsx("rounded border px-1.5 py-px", creating ? "border-[#2f7cf6] bg-[#2f7cf6]/15 text-[#8fb6f5]" : "border-[#2c2c31] bg-[#101012]")}>3 Create</span>
               </div>
               <button
                 onClick={() => !creating && setShowNew(false)}
@@ -849,6 +863,15 @@ export default function HomeScreen() {
                 </div>
               </label>
               <div className="mt-3 flex items-center gap-2 rounded-md border border-[#2c2c31] bg-[#101012] px-3 py-2 font-mono text-[10px] text-[#6e6e78]">
+                <span
+                  className="inline-block shrink-0 rounded-[3px] border border-[#3a3a41]"
+                  style={{
+                    width: `${Math.max(8, Math.min(44, (44 * nw) / Math.max(nw, nh)))}px`,
+                    height: `${Math.max(6, Math.min(30, (30 * nh) / Math.max(nw, nh)))}px`,
+                    background: bg === "transparent" ? "conic-gradient(#2c2c31 0 25%, #101012 0 50%, #2c2c31 0 75%, #101012 0)" : bg === "white" ? "#ececee" : "#000000",
+                  }}
+                  title="Live aspect preview"
+                />
                 <span>{nw > 0 && nh > 0 ? `${nw}x${nh}` : "0x0"}</span>
                 <span className="h-1 w-1 rounded-full bg-[#2c2c31]" />
                 <span>{newMp} MP</span>
@@ -906,9 +929,10 @@ export default function HomeScreen() {
                 <button
                   onClick={submitNew}
                   disabled={creating}
-                  className="avero-btn-primary avero-lift h-8 rounded-md px-4 text-[12px] font-semibold text-white disabled:opacity-60"
+                  className="avero-btn-primary avero-lift relative h-8 overflow-hidden rounded-md px-4 text-[12px] font-semibold text-white disabled:opacity-60"
                 >
-                  {creating ? "Creating..." : "03 - Create project"}
+                  {creating && <span className="avero-shimmer absolute inset-0" />}
+                  <span className="relative">{creating ? createStage || "Creating..." : "03 - Create project"}</span>
                 </button>
               </div>
             </div>

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { checkBackend, pickImageToOpen, pickSavePath, rustDecodeToDataUrl, rustImageInfo, rustSaveDataUrl } from "../io/tauriIo";
 import { getCompositeCanvas } from "../engine/compositeRef";
-import { openAvxProject, registerAvxAssociation, saveAvxProject } from "../io/projectIo";
+import { openAvxProject, registerAvxAssociation, saveAvxProject, prepareFreshDocument } from "../io/projectIo";
 import { layerManager } from "../engine/layerManager";
 import { useEditorStore, makeLayer } from "../stores/useEditorStore";
 import { useWorkspaceStore } from "../stores/useWorkspaceStore";
@@ -237,7 +237,7 @@ export default function TitleBar({
         void pick().catch((e) => showError(String(e)));
         break;
       case "new-doc":
-        layerManager.clear();
+        prepareFreshDocument();
         ed.newDocument("Untitled", 1920, 1080);
         useHomeStore.getState().setHome(true);
         break;

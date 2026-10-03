@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useEditorStore, type LayerMeta } from "../stores/useEditorStore";
 import { useProStore } from "../stores/useProStore";
 import { useHomeStore } from "../stores/useHomeStore";
-import { layerManager } from "../engine/layerManager";
+import { layerManager, clearRenderPools } from "../engine/layerManager";
 import { clearSelectionMask, hasSelection, selectionMaskCanvas, restoreSelectionMask } from "../engine/selection";
 import { rustSaveDataUrl } from "./tauriIo";
 import { exportPlan } from "./memoryManager";
@@ -11,6 +11,30 @@ import { getCompositeCanvas } from "../engine/compositeRef";
 
 export const AVX_MAGIC = "AVX1";
 export const AVX_VERSION = 1;
+
+// Reset every pixel-side cache before a fresh document opens: layer pixels,
+// selection ants, pooled render canvases, and detected-object entries.
+// Without this, new documents inherit stale masks, pooled RAM, and objects.
+export function prepareFreshDocument(): void {
+  try {
+    layerManager.clear();
+  } catch {
+    /* ignore */
+  }
+  try {
+    clearSelectionMask();
+  } catch {
+    /* ignore */
+  }
+  try {
+    clearRenderPools();
+  } catch {
+    /* ignore */
+  }
+  import("../stores/useObjectStore")
+    .then(({ useObjectStore }) => useObjectStore.getState().clearObjects())
+    .catch(() => undefined);
+}
 
 function isTauri(): boolean {
   try {

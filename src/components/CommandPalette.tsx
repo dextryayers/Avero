@@ -14,6 +14,7 @@ import {
   rustSaveDataUrl,
 } from "../io/tauriIo";
 import { isTauri, nativeBenchmark, nativeInfo, nativeProcessCanvas, nativeStats } from "../io/nativeEngine";
+import { prepareFreshDocument } from "../io/projectIo";
 import { showError, showMessage } from "../ui/notify";
 
 const RECENT_KEY = "avero-palette-recents";
@@ -52,7 +53,7 @@ export default function CommandPalette({ open, onClose }: { open: boolean; onClo
         id: "new",
         title: "New document 1920x1080",
         run: () => {
-          layerManager.clear();
+          prepareFreshDocument();
           s.newDocument("Untitled", 1920, 1080);
           useHomeStore.getState().setHome(false);
         },

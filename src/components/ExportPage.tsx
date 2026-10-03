@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Download, FileBox } from "lucide-react";
 import { useEditorStore } from "../stores/useEditorStore";
 import { getCompositeCanvas } from "../engine/compositeRef";
-import { thumbOf } from "../io/projectIo";
 import { exportPlan } from "../io/memoryManager";
 import { runImageExport } from "../io/exportRunner";
 import {
@@ -64,11 +63,26 @@ export default function ExportPage({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     try {
       const comp = getCompositeCanvas();
-      setPreview(comp ? thumbOf(comp, 480) : null);
+      if (!comp) {
+        setPreview(null);
+        return;
+      }
+      // Matte-aware preview: mirrors exactly what the file will contain.
+      const sc = Math.min(1, 480 / Math.max(comp.width, comp.height));
+      const t = document.createElement("canvas");
+      t.width = Math.max(1, Math.round(comp.width * sc));
+      t.height = Math.max(1, Math.round(comp.height * sc));
+      const g = t.getContext("2d")!;
+      if (effMatte !== "none") {
+        g.fillStyle = effMatte === "white" ? "#ffffff" : "#000000";
+        g.fillRect(0, 0, t.width, t.height);
+      }
+      g.drawImage(comp, 0, 0, t.width, t.height);
+      setPreview(t.toDataURL("image/png"));
     } catch {
       setPreview(null);
     }
-  }, []);
+  }, [effMatte]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -104,11 +118,13 @@ export default function ExportPage({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-[#101012]">
-      <div className="flex shrink-0 items-center gap-3 border-b border-[#2c2c31] bg-[#161618] px-4 py-2.5">
+      <div className="flex shrink-0 items-center gap-3 border-b border-[#2c2c31] bg-gradient-to-r from-[#16161a] via-[#1c1c1f] to-[#16161a] px-4 py-2.5">
         <button onClick={onBack} className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[12px] text-[#a7a7b0] hover:bg-[#232327] hover:text-white">
           <ArrowLeft size={14} /> Back
         </button>
-        <Download size={15} className="text-[#8fb6f5]" />
+        <div className="grid h-8 w-8 place-items-center rounded-lg bg-gradient-to-br from-[#2f7cf6] to-[#19c2e0] text-white shadow-[0_0_16px_rgba(47,124,246,0.45)]">
+          <Download size={15} />
+        </div>
         <div>
           <div className="text-[13px] font-bold text-white">Export</div>
           <div className="font-mono text-[10.5px] text-[#6e6e78]">

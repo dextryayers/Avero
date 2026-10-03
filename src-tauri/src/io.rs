@@ -219,7 +219,7 @@ pub fn cmd_register_avx_association() -> Result<String, String> {
     #[cfg(target_os = "windows")]
     {
         register_avx_windows()?;
-        Ok("Avero Project registered for .avx".into())
+        Ok("Avero Project Design registered for .avx".into())
     }
     #[cfg(not(target_os = "windows"))]
     {
@@ -238,12 +238,16 @@ fn register_avx_windows() -> Result<(), String> {
         .map_err(|e| format!("Registry write failed: {e}"))?;
     ext.set_value("", &"AveroProjectDesign")
         .map_err(|e| format!("Registry write failed: {e}"))?;
+    // Content Type pins the MIME so Explorer treats .avx as our project
+    // kind even if another program previously claimed the extension.
+    ext.set_value("Content Type", &"application/x-avero-studio")
+        .map_err(|e| format!("Registry write failed: {e}"))?;
     // ProgID key name stays stable so existing installs keep working;
     // the display value is what Explorer shows in the Type column.
     let (prog, _) = hkcu
         .create_subkey("Software\\Classes\\AveroProjectDesign")
         .map_err(|e| format!("Registry write failed: {e}"))?;
-    prog.set_value("", &"Avero Project")
+    prog.set_value("", &"Avero Project Design")
         .map_err(|e| format!("Registry write failed: {e}"))?;
     let (icon, _) = hkcu
         .create_subkey("Software\\Classes\\AveroProjectDesign\\DefaultIcon")

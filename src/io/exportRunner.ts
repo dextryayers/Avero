@@ -1,4 +1,5 @@
 import { save } from "@tauri-apps/plugin-dialog";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { exportImageSmart, saveAvxProject, writeTextFile, type ExportFormat } from "./projectIo";
 import { exportPixels, isTauri } from "./nativeEngine";
 import { showError, showMessage } from "../ui/notify";
@@ -38,7 +39,15 @@ export async function runImageExport(opts: ImageExportOpts): Promise<string | nu
 
   if (fmt === "avx") {
     const p = await saveAvxProject(true, opts.onStage);
-    if (p) await showMessage(`Saved: ${p}`);
+    if (p) {
+      await showMessage(`Saved: ${p}`);
+      // Hand the file to the user in their file manager.
+      try {
+        await revealItemInDir(p);
+      } catch {
+        /* reveal is a bonus; the save is the deliverable */
+      }
+    }
     return p;
   }
 
@@ -79,6 +88,11 @@ export async function runImageExport(opts: ImageExportOpts): Promise<string | nu
       );
       const text = new TextDecoder().decode(dataUrlToBytes(smart.dataUrl));
       await writeTextFile(path, text);
+      try {
+        await revealItemInDir(path);
+      } catch {
+        /* reveal is a bonus */
+      }
       return path;
     }
     if (fmt === "png" || fmt === "jpg" || fmt === "jpeg" || fmt === "webp") {
@@ -89,6 +103,11 @@ export async function runImageExport(opts: ImageExportOpts): Promise<string | nu
       );
       opts.onStage?.("Writing file");
       await rustSaveDataUrl(smart.dataUrl, path);
+      try {
+        await revealItemInDir(path);
+      } catch {
+        /* reveal is a bonus */
+      }
       return path;
     }
     // Rust encoder formats: lossless PNG bytes in, real container out.
@@ -102,6 +121,11 @@ export async function runImageExport(opts: ImageExportOpts): Promise<string | nu
     const report = await exportPixels(dataUrlToBytes(png.dataUrl), fmt, Math.max(1, Math.min(100, Math.round(opts.quality))), matteRgb, path);
     opts.onStage?.("Writing file");
     void report;
+    try {
+      await revealItemInDir(path);
+    } catch {
+      /* reveal is a bonus */
+    }
     return path;
   } catch (e) {
     await showError(`Export failed: ${String(e)}`);

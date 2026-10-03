@@ -41,8 +41,8 @@
     "fileAssociations": [
       {
         "ext": ["avx"],
-        "name": "Avero Project",
-        "description": "Avero Project",
+        "name": "Avero Project Design",
+        "description": "Avero Project Design",
         "mimeType": "application/x-avero-studio",
         "role": "Editor"
       },

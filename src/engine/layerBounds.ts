@@ -1,0 +1,228 @@
+// layerBounds: Canva-style per-layer geometry for click-select + transform box.
+// Layers store full doc-size canvases, so the tight content rect is derived
+// from non-transparent pixels, then the non-destructive transform
+// (translate / scale / rotate around doc center, same order as the compositor)
+// maps it to screen space.
+
+export interface ContentRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface LayerTransform {
+  x: number;
+  y: number;
+  scaleX: number;
+  scaleY: number;
+  rotation: number;
+}
+
+export const DEFAULT_TRANSFORM: LayerTransform = { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 };
+
+function deg2rad(d: number): number {
+  return (d * Math.PI) / 180;
+}
+
+/** Forward map: untransformed doc point -> transformed doc point. */
+export function applyLayerTransform(
+  px: number,
+  py: number,
+  docW: number,
+  docH: number,
+  t: LayerTransform,
+): { x: number; y: number } {
+  const cx = docW / 2;
+  const cy = docH / 2;
+  let vx = (px - cx) * t.scaleX;
+  let vy = (py - cy) * t.scaleY;
+  const r = deg2rad(t.rotation);
+  const cos = Math.cos(r);
+  const sin = Math.sin(r);
+  const rx = vx * cos - vy * sin;
+  const ry = vx * sin + vy * cos;
+  return { x: rx + cx + t.x, y: ry + cy + t.y };
+}
+
+/** Inverse map: transformed doc point -> untransformed doc point. */
+export function inverseLayerTransform(
+  px: number,
+  py: number,
+  docW: number,
+  docH: number,
+  t: LayerTransform,
+): { x: number; y: number } {
+  const cx = docW / 2;
+  const cy = docH / 2;
+  const dx = px - cx - t.x;
+  const dy = py - cy - t.y;
+  const r = deg2rad(-t.rotation);
+  const cos = Math.cos(r);
+  const sin = Math.sin(r);
+  const ux = dx * cos - dy * sin;
+  const uy = dx * sin + dy * cos;
+  const sx = t.scaleX === 0 ? 0 : ux / t.scaleX;
+  const sy = t.scaleY === 0 ? 0 : uy / t.scaleY;
+  return { x: sx + cx, y: sy + cy };
+}
+
+/** Transformed center + pixel size of a content rect (for the HTML overlay). */
+export function transformedBox(
+  rect: ContentRect,
+  docW: number,
+  docH: number,
+  t: LayerTransform,
+): { cx: number; cy: number; w: number; h: number; rotation: number } {
+  const ccx = rect.x + rect.w / 2;
+  const ccy = rect.y + rect.h / 2;
+  const c = applyLayerTransform(ccx, ccy, docW, docH, t);
+  return {
+    cx: c.x,
+    cy: c.y,
+    w: Math.max(1, rect.w * Math.abs(t.scaleX)),
+    h: Math.max(1, rect.h * Math.abs(t.scaleY)),
+    rotation: t.rotation,
+  };
+}
+
+/**
+ * Tight content bounds of a layer canvas (doc-space, untransformed).
+ * Hybrid: full scan with stride for docs <= ~12MP, thumbnail scan above that
+ * so 4K/8K canvases stay fast. Returns null when fully transparent.
+ */
+export function getContentBounds(canvas: HTMLCanvasElement): ContentRect | null {
+  const w = canvas.width;
+  const h = canvas.height;
+  if (w < 1 || h < 1) return null;
+  try {
+    // Large canvas: downscale to a thumbnail and scan that.
+    if (w * h > 12_000_000) {
+      const maxSide = 240;
+      const sc = Math.min(1, maxSide / Math.max(w, h));
+      const tw = Math.max(1, Math.round(w * sc));
+      const th = Math.max(1, Math.round(h * sc));
+      const tmp = document.createElement("canvas");
+      tmp.width = tw;
+      tmp.height = th;
+      const tctx = tmp.getContext("2d", { willReadFrequently: true })!;
+      tctx.drawImage(canvas, 0, 0, tw, th);
+      const id = tctx.getImageData(0, 0, tw, th);
+      const d = id.data;
+      let x0 = tw;
+      let y0 = th;
+      let x1 = -1;
+      let y1 = -1;
+      for (let y = 0; y < th; y++) {
+        for (let x = 0; x < tw; x++) {
+          if (d[(y * tw + x) * 4 + 3] > 10) {
+            if (x < x0) x0 = x;
+            if (y < y0) y0 = y;
+            if (x > x1) x1 = x;
+            if (y > y1) y1 = y;
+          }
+        }
+      }
+      if (x1 < 0) return null;
+      return {
+        x: Math.floor(x0 / sc),
+        y: Math.floor(y0 / sc),
+        w: Math.max(1, Math.ceil((x1 - x0 + 1) / sc)),
+        h: Math.max(1, Math.ceil((y1 - y0 + 1) / sc)),
+      };
+    }
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return null;
+    const id = ctx.getImageData(0, 0, w, h);
+    const d = id.data;
+    const stride = Math.max(1, Math.floor(Math.max(w, h) / 600));
+    let x0 = w;
+    let y0 = h;
+    let x1 = -1;
+    let y1 = -1;
+    for (let y = 0; y < h; y += stride) {
+      for (let x = 0; x < w; x += stride) {
+        if (d[(y * w + x) * 4 + 3] > 10) {
+          if (x < x0) x0 = x;
+          if (y < y0) y0 = y;
+          if (x > x1) x1 = x;
+          if (y > y1) y1 = y;
+        }
+      }
+    }
+    if (x1 < 0) return null;
+    // Expand by stride so the box is not 1 stride too tight.
+    x0 = Math.max(0, x0 - stride);
+    y0 = Math.max(0, y0 - stride);
+    x1 = Math.min(w - 1, x1 + stride);
+    y1 = Math.min(h - 1, y1 + stride);
+    return { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
+  } catch {
+    return null;
+  }
+}
+
+/** Alpha at an untransformed doc point (0 when outside). */
+export function alphaAt(canvas: HTMLCanvasElement, x: number, y: number): number {
+  const ix = Math.floor(x);
+  const iy = Math.floor(y);
+  if (ix < 0 || iy < 0 || ix >= canvas.width || iy >= canvas.height) return 0;
+  try {
+    const a = canvas.getContext("2d", { willReadFrequently: true })!.getImageData(ix, iy, 1, 1)
+      .data[3];
+    return a;
+  } catch {
+    return 0;
+  }
+}
+
+export interface HittableLayer {
+  id: string;
+  visible: boolean;
+  canvas: HTMLCanvasElement | undefined;
+  bounds: ContentRect | null;
+  transform: LayerTransform;
+}
+
+/**
+ * Topmost layer under a doc-space point. Bounds are checked in transformed
+ * space, then a 1px alpha test lets clicks pass through transparent areas
+ * (Canva-style). Caller supplies layers topmost-first.
+ */
+export function pickTopLayerAt(
+  docX: number,
+  docY: number,
+  docW: number,
+  docH: number,
+  orderedTopFirst: HittableLayer[],
+): string | null {
+  for (const l of orderedTopFirst) {
+    if (!l.visible || !l.canvas || !l.bounds) continue;
+    const b = l.bounds;
+    const local = inverseLayerTransform(docX, docY, docW, docH, l.transform);
+    if (local.x < b.x || local.y < b.y || local.x > b.x + b.w || local.y > b.y + b.h) {
+      continue;
+    }
+    if (alphaAt(l.canvas, local.x, local.y) > 8) return l.id;
+  }
+  return null;
+}
+
+/** Fallback when alpha test is too strict: bounding-box only pick. */
+export function pickBoxAt(
+  docX: number,
+  docY: number,
+  docW: number,
+  docH: number,
+  orderedTopFirst: HittableLayer[],
+): string | null {
+  for (const l of orderedTopFirst) {
+    if (!l.visible || !l.bounds) continue;
+    const b = l.bounds;
+    const local = inverseLayerTransform(docX, docY, docW, docH, l.transform);
+    if (local.x >= b.x && local.y >= b.y && local.x <= b.x + b.w && local.y <= b.y + b.h) {
+      return l.id;
+    }
+  }
+  return null;
+}

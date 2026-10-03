@@ -43,6 +43,42 @@ export async function pickImageToOpen(): Promise<string | null> {
   }
 }
 
+// Multi import in Canva style: select 2, 3, or more images at once as layers.
+export async function pickImagesToOpen(): Promise<string[] | null> {
+  try {
+    const files = await open({
+      multiple: true,
+      filters: [
+        {
+          name: "Image",
+          extensions: [
+            "png",
+            "jpg",
+            "jpeg",
+            "webp",
+            "bmp",
+            "tiff",
+            "tif",
+            "gif",
+            "psd",
+            "cr2",
+            "cr3",
+            "nef",
+            "arw",
+            "raf",
+            "dng",
+          ],
+        },
+      ],
+    });
+    if (Array.isArray(files)) return files.filter((f): f is string => typeof f === "string");
+    if (typeof files === "string") return [files];
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export async function pickSavePath(defaultName: string): Promise<string | null> {
   try {
     const ext = defaultName.split(".").pop() ?? "png";

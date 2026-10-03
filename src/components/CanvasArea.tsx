@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useEditorStore, makeLayer, type ToolId } from "../stores/useEditorStore";
 import { useProStore } from "../stores/useProStore";
 import { useArtboardStore } from "../stores/useArtboardStore";
@@ -62,9 +62,16 @@ import {
 import { CROP_RATIO_PILLS } from "../engine/toolOptions";
 import { gpuBackend, gpuBackendSyncFallback } from "../io/gpuBackend";
 import ToolOptionsBar from "./ToolOptionsBar";
+import LayerTransformOverlay from "./LayerTransformOverlay";
 import { TOOL_LABEL } from "./ToolBar";
 import { askText, notify } from "../ui/notify";
 import { getCompositeCanvas, setCompositeCanvas } from "../engine/compositeRef";
+import {
+  getContentBounds,
+  pickBoxAt,
+  pickTopLayerAt,
+  type ContentRect,
+} from "../engine/layerBounds";
 
 // Pooled doc-size composite canvas: reuses one canvas across renders
 // instead of allocating a full doc-size canvas per frame (8MB+ for HD).
@@ -413,6 +420,34 @@ export default function CanvasArea() {
   const samplers = useProStore((s) => s.samplers);
   const measures = useProStore((s) => s.measures);
   const paths = useProStore((s) => s.paths);
+  const histogramTick = useProStore((s) => s.histogramTick);
+
+  // Canva-style active bounds: tight content rect of the active layer.
+  // Recomputed when pixels may have changed (import/paint/undo) via
+  // histogramTick, plus layer/doc switches.
+  const activeBounds: ContentRect | null = useMemo(() => {
+    try {
+      if (!activeLayerId) return null;
+      const c = layerManager.get(activeLayerId);
+      if (!c) return null;
+      return getContentBounds(c);
+    } catch {
+      return null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeLayerId, layers.length, doc.width, doc.height, histogramTick]);
+  const activeMeta = layers.find((l) => l.id === activeLayerId);
+  const isMoveFamily =
+    tool === "move" || tool === "move-auto" || tool === "transform-free" || tool === "path-select";
+  const showTransformBox =
+    isMoveFamily &&
+    !!activeLayerId &&
+    !!activeMeta &&
+    activeMeta.kind !== "background" &&
+    !!activeBounds &&
+    activeBounds.w >= 2 &&
+    activeBounds.h >= 2;
+  const activeTransform = activeLayerId ? (transforms[activeLayerId] ?? { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 }) : null;
 
   useEffect(() => {
     layers.forEach((l) => layerManager.ensure(l.id, doc.width, doc.height));
@@ -495,16 +530,16 @@ export default function CanvasArea() {
     return () => window.removeEventListener("avero:crop-rect", onCropRect);
   }, []);
 
-  // Drag and drop image files from Explorer: dokumen kosong dibuka sebagai
-  // dokumen baru, dokumen berisi karya ditambah sebagai layer proporsional.
+  // Drag and drop image files from Explorer, single or many in Canva style:
+  // an empty document opens from the first file, the rest become layers.
   async function handleDrop(e: React.DragEvent) {
     e.preventDefault();
     setDragging(false);
-    const f = e.dataTransfer.files?.[0];
-    if (!f || !f.type.startsWith("image/")) return;
+    const files = Array.from(e.dataTransfer.files ?? []).filter((f) => f.type.startsWith("image/"));
+    if (files.length === 0) return;
     try {
-      const { dropImageFile } = await import("../io/importImage");
-      await dropImageFile(f);
+      const { dropImageFiles } = await import("../io/importImage");
+      await dropImageFiles(files);
       fitToView();
     } catch {
       /* ignore unreadable file */
@@ -4382,32 +4417,38 @@ export default function CanvasArea() {
               bumpHistogram();
               return;
             }
-            if (tool === "move-auto") {
-              // Manual auto-pick: topmost visible unlocked layer with opaque pixel at click.
-              const st = useEditorStore.getState();
-              const ordered = [...st.layers].reverse();
-              let picked: string | null = null;
-              for (const l of ordered) {
-                if (!l.visible || l.locked) continue;
-                const c = layerManager.get(l.id);
-                if (!c) continue;
-                const ix = Math.floor(p.x);
-                const iy = Math.floor(p.y);
-                if (ix < 0 || iy < 0 || ix >= c.width || iy >= c.height) continue;
-                try {
-                  const a = c.getContext("2d", { willReadFrequently: true })!.getImageData(ix, iy, 1, 1).data[3];
-                  if (a > 8) {
-                    picked = l.id;
-                    break;
-                  }
-                } catch { /* try next */ }
-              }
-              if (picked && picked !== st.activeLayerId) {
-                st.setActiveLayer(picked);
-                const nm = st.layers.find((l) => l.id === picked)?.name ?? picked;
-                setCursor(`Auto ${nm}`);
-              } else if (!picked) {
-                setCursor("Auto: empty area");
+            if (tool === "move" || tool === "move-auto" || tool === "transform-free") {
+              // Canva style click to select: the topmost opaque image under the
+              // cursor becomes the active layer. Clicking empty space keeps the
+              // current layer so dragging still works.
+              try {
+                const st = useEditorStore.getState();
+                const proSt = useProStore.getState();
+                const ordered = [...st.layers].reverse();
+                const hittable = ordered
+                  .filter((l) => l.visible)
+                  .map((l) => {
+                    const canvas = layerManager.get(l.id);
+                    const bounds =
+                      l.id === st.activeLayerId && activeBounds
+                        ? activeBounds
+                        : canvas
+                          ? getContentBounds(canvas)
+                          : null;
+                    const t = proSt.transforms[l.id] ?? { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 };
+                    return { id: l.id, visible: l.visible, canvas, bounds, transform: t };
+                  });
+                let hit = pickTopLayerAt(p.x, p.y, st.doc.width, st.doc.height, hittable);
+                if (!hit) hit = pickBoxAt(p.x, p.y, st.doc.width, st.doc.height, hittable);
+                if (hit && hit !== st.activeLayerId) {
+                  st.setActiveLayer(hit);
+                  const nm = st.layers.find((l) => l.id === hit)?.name ?? hit;
+                  setCursor(tool === "move-auto" ? `Auto ${nm}` : `Selected ${nm}`);
+                } else if (!hit && tool === "move-auto") {
+                  setCursor("Auto: empty area");
+                }
+              } catch {
+                /* selection is best effort */
               }
               // fall through to drag with (possibly new) active layer
             }
@@ -5793,6 +5834,22 @@ export default function CanvasArea() {
                       : "crosshair",
           }}
         />
+        {/* Canva style layer selection: blue line plus resize and rotate handles */}
+        {showTransformBox && activeLayerId && activeBounds && activeTransform && (
+          <LayerTransformOverlay
+            wrapRef={wrapRef}
+            viewW={viewSize.w}
+            viewH={viewSize.h}
+            docW={doc.width}
+            docH={doc.height}
+            zoom={zoom}
+            panX={panX}
+            panY={panY}
+            content={activeBounds}
+            transform={activeTransform}
+            layerId={activeLayerId}
+          />
+        )}
         {showRulers && (
           <canvas
             ref={vRulerRef}
@@ -5804,7 +5861,7 @@ export default function CanvasArea() {
           />
         )}
         <ToolOptionsBar onApplyCrop={applyCrop} onCancelCrop={() => setCropDrag(null)} />
-        {/* Top-left Import: tambah gambar eksternal sebagai layer baru, proporsional */}
+        {/* Top-left Import: add one or many images as layers, proportional */}
         <div className="absolute left-3 top-3 z-20 flex items-center gap-1.5">
           <button
             onClick={() => {
@@ -5815,7 +5872,7 @@ export default function CanvasArea() {
                 .finally(() => setImporting(false));
             }}
             disabled={importing}
-            title="Import gambar sebagai layer baru (proporsional, tanpa stretch)"
+            title="Import one or many images at once as layers (proportional, click an image to select it)"
             className="flex h-8 items-center gap-1.5 rounded-lg border border-white/10 bg-[#1b1b1f]/95 px-3 text-[12px] font-semibold text-white shadow-[0_8px_28px_rgba(0,0,0,0.55)] backdrop-blur-xl transition-colors hover:border-[#2f7cf6]/60 hover:bg-[#232327] disabled:opacity-60"
           >
             {importing ? (
@@ -5826,7 +5883,7 @@ export default function CanvasArea() {
             {importing ? "Importing..." : "Import"}
           </button>
           <span className="hidden rounded-md border border-[#2c2c31] bg-[#1c1c1f]/95 px-2 py-1.5 font-mono text-[10px] text-[#6e6e78] backdrop-blur-xl xl:block">
-            drop file = tambah layer
+            drop one or many files as layers - click an image to select
           </span>
         </div>
         {/* Bottom-left HUD: position, tool, layer and status info */}

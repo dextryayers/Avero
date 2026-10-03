@@ -265,7 +265,7 @@ export default function App() {
         cutActiveLayer();
         return;
       }
-      // Paste normal (tengah, proporsional) vs Paste in Place (offset asal).
+      // Normal paste (centered, proportional) vs Paste in Place (source offset).
       if (mod && !e.altKey && key === "v") {
         e.preventDefault();
         void pasteClipboardAsLayer(e.shiftKey);

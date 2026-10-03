@@ -5,7 +5,7 @@ export interface GitSnapshot {
   branch: string;
   label: string;
   time: number;
-  thumb: string; // dataURL kecil
+  thumb: string; // small dataURL
   layersCount: number;
 }
 

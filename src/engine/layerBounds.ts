@@ -226,3 +226,54 @@ export function pickBoxAt(
   }
   return null;
 }
+
+export type ResizeHandle = "nw" | "ne" | "sw" | "se" | "n" | "s" | "e" | "w";
+
+const MIN_SCALE = 0.02;
+const MAX_SCALE = 8;
+
+function clampScale(v: number): number {
+  if (!Number.isFinite(v)) return 1;
+  return Math.max(MIN_SCALE, Math.min(MAX_SCALE, v));
+}
+
+/**
+ * Corner and edge resize math with a strict no mirror rule.
+ * Local offsets are absolute distances from the box center, so dragging a
+ * handle across the center shrinks the image toward zero and grows it again
+ * without ever flipping it. Flip stays exclusive to the Flip H and Flip V
+ * buttons, which intentionally negate a scale axis.
+ */
+export function resizeScales(
+  contentW: number,
+  contentH: number,
+  startScaleX: number,
+  startScaleY: number,
+  handle: ResizeHandle,
+  localX: number,
+  localY: number,
+  lockAspect: boolean,
+): { scaleX: number; scaleY: number } {
+  const signX = startScaleX < 0 ? -1 : 1;
+  const signY = startScaleY < 0 ? -1 : 1;
+  const ax = Math.abs(localX);
+  const ay = Math.abs(localY);
+  const isCorner = handle === "nw" || handle === "ne" || handle === "sw" || handle === "se";
+  if (isCorner && lockAspect) {
+    const rx = contentW > 1 ? (ax * 2) / contentW : Math.abs(startScaleX) || 1;
+    const ry = contentH > 1 ? (ay * 2) / contentH : Math.abs(startScaleY) || 1;
+    const r = clampScale(Math.max(rx, ry));
+    return { scaleX: signX * r, scaleY: signY * r };
+  }
+  if (isCorner) {
+    const nx = contentW > 1 ? clampScale((ax * 2) / contentW) : Math.abs(startScaleX) || 1;
+    const ny = contentH > 1 ? clampScale((ay * 2) / contentH) : Math.abs(startScaleY) || 1;
+    return { scaleX: signX * nx, scaleY: signY * ny };
+  }
+  if (handle === "e" || handle === "w") {
+    const nx = contentW > 1 ? clampScale((ax * 2) / contentW) : Math.abs(startScaleX) || 1;
+    return { scaleX: signX * nx, scaleY: startScaleY };
+  }
+  const ny = contentH > 1 ? clampScale((ay * 2) / contentH) : Math.abs(startScaleY) || 1;
+  return { scaleX: startScaleX, scaleY: signY * ny };
+}

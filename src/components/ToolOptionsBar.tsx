@@ -991,7 +991,7 @@ export default function ToolOptionsBar({
       summary = snapEnabled ? "Snap on" : "Snap off";
       main = <Toggle label={snapEnabled ? "Snap on" : "Snap off"} on={snapEnabled} onClick={toggleSnap} title="Toggle snapping right now." />;
     } else if (tool === "guide-clear") {
-      summary = "Hapus guides";
+      summary = "Clear guides";
       main = <Action label="Clear now" primary onClick={() => { useProStore.getState().clearGuides(); useEditorStore.getState().markDirty(); }} title="Remove all guides immediately." />;
     } else if (tool === "grid-toggle") {
       summary = showGrid ? "Grid on" : "Grid off";

@@ -37,11 +37,11 @@ const GROUP_HINT: Record<ExportFormatGroup, string> = {
   Project: "Editable source",
 };
 
-// Dedicated Export page - rombak total: modern, elegan, cepat.
-// Kiri: katalog format dengan search + badge jujur.
-// Tengah: live preview besar dengan checkerboard + info output.
-// Kanan: pengaturan file yang ramping + ringkasan.
-// Kontrak UX: klik Export SELALU membuka file manager (native save dialog)
+// Dedicated Export page, modern, elegant, fast.
+// Left: format catalog with search plus honest badges.
+// Center: large live preview with checkerboard plus output info.
+// Right: slim file settings plus summary.
+// UX contract: clicking Export ALWAYS opens the file manager (native save dialog)
 // agar user menaruh file persis sesuai keinginan, lalu file di-reveal.
 export default function ExportPage({ onBack }: { onBack: () => void }) {
   const doc = useEditorStore((s) => s.doc);

@@ -238,7 +238,7 @@ export interface AvxAssocStatus {
   open_cmd: string;
 }
 
-// Baca status registrasi .avx tanpa mengubah apa pun.
+// Read the .avx registration status without changing anything.
 export async function avxAssocStatus(): Promise<AvxAssocStatus | null> {
   if (!isTauri()) return null;
   try {

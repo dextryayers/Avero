@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { RotateCw } from "lucide-react";
 import { useEditorStore } from "../stores/useEditorStore";
 import { useProStore } from "../stores/useProStore";
-import { transformedBox, type ContentRect, type LayerTransform } from "../engine/layerBounds";
+import { transformedBox, resizeScales, type ContentRect, type LayerTransform, type ResizeHandle } from "../engine/layerBounds";
 
 interface Props {
   wrapRef: React.RefObject<HTMLDivElement | null>;
@@ -18,15 +18,7 @@ interface Props {
   layerId: string;
 }
 
-type HandleKind =
-  | "nw"
-  | "ne"
-  | "sw"
-  | "se"
-  | "n"
-  | "s"
-  | "e"
-  | "w";
+type HandleKind = ResizeHandle;
 
 const BLUE = "#2f7cf6";
 
@@ -140,39 +132,19 @@ export default function LayerTransformOverlay(p: Props) {
     const vy = dd.y - d.startCenterDoc.y;
     const lx = vx * cos - vy * sin;
     const ly = vx * sin + vy * cos;
-    const minScale = 0.02;
-    const maxScale = 8;
-    const clamp = (v: number) => Math.max(minScale, Math.min(maxScale, v));
-    const ax = Math.abs(lx);
-    const ay = Math.abs(ly);
     const h = d.handle!;
-    const uniform = ev.shiftKey && (h === "nw" || h === "ne" || h === "sw" || h === "se");
-    if (uniform) {
-      // Locked aspect: use the larger ratio of the two axes.
-      const rx = content.w > 1 ? (ax * 2) / content.w : 1;
-      const ry = content.h > 1 ? (ay * 2) / content.h : 1;
-      const r = clamp(Math.max(rx, ry));
-      pro.updateTransform(layerId, {
-        scaleX: (d.startT.scaleX < 0 ? -1 : 1) * r,
-        scaleY: (d.startT.scaleY < 0 ? -1 : 1) * r,
-      });
-      return;
-    }
-    if (h === "se" || h === "nw" || h === "ne" || h === "sw") {
-      // Corners scale both axes. Hold Shift to lock aspect.
-      const nx = content.w > 1 ? clamp((ax * 2) / content.w) : Math.abs(d.startT.scaleX);
-      const ny = content.h > 1 ? clamp((ay * 2) / content.h) : Math.abs(d.startT.scaleY);
-      pro.updateTransform(layerId, {
-        scaleX: (d.startT.scaleX < 0 ? -1 : 1) * nx,
-        scaleY: (d.startT.scaleY < 0 ? -1 : 1) * ny,
-      });
-    } else if (h === "e" || h === "w") {
-      const nx = content.w > 1 ? clamp((ax * 2) / content.w) : Math.abs(d.startT.scaleX);
-      pro.updateTransform(layerId, { scaleX: (d.startT.scaleX < 0 ? -1 : 1) * nx });
-    } else {
-      const ny = content.h > 1 ? clamp((ay * 2) / content.h) : Math.abs(d.startT.scaleY);
-      pro.updateTransform(layerId, { scaleY: (d.startT.scaleY < 0 ? -1 : 1) * ny });
-    }
+    const lockAspect = ev.shiftKey && (h === "nw" || h === "ne" || h === "sw" || h === "se");
+    const next = resizeScales(
+      content.w,
+      content.h,
+      d.startT.scaleX,
+      d.startT.scaleY,
+      h,
+      lx,
+      ly,
+      lockAspect,
+    );
+    pro.updateTransform(layerId, next);
   }
 
   function onWinUp() {

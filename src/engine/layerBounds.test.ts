@@ -4,6 +4,7 @@ import {
   inverseLayerTransform,
   pickBoxAt,
   pickTopLayerAt,
+  resizeScales,
   transformedBox,
 } from "./layerBounds";
 
@@ -64,5 +65,31 @@ describe("layerBounds transform math", () => {
     expect(pickBoxAt(10, 10, 800, 600, ordered)).toBe("bottom");
     // alpha path with no canvas falls back to null (needs pixels)
     expect(pickTopLayerAt(110, 110, 800, 600, ordered)).toBeNull();
+  });
+
+  it("corner drag never mirrors a positive scale", () => {
+    const a = resizeScales(200, 100, 1, 1, "se", 150, 75, false);
+    expect(a.scaleX).toBeGreaterThan(0);
+    expect(a.scaleY).toBeGreaterThan(0);
+    // Dragging across the center shrinks toward the minimum instead of flipping.
+    const b = resizeScales(200, 100, 1, 1, "nw", -1, -1, false);
+    expect(b.scaleX).toBeGreaterThan(0);
+    expect(b.scaleY).toBeGreaterThan(0);
+    expect(b.scaleX).toBeCloseTo(0.02, 5);
+  });
+
+  it("edge drag keeps the untouched axis stable", () => {
+    const e = resizeScales(200, 100, 1, 2, "e", 120, 999, false);
+    expect(e.scaleX).toBeGreaterThan(0);
+    expect(e.scaleY).toBe(2);
+    const n = resizeScales(200, 100, 1, 1, "n", 999, 60, false);
+    expect(n.scaleX).toBe(1);
+    expect(n.scaleY).toBeGreaterThan(0);
+  });
+
+  it("locked aspect keeps x and y equal without mirroring", () => {
+    const u = resizeScales(200, 100, 1, 1, "se", 150, 10, true);
+    expect(u.scaleX).toBeGreaterThan(0);
+    expect(u.scaleX).toBeCloseTo(u.scaleY, 5);
   });
 });

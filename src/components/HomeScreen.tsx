@@ -178,16 +178,21 @@ export default function HomeScreen() {
   const [pfolder, setPfolder] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [createStage, setCreateStage] = useState("");
+  const [folderBusy, setFolderBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [formInfo, setFormInfo] = useState<string | null>(null);
   const isDesktop = typeof window !== "undefined" && "__TAURI__" in window;
 
+  // Folder picker — the "klik folder" path. Guarded against double-click,
+  // reports cancel vs error distinctly, never freezes the modal.
   async function chooseProjectFolder() {
+    if (folderBusy || creating) return;
     if (!isDesktop) {
       setFormError(null);
       setFormInfo("Folder picker needs the desktop app. On web, the project runs in memory and Save downloads Name.avx.");
       return;
     }
+    setFolderBusy(true);
     try {
       const dir = await pickProjectFolder();
       if (dir) {
@@ -195,27 +200,40 @@ export default function HomeScreen() {
         setFormError(null);
         setFormInfo(null);
       } else {
-        setFormError("No folder chosen. Pick a folder to hold the project and its images, then press Create.");
+        // Cancel is normal — hint, don't scold.
+        setFormError(null);
+        setFormInfo("No folder picked yet. You can still press Create — Save (Ctrl+S) will ask where to put the .avx.");
       }
     } catch (e) {
       setFormError(`Could not open the folder picker: ${String(e)}`);
+    } finally {
+      setFolderBusy(false);
     }
   }
 
   function submitNew() {
+    if (creating || folderBusy) return;
     void createNew(dn.trim() || "Untitled", Math.max(1, parseInt(dw) || 1920), Math.max(1, parseInt(dh) || 1080));
   }
 
   useEffect(() => {
     if (!showNew) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setShowNew(false);
-      if (e.key === "Enter") submitNew();
+      const t = e.target as HTMLElement | null;
+      // Enter inside the name field still creates (no native form to submit).
+      if (e.key === "Escape" && !creating) setShowNew(false);
+      if (e.key === "Enter" && !creating && !folderBusy) {
+        // Don't hijack Enter while the user picks from an autocomplete popup.
+        if (t && t.tagName === "INPUT" && (t as HTMLInputElement).list) {
+          // fall through — still create, inputs here have no datalist
+        }
+        submitNew();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showNew, dn, dw, dh]);
+  }, [showNew, dn, dw, dh, bg, creating, folderBusy, pfolder]);
 
   async function createNew(name: string, w: number, h: number) {
     if (creating) return;
@@ -233,27 +251,17 @@ export default function HomeScreen() {
     }
     setFormError(null);
     setCreating(true);
-    setCreateStage("Preparing folder");
+    setCreateStage("Preparing");
     try {
       const clean = sanitizeProjectName(name.trim() || "Untitled");
-      // Word-like: require a dedicated project folder as the home for images/assets.
-      // On desktop: open the file manager when no folder is selected yet.
-      let folder = pfolder;
-      try {
-        if (isDesktop && !folder) {
-          setCreateStage("Waiting for folder");
-          const picked = await pickProjectFolder();
-          if (!picked) {
-            setFormError("Choose a folder to hold the project and its images, then press Create again.");
-            return;
-          }
-          folder = picked;
-          setPfolder(picked);
-        }
-      } catch (e) {
-        setFormError(`Could not open the folder picker: ${String(e)}`);
-        return;
-      }
+      // Folder policy (fast + predictable):
+      // - Modal flow (showNew open): use the picked folder when present; if
+      //   none is picked yet, DON'T force a second file-manager popup — create
+      //   now and let Ctrl+S ask where the .avx goes (defaults into the
+      //   project folder when one exists). One picker per click, no loops.
+      // - Preset quick-click (modal closed): never pop a picker; instant
+      //   in-memory document for maximum perceived performance.
+      const folder = showNew ? pfolder : null;
       let projectFolder: string | null = null;
       if (folder) {
         try {

@@ -214,16 +214,43 @@ pub fn cmd_write_text_atomic(path: String, contents: String) -> Result<(), Strin
 /// Register the .avx extension as "Avero Project Design" so the file manager
 /// Type column shows the real product name. Windows writes a per-user ProgID
 /// under HKCU (no admin needed); other OSes rely on the installer bundle.
+///
+/// Icon policy: the .avx document icon IS the real Avero icon — the running
+/// executable's own icon (built from logo.png / icon.ico). DefaultIcon points
+/// at `"exe",0` so Explorer renders the authentic Avero mark, never a generic
+/// text-file glyph.
 #[tauri::command]
 pub fn cmd_register_avx_association() -> Result<String, String> {
     #[cfg(target_os = "windows")]
     {
         register_avx_windows()?;
+        notify_shell_assoc_changed();
         Ok("Avero Project Design registered for .avx".into())
     }
     #[cfg(not(target_os = "windows"))]
     {
         Ok("File association is handled by the installer on this OS".into())
+    }
+}
+
+/// Tell Explorer to drop its cached Type/Icon for changed associations.
+/// Without this, the Type column keeps showing the stale "AVX File" label and
+/// the old generic glyph until the user reboots or rebuilds the icon cache.
+#[cfg(target_os = "windows")]
+fn notify_shell_assoc_changed() {
+    #[link(name = "shell32")]
+    extern "system" {
+        fn SHChangeNotify(wEventId: u32, uFlags: u32, dwItem1: *const core::ffi::c_void, dwItem2: *const core::ffi::c_void);
+    }
+    const SHCNE_ASSOCCHANGED: u32 = 0x0800_0000;
+    const SHCNF_IDLIST: u32 = 0x0000;
+    unsafe {
+        SHChangeNotify(
+            SHCNE_ASSOCCHANGED,
+            SHCNF_IDLIST,
+            core::ptr::null(),
+            core::ptr::null(),
+        );
     }
 }
 
@@ -233,6 +260,8 @@ fn register_avx_windows() -> Result<(), String> {
     let exe = std::env::current_exe().map_err(|e| format!("Cannot locate app binary: {e}"))?;
     let exe_s = exe.to_string_lossy().to_string();
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    // 1) Extension -> stable ProgID. Never change this key name: existing
+    //    installs, Open-With entries and the installer all point at it.
     let (ext, _) = hkcu
         .create_subkey("Software\\Classes\\.avx")
         .map_err(|e| format!("Registry write failed: {e}"))?;
@@ -242,23 +271,60 @@ fn register_avx_windows() -> Result<(), String> {
     // kind even if another program previously claimed the extension.
     ext.set_value("Content Type", &"application/x-avero-studio")
         .map_err(|e| format!("Registry write failed: {e}"))?;
-    // ProgID key name stays stable so existing installs keep working;
-    // the display value is what Explorer shows in the Type column.
+    // PerceivedType stays empty on purpose: .avx is NOT text/image, so
+    // Explorer must not preview it like a generic document.
+    // 2) ProgID display: THIS string is what Explorer shows in the Type column.
+    //    Must stay exactly "Avero Project Design".
     let (prog, _) = hkcu
         .create_subkey("Software\\Classes\\AveroProjectDesign")
         .map_err(|e| format!("Registry write failed: {e}"))?;
     prog.set_value("", &"Avero Project Design")
         .map_err(|e| format!("Registry write failed: {e}"))?;
+    prog.set_value("FriendlyTypeName", &"Avero Project Design")
+        .map_err(|e| format!("Registry write failed: {e}"))?;
+    // 3) Document icon = the authentic Avero icon (exe index 0, built from
+    //    logo.png -> icon.ico). Quoted path survives spaces in install dir.
     let (icon, _) = hkcu
         .create_subkey("Software\\Classes\\AveroProjectDesign\\DefaultIcon")
         .map_err(|e| format!("Registry write failed: {e}"))?;
     icon.set_value("", &format!("\"{exe_s}\",0"))
         .map_err(|e| format!("Registry write failed: {e}"))?;
+    // 4) Open verb: double-click / Enter / Open-With launches the Studio.
     let (cmd, _) = hkcu
         .create_subkey("Software\\Classes\\AveroProjectDesign\\shell\\open\\command")
         .map_err(|e| format!("Registry write failed: {e}"))?;
     cmd.set_value("", &format!("\"{exe_s}\" \"%1\""))
         .map_err(|e| format!("Registry write failed: {e}"))?;
+    let (open_label, _) = hkcu
+        .create_subkey("Software\\Classes\\AveroProjectDesign\\shell\\open")
+        .map_err(|e| format!("Registry write failed: {e}"))?;
+    let _ = open_label.set_value("", &"Open with AVERO STUDIO");
+    // Friendly app name shown in the Open-With dialog.
+    let (app, _) = hkcu
+        .create_subkey("Software\\Classes\\AveroProjectDesign\\Application")
+        .map_err(|e| format!("Registry write failed: {e}"))?;
+    let _ = app.set_value("ApplicationCompany", &"AVERO STUDIO");
+    let _ = app.set_value("ApplicationName", &"AVERO STUDIO");
+    // 5) OpenWithProgids: advertise without hijacking. Explorer keeps the
+    //    user's default but always offers AVERO STUDIO in Open-With.
+    let (owp, _) = hkcu
+        .create_subkey("Software\\Classes\\.avx\\OpenWithProgids")
+        .map_err(|e| format!("Registry write failed: {e}"))?;
+    let _ = owp.set_value("AveroProjectDesign", &0u32);
+    // 6) Capabilities registration so Settings > Apps > Default apps can list us.
+    let app_path = format!("Software\\Classes\\Applications\\{}", exe
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "avero-studio.exe".to_string()));
+    if let Ok((cap, _)) = hkcu.create_subkey(&app_path) {
+        let _ = cap.set_value("FriendlyAppName", &"AVERO STUDIO");
+    }
+    if let Ok((supported, _)) = hkcu.create_subkey(format!("{app_path}\\SupportedTypes")) {
+        let _ = supported.set_value(".avx", &"");
+    }
+    if let Ok((shell_open, _)) = hkcu.create_subkey(format!("{app_path}\\shell\\open\\command")) {
+        let _ = shell_open.set_value("", &format!("\"{exe_s}\" \"%1\""));
+    }
     Ok(())
 }
 
@@ -317,12 +383,13 @@ fn register_image_windows() -> Result<(), String> {
     let exe = std::env::current_exe().map_err(|e| format!("Cannot locate app binary: {e}"))?;
     let exe_s = exe.to_string_lossy().to_string();
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    // Non-invasive: NEVER overwrite the user's default .png/.jpg handler.
+    // We only advertise AVERO STUDIO in Open-With via OpenWithProgids, so the
+    // Type column of photos stays owned by the user's viewer.
     for ext in IMAGE_EXTS {
-        let (key, _) = hkcu
-            .create_subkey(&format!("Software\\Classes\\.{ext}"))
-            .map_err(|e| format!("Registry write failed for .{ext}: {e}"))?;
-        key.set_value("", &"AveroImageFile")
-            .map_err(|e| format!("Registry write failed for .{ext}: {e}"))?;
+        if let Ok((owp, _)) = hkcu.create_subkey(&format!("Software\\Classes\\.{ext}\\OpenWithProgids")) {
+            let _ = owp.set_value("AveroImageFile", &0u32);
+        }
     }
     let (prog, _) = hkcu
         .create_subkey("Software\\Classes\\AveroImageFile")
@@ -339,6 +406,7 @@ fn register_image_windows() -> Result<(), String> {
         .map_err(|e| format!("Registry write failed: {e}"))?;
     cmd.set_value("", &format!("\"{exe_s}\" \"%1\""))
         .map_err(|e| format!("Registry write failed: {e}"))?;
+    notify_shell_assoc_changed();
     Ok(())
 }
 

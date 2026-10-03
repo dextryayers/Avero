@@ -30,17 +30,24 @@ function triggerDownload(dataUrl: string, fileName: string) {
 }
 
 // Single export flow used by the dedicated Export page.
-// Asks for the destination first so no heavy encode is wasted on cancel.
-// Canvas-native formats encode in the browser; the rest travel as PNG bytes
-// through the Rust encoders and land as real files in their own container.
+// UX contract (user request): picking a format + pressing Export ALWAYS opens
+// the native file manager (save dialog) so the user chooses exactly where the
+// file lands. No silent writes, no wasted encode on cancel — destination first,
+// heavy render second. After success the file is revealed in the file manager.
 export async function runImageExport(opts: ImageExportOpts): Promise<string | null> {
   const fmt = opts.format.toLowerCase();
-  const cleanName = opts.fileName.trim() || "Untitled";
+  const rawName = opts.fileName.trim() || "Untitled";
+  // Sanitize like Word: strip characters the OS forbids in file names.
+  const cleanName = rawName.replace(/[\\/:*?"<>|]+/g, "_").trim().slice(0, 80) || "Untitled";
 
   if (fmt === "avx") {
+    // .avx always opens the file manager (Save As) defaulting to Name.avx.
+    // Filter label is exactly "Avero Project Design" so the dialog shows the
+    // real product type; the saved file renders with the authentic Avero icon
+    // in Explorer via the registered ProgID.
     const p = await saveAvxProject(true, opts.onStage);
     if (p) {
-      await showMessage(`Saved: ${p}`);
+      await showMessage(`Saved Avero Project Design: ${p}`);
       // Hand the file to the user in their file manager.
       try {
         await revealItemInDir(p);
@@ -75,7 +82,8 @@ export async function runImageExport(opts: ImageExportOpts): Promise<string | nu
 
   const path = await save({
     defaultPath: fileName,
-    filters: [{ name: ext.toUpperCase(), extensions: [ext] }],
+    title: `Export .${ext.toUpperCase()} — choose where to save`,
+    filters: [{ name: `${ext.toUpperCase()} Image (*.${ext})`, extensions: [ext] }],
   });
   if (!path) return null;
 
@@ -88,6 +96,7 @@ export async function runImageExport(opts: ImageExportOpts): Promise<string | nu
       );
       const text = new TextDecoder().decode(dataUrlToBytes(smart.dataUrl));
       await writeTextFile(path, text);
+      await showMessage(`Exported ${cleanName}.svg → ${path}`);
       try {
         await revealItemInDir(path);
       } catch {
@@ -103,6 +112,7 @@ export async function runImageExport(opts: ImageExportOpts): Promise<string | nu
       );
       opts.onStage?.("Writing file");
       await rustSaveDataUrl(smart.dataUrl, path);
+      await showMessage(`Exported ${cleanName}.${ext} → ${path}`);
       try {
         await revealItemInDir(path);
       } catch {
@@ -121,6 +131,7 @@ export async function runImageExport(opts: ImageExportOpts): Promise<string | nu
     const report = await exportPixels(dataUrlToBytes(png.dataUrl), fmt, Math.max(1, Math.min(100, Math.round(opts.quality))), matteRgb, path);
     opts.onStage?.("Writing file");
     void report;
+    await showMessage(`Exported ${cleanName}.${ext} → ${path}`);
     try {
       await revealItemInDir(path);
     } catch {

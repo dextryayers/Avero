@@ -158,7 +158,7 @@ const tabs: { id: Tab; label: string; icon: any }[] = [
   { id: "objects", label: "Objects", icon: Box },
 ];
 
-export default function RightPanel({ dual = false, onToggleLeft }: { dual?: boolean; onToggleLeft?: () => void } = {}) {
+export default function RightPanel({ dual = false, onToggleLayers, width }: { dual?: boolean; onToggleLayers?: () => void; width?: number } = {}) {
   const [tab, setTab] = useState<Tab>("layers");
   const [query, setQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<"all" | "raster" | "text" | "shape" | "background">("all");
@@ -373,12 +373,15 @@ export default function RightPanel({ dual = false, onToggleLeft }: { dual?: bool
   }
 
   return (
-    <div className={`avero-contain flex ${dual ? "w-[232px]" : "w-[308px]"} shrink-0 flex-col border-l border-[#2c2c31] bg-[#1c1c1f]`}>
+    <div
+      className={`avero-contain flex shrink-0 flex-col border-l border-[#2c2c31] bg-[#1c1c1f]${dual || width ? "" : " w-[308px]"}`}
+      style={width ? { width } : undefined}
+    >
       <div className="flex items-center gap-2 border-b border-[#2c2c31] bg-[#161618] px-2.5 py-2">
         <span className="avero-micro">Properties</span>
-        {dual && onToggleLeft && (
+        {dual && onToggleLayers && (
           <button
-            onClick={onToggleLeft}
+            onClick={onToggleLayers}
             title="Hide Layers column"
             className="grid h-6 w-6 place-items-center rounded-md text-[#a7a7b0] hover:bg-[#232327] hover:text-white"
           >

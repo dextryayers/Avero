@@ -246,7 +246,70 @@ export const BRUSH_BLENDS: { id: GlobalCompositeOperation; label: string }[] = [
   { id: "lighter", label: "Add" },
 ];
 
-export const TEXT_FONTS = ["Inter", "Georgia", "monospace", "serif", "cursive", "fantasy"] as const;
+export const TEXT_FONTS = [
+  // Clean sans
+  "Inter",
+  "Segoe UI",
+  "Arial",
+  "Verdana",
+  "Tahoma",
+  "Trebuchet MS",
+  "Calibri",
+  "Century Gothic",
+  "Franklin Gothic Medium",
+  "Bahnschrift",
+  "Corbel",
+  "Candara",
+  // Heavy display
+  "Arial Black",
+  "Impact",
+  "Cooper Black",
+  "Rockwell",
+  "Elephant",
+  "Stencil",
+  "Showcard Gothic",
+  "Broadway",
+  // Serif editorial
+  "Georgia",
+  "Times New Roman",
+  "Palatino Linotype",
+  "Garamond",
+  "Book Antiqua",
+  "Cambria",
+  "Constantia",
+  "Bodoni MT",
+  "Perpetua",
+  "Lucida Bright",
+  // Mono and typewriter
+  "Consolas",
+  "Courier New",
+  "Lucida Console",
+  "Cascadia Mono",
+  "Cascadia Code",
+  // Script and hand
+  "Brush Script MT",
+  "Segoe Script",
+  "Lucida Handwriting",
+  "Comic Sans MS",
+  "Monotype Corsiva",
+  "Palace Script MT",
+  "Edwardian Script ITC",
+  "French Script MT",
+  "Mistral",
+  "Papyrus",
+  // Fun and blackletter
+  "Old English Text MT",
+  "Chiller",
+  "Jokerman",
+  "Curlz MT",
+  "Gigi",
+  "Harlow Solid",
+  // Generic fallbacks
+  "monospace",
+  "serif",
+  "cursive",
+  "fantasy",
+] as const;
 
 export const MEASURE_UNITS = ["px", "in", "cm"] as const;
 export type MeasureUnit = (typeof MEASURE_UNITS)[number];

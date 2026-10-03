@@ -17,7 +17,7 @@ const DOCK_TABS = [
 // Front Color column of the dual column dock. It owns Colour, Swatches,
 // Stroke, Brushes and the Color panel while RightPanel owns Layers and
 // friends on its left. The active tab persists across reloads.
-export default function ColorDock({ onToggle }: { onToggle: () => void }) {
+export default function ColorDock({ onToggle, width }: { onToggle: () => void; width?: number }) {
   const [tab, setTabState] = useState<ColorDockTab>(() => {
     try {
       const v = localStorage.getItem("avero:dock-righttab");
@@ -38,7 +38,10 @@ export default function ColorDock({ onToggle }: { onToggle: () => void }) {
   }
 
   return (
-    <div className="avero-contain flex w-[248px] shrink-0 flex-col border-l border-[#2c2c31] bg-[#1c1c1f]">
+    <div
+      className="avero-contain flex shrink-0 flex-col border-l border-[#2c2c31] bg-[#1c1c1f]"
+      style={width ? { width } : undefined}
+    >
       <div className="flex items-center gap-2 border-b border-[#2c2c31] bg-[#161618] px-2.5 py-2">
         <span className="avero-micro">Color</span>
         <button
@@ -62,13 +65,14 @@ export default function ColorDock({ onToggle }: { onToggle: () => void }) {
               onClick={() => setTab(t.id)}
               title={`${t.label} panel`}
               className={clsx(
-                "avero-lift flex items-center justify-center gap-1 whitespace-nowrap border-b-2 px-1 py-2 text-[10px]",
+                "avero-lift flex flex-col items-center gap-0.5 whitespace-nowrap border-b-2 px-1 pb-1.5 pt-2 text-[9px]",
                 selected
                   ? "border-[#2f7cf6] bg-[#1c1c1f] font-semibold text-white"
                   : "border-transparent text-[#6e6e78] hover:text-white",
               )}
             >
               <Icon size={13} />
+              <span>{t.label}</span>
             </button>
           );
         })}

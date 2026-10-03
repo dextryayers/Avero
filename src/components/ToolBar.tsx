@@ -250,13 +250,54 @@ import {
   RefreshCcw,
   Orbit,
   Radar,
+  Sticker,
+  Laugh,
+  Eye,
+  Glasses,
+  SmilePlus,
+  HeartHandshake,
+  BedDouble,
+  Drama,
+  Bot,
+  Satellite,
+  ThumbsUp,
+  CircleDot,
+  HandHeart,
+  Handshake,
+  HandMetal,
+  Pointer,
+  Sparkle,
+  Dices,
+  PartyPopper,
+  Squirrel,
+  LeafyGreen,
+  Skull,
+  Fish,
+  Bug,
+  Pizza,
+  Sandwich,
+  Croissant,
+  Utensils,
+  Cake,
+  IceCream,
+  Candy,
+  Lollipop,
+  Apple,
+  Citrus,
+  Flower,
+  Clover,
+  ChefHat,
+  Cat,
+  Dog,
 } from "lucide-react";
 import { useEditorStore, type ToolId } from "../stores/useEditorStore";
+import { STICKER_BY_ID, STICKER_CATEGORIES, STICKER_META, STICKER_USAGE } from "../engine/stickers";
 import clsx from "clsx";
 
 export interface ToolDef {
   id: ToolId;
   icon: any;
+  glyph?: string;
   label: string;
   shortcut: string;
   description: string;
@@ -271,6 +312,83 @@ export interface ToolFamily {
   description: string;
   tools: ToolDef[];
 }
+
+// One distinct lucide icon per sticker (uniqueness is enforced by tests).
+// The grid itself renders the sticker glyph large, the icon is the fallback mark.
+const STICKER_ICONS: Record<string, any> = {
+  "sticker-smile": Smile,
+  "sticker-laugh": Laugh,
+  "sticker-wink": Eye,
+  "sticker-cool": Glasses,
+  "sticker-party-face": SmilePlus,
+  "sticker-heart-eyes": HeartHandshake,
+  "sticker-star-struck": Sparkles,
+  "sticker-sleepy": BedDouble,
+  "sticker-clown": Drama,
+  "sticker-robot": Bot,
+  "sticker-alien": Satellite,
+  "sticker-ghost": Ghost,
+  "sticker-thumbs-up": ThumbsUp,
+  "sticker-ok-hand": CircleDot,
+  "sticker-peace": Scissors,
+  "sticker-pray": HandHeart,
+  "sticker-clap": Handshake,
+  "sticker-wave": Hand,
+  "sticker-rock-on": HandMetal,
+  "sticker-love-you": Pointer,
+  "sticker-red-heart": Heart,
+  "sticker-sparkles": Sparkle,
+  "sticker-star": Star,
+  "sticker-fire": Flame,
+  "sticker-lightning": Zap,
+  "sticker-hundred": Dices,
+  "sticker-party-popper": PartyPopper,
+  "sticker-balloon": Ticket,
+  "sticker-crown": Crown,
+  "sticker-gem": Gem,
+  "sticker-trophy": Trophy,
+  "sticker-medal": Medal,
+  "sticker-rocket": Rocket,
+  "sticker-gift": Gift,
+  "sticker-cat": Cat,
+  "sticker-dog": Dog,
+  "sticker-fox": Squirrel,
+  "sticker-panda": LeafyGreen,
+  "sticker-frog": Droplets,
+  "sticker-monkey": Nut,
+  "sticker-lion": Skull,
+  "sticker-tiger": PawPrint,
+  "sticker-unicorn": MoonStar,
+  "sticker-chick": Bird,
+  "sticker-penguin": Fish,
+  "sticker-butterfly": Bug,
+  "sticker-ladybug": Cherry,
+  "sticker-bee": Flower,
+  "sticker-pizza": Pizza,
+  "sticker-burger": Sandwich,
+  "sticker-fries": Popcorn,
+  "sticker-taco": Croissant,
+  "sticker-sushi": Utensils,
+  "sticker-donut": Donut,
+  "sticker-cupcake": Cake,
+  "sticker-ice-cream": IceCream,
+  "sticker-candy": Candy,
+  "sticker-lollipop": Lollipop,
+  "sticker-coffee": Coffee,
+  "sticker-bubble-tea": CupSoda,
+  "sticker-strawberry": Apple,
+  "sticker-watermelon": Citrus,
+  "sticker-sunflower": Flower2,
+  "sticker-rose": Leaf,
+  "sticker-cactus": TreePine,
+  "sticker-mushroom": ChefHat,
+  "sticker-sun": Sun,
+  "sticker-rainbow": CloudSun,
+  "sticker-cloud": Cloud,
+  "sticker-snowflake": Snowflake,
+  "sticker-ocean-wave": Waves,
+  "sticker-clover": Clover,
+};
 
 // Single source of truth. No visual duplicates: each family shows ONE button
 // in the slim bar. Variants live in flyout + expandable sidebar with descriptions.
@@ -348,6 +466,22 @@ export const TOOL_FAMILIES: ToolFamily[] = [
       { id: "range-sky", icon: CloudSun, label: "Sky Range", shortcut: "W", description: "Select the full blue sky range.", usage: "Click sky tones." },
       { id: "range-greens", icon: Sprout, label: "Greens Range", shortcut: "W", description: "Select the full foliage green range.", usage: "Click green tones." },
     ],
+  },
+  {
+    id: "sticker",
+    label: "Sticker",
+    icon: Sticker,
+    shortcut: "K",
+    description: "72 click to place stickers across faces, gestures, symbols, animals, food and nature. Pick one in the grid, then click the canvas to place it.",
+    tools: STICKER_META.map((s) => ({
+      id: s.id as ToolId,
+      icon: STICKER_ICONS[s.id] ?? Sticker,
+      glyph: s.glyph,
+      label: s.label,
+      shortcut: "K",
+      description: s.description,
+      usage: STICKER_USAGE,
+    })),
   },
   {
     id: "crop",
@@ -862,6 +996,65 @@ export const FAMILY_OF: Record<string, string> = Object.fromEntries(
   TOOL_FAMILIES.flatMap((f) => f.tools.map((t) => [t.id, f.id])),
 );
 
+// Sticker sub picker: grouped grid view (not a list), one cell per sticker
+// showing the glyph large. Shared by the sidebar panel and the flyout.
+function StickerGrid({
+  tools,
+  activeId,
+  onPick,
+  columns,
+}: {
+  tools: ToolDef[];
+  activeId: string;
+  onPick: (id: ToolId) => void;
+  columns: string;
+}) {
+  return (
+    <div>
+      {STICKER_CATEGORIES.map((c) => {
+        const items = tools.filter((t) => STICKER_BY_ID[t.id]?.category === c.id);
+        if (items.length === 0) return null;
+        return (
+          <div key={c.id} className="mb-2">
+            <div className="mb-1 flex items-center gap-1.5 px-1">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-[#6e6e78]">
+                {c.label}
+              </span>
+              <span className="rounded border border-[#2c2c31] bg-[#101012] px-1 font-mono text-[9px] text-[#a7a7b0]">
+                {items.length}
+              </span>
+            </div>
+            <div className={`grid ${columns} gap-1`}>
+              {items.map((t) => {
+                const active = activeId === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => onPick(t.id)}
+                    title={`${t.label} (${t.shortcut}) - ${t.description} ${t.usage}`}
+                    aria-label={t.label}
+                    aria-pressed={active}
+                    className={clsx(
+                      "avero-press grid aspect-square place-items-center rounded-md border text-[22px] leading-none",
+                      active
+                        ? "border-[#2f7cf6] bg-[#2f7cf6]/20"
+                        : "border-transparent hover:border-[#2c2c31] hover:bg-[#232327]",
+                    )}
+                  >
+                    <span role="img" aria-hidden="true">
+                      {t.glyph ?? ""}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function ToolBar() {
   const tool = useEditorStore((s) => s.tool);
   const setTool = useEditorStore((s) => s.setTool);
@@ -988,7 +1181,10 @@ export default function ToolBar() {
                   {!isCollapsed && (
                     <div className="px-1.5 pb-1.5">
                       <div className="mb-1.5 px-1 text-[10.5px] leading-snug text-[#6e6e78]">{f.description}</div>
-                      {f.tools.map((t) => {
+                      {f.id === "sticker" ? (
+                        <StickerGrid tools={f.tools} activeId={tool} onPick={setTool} columns="grid-cols-6" />
+                      ) : (
+                      f.tools.map((t) => {
                         const Icon = t.icon;
                         const active = tool === t.id;
                         return (
@@ -1011,6 +1207,7 @@ export default function ToolBar() {
                           </button>
                         );
                       })}
+                      )}
                     </div>
                   )}
                 </div>
@@ -1021,7 +1218,7 @@ export default function ToolBar() {
             )}
           </div>
           <div className="border-t border-[#2c2c31] p-2 text-[10px] leading-snug text-[#6e6e78]">
-            17 families, 226 sub-tools manual. Click a family icon to select. Click again to cycle variants. Right-click opens this panel.
+            {TOOL_FAMILIES.length} families, {TOOLS.length} sub-tools. Click a family icon to select. Click again to cycle variants. Right-click opens this panel.
           </div>
         </div>
       )}
@@ -1047,7 +1244,10 @@ export default function ToolBar() {
                   </button>
                 </div>
                 <div className="mb-2 px-1 text-[10.5px] text-[#6e6e78]">{f.description}</div>
-                {f.tools.map((t) => {
+                {f.id === "sticker" ? (
+                  <StickerGrid tools={f.tools} activeId={tool} onPick={setTool} columns="grid-cols-5" />
+                ) : (
+                f.tools.map((t) => {
                   const Icon = t.icon;
                   const active = tool === t.id;
                   return (
@@ -1065,7 +1265,8 @@ export default function ToolBar() {
                       <span className={clsx("font-mono text-[9px]", active ? "text-white/70" : "text-[#6e6e78]")}>{t.shortcut}</span>
                     </button>
                   );
-                })}
+                })
+                )}
               </div>
             );
           })()}

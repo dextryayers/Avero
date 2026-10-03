@@ -987,7 +987,12 @@ export default function ToolOptionsBar({
       </>
     );
   } else {
-    if (tool === "snap-toggle") {
+    if ((tool as string).startsWith("sticker-")) {
+      summary = "Click canvas to place";
+      main = (
+        <Action label="Move" title="Switch to Move to resize or rotate the placed sticker." onClick={() => setTool("move")} />
+      );
+    } else if (tool === "snap-toggle") {
       summary = snapEnabled ? "Snap on" : "Snap off";
       main = <Toggle label={snapEnabled ? "Snap on" : "Snap off"} on={snapEnabled} onClick={toggleSnap} title="Toggle snapping right now." />;
     } else if (tool === "guide-clear") {

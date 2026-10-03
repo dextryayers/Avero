@@ -350,6 +350,7 @@ describe("plan4 dispatch audit: every sub-tool resolves", () => {
           case "shape": expected = "shape"; break;
           case "navigate": expected = "navigate"; break;
           case "localfx": expected = "retouch"; break;
+          case "sticker": expected = "click"; break;
           default: expected = "UNEXPECTED-FAMILY"; break;
         }
         let got: string;

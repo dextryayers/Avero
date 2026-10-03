@@ -72,6 +72,7 @@ import {
   pickTopLayerAt,
   type ContentRect,
 } from "../engine/layerBounds";
+import { defaultStickerSize, getSticker, renderStickerToLayer } from "../engine/stickers";
 
 // Pooled doc-size composite canvas: reuses one canvas across renders
 // instead of allocating a full doc-size canvas per frame (8MB+ for HD).
@@ -4044,6 +4045,38 @@ export default function CanvasArea() {
     markDirty();
   }
 
+  // Sticker Studio: click to stamp a decal as a normal raster layer.
+  // The layer then behaves exactly like an imported photo: click to select,
+  // blue handles to resize, black button to rotate, Move or arrows to shift.
+  function createStickerLayer(p: { x: number; y: number }, stickerId: string) {
+    const meta = getSticker(stickerId);
+    if (!meta) {
+      notify(`Unknown sticker: ${stickerId}.`);
+      return;
+    }
+    const st = useEditorStore.getState();
+    const size = defaultStickerSize(doc.width, doc.height);
+    const l = makeLayer(`${meta.label} ${st.layers.length + 1}`);
+    const c = layerManager.ensure(l.id, doc.width, doc.height);
+    const ok = renderStickerToLayer(
+      c,
+      stickerId,
+      Math.round(p.x - size / 2),
+      Math.round(p.y - size / 2),
+      size,
+    );
+    if (!ok) {
+      notify(`Could not place sticker: ${meta.label}.`);
+      return;
+    }
+    st.addLayer(l);
+    st.setActiveLayer(l.id);
+    useProStore.getState().ensureTransform(l.id);
+    markDirty();
+    bumpHistogram();
+    setCursor(`${meta.label} placed`);
+  }
+
   // Clone variants: mirror / rotate / soft source sampling.
   // Manual 2026: soft = 60 percent opacity clone. Uses snapshot source to avoid self-feedback smear.
   function cloneToVariant(x: number, y: number, variant: "normal" | "mirror" | "rotate" | "soft") {
@@ -5063,6 +5096,10 @@ export default function CanvasArea() {
             else if (tool === "text-ice") createTextLayer(p, undefined, false, "ice");
             else if (tool === "text-retro") createTextLayer(p, undefined, false, "retro");
             else createTextLayer(p, undefined, tool === "text-vertical");
+            return;
+          }
+          if ((tool as string).startsWith("sticker-")) {
+            createStickerLayer(p, tool as string);
             return;
           }
           if (tool === "note") {

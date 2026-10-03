@@ -779,6 +779,81 @@ export const TEXT_TOOLS = new Set<ToolId>([
   "text-retro",
 ]);
 
+export const STICKER_TOOLS = new Set<ToolId>([
+  "sticker-smile",
+  "sticker-laugh",
+  "sticker-wink",
+  "sticker-cool",
+  "sticker-party-face",
+  "sticker-heart-eyes",
+  "sticker-star-struck",
+  "sticker-sleepy",
+  "sticker-clown",
+  "sticker-robot",
+  "sticker-alien",
+  "sticker-ghost",
+  "sticker-thumbs-up",
+  "sticker-ok-hand",
+  "sticker-peace",
+  "sticker-pray",
+  "sticker-clap",
+  "sticker-wave",
+  "sticker-rock-on",
+  "sticker-love-you",
+  "sticker-red-heart",
+  "sticker-sparkles",
+  "sticker-star",
+  "sticker-fire",
+  "sticker-lightning",
+  "sticker-hundred",
+  "sticker-party-popper",
+  "sticker-balloon",
+  "sticker-crown",
+  "sticker-gem",
+  "sticker-trophy",
+  "sticker-medal",
+  "sticker-rocket",
+  "sticker-gift",
+  "sticker-cat",
+  "sticker-dog",
+  "sticker-fox",
+  "sticker-panda",
+  "sticker-frog",
+  "sticker-monkey",
+  "sticker-lion",
+  "sticker-tiger",
+  "sticker-unicorn",
+  "sticker-chick",
+  "sticker-penguin",
+  "sticker-butterfly",
+  "sticker-ladybug",
+  "sticker-bee",
+  "sticker-pizza",
+  "sticker-burger",
+  "sticker-fries",
+  "sticker-taco",
+  "sticker-sushi",
+  "sticker-donut",
+  "sticker-cupcake",
+  "sticker-ice-cream",
+  "sticker-candy",
+  "sticker-lollipop",
+  "sticker-coffee",
+  "sticker-bubble-tea",
+  "sticker-strawberry",
+  "sticker-watermelon",
+  "sticker-sunflower",
+  "sticker-rose",
+  "sticker-cactus",
+  "sticker-mushroom",
+  "sticker-sun",
+  "sticker-rainbow",
+  "sticker-cloud",
+  "sticker-snowflake",
+  "sticker-ocean-wave",
+  "sticker-clover",
+]);
+
 export const ZOOM_TOOLS = new Set<ToolId>([
   "zoom",
   "zoom-fit",
@@ -915,6 +990,7 @@ export type DispatchKind =
   | "fill"
   | "pen"
   | "text"
+  | "sticker"
   | "measure"
   | "zoom"
   | "eyedropper"
@@ -931,6 +1007,7 @@ export function dispatchKindOf(t: ToolId): DispatchKind | null {
   if (CLICK_TOOLS.has(t)) return "click";
   if (toolIsSelectionOp(t)) return "selection";
   if (TEXT_TOOLS.has(t)) return "text";
+  if (STICKER_TOOLS.has(t)) return "sticker";
   if (ZOOM_TOOLS.has(t)) return "zoom";
   if (MEASURE_DRAG_TOOLS.has(t)) return "measure";
   if (PEN_TOOLS.has(t)) return "pen";

@@ -31,6 +31,7 @@
 
 import type { ToolId } from "../stores/useEditorStore";
 import { dispatchKindOf } from "./toolPresets";
+import { STICKER_HINTS } from "./stickers";
 
 export type TopBarKind =
   | "paint"
@@ -176,6 +177,7 @@ export function topBarKindOf(tool: ToolId): TopBarKind {
     case "selection": return "select-marquee";
     case "shape": return "shape";
     case "text": return "text";
+    case "sticker": return "click";
     case "pen": return "pen";
     case "gradient": return "gradient";
     case "fill": return "fill";
@@ -703,4 +705,5 @@ export const TOOL_HINT: Record<ToolId, string> = {
   "ai-denoise": "One click smooth denoise pass.",
   "ai-colorize": "One click gentle colorize wash.",
   "ai-sky": "One click sky enhance in the top band.",
+  ...STICKER_HINTS,
 };

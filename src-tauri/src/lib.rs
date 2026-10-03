@@ -50,6 +50,7 @@ pub fn run() {
             convert::cmd_convert_image,
             convert::cmd_convert_batch,
             convert::cmd_convert_cancel,
+            convert::cmd_export_pixels,
             io::cmd_history_budget,
             io::cmd_data_hash,
             io::cmd_snapshot_hash,

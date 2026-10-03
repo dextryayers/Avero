@@ -4,7 +4,7 @@ vi.mock("../components/CanvasArea", () => ({
   getCompositeCanvas: () => null,
 }));
 
-import { AVX_MAGIC, AVX_VERSION, parseAvxJson, encodeBmpDataUrl, verifyAvxChecksum, normalizeAvxFile, sanitizeProjectName, ensureAvxExtension, joinPath, parentDir, baseName, previewPathFor, type AvxFile } from "./projectIo";
+import { AVX_MAGIC, AVX_VERSION, parseAvxJson, encodeBmpDataUrl, verifyAvxChecksum, normalizeAvxFile, remapAvxObjects, sanitizeProjectName, ensureAvxExtension, joinPath, parentDir, baseName, previewPathFor, type AvxFile } from "./projectIo";
 
 function sampleProject(): AvxFile {
   return {
@@ -219,5 +219,67 @@ describe("normalizeAvxFile anti-corruption", () => {
     const out = normalizeAvxFile(raw);
     expect(out.layers).toHaveLength(1);
     expect(out.layers[0].meta.id).toBe("a");
+  });
+
+  it("keeps valid objects and drops junk", () => {
+    const raw = {
+      magic: AVX_MAGIC,
+      version: 1,
+      doc: { name: "X", width: 50, height: 50 },
+      layers: [],
+      objects: [
+        { label: "House", confidence: 0.8, source: "stuff", layerId: "old-1", layerName: "House 1" },
+        { label: "", confidence: NaN, source: 42, layerId: "", layerName: "" },
+        null,
+      ],
+    } as unknown as AvxFile;
+    const out = normalizeAvxFile(raw);
+    expect(out.objects).toHaveLength(1);
+    expect(out.objects![0]).toMatchObject({ label: "House", confidence: 0.8, layerId: "old-1" });
+  });
+
+  it("defaults objects to empty for legacy files", () => {
+    const raw = {
+      magic: AVX_MAGIC,
+      version: 1,
+      doc: { name: "X", width: 50, height: 50 },
+      layers: [],
+    } as unknown as AvxFile;
+    expect(normalizeAvxFile(raw).objects).toEqual([]);
+  });
+});
+
+describe("remapAvxObjects", () => {
+  const layers = [
+    { id: "new-1", name: "House 1" },
+    { id: "new-2", name: "Bus 1" },
+  ];
+  const idMap = new Map([["old-1", "new-1"]]);
+
+  it("prefers the saved layer id", () => {
+    const out = remapAvxObjects(
+      [{ label: "House", confidence: 0.8, source: "stuff", layerId: "old-1", layerName: "House 1" }],
+      idMap,
+      layers,
+    );
+    expect(out).toEqual([{ label: "House", confidence: 0.8, source: "stuff", layerId: "new-1" }]);
+  });
+
+  it("falls back to matching by layer name", () => {
+    const out = remapAvxObjects(
+      [{ label: "Bus", confidence: 0.6, source: "yolo", layerId: "gone", layerName: "Bus 1" }],
+      idMap,
+      layers,
+    );
+    expect(out).toEqual([{ label: "Bus", confidence: 0.6, source: "yolo", layerId: "new-2" }]);
+  });
+
+  it("drops orphans whose layer no longer exists", () => {
+    const out = remapAvxObjects(
+      [{ label: "Ghost", confidence: 0.5, source: "yolo", layerId: "gone", layerName: "Gone" }],
+      idMap,
+      layers,
+    );
+    expect(out).toEqual([]);
   });
 });

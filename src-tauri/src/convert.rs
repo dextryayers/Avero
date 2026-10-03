@@ -479,6 +479,42 @@ pub fn cmd_convert_image(
     })
 }
 
+/// Export the current canvas: PNG bytes in, encoded file out.
+/// Reuses the tested convert_bytes pipeline so the Export page can offer
+/// every Rust encoder (BMP, TIFF, GIF, ICO, TGA, QOI, PNM, HDR, EXR, FF)
+/// without duplicating format logic. Creates the output folder on demand.
+#[tauri::command]
+pub fn cmd_export_pixels(
+    png_data: Vec<u8>,
+    format: String,
+    quality: u8,
+    matte: [u8; 3],
+    path: String,
+) -> Result<ConvertReport, String> {
+    let opts = ConvertOptions {
+        format: format.clone(),
+        quality: Some(quality),
+        png_best: None,
+        matte: Some(matte),
+        resize: None,
+        filter: None,
+        no_enlarge: None,
+    };
+    let (encoded, w, h) = convert_bytes(&png_data, &opts)?;
+    if let Some(parent) = std::path::Path::new(&path).parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent).map_err(|e| format!("Cannot create output folder: {e}"))?;
+        }
+    }
+    std::fs::write(&path, &encoded).map_err(|e| format!("Cannot write output: {e}"))?;
+    Ok(ConvertReport {
+        path,
+        width: w,
+        height: h,
+        bytes: encoded.len() as u64,
+    })
+}
+
 // ---------- batch ----------
 
 #[derive(Deserialize, Clone)]

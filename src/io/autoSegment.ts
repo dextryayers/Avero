@@ -243,8 +243,13 @@ export async function runAutoSegment(): Promise<void> {
       const sc = Math.min(1, 120 / Math.max(it.w, it.h));
       t.width = Math.max(1, Math.round(it.w * sc));
       t.height = Math.max(1, Math.round(it.h * sc));
-      t.getContext("2d")!.drawImage(nc, it.x, it.y, it.w, it.h, 0, 0, t.width, t.height);
-      thumb = t.toDataURL("image/png");
+      // JPEG is ~5x smaller than PNG for thumbs and keeps the panel light.
+      // Cutouts are opaque after destination-in, so no alpha is lost visually.
+      const tctx = t.getContext("2d")!;
+      tctx.fillStyle = "#000000";
+      tctx.fillRect(0, 0, t.width, t.height);
+      tctx.drawImage(nc, it.x, it.y, it.w, it.h, 0, 0, t.width, t.height);
+      thumb = t.toDataURL("image/jpeg", 0.72);
     } catch {
       /* ignore */
     }

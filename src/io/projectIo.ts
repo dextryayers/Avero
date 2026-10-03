@@ -53,7 +53,7 @@ function loadImage(dataUrl: string): Promise<HTMLImageElement> {
   });
 }
 
-function thumbOf(canvas: HTMLCanvasElement, maxSide = 320): string | null {
+export function thumbOf(canvas: HTMLCanvasElement, maxSide = 320): string | null {
   try {
     const sc = Math.min(1, maxSide / Math.max(canvas.width, canvas.height));
     const t = document.createElement("canvas");
@@ -198,6 +198,11 @@ export async function registerAvxAssociation(): Promise<void> {
   } catch {
     /* best effort only, never blocks startup */
   }
+  try {
+    await invoke("cmd_register_image_association");
+  } catch {
+    /* best effort only, never blocks startup */
+  }
 }
 
 // Create a dedicated `<parent>/<Name>/` folder + `images/`; linked to the new document.
@@ -226,6 +231,18 @@ interface AvxLayer {
   photo?: boolean;
 }
 
+// Plan5 follow-up: detected-object metadata. Stored per layer so the Objects
+// panel survives the .avx round-trip and every detected item in the image
+// stays addressable after reopen. Thumbnails are regenerated on load
+// (never stored) to keep files small.
+export interface AvxObject {
+  label: string;
+  confidence: number;
+  source: string;
+  layerId: string;
+  layerName: string;
+}
+
 export interface AvxFile {
   magic: string;
   version: number;
@@ -234,6 +251,8 @@ export interface AvxFile {
   checksum?: string;
   doc: { name: string; width: number; height: number };
   layers: AvxLayer[];
+  // Detected objects (plan5). Optional so old files still open.
+  objects?: AvxObject[];
   activeLayerName: string | null;
   adjustments: unknown[];
   filters: unknown[];
@@ -337,6 +356,7 @@ function canonicalPayload(file: AvxFile): string {
     savedAt: file.savedAt,
     doc: file.doc,
     layers: file.layers,
+    objects: file.objects ?? null,
     activeLayerName: file.activeLayerName,
     adjustments: file.adjustments,
     filters: file.filters,
@@ -388,6 +408,21 @@ export function normalizeAvxFile(file: AvxFile): AvxFile {
         typeof l.maskPixels === "string" && l.maskPixels.startsWith("data:image/") ? l.maskPixels : null,
       photo: l.photo === true ? true : undefined,
     }));
+  const objects: AvxObject[] = Array.isArray(file.objects)
+    ? file.objects
+        .filter((o) => o && typeof o === "object")
+        .map((o) => ({
+          label: typeof o.label === "string" && o.label ? o.label.slice(0, 48) : "Object",
+          confidence:
+            typeof o.confidence === "number" && Number.isFinite(o.confidence)
+              ? Math.max(0, Math.min(1, o.confidence))
+              : 0,
+          source: typeof o.source === "string" ? o.source.slice(0, 16) : "yolo",
+          layerId: typeof o.layerId === "string" ? o.layerId : "",
+          layerName: typeof o.layerName === "string" ? o.layerName.slice(0, 60) : "",
+        }))
+        .filter((o) => o.layerId !== "" || o.layerName !== "")
+    : [];
   return {
     magic: AVX_MAGIC,
     version: typeof file.version === "number" ? file.version : AVX_VERSION,
@@ -400,6 +435,7 @@ export function normalizeAvxFile(file: AvxFile): AvxFile {
       height: clampNum(file.doc?.height, 1, 16384, 1080),
     },
     layers: cleanLayers,
+    objects,
     activeLayerName: typeof file.activeLayerName === "string" ? file.activeLayerName : null,
     adjustments: Array.isArray(file.adjustments) ? file.adjustments : [],
     filters: Array.isArray(file.filters) ? file.filters : [],
@@ -421,6 +457,25 @@ export function normalizeAvxFile(file: AvxFile): AvxFile {
   };
 }
 
+// Remap saved object entries onto fresh layer ids after open.
+// Prefers the saved layerId, falls back to matching by layer name, drops
+// orphans whose layer no longer exists. Pure and unit-tested.
+export function remapAvxObjects(
+  objs: AvxObject[],
+  idMap: Map<string, string>,
+  layers: { id: string; name: string }[],
+): { label: string; confidence: number; source: string; layerId: string }[] {
+  const byName = new Map(layers.map((l) => [l.name, l.id]));
+  const out: { label: string; confidence: number; source: string; layerId: string }[] = [];
+  for (const o of objs) {
+    const direct = o.layerId ? idMap.get(o.layerId) : undefined;
+    const nid = direct ?? (o.layerName ? byName.get(o.layerName) : undefined);
+    if (!nid) continue;
+    out.push({ label: o.label, confidence: o.confidence, source: o.source, layerId: nid });
+  }
+  return out;
+}
+
 // Word-style automatic backup: before overwriting an old .avx, keep a `.bak` copy.
 async function backupExistingAvx(path: string): Promise<void> {
   if (!isTauri() || !path.toLowerCase().endsWith(".avx")) return;
@@ -437,7 +492,7 @@ async function backupExistingAvx(path: string): Promise<void> {
 // - First save / Save As: ALWAYS opens the file manager, defaulting to `Name.avx`
 //   inside the dedicated project folder when one exists.
 // - Later saves: write straight to the same path (atomic + backup + verify).
-export async function saveAvxProject(saveAs = false): Promise<string | null> {
+export async function saveAvxProject(saveAs = false, onStage?: (msg: string) => void): Promise<string | null> {
   const ed = useEditorStore.getState();
   const pro = useProStore.getState();
   const doc = ed.doc;
@@ -456,7 +511,17 @@ export async function saveAvxProject(saveAs = false): Promise<string | null> {
     path = ensureAvxExtension(path);
   }
 
-  const layers: AvxLayer[] = ed.layers.map((l) => {
+  // Chunked encode: yield to the UI thread between layers so large projects
+  // never freeze the app. Each layer keeps full lossless PNG pixels.
+  const layers: AvxLayer[] = [];
+  const total = ed.layers.length;
+  for (let i = 0; i < total; i++) {
+    const l = ed.layers[i];
+    try {
+      onStage?.(`Encoding layer ${i + 1}/${total}`);
+    } catch {
+      /* stage callback is best-effort */
+    }
     const c = layerManager.get(l.id);
     const m = layerManager.getMask(l.id);
     let pixels: string | null = null;
@@ -471,9 +536,30 @@ export async function saveAvxProject(saveAs = false): Promise<string | null> {
     } catch {
       maskPixels = null;
     }
-    return { meta: { ...l }, pixels, maskPixels, photo: layerManager.isPhotoLayer(l.id) || undefined };
-  });
+    layers.push({ meta: { ...l }, pixels, maskPixels, photo: layerManager.isPhotoLayer(l.id) || undefined });
+    // Let paint, input and progress render between heavy encodes.
+    await new Promise((r) => setTimeout(r, 0));
+  }
   const active = ed.layers.find((l) => l.id === ed.activeLayerId) ?? null;
+
+  // Snapshot detected objects so the Objects panel survives the round-trip.
+  let objects: AvxObject[] = [];
+  try {
+    const { useObjectStore } = await import("../stores/useObjectStore");
+    const ids = new Set(ed.layers.map((l) => l.id));
+    objects = useObjectStore
+      .getState()
+      .objects.filter((o) => ids.has(o.layerId))
+      .map((o) => ({
+        label: o.label,
+        confidence: o.confidence,
+        source: o.source,
+        layerId: o.layerId,
+        layerName: ed.layers.find((l) => l.id === o.layerId)?.name ?? "",
+      }));
+  } catch {
+    objects = [];
+  }
 
   let selPixels: string | null = null;
   try {
@@ -490,6 +576,7 @@ export async function saveAvxProject(saveAs = false): Promise<string | null> {
     savedAt: Date.now(),
     doc: { name: doc.name, width: doc.width, height: doc.height },
     layers,
+    objects,
     activeLayerName: active ? active.name : null,
     adjustments: pro.adjustments,
     filters: pro.filters,
@@ -633,7 +720,7 @@ export async function saveAvxProject(saveAs = false): Promise<string | null> {
 
 // Open an .avx file and fully restore it: layers, masks, adjustments, filters, transforms, guides.
 // Corruption-proof: tolerant normalization + safe per-layer loading + image timeouts.
-export async function openAvxProject(fromPath?: string): Promise<boolean> {
+export async function openAvxProject(fromPath?: string, onStage?: (msg: string) => void): Promise<boolean> {
   let path = fromPath ?? null;
   let json = "";
   if (path) {
@@ -707,8 +794,9 @@ export async function openAvxProject(fromPath?: string): Promise<boolean> {
     ]);
 
   let okLayers = 0;
-  for (const [i, l] of file.layers.entries()) {
-    const nid = idMap.get(l.meta.id)!;
+  let doneLayers = 0;
+  const layerTotal = file.layers.length;
+  async function loadOne(i: number, l: (typeof file.layers)[number], nid: string): Promise<void> {
     const c = layerManager.ensure(nid, W, H);
     const ctx = c.getContext("2d")!;
     ctx.clearRect(0, 0, W, H);
@@ -745,9 +833,55 @@ export async function openAvxProject(fromPath?: string): Promise<boolean> {
         /* ignore a broken mask */
       }
     }
+    doneLayers += 1;
+    try {
+      onStage?.(`Decoding layers (${doneLayers}/${layerTotal})`);
+    } catch {
+      /* stage callback is best-effort */
+    }
     void i;
   }
+  // Parallel decode pool: image decoding is async, so layers decode
+  // concurrently instead of one 8s-timeout at a time. Drawing stays on the
+  // main thread per layer canvas (each canvas is independent).
+  try {
+    onStage?.(`Decoding layers (0/${layerTotal})`);
+  } catch {
+    /* ignore */
+  }
+  const POOL = 4;
+  for (let s = 0; s < file.layers.length; s += POOL) {
+    const chunk = file.layers
+      .slice(s, s + POOL)
+      .map((l, k) => loadOne(s + k, l, idMap.get(l.meta.id)!));
+    await Promise.all(chunk);
+  }
   void okLayers;
+
+  // Restore detected objects with remapped ids (plan5 follow-up).
+  try {
+    const { useObjectStore } = await import("../stores/useObjectStore");
+    const store = useObjectStore.getState();
+    const remapped = remapAvxObjects(file.objects ?? [], idMap, newLayers);
+    if (remapped.length > 0) {
+      store.setObjects(
+        remapped.map((o) => {
+          let thumb: string | null = null;
+          try {
+            const c = layerManager.get(o.layerId);
+            if (c) thumb = thumbOf(c, 120);
+          } catch {
+            thumb = null;
+          }
+          return { id: `obj-${o.layerId}`, layerId: o.layerId, label: o.label, confidence: o.confidence, thumb, source: o.source };
+        }),
+      );
+    } else {
+      store.clearObjects();
+    }
+  } catch {
+    /* objects are a bonus; layers are the deliverable */
+  }
 
   // Restore the saved active selection mask, if present
   if (file.selPixels) {

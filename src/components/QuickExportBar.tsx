@@ -1,23 +1,10 @@
 import { useState } from "react";
-import { Save, Download, ChevronDown, FileImage, FileBox, Layers } from "lucide-react";
-import { saveAvxProject, openAvxProject, exportDataUrl, writeTextFile, type ExportFormat } from "../io/projectIo";
-import { rustSaveDataUrl } from "../io/tauriIo";
-import { save } from "@tauri-apps/plugin-dialog";
+import { Save, Download, ChevronDown, FileBox, Layers } from "lucide-react";
+import { saveAvxProject, openAvxProject } from "../io/projectIo";
 import { useEditorStore } from "../stores/useEditorStore";
 import { showError, showMessage } from "../ui/notify";
-import clsx from "clsx";
-
-const IMG_FORMATS: { id: ExportFormat; label: string; ext: string }[] = [
-  { id: "png", label: "PNG", ext: "png" },
-  { id: "jpg", label: "JPG", ext: "jpg" },
-  { id: "webp", label: "WEBP", ext: "webp" },
-  { id: "bmp", label: "BMP", ext: "bmp" },
-  { id: "tiff", label: "TIFF", ext: "tiff" },
-  { id: "svg", label: "SVG", ext: "svg" },
-];
 
 export default function QuickExportBar({ onOpenExport }: { onOpenExport: () => void }) {
-  const [fmt, setFmt] = useState<ExportFormat>("png");
   const [busy, setBusy] = useState(false);
   const doc = useEditorStore((s) => s.doc);
 
@@ -25,42 +12,10 @@ export default function QuickExportBar({ onOpenExport }: { onOpenExport: () => v
     if (busy) return;
     setBusy(true);
     try {
-      const p = await saveAvxProject(as);
+      const p = await saveAvxProject(as, undefined);
       if (p) await showMessage(`Saved: ${p}`);
     } catch (e) {
       await showError(`Failed to save .avx: ${String(e)}`);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function quickExport(f: ExportFormat) {
-    if (busy) return;
-    setBusy(true);
-    try {
-      const { dataUrl, ext } = exportDataUrl({ format: f, quality: 92, scale: 100, matte: f === "jpg" ? "white" : "none", fileName: doc.name });
-      // trigger download via canvas or tauri
-      if ("__TAURI__" in window) {
-        const path = await save({ defaultPath: `${doc.name.replace(/\.[^.]+$/, "")}.${ext}`, filters: [{ name: ext.toUpperCase(), extensions: [ext] }] });
-        if (!path) return;
-        if (f === "svg") {
-          const b64 = dataUrl.split(",")[1] ?? "";
-          const bin = atob(b64);
-          const bytes = new Uint8Array(bin.length);
-          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-          const text = new TextDecoder().decode(bytes);
-          await writeTextFile(path, text);
-        } else {
-          await rustSaveDataUrl(dataUrl, path);
-        }
-      } else {
-        const a = document.createElement("a");
-        a.href = dataUrl;
-        a.download = `${doc.name.replace(/\.[^.]+$/, "")}.${ext}`;
-        a.click();
-      }
-    } catch (e) {
-      await showError(`Export failed: ${String(e)}`);
     } finally {
       setBusy(false);
     }
@@ -103,33 +58,10 @@ export default function QuickExportBar({ onOpenExport }: { onOpenExport: () => v
       <div className="flex items-center gap-1">
         <button
           onClick={onOpenExport}
-          className="flex h-7 items-center gap-1.5 rounded-md border border-[#2c2c31] bg-[#232327] px-2.5 text-[11px] font-medium text-white hover:border-[#3a3a41]"
-          title="Full export dialog (Ctrl+E)"
+          className="flex h-7 items-center gap-1.5 rounded-md bg-white px-3 text-[11px] font-semibold text-[#161618] hover:bg-[#ececee]"
+          title="Open the Export page (Ctrl+E)"
         >
           <Download size={12} /> Export
-        </button>
-        <div className="hidden items-center gap-1 md:flex">
-          {IMG_FORMATS.map((f) => (
-            <button
-              key={f.id}
-              onClick={() => quickExport(f.id)}
-              disabled={busy}
-              className={clsx(
-                "h-7 rounded-md border px-2 font-mono text-[10px]",
-                fmt === f.id ? "border-[#2f7cf6] bg-[#2f7cf6] text-white" : "border-[#2c2c31] bg-transparent text-[#a7a7b0] hover:border-[#3a3a41] hover:text-white",
-              )}
-              onMouseEnter={() => setFmt(f.id)}
-              title={`Quick export ${f.ext.toUpperCase()}`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-        <button
-          onClick={() => quickExport(fmt)}
-          className="flex h-7 items-center gap-1 rounded-md bg-white px-2.5 text-[11px] font-semibold text-[#161618] hover:bg-[#ececee] md:hidden"
-        >
-          <FileImage size={12} /> {fmt.toUpperCase()}
         </button>
       </div>
 

@@ -18,7 +18,7 @@ import { SegmentFirstRunDialog, wasSegmentDialogDismissed } from "./components/S
 // settings and export dialog load on demand instead of in the first paint.
 const EditorView = lazy(() => import("./components/EditorView"));
 const SettingsPanel = lazy(() => import("./components/SettingsPanel"));
-const ExportDialog = lazy(() => import("./components/ExportDialog"));
+const ExportPage = lazy(() => import("./components/ExportPage"));
 
 function ChunkFallback({ label }: { label: string }) {
   return (
@@ -668,9 +668,11 @@ export default function App() {
       <StatusBar />
       <CommandPalette open={palette} onClose={() => setPalette(false)} />
       {!homeOpen && !settingsOpen && exportOpen && (
-        <Suspense fallback={null}>
-          <ExportDialog onClose={() => setExportOpen(false)} />
-        </Suspense>
+        <div className="fixed inset-0 z-[70] flex flex-col bg-[#101012]">
+          <Suspense fallback={<ChunkFallback label="Export" />}>
+            <ExportPage onBack={() => setExportOpen(false)} />
+          </Suspense>
+        </div>
       )}
       {segmentDialog && <SegmentFirstRunDialog onDone={() => setSegmentDialog(false)} />}
       {booted && <Onboarding />}

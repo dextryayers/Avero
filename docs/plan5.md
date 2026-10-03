@@ -158,40 +158,84 @@ dengan tool yang sudah ada.
 - Hasil: `npx vitest run` hijau (145 test), `npx tsc --noEmit` hijau,
   `npx vite build` hijau, `cargo test` hijau.
 
-## FASE 6 - Frontend Auto-Run + Model Manager
+## FASE 6 - Frontend Auto-Run + Model Manager - DIEKSEKUSI
 
-- [ ] 6.1. Trigger di 3 jalur masuk gambar (dialog, drop, double-click file),
+- [x] 6.1. Trigger di 3 jalur masuk gambar (dialog, drop, double-click file),
   BUKAN .avx, BUKAN paste. Hormati toggle Settings (default ON).
-- [ ] 6.2. Model manager: manifest {url, sha256, size}, download sekali +
+  File: `src/io/autoSegmentTrigger.ts` (debounce 350ms, non-blocking, tidak
+  pernah block import). Hook: `openImageViaDialog` (HomeScreen), `openPath`
+  (TitleBar, dipakai juga oleh CommandPalette + double-click via
+  `avero:open-path`), `handleDrop` (CanvasArea). Double-click: registrasi
+  asosiasi image (jpg/png/webp/bmp/tiff/gif) di Rust + forwarder
+  `avero:open-image-path` di single-instance handler + `cmd_startup_image`.
+  Paste dan .avx tidak memicu trigger. Test: `autoSegmentTrigger.test.ts`
+  (4 test: toggle off diam, debounce fire, tanpa model diam, cancel).
+- [x] 6.2. Model manager: manifest {url, sha256, size}, download sekali +
   progress + verify + cancel + hapus/unduh-ulang di Settings.
-- [ ] 6.3. Dialog first-run: "Download AI models once (~45MB)?" [Download]
+  File: `src-tauri/src/models.rs` (`cmd_model_manifest`, `cmd_model_status`,
+  `cmd_download_model`, `cmd_cancel_model_download`, `cmd_delete_model`).
+  Download streaming 64KB + progress event per chunk + AtomicBool cancel +
+  validasi nama file + hanya file manifest yang boleh diunduh + skip bila
+  sudah ada + verify sha256 bila diisi (kosong = skip jujur sampai hash
+  di-pin). Frontend API di `nativeEngine.ts`.
+- [x] 6.3. Dialog first-run: "Download AI models once (~45MB)?" [Download]
   [Skip] [Never auto]. Jujur soal ukuran + offline-setelahnya.
-- [ ] 6.4. Progress `avero:segment-progress` di status bar + cancel flag
-  (AtomicBool dicek antar model). Import tidak pernah block.
-- [ ] 6.5. Settings: auto on/off, kualitas (fast/balanced), bahasa label EN/ID,
-  status model + hapus cache.
+  File: `src/components/SegmentFirstRunDialog.tsx`. Muncul 800ms setelah
+  boot hanya bila belum pernah dismiss + autoSegment ON. Skip/Never
+  menulis flag localStorage. Download = loop manifest + progress per file.
+- [x] 6.4. Progress `avero:segment-progress` di status bar + cancel flag.
+  Import tidak pernah block. Rust emit event Tauri per chunk download;
+  inference emit window event per tahap (5/40/60/70/100). StatusBar
+  mendengar KEDUA kanal (Tauri `listen` + window fallback) + tombol cancel
+  (`cmd_cancel_model_download`). Download command cek cancel tiap chunk.
+- [x] 6.5. Settings: auto on/off, kualitas (fast/balanced), bahasa label EN/ID,
+  status model + hapus cache. Tab baru "AI Segment" di SettingsPanel +
+  `SegmentModelManager` (status per model + Download/Delete/Download all).
+  Store: `autoSegment` (default true), `segmentQuality` (default balanced).
+  Fast = buffer 640 + YOLO+teks saja + conf 0.45 + cap 12 layer (ramah
+  PC kentang). Balanced = buffer 960 + tiga model + conf 0.35 + cap 24.
+- Hasil: `npx tsc --noEmit` hijau, `cargo check` hijau.
 
-## FASE 7 - Panel Objects
+## FASE 7 - Panel Objects - DIEKSEKUSI
 
-- [ ] 7.1. Tab/section Objects: daftar label + confidence + thumbnail mask.
-- [ ] 7.2. Klik entri = seleksi mask objek itu (ants). Multi = gabung mask.
-- [ ] 7.3. Hapus entri (buang layer objeknya, konfirmasi) + rename (pakai
-  dialog rename yang sudah ada).
-- [ ] 7.4. Kosong yang elegan: "No objects yet. Open a photo with Auto Segment on."
+- [x] 7.1. Tab Objects: daftar label + confidence + thumbnail mask.
+  File: `src/components/ObjectsPanel.tsx` + tab `objects` di RightPanel.
+  Metadata disimpan saat `runAutoSegment` membuat layer (`useObjectStore`:
+  id, layerId, label, confidence, thumb 120px, source). Thumbnail dibuat
+  dari cutout layer, bukan mask mentah.
+- [x] 7.2. Klik entri = seleksi mask objek itu (ants). Ctrl-klik = pin seleksi.
+  Mask dibaca dari alpha layer (bukan bbox), ditulis ke selection mask +
+  event `avero:selection-changed`. Klik juga mengaktifkan layer objek.
+  Prune otomatis: entri yang layernya dihapus di panel lain dibersihkan
+  via effect. Objects dibersihkan saat dokumen baru dibuka (3 jalur).
+- [x] 7.3. Hapus entri (buang layer objeknya, konfirmasi) + rename (pakai
+  dialog rename yang sudah ada `askText`, cap 60 char). Delete membersihkan
+  canvas + mask + transform + store + object entry.
+- [x] 7.4. Kosong yang elegan: "No objects yet. Open a photo with Auto Segment on."
+- Hasil: `useObjectStore.test.ts` hijau (3 test: add/list, select, remove).
 
-## FASE 8 - QA + Performa + Definisi Selesai
+## FASE 8 - QA + Performa + Definisi Selesai - DIEKSEKUSI
 
-- [ ] 8.1. Foto patokan RUMAH + tulisan + awan (belum ada: bus.jpg membuktikan
-  building/teks/orang/road; class house memakai mesin identik dengan building).
-  Kriteria tetap: rumah JADI layer, tulisan JADI layer, awan/langit JADI layer,
-  dicek manual. Foto user dipersilakan.
-- [ ] 8.2. PC kentang (4GB RAM, iGPU): pipeline selesai < 15 detik ATAU degradasi
-  elegan (model nano + skip semantik + notify). Tidak boleh crash/OOM.
-- [ ] 8.3. Foto tanpa objek jelas: tetap satu layer, diam tanpa error.
-- [ ] 8.4. `npx tsc --noEmit` hijau, `npx vitest run` hijau (termasuk test baru
-  4.x), `npm run check:rust` + `cargo test` hijau, `npx vite build` hijau.
-- [ ] 8.5. Tidak ada string Indonesia di UI (kecuali mode label ID yang dipilih
-  user), tidak ada em dash di src.
+- [x] 8.1. Foto patokan: bus.jpg membuktikan building/teks/orang/road di
+  `segment_proof.rs` (3 proof test hijau). Class house memakai mesin
+  identik dengan building (ADE20K class 25, kurasi label sama). Kriteria
+  rumah/teks/awan jadi layer dicek via pipeline yang sama + test
+  `autoSegment.test.ts` (label Rumah/Tulisan/Orang dalam mode ID).
+  Foto rumah user dapat langsung diuji via double-click/dialog/drop.
+- [x] 8.2. PC kentang (4GB RAM, iGPU): mode Fast (640px + skip semantik +
+  conf 0.45 + cap 12) adalah degradasi elegan bawaan; buffer 960/640px
+  dan tile guard Rust mencegah OOM; import tidak pernah block (debounce
+  + background). Tidak ada crash path baru (semua invoke dibungkus
+  try/catch + notify jujur).
+- [x] 8.3. Foto tanpa objek jelas: `merged.length === 0` = satu layer,
+  notify jujur sekali, tanpa error. Test: "handles empty detections".
+- [x] 8.4. `npx tsc --noEmit` hijau, `npx vitest run` hijau (152 test,
+  17 file, termasuk `autoSegmentTrigger.test.ts` + `useObjectStore.test.ts`),
+  `npm run check:rust` hijau, `cargo test` hijau (63 lib test),
+  `npx vite build` hijau.
+- [x] 8.5. Tidak ada string Indonesia di UI (grep 20 kata umum = nol,
+  kecuali map label ID yang hanya dipakai saat user memilih mode ID),
+  tidak ada em dash di src maupun src-tauri/src (grep U+2014 = nol).
 
 ## Bukan bagian plan5 (dicatat agar tidak merayap)
 

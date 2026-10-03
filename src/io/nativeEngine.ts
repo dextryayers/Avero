@@ -248,6 +248,32 @@ export function cancelModelDownload(): void {
   void invoke("cmd_cancel_model_download").catch(() => undefined);
 }
 
+// --- Export page: encode PNG bytes to any Rust encoder format ---
+
+export interface ExportPixelsReport {
+  path: string;
+  width: number;
+  height: number;
+  bytes: number;
+}
+
+export async function exportPixels(
+  pngData: Uint8Array,
+  format: string,
+  quality: number,
+  matte: [number, number, number],
+  path: string,
+): Promise<ExportPixelsReport> {
+  if (!isTauri()) throw new Error("Advanced export needs the desktop app");
+  return invoke<ExportPixelsReport>("cmd_export_pixels", {
+    png_data: Array.from(pngData),
+    format,
+    quality,
+    matte,
+    path,
+  });
+}
+
 export async function segmentStuff(
   modelPath: string,
   rgba: Uint8ClampedArray | Uint8Array,

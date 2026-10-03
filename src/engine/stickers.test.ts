@@ -66,7 +66,7 @@ describe("sticker studio catalog", () => {
     const fam = TOOL_FAMILIES.find((f) => f.id === "sticker");
     expect(fam).toBeTruthy();
     expect(fam!.tools.length).toBe(STICKER_META.length);
-    const barIds = new Set(fam!.tools.map((t) => t.id));
+    const barIds = new Set<string>(fam!.tools.map((t) => t.id));
     for (const id of STICKER_IDS) expect(barIds.has(id), id).toBe(true);
   });
 

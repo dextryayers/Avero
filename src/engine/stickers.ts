@@ -124,14 +124,6 @@ export const STICKER_IDS: string[] = STICKER_META.map((s) => s.id);
 export const STICKER_USAGE =
   "Click the canvas to place. Then use Move to resize or rotate.";
 
-/** Generated top bar hints, one per sticker. Kept in code so TOOL_HINT stays total. */
-export const STICKER_HINTS: Record<string, string> = Object.fromEntries(
-  STICKER_META.map((s) => [
-    s.id,
-    `Click the canvas to place the ${s.label.toLowerCase()} sticker. Resize and rotate with the blue handles.`,
-  ]),
-);
-
 export function isStickerTool(id: string): boolean {
   return id.startsWith("sticker-");
 }

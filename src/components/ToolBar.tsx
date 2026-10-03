@@ -252,7 +252,6 @@ import {
   Radar,
   Sticker,
   Laugh,
-  Eye,
   Glasses,
   SmilePlus,
   HeartHandshake,
@@ -261,12 +260,10 @@ import {
   Bot,
   Satellite,
   ThumbsUp,
-  CircleDot,
   HandHeart,
   Handshake,
   HandMetal,
   Pointer,
-  Sparkle,
   Dices,
   PartyPopper,
   Squirrel,
@@ -289,6 +286,8 @@ import {
   ChefHat,
   Cat,
   Dog,
+  Trophy,
+  Gift,
 } from "lucide-react";
 import { useEditorStore, type ToolId } from "../stores/useEditorStore";
 import { STICKER_BY_ID, STICKER_CATEGORIES, STICKER_META, STICKER_USAGE } from "../engine/stickers";
@@ -1206,7 +1205,7 @@ export default function ToolBar() {
                             <span className="font-mono text-[9px] text-[#6e6e78]">{t.shortcut}</span>
                           </button>
                         );
-                      })}
+                      })
                       )}
                     </div>
                   )}

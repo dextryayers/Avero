@@ -183,7 +183,7 @@ export default function HomeScreen() {
   const [formInfo, setFormInfo] = useState<string | null>(null);
   const isDesktop = typeof window !== "undefined" && "__TAURI__" in window;
 
-  // Folder picker — the "klik folder" path. Guarded against double-click,
+  // Folder picker - the "klik folder" path. Guarded against double-click,
   // reports cancel vs error distinctly, never freezes the modal.
   async function chooseProjectFolder() {
     if (folderBusy || creating) return;
@@ -200,9 +200,9 @@ export default function HomeScreen() {
         setFormError(null);
         setFormInfo(null);
       } else {
-        // Cancel is normal — hint, don't scold.
+        // Cancel is normal - hint, don't scold.
         setFormError(null);
-        setFormInfo("No folder picked yet. You can still press Create — Save (Ctrl+S) will ask where to put the .avx.");
+        setFormInfo("No folder picked yet. You can still press Create - Save (Ctrl+S) will ask where to put the .avx.");
       }
     } catch (e) {
       setFormError(`Could not open the folder picker: ${String(e)}`);
@@ -225,7 +225,7 @@ export default function HomeScreen() {
       if (e.key === "Enter" && !creating && !folderBusy) {
         // Don't hijack Enter while the user picks from an autocomplete popup.
         if (t && t.tagName === "INPUT" && (t as HTMLInputElement).list) {
-          // fall through — still create, inputs here have no datalist
+          // fall through - still create, inputs here have no datalist
         }
         submitNew();
       }
@@ -256,7 +256,7 @@ export default function HomeScreen() {
       const clean = sanitizeProjectName(name.trim() || "Untitled");
       // Folder policy (fast + predictable):
       // - Modal flow (showNew open): use the picked folder when present; if
-      //   none is picked yet, DON'T force a second file-manager popup — create
+      //   none is picked yet, DON'T force a second file-manager popup - create
       //   now and let Ctrl+S ask where the .avx goes (defaults into the
       //   project folder when one exists). One picker per click, no loops.
       // - Preset quick-click (modal closed): never pop a picker; instant
@@ -776,7 +776,7 @@ export default function HomeScreen() {
                   </span>
                 </div>
                 <div className="mt-0.5 truncate text-[11.5px] text-[#8f8f98]">
-                  Canvas first, folder optional — max 16384px per side
+                  Canvas first, folder optional - max 16384px per side
                 </div>
               </div>
               <div className="ml-auto hidden items-center gap-1 font-mono text-[10px] text-[#6e6e78] sm:flex">
@@ -813,7 +813,7 @@ export default function HomeScreen() {
             <div className="max-h-[72vh] overflow-y-auto p-5">
               {/* 01 Canvas */}
               <div className="flex items-center justify-between">
-                <div className="avero-micro">01 — Canvas</div>
+                <div className="avero-micro">01 - Canvas</div>
                 <div className="font-mono text-[10px] text-[#4a4a52]">instant preview · no freeze</div>
               </div>
               <div className="avero-micro mb-1.5 mt-3">Aspect ratio shortcuts</div>
@@ -942,8 +942,8 @@ export default function HomeScreen() {
                 {nw * nh > 2048 * 2048 && <span className="ml-auto rounded-md bg-[#2f7cf6]/15 px-1.5 py-px text-[#8fb6f5]">tiled path</span>}
               </div>
 
-              {/* 02 Folder — klik folder dijamin berfungsi */}
-              <div className="avero-micro mb-1.5 mt-5">02 — Project folder (optional)</div>
+              {/* 02 Folder - klik folder dijamin berfungsi */}
+              <div className="avero-micro mb-1.5 mt-5">02 - Project folder (optional)</div>
               <div
                 className={clsx(
                   "rounded-xl border p-3 transition",
@@ -958,7 +958,7 @@ export default function HomeScreen() {
                     className="min-w-0 flex-1 truncate rounded-lg border border-white/[0.07] bg-[#161618] px-2.5 py-2 font-mono text-[10.5px] text-[#c9c9d1]"
                     title={pfolder ?? "No parent folder selected yet"}
                   >
-                    {pfolder ?? (isDesktop ? "No folder yet — optional, Create works anyway" : "Web preview: files download on save")}
+                    {pfolder ?? (isDesktop ? "No folder yet - optional, Create works anyway" : "Web preview: files download on save")}
                   </div>
                   {pfolder && (
                     <button
@@ -989,8 +989,8 @@ export default function HomeScreen() {
                 </div>
                 <div className="mt-2 rounded-lg border border-white/[0.06] bg-[#161618] px-2.5 py-2 font-mono text-[10.5px] leading-relaxed text-[#6e6e78]">
                   <div className="text-[#a7a7b0]">Will be created:</div>
-                  <div className="truncate" title={pfolder ? joinPath(pfolder, sanitizeProjectName(dn.trim() || "Untitled")) : "In-memory project — Ctrl+S asks where to save"}>
-                    {pfolder ? `${joinPath(pfolder, sanitizeProjectName(dn.trim() || "Untitled"))}/` : "In-memory — Ctrl+S opens file manager for Name.avx"}
+                  <div className="truncate" title={pfolder ? joinPath(pfolder, sanitizeProjectName(dn.trim() || "Untitled")) : "In-memory project - Ctrl+S asks where to save"}>
+                    {pfolder ? `${joinPath(pfolder, sanitizeProjectName(dn.trim() || "Untitled"))}/` : "In-memory - Ctrl+S opens file manager for Name.avx"}
                   </div>
                   {pfolder && (
                     <div className="truncate text-[#4a4a52]">
@@ -1000,7 +1000,7 @@ export default function HomeScreen() {
                 </div>
                 {!isDesktop && (
                   <div className="mt-2 text-[11px] leading-snug text-[#6e6e78]">
-                    Web mode has no folder picker — everything stays in memory until you Save.
+                    Web mode has no folder picker - everything stays in memory until you Save.
                   </div>
                 )}
               </div>

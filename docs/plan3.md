@@ -1,4 +1,4 @@
-# PLAN 3 — Deep Improve Total per Family: semua sub-tools benar-benar bekerja
+# PLAN 3 - Deep Improve Total per Family: semua sub-tools benar-benar bekerja
 
 > Status: FASE 0 SELESAI (bug eraser makan kertas diperbaiki total, 88/88 test hijau).
 > Fase 1-17 dieksekusi berurutan, satu fase = satu family. Setiap sub-tool punya
@@ -18,7 +18,7 @@
 
 ---
 
-## FASE 0 — Eraser paper protection TOTAL (SELESAI)
+## FASE 0 - Eraser paper protection TOTAL (SELESAI)
 
 Keluhan: eraser menghapus kanvas kertasnya (lubang transparan di kertas putih).
 Akar masalah: layer dasar dokumen baru bernama "Background" tapi kind-nya
@@ -44,7 +44,7 @@ Perbaikan yang diterapkan:
 
 ---
 
-## FASE 1 — Family Move (7 tools) — SELESAI
+## FASE 1 - Family Move (7 tools) - SELESAI
 
 - [x] 1.1. `move`: drag memindah layer aktif, snap guides/grid/center, cursor move.
   Guard lock/hidden/no-layer di satu choke point mousedown (sebelum moveDrag).
@@ -61,7 +61,7 @@ Perbaikan yang diterapkan:
 - Kunci: semua tanpa crash saat tidak ada active layer (notify jelas).
 - Hasil: `npm run typecheck` hijau, `npx vitest run` 9 file 88 test hijau.
 
-## FASE 2 — Family Select Marquee (22 tools) — SELESAI
+## FASE 2 - Family Select Marquee (22 tools) - SELESAI
 
 - [x] 2.1. `select-rect`: drag bebas, Shift add / Alt subtract via selMode + modifier, feather panel.
 - [x] 2.2. `select-ellipse`: idem elips + **FIX: Shift mengunci lingkaran** (sesuai usage, sebelumnya Shift diabaikan).
@@ -80,13 +80,13 @@ Perbaikan yang diterapkan:
 - Kunci: semua click-action tanpa seleksi memberi notify, tidak diam. Terverifikasi per branch.
 - Hasil: `npm run typecheck` hijau, `npx vitest run` 9 file 88 test hijau.
 
-## FASE 3 — Family Lasso/Wand (18 tools) — SELESAI
+## FASE 3 - Family Lasso/Wand (18 tools) - SELESAI
 
 - [x] 3.1. `select-lasso`: freehand init point + akumulasi drag (cap 800) + commit mouse-up + clear.
 - [x] 3.2. `select-polygon`: klik titik per mousedown, double-click close, polygon dipertahankan hingga close.
 - [x] 3.3. `magnetic-lasso`: akumulasi drag + expand 2 + feather + commit.
 - [x] 3.4. `lasso-straight`: snap 45deg per edge via Shift + commit + clear.
-- [x] 3.5. `object-select` / `quick-select`: **FIX brush behavior** — sebelumnya klik-saja
+- [x] 3.5. `object-select` / `quick-select`: **FIX brush behavior** - sebelumnya klik-saja
   padahal usage "Paint over the subject". Sekarang drag melukis seleksi (throttle jarak
   `max(8, brushSize/4)`, dab drag force-add agar akumulasi, klik awal ikut mode user).
   `handleWandClick` dapat param `forceMode` opsional + `SelCombineMode` diimpor sebagai type.
@@ -101,24 +101,24 @@ Perbaikan yang diterapkan:
 - Kunci: tidak ada AI tools di workspace (ai-subject/ai-bg-remove tetap hidden).
 - Hasil: `npm run typecheck` hijau, `npx vitest run` 9 file 88 test hijau.
 
-## FASE 4 — Family Crop (25 tools) — SELESAI
+## FASE 4 - Family Crop (25 tools) - SELESAI
 
 - [x] 4.1. `crop` + 13 rasio: kunci rasio generik via CROP_RATIOS saat drag, Enter apply, Esc cancel, preview darken + frame + handles.
 - [x] 4.2. `perspective-crop`: rect crop + notify jujur (corner lanjut di Transform).
 - [x] 4.3. `crop-straighten`: reset viewRotate + label history "Straighten crop" + undo per layer.
 - [x] 4.4. `slice` / `slice-select`: create, select, move via sliceMove, highlight aktif, fallback create + notify.
 - [x] 4.5. `frame`: placeholder frame + render via shape path.
-- [x] 4.6. 5 overlay: **FIX render overlay** — sebelumnya cropOverlay hanya diset store
+- [x] 4.6. 5 overlay: **FIX render overlay** - sebelumnya cropOverlay hanya diset store
   tapi tidak pernah digambar. Sekarang thirds/diagonal/triangle/spiral/center-dot
   digambar live di dalam rect crop (spiral via polyline logaritmik 64 langkah),
   dengan subscription + dep render agar ganti overlay refresh instan.
 - Kunci: crop undoable per layer (snapshot semua layer + mask + transform ikut
   konten via shift origin, bukan reset nol; guides/slices/notes/counts/samplers/
   measures/paths/text-xy digeser via shiftDocSpace + drop di luar).
-  Crop resize semua layer bersama (document-level op, termasuk locked — disengaja).
+  Crop resize semua layer bersama (document-level op, termasuk locked - disengaja).
 - Hasil: `npm run typecheck` hijau, `npx vitest run` 9 file 88 test hijau.
 
-## FASE 5 — Family Measure (22 tools) — SELESAI
+## FASE 5 - Family Measure (22 tools) - SELESAI
 
 - [x] 5.1. `eyedropper`: pick composite vs current (sample mode) + kembali ke brush. Terverifikasi.
 - [x] 5.2. `color-sampler` / `sampler-avg` / `sampler-3x3` / `sampler-11x11`: pin + set brush
@@ -136,9 +136,9 @@ Perbaikan yang diterapkan:
 - Kunci: tombol Clear di top bar menghapus jenis pin yang tepat.
 - Hasil: `npm run typecheck` hijau, `npx vitest run` 9 file 88 test hijau.
 
-## FASE 6 — Family Brush (59 tools) — SELESAI
+## FASE 6 - Family Brush (59 tools) - SELESAI
 
-- [x] 6.1. 7 klasik: terverifikasi satu per satu — `brush` (preset generik = hardness/alpha
+- [x] 6.1. 7 klasik: terverifikasi satu per satu - `brush` (preset generik = hardness/alpha
   user langsung, by design), `pencil` (hard 100, alpha 1, tanpa anti-alias),
   `airbrush` (spray buildup), `soft-brush` (feather besar), `color-replacement`
   (cabang `colorReplaceTo`: ganti hue pertahankan luminance), `mixer-brush`
@@ -147,7 +147,7 @@ Perbaikan yang diterapkan:
   (`mixerBrushTo` untuk brush-wet/art-oil/art-smear, `patternStampTo` untuk
   pattern/texture/canvas/dots, `overlayBrushTo` untuk overlay/neon/glaze/highlighter,
   `art-poster` dua tahap paint lalu posterize). Pairwise-distinct dikunci test.
-- [x] 6.3. 30 Brush Atelier II: audit registry — all 59 di PAINT_TOOLS, 57 preset eksplisit
+- [x] 6.3. 30 Brush Atelier II: audit registry - all 59 di PAINT_TOOLS, 57 preset eksplisit
   berbeda (hanya `brush` + `color-replacement` pakai default generik, keduanya by design).
 - [x] 6.4. Proteksi kertas+foto: brush di keduanya SELALU buat paint layer baru + toast sekali
   (kondisi diperluas via `needsFreshPaintLayer`, Fase 0). Terverifikasi di kode.
@@ -158,7 +158,7 @@ Perbaikan yang diterapkan:
 - Kunci: tidak ada preset yang rasa kloningan (dikunci test pairwise-distinct).
 - Hasil: `npm run typecheck` hijau, `npx vitest run` hijau (lihat bawah).
 
-## FASE 7 — Family Eraser (6 tools, verifikasi ulang pasca Fase 0) — SELESAI
+## FASE 7 - Family Eraser (6 tools, verifikasi ulang pasca Fase 0) - SELESAI
 
 - [x] 7.1. `eraser` / `hard` / `soft` / `block`: hardness 80/100/0/100 + alpha + ring kursor,
   hanya hapus stroke via target resolved (paintTo menerima forceId resolved, mousemove
@@ -171,16 +171,16 @@ Perbaikan yang diterapkan:
 - [x] 7.5. Eraser + paintMask: mengecat mask hitam (hide), bukan hapus pixel. Terverifikasi.
 - [x] 7.6. Uji regresi otomatis `eraser.test.ts` hijau (13 test, termasuk 5 proteksi kertas).
 - [x] 7.7. BONUS paper-total: `fill-clear` di kertas mengisi ulang warna bg (semantik Delete
-  Photoshop, selection-aware, label history "Clear to background") — menutup lubang
+  Photoshop, selection-aware, label history "Clear to background") - menutup lubang
   kertas terakhir di luar family eraser. Catatan 12.7 terpenuhi lebih awal.
-- Kunci: TIDAK ADA LUBANG di kertas — matriks skenario:
+- Kunci: TIDAK ADA LUBANG di kertas - matriks skenario:
   fresh doc (kind background: brush auto-paint, eraser retarget, magic/bg tolak),
   photo doc (brush auto-paint, eraser retarget, magic/bg edit foto by design),
   file lama raster (base = layer normal yang sah seperti Photoshop Layer 0,
-  erasable by design — terdokumentasi jujur, bukan bug).
+  erasable by design - terdokumentasi jujur, bukan bug).
 - Hasil: `npm run typecheck` hijau, `npx vitest run` 9 file 88 test hijau.
 
-## FASE 8 — Family Heal (39 tools) — SELESAI
+## FASE 8 - Family Heal (39 tools) - SELESAI
 
 - [x] 8.1. Inti terverifikasi: `spot-heal` (mode heal), `healing-brush`/`patch` (heal-source +
   Alt-click set source + hint sekali + return tanpa paint), `red-eye` (hanya pixel merah
@@ -195,7 +195,7 @@ Perbaikan yang diterapkan:
 - Kunci: heal di kertas aman (tidak memakai destination-out, tidak melubangi).
 - Hasil: `npm run typecheck` hijau, test hijau (lihat bawah).
 
-## FASE 9 — Family Stamp (10 tools) — SELESAI
+## FASE 9 - Family Stamp (10 tools) - SELESAI
 
 - [x] 9.1. `clone` / `mirror` / `rotate` / `soft`: Alt-click set source + cursor koordinat +
   snapshot anti-smear per stroke + alpha soft 60% + hint sekali bila belum ada source +
@@ -211,17 +211,17 @@ Perbaikan yang diterapkan:
 - Kunci: indikator source + tombol Clear di top bar sinkron dengan store (store-driven).
 - Hasil: `npm run typecheck` hijau, test hijau.
 
-## FASE 10 — Family Tone (36 tools) — SELESAI
+## FASE 10 - Family Tone (36 tools) - SELESAI
 
 - [x] 10.1. Inti dodge/burn/sponge/vibrance + 8 light brush: buildup lembut + Strength
   live via strength/flow. Terverifikasi cabang engine.
-- [x] 10.2. 4 manual + 20 Tone II: **FIX alias** — `dodge-high`/`burn-shadow`/`sponge-sat`/
+- [x] 10.2. 4 manual + 20 Tone II: **FIX alias** - `dodge-high`/`burn-shadow`/`sponge-sat`/
   `sponge-desat` sebelumnya identik dengan light/saturate/desat. Sekarang fingerprint
   (1.25/1.25/1.2/0.7 + radius 0.8 untuk dodge/burn presisi). 20 Tone II distinct dikunci test.
 - Kunci: dodge/burn hanya cerah/gelap sesuai namanya (cabang fill putih/hitam terpisah).
 - Hasil: `npm run typecheck` hijau, test hijau.
 
-## FASE 11 — Family Detail (58 tools) — SELESAI
+## FASE 11 - Family Detail (58 tools) - SELESAI
 
 - [x] 11.1. blur/sharpen/smudge/noise/liquify/warp legacy: smudge pick warna per dab awal
   (mousedown + mousemove), liquify/warp redirect smudge. Terverifikasi.
@@ -234,9 +234,9 @@ Perbaikan yang diterapkan:
 - Kunci: distort di tepi kanvas tidak crash (guard bounds), undo sempurna.
 - Hasil: `npm run typecheck` hijau, `npx vitest run` hijau.
 
-## FASE 12 — Family Paint (19 tools) — SELESAI
+## FASE 12 - Family Paint (19 tools) - SELESAI
 
-- [x] 12.1. 7 gradient: **FIX konsistensi notify** — radial/linear/diamond sebelumnya diam
+- [x] 12.1. 7 gradient: **FIX konsistensi notify** - radial/linear/diamond sebelumnya diam
   saat layer terkunci (paintFullLayer sudah notify). Sekarang ketiganya notify.
   Selection-safe via temp, gradTo+reverse+dither, satu history entry. Terverifikasi.
 - [x] 12.2. `fill` flood + tolerance bar + OOM guard 9MP + contiguous/global toggle jujur.
@@ -251,7 +251,7 @@ Perbaikan yang diterapkan:
 - Kunci: `fill-clear` di layer background SUDAH isi ulang warna bg (dikerjakan di Fase 7.7).
 - Hasil: `npm run typecheck` hijau, `npx vitest run` 9 file 89 test hijau.
 
-## FASE 13 — Family Vector (11 tools) — SELESAI
+## FASE 13 - Family Vector (11 tools) - SELESAI
 
 - [x] 13.1. `pen` / `pen-free` (wobble organik) / `line` (+Shift 45°) / `line-arrow`
   (kepala panah) / `curvature-pen` (S-curve dua kubik): tebal dari brushSize,
@@ -263,14 +263,14 @@ Perbaikan yang diterapkan:
 - Kunci: tidak ada preset yang fallback diam-diam ke default.
 - Hasil: `npm run typecheck` hijau, `npx vitest run` 9 file 89 test hijau.
 
-## FASE 14 — Family Type (19 tools) — SELESAI
+## FASE 14 - Family Type (19 tools) - SELESAI
 
 - [x] 14.1. 9 varian inti + vertikal: dispatch 19/19 terverifikasi, spec tersimpan,
   vertikal CJK via split newline. Terverifikasi.
-- [x] 14.2. 10 Type II: **FIX fx hilang saat edit** — sebelumnya render fx hanya di
+- [x] 14.2. 10 Type II: **FIX fx hilang saat edit** - sebelumnya render fx hanya di
   createTextLayer; edit apa pun di panel/top bar me-render ulang sebagai teks polos.
   Sekarang `renderTextFxToLayer` terpusat di engine + `fx` tersimpan di spec
-  (persist .avx otomatis). **FIX teks teleport** — edit me-render di 60,120 default;
+  (persist .avx otomatis). **FIX teks teleport** - edit me-render di 60,120 default;
   sekarang anchor x/y tersimpan di spec dan dipakai ulang. Rantai 170 baris di
   CanvasArea diganti satu panggilan (byte-identik).
 - [x] 14.3. Top bar font/size/B/I/color/tracking/leading live + re-render fx-aware,
@@ -281,7 +281,7 @@ Perbaikan yang diterapkan:
   hapus layer manual, sama untuk shape; konsisten seluruh app).
 - Hasil: `npm run typecheck` hijau, `npx vitest run` 9 file 89 test hijau.
 
-## FASE 15 — Family Shape (35 tools) — SELESAI
+## FASE 15 - Family Shape (35 tools) - SELESAI
 
 - [x] 15.1. 19 shape inti + 16 Shape II: path di `textShape.ts` + SHAPE_KIND_OF +
   mouseup map 35/35 + sides pentagon 5 / octagon 8. Terverifikasi.
@@ -294,7 +294,7 @@ Perbaikan yang diterapkan:
   baru sehingga bebas lock issue; mutasi spec/flip dijaga).
 - Hasil: `npm run typecheck` hijau, `npx vitest run` 9 file 89 test hijau.
 
-## FASE 16 — Family Navigate (13 tools) — SELESAI
+## FASE 16 - Family Navigate (13 tools) - SELESAI
 
 - [x] 16.1. hand/pan drag, rotate-view drag + double-click reset + badge HUD + reset button.
   Terverifikasi (cursor grab/ew-resize, rotateStart, badge pointer-events-auto).
@@ -305,7 +305,7 @@ Perbaikan yang diterapkan:
 - Kunci: zoom clamp 10..3200 di store (tidak pernah nol/negatif), rotate ternormalisasi.
 - Hasil: `npm run typecheck` hijau, `npx vitest run` 9 file 89 test hijau.
 
-## FASE 17 — Family LocalFX (17 tools) — SELESAI
+## FASE 17 - Family LocalFX (17 tools) - SELESAI
 
 - [x] 17.1. 12 kuas inti: gate 111 mode mencakup semua (audit script 0 unhandled),
   falloff + Strength/flow live. Terverifikasi.
@@ -316,7 +316,7 @@ Perbaikan yang diterapkan:
 
 ---
 
-## Definisi selesai plan3 — SELESAI
+## Definisi selesai plan3 - SELESAI
 
 - [x] Semua 422 sub-tools lolos checklist fasenya masing-masing (Fase 0-17).
 - [x] `npm run typecheck` hijau, `npx vitest run` hijau (10 file, 92 test).

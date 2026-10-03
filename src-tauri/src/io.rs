@@ -215,7 +215,7 @@ pub fn cmd_write_text_atomic(path: String, contents: String) -> Result<(), Strin
 /// Type column shows the real product name. Windows writes a per-user ProgID
 /// under HKCU (no admin needed); other OSes rely on the installer bundle.
 ///
-/// Icon policy: the .avx document icon IS the real Avero icon — the running
+/// Icon policy: the .avx document icon IS the real Avero icon - the running
 /// executable's own icon (built from logo.png / icon.ico). DefaultIcon points
 /// at `"exe",0` so Explorer renders the authentic Avero mark, never a generic
 /// text-file glyph.

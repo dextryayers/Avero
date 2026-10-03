@@ -1,4 +1,4 @@
-# PLAN 2 — Perbaikan Total Tools Tanpa Bug, Ratusan Sub-Tools Baru, Right Panel ala Photoshop, Top Tools Lengkap
+# PLAN 2 - Perbaikan Total Tools Tanpa Bug, Ratusan Sub-Tools Baru, Right Panel ala Photoshop, Top Tools Lengkap
 
 > Status: RENCANA (belum dieksekusi). Dokumen ini menjadi acuan tunggal eksekusi bertahap.
 > Prinsip: satu per satu, tiap tool harus terlihat hasilnya, tercatat di history, ada hint, ada kursor, dan lolos uji otomatis.
@@ -20,7 +20,7 @@
 
 ---
 
-## FASE A — Perbaikan total tools tanpa bug (satu per satu, per family)
+## FASE A - Perbaikan total tools tanpa bug (satu per satu, per family)
 
 Tujuan: 232 sub-tools yang ada SEMUANYA bekerja maksimal dan profesional. Tidak ada tool mati, tidak ada hint generik yang salah, tidak ada crash.
 
@@ -80,7 +80,7 @@ Tujuan: 232 sub-tools yang ada SEMUANYA bekerja maksimal dan profesional. Tidak 
 - [ ] A.6.5. `art-poster` + `color-replacement`: dua tahap (paint lalu retouch) berjalan berurutan.
 - [ ] A.6.6. Proteksi photo-layer: brush di foto SELALU buat paint layer baru + toast sekali + `lastPaintRef` tercatat.
 
-### A.7. Family Eraser (6 tools) — PRIORITAS (keluhan user)
+### A.7. Family Eraser (6 tools) - PRIORITAS (keluhan user)
 - [ ] A.7.1. Masukkan `background-eraser` + `magic-eraser` ke blok retarget photo-layer (samakan dengan 4 eraser lain).
 - [ ] A.7.2. `magicEraseAt`: pakai `strokeLayerId` hasil retarget, bukan `activeLayerId` mentah.
 - [ ] A.7.3. `eraseBackgroundTo`: pakai `strokeLayerId` hasil retarget (cek pemanggilan dari `paintTo` + alur `forceId`).
@@ -102,7 +102,7 @@ Tujuan: 232 sub-tools yang ada SEMUANYA bekerja maksimal dan profesional. Tidak 
 ### A.10. Family Tone (18 tools) + Detail (26 tools) + LocalFX (17 tools)
 - [ ] A.10.1. Tiap `RetouchMode` (61 mode) memberi perubahan pixel terukur: buat test loop yang menjalankan `retouchTo`-setara per mode di atas kanvas uji dan assert ada pixel berubah (kecuali mode yang memang no-op di kondisi tertentu).
 - [ ] A.10.2. `liquify`/`warp` legacy → smudge + pickSmudgeColor tiap dab awal.
-- [ ] A.10.3. Distort 8 kind: twirl/ccw, pinch, spherize, ripple, wave, zigzag, crystal — tiap kind mengubah blok dab secara berbeda + scratch pool dipakai.
+- [ ] A.10.3. Distort 8 kind: twirl/ccw, pinch, spherize, ripple, wave, zigzag, crystal - tiap kind mengubah blok dab secara berbeda + scratch pool dipakai.
 - [ ] A.10.4. `ai-denoise` / `ai-colorize` / `ai-sky`: tambah filter/adjustment yang benar + notify.
 
 ### A.11. Family Paint (6), Vector (5), Type (9), Shape (19), Navigate (11)
@@ -121,7 +121,7 @@ Tujuan: 232 sub-tools yang ada SEMUANYA bekerja maksimal dan profesional. Tidak 
 
 ---
 
-## FASE B — Perbaikan eraser tuntas (proteksi BG/canvas)
+## FASE B - Perbaikan eraser tuntas (proteksi BG/canvas)
 
 > Ini fase khusus karena keluhan eksplisit user. Boleh dikerjakan langsung setelah A.0 + A.7, tanpa menunggu Fase A selesai total.
 
@@ -133,11 +133,11 @@ Tujuan: 232 sub-tools yang ada SEMUANYA bekerja maksimal dan profesional. Tidak 
   4. Undo mengembalikan pixel persis (snapshot pra-stroke).
 - [ ] B.3. Tambah indikator visual: saat eraser aktif dan target = stroke layer di atas foto, tampilkan badge "Erasing: <nama layer>" di HUD (sebagian sudah ada via setCursor, pastikan konsisten 6 tool).
 - [ ] B.4. Kasus uji manual wajib: (1) buka foto, lukis, erase → foto utuh; (2) magic eraser klik langit di foto → hanya stroke layer yang berubah / notify bila kosong; (3) background eraser di tepi objek foto → foto tidak bolong di luar stroke; (4) undo tiap langkah kembali sempurna.
-- [ ] B.5. Test otomatis: `eraser.test.ts` — buat doc uji + foto dummy + stroke dummy, jalankan path retarget, assert hash foto sama + hash stroke berubah.
+- [ ] B.5. Test otomatis: `eraser.test.ts` - buat doc uji + foto dummy + stroke dummy, jalankan path retarget, assert hash foto sama + hash stroke berubah.
 
 ---
 
-## FASE C — Ratusan sub-tools baru (target: 232 → 400+, semua berfungsi)
+## FASE C - Ratusan sub-tools baru (target: 232 → 400+, semua berfungsi)
 
 Aturan keras tiap tool baru (tanpa kecuali):
 1. Terdaftar di 7 titik: `ToolId`, `TOOL_FAMILIES` (id, icon, label, shortcut, description, usage), preset/map yang sesuai (`PAINT_TOOLS`+`paintPreset` | `RETOUCH_MAP` | `DISTORT_MAP` | `CROP_RATIOS`+`IS_CROP_TOOL` | `IS_SELECTION_TOOL` | `IS_SHAPE_TOOL`+`SHAPE_KIND_OF`), hint `ToolOptionsBar`, pesan `toolFallback` bila utility, dispatch `CanvasArea`, shortcut/cycle.
@@ -196,19 +196,19 @@ Aturan keras tiap tool baru (tanpa kecuali):
 
 ---
 
-## FASE D — Right panel bekerja seperti Photoshop + upgrade UI/UX
+## FASE D - Right panel bekerja seperti Photoshop + upgrade UI/UX
 
 ### D.1. Tab Layers (prioritas 1, dipakai tiap menit)
 - [ ] D.1.1. Thumbnail live 40px tetap update tiap stroke (pakai tick, bukan full re-render).
-- [ ] D.1.2. Blend mode: 27 mode sudah ada — verifikasi tiap mode memengaruhi composite (`blendToComposite`) + grouping di dropdown.
+- [ ] D.1.2. Blend mode: 27 mode sudah ada - verifikasi tiap mode memengaruhi composite (`blendToComposite`) + grouping di dropdown.
 - [ ] D.1.3. Opacity slider + Fill slider terpisah (Photoshop punya keduanya; saat ini Fill belum ada → tambah `fillOpacity` di meta + render).
 - [ ] D.1.4. Lock terpisah: lock pixels vs lock position vs lock all (saat ini satu `locked` → pecah jadi `lockPixels`, `lockPosition`, hormati di paint/move/erase).
 - [ ] D.1.5. Klik thumbnail = properti layer; double-click nama = rename inline (saat ini via dialog? samakan satu pola).
 - [ ] D.1.6. Filter/search layer (by name/kind), kind filter sudah ada (all/raster/text/shape/background) → tambah "visible only", "locked only".
-- [ ] D.1.7. Layer Effects (fx): Drop Shadow, Outer Glow, Inner Glow, Stroke — panel + render non-destruktif di composite + tersimpan di `.avx`.
+- [ ] D.1.7. Layer Effects (fx): Drop Shadow, Outer Glow, Inner Glow, Stroke - panel + render non-destruktif di composite + tersimpan di `.avx`.
 - [ ] D.1.8. Clipping mask toggle per layer + indikator + render benar.
-- [ ] D.1.9. Merge Down (sudah ada) + Merge Visible + Flatten Image + Stamp Visible (Ctrl+Shift+Alt+E) — verifikasi satu per satu + konfirmasi destruktif.
-- [ ] D.1.10. Link layers (multi-select + gerak bersama) — minimal: shift-klik multi active + move berlaku ke semua terpilih.
+- [ ] D.1.9. Merge Down (sudah ada) + Merge Visible + Flatten Image + Stamp Visible (Ctrl+Shift+Alt+E) - verifikasi satu per satu + konfirmasi destruktif.
+- [ ] D.1.10. Link layers (multi-select + gerak bersama) - minimal: shift-klik multi active + move berlaku ke semua terpilih.
 - [ ] D.1.11. New Fill/Adjustment/Photo layer via panel (solid color, gradient, pattern) sebagai layer asli.
 - [ ] D.1.12. Group (folder) layers: buat group, collapse, pindah massal, opacity grup.
 
@@ -219,20 +219,20 @@ Aturan keras tiap tool baru (tanpa kecuali):
 ### D.3. Tab baru yang belum ada
 - [ ] D.3.1. **Channels**: R/G/B composite + alpha mask channel per layer mask; klik channel = seleksi dari luminance; toggle visibility per channel.
 - [ ] D.3.2. **Paths**: daftar path pen (dari penDrag yang disimpan, bukan dibuang); stroke path dengan brush; path → selection; delete path.
-- [ ] D.3.3. **Character + Paragraph**: font family list, size, tracking, leading, align, warp preset (arc di 2026 sudah ada — ekspos di sini).
+- [ ] D.3.3. **Character + Paragraph**: font family list, size, tracking, leading, align, warp preset (arc di 2026 sudah ada - ekspos di sini).
 - [ ] D.3.4. **Brush Settings**: spacing, jitter, scatter, texture toggle, dual-brush aproksimasi, smoothing; tersimpan per preset + dipakai `paintTo`.
 - [ ] D.3.5. **Swatches**: set warna foto (skin/sky/foliage/brand) + custom user + klik = set brush color.
 
-### D.4. Tab yang sudah ada — audit satu per satu
-- [ ] D.4.1. Select: feather/tolerance/expand/contract/inverse/save-load selection — semua tombol bekerja + sinkron dengan seleksi kanvas.
+### D.4. Tab yang sudah ada - audit satu per satu
+- [ ] D.4.1. Select: feather/tolerance/expand/contract/inverse/save-load selection - semua tombol bekerja + sinkron dengan seleksi kanvas.
 - [ ] D.4.2. Mask: add/enable/feather/density/invert/delete + paintMask toggle + thumbnail mask.
-- [ ] D.4.3. Adjust: 18 tipe adjustment — tiap tipe ada kontrol + enable/opacity/reorder/delete + preset simpan/muat.
+- [ ] D.4.3. Adjust: 18 tipe adjustment - tiap tipe ada kontrol + enable/opacity/reorder/delete + preset simpan/muat.
 - [ ] D.4.4. Filter: tiap filter ada kontrol + stack + gallery preview.
 - [ ] D.4.5. Text: sinkron penuh dengan TextShapePanel + layer text terpilih.
 - [ ] D.4.6. Color: picker + sampler list sinkron + working space + proof.
 - [ ] D.4.7. RAW: semua slider memengaruhi develop + reset + indikator isRaw.
 - [ ] D.4.8. Batch: queue tambah/jalankan/hapus + progress + log error per file.
-- [ ] D.4.9. Git: snapshot/branch/compare/restore — verifikasi tidak merusak layerManager.
+- [ ] D.4.9. Git: snapshot/branch/compare/restore - verifikasi tidak merusak layerManager.
 - [ ] D.4.10. Artboard: create/rename/resize/export per artboard.
 - [ ] D.4.11. Plugin: install/enable/disable + sandbox error tidak crash app.
 - [ ] D.4.12. Mockup: warp perspektif + render + reset.
@@ -246,11 +246,11 @@ Aturan keras tiap tool baru (tanpa kecuali):
 - [ ] D.5.4. Konsistensi: slider + color input + number input satu gaya; Enter = apply, Esc = revert di semua numeric field.
 - [ ] D.5.5. Density: padding/spacing seragam; panel 264px tetap muat tanpa scroll ganda.
 - [ ] D.5.6. Aksesibilitas: semua kontrol bisa keyboard (Tab/Enter/panah), focus ring terlihat.
-- [ ] D.5.7. Tidak ada teks Indonesia di UI; tidak ada placeholder mati ("coming soon" dilarang — yang belum jadi tidak ditampilkan).
+- [ ] D.5.7. Tidak ada teks Indonesia di UI; tidak ada placeholder mati ("coming soon" dilarang - yang belum jadi tidak ditampilkan).
 
 ---
 
-## FASE E — Top tools bar (ToolOptionsBar) lengkap + perbanyak, semua normal
+## FASE E - Top tools bar (ToolOptionsBar) lengkap + perbanyak, semua normal
 
 > Status: SELESAI 2026-09-28. Implementasi: `src/engine/toolOptions.ts` (matriks + 416 hint eksplisit),
 > `src/engine/toolOptions.test.ts` (4 test), `ToolOptionsBar.tsx` rewrite total, 12 field baru di
@@ -268,7 +268,7 @@ Aturan keras tiap tool baru (tanpa kecuali):
 
 ### E.2. Perbanyak fungsi top bar (bukan sekadar label)
 - [x] E.2.1. Brush: Size, Hardness, Strength, Flow, Spacing, Jitter, Smoothing, Angle, Roundness, Blend,
-  Color — semua live di `paintTo`/`brushSpriteEx`/`stampLine` (smoothing di-lerp per dab, blend override
+  Color - semua live di `paintTo`/`brushSpriteEx`/`stampLine` (smoothing di-lerp per dab, blend override
   composite, angle/round jadi nib elips, jitter acak ukuran/alpha, spacing atur jarak dab).
 - [x] E.2.2. Eraser: Size, Hardness, Strength, badge "Photo-safe" + "Clear strokes" (konfirmasi + history).
 - [x] E.2.3. Clone/Heal: Size, Strength, Aligned toggle, Source indicator + Clear (source pindah ke store).
@@ -277,8 +277,8 @@ Aturan keras tiap tool baru (tanpa kecuali):
   override), Feather, Tolerance, Expand, tombol Grow/Shrink/Inverse/Deselect + Run langsung di click tools.
 - [x] E.2.5. Crop: 14 ratio pills (live `setTool`), 5 overlay pills (live `setCropOverlay`), Apply/Cancel,
   Level angle (live `viewRotate`).
-- [x] E.2.6. Shape: Fill, Stroke, Width, Sides, Flip H/V — live ke spec aktif + re-render, atau ke defaults.
-- [x] E.2.7. Text: Font, Size, Bold/Italic, Color, Tracking, Leading — live ke spec aktif + re-render,
+- [x] E.2.6. Shape: Fill, Stroke, Width, Sides, Flip H/V - live ke spec aktif + re-render, atau ke defaults.
+- [x] E.2.7. Text: Font, Size, Bold/Italic, Color, Tracking, Leading - live ke spec aktif + re-render,
   atau ke defaults untuk layer teks baru.
 - [x] E.2.8. Gradient: 6 mode pills, gradTo, Reverse (semua 7 painter via `gradEnds`), Dither (grain pass
   deterministik dalam history entry yang sama).
@@ -305,7 +305,7 @@ Aturan keras tiap tool baru (tanpa kecuali):
 
 ---
 
-## FASE F — Verifikasi total (definisi "tanpa bug")
+## FASE F - Verifikasi total (definisi "tanpa bug")
 
 > Status: SELESAI 2026-09-28 untuk yang otomatis. Uji foto asli + QA visual penuh menunggu run pengguna.
 
@@ -327,7 +327,7 @@ Aturan keras tiap tool baru (tanpa kecuali):
 | Brush/paint | flow/spacing/dll live | fill/gradient live | pushHistory | guard ada | guard ada | inSel | badge+exit |
 | Eraser | photo-safe | Clear strokes | pushHistory | guard ada | guard ada | inSel | mask hitam |
 | Heal/clone | source store live | Alt source | pushHistory | guard ada | guard ada | inSel | dilindungi |
-| Tone/detail | strength/flow live | — | pushHistory | guard ada | guard ada | inSel | dilindungi |
+| Tone/detail | strength/flow live | - | pushHistory | guard ada | guard ada | inSel | dilindungi |
 | Gradient/fill | reverse/dither live | motif/tol live | pushHistory | guard ada | guard ada | selection-safe | dilindungi |
 | Shape/text/pen | defaults live | flip/B/I live | spec+render | guard ada | guard ada | n/a | n/a |
 | Measure/nav | unit/zoom live | clear/fit live | n/a | n/a | n/a | n/a | n/a |

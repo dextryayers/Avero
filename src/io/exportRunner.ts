@@ -32,7 +32,7 @@ function triggerDownload(dataUrl: string, fileName: string) {
 // Single export flow used by the dedicated Export page.
 // UX contract (user request): picking a format + pressing Export ALWAYS opens
 // the native file manager (save dialog) so the user chooses exactly where the
-// file lands. No silent writes, no wasted encode on cancel — destination first,
+// file lands. No silent writes, no wasted encode on cancel - destination first,
 // heavy render second. After success the file is revealed in the file manager.
 export async function runImageExport(opts: ImageExportOpts): Promise<string | null> {
   const fmt = opts.format.toLowerCase();
@@ -82,7 +82,7 @@ export async function runImageExport(opts: ImageExportOpts): Promise<string | nu
 
   const path = await save({
     defaultPath: fileName,
-    title: `Export .${ext.toUpperCase()} — choose where to save`,
+    title: `Export .${ext.toUpperCase()} - choose where to save`,
     filters: [{ name: `${ext.toUpperCase()} Image (*.${ext})`, extensions: [ext] }],
   });
   if (!path) return null;

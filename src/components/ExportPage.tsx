@@ -36,7 +36,7 @@ const GROUP_HINT: Record<ExportFormatGroup, string> = {
   Project: "Editable source",
 };
 
-// Dedicated Export page — rombak total: modern, elegan, cepat.
+// Dedicated Export page - rombak total: modern, elegan, cepat.
 // Kiri: katalog format dengan search + badge jujur.
 // Tengah: live preview besar dengan checkerboard + info output.
 // Kanan: pengaturan file yang ramping + ringkasan.
@@ -229,7 +229,7 @@ export default function ExportPage({ onBack }: { onBack: () => void }) {
               return (
                 <div key={g}>
                   <div className="mb-1.5 flex items-baseline justify-between px-1">
-                    <div className="avero-micro">{g === "Project" ? "Project — Avero" : g}</div>
+                    <div className="avero-micro">{g === "Project" ? "Project - Avero" : g}</div>
                     <div className="font-mono text-[10px] text-[#4a4a52]">{GROUP_HINT[g]}</div>
                   </div>
                   <div className="space-y-1.5">
@@ -268,7 +268,7 @@ export default function ExportPage({ onBack }: { onBack: () => void }) {
                           <span className="min-w-0 flex-1">
                             <span className="flex items-center gap-1.5">
                               <span className="truncate text-[12px] font-semibold text-white">
-                                {avxCard ? "AVX — Avero Project Design" : `${f.label} · .${f.id}`}
+                                {avxCard ? "AVX - Avero Project Design" : `${f.label} · .${f.id}`}
                               </span>
                               {active && <BadgeCheck size={13} className="shrink-0 text-[#8fb6f5]" />}
                             </span>
@@ -359,7 +359,7 @@ export default function ExportPage({ onBack }: { onBack: () => void }) {
               <div className="flex items-start gap-2.5 rounded-xl border border-[#2f7cf6]/30 bg-gradient-to-r from-[#2f7cf6]/15 to-[#19c2e0]/10 px-3 py-2.5">
                 <img src="/logo.png" alt="Avero" className="h-8 w-8 shrink-0 rounded-lg border border-white/10 object-cover" />
                 <div className="text-[11.5px] leading-relaxed text-[#c9d8f5]">
-                  <span className="font-semibold text-white">Avero Project Design (.avx)</span> — keeps every layer, mask, effect &amp;
+                  <span className="font-semibold text-white">Avero Project Design (.avx)</span> - keeps every layer, mask, effect &amp;
                   detected object. Type column in Explorer shows{" "}
                   <span className="rounded bg-white/10 px-1 font-mono text-[10.5px] text-white">Avero Project Design</span> with the authentic
                   Avero icon.
@@ -370,7 +370,7 @@ export default function ExportPage({ onBack }: { onBack: () => void }) {
                 <Sparkles size={13} className="shrink-0 text-[#8fb6f5]" />
                 <span className="truncate">
                   {format === "ico"
-                    ? "Icons are capped at 256px by the spec — larger canvases are fitted down automatically."
+                    ? "Icons are capped at 256px by the spec - larger canvases are fitted down automatically."
                     : meta.rust
                       ? `Encoded by the native engine into a real ${meta.label} file. Requires the desktop app.`
                       : `${meta.desc}. Fast browser encode, alpha ${meta.alpha ? "kept" : "flattened"}.`}
@@ -450,7 +450,7 @@ export default function ExportPage({ onBack }: { onBack: () => void }) {
                 </div>
                 {tiled && (
                   <div className="mt-2 rounded-lg border border-white/[0.07] bg-[#0e0e10] px-2.5 py-2 text-[10.5px] leading-snug text-[#8f8f98]">
-                    UHD output renders tiled in 512px blocks — RAM stays flat.
+                    UHD output renders tiled in 512px blocks - RAM stays flat.
                   </div>
                 )}
               </div>
@@ -498,7 +498,7 @@ export default function ExportPage({ onBack }: { onBack: () => void }) {
                 </div>
                 {needsMatteFor(format) && (
                   <div className="mt-1.5 text-[10.5px] leading-snug text-[#6e6e78]">
-                    {meta.label} has no alpha channel — white matte is applied automatically.
+                    {meta.label} has no alpha channel - white matte is applied automatically.
                   </div>
                 )}
               </div>
@@ -510,7 +510,7 @@ export default function ExportPage({ onBack }: { onBack: () => void }) {
               <FolderOpen size={14} className="text-[#8fb6f5]" /> Where it goes
             </div>
             <div className="mt-1.5 text-[11.5px] leading-relaxed text-[#8f8f98]">
-              Pressing <span className="font-semibold text-white">Export</span> opens your file manager — pick any folder, rename on the
+              Pressing <span className="font-semibold text-white">Export</span> opens your file manager - pick any folder, rename on the
               spot, press Save. The file is then revealed in Explorer automatically.
             </div>
             <div className="mt-2.5 flex items-center gap-2 rounded-xl border border-white/[0.06] bg-[#0e0e10] px-3 py-2.5">

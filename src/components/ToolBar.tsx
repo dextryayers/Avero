@@ -1139,10 +1139,11 @@ export default function ToolBar() {
       </div>
 
       {/* Expandable sidebar with descriptions, search, collapsible groups.
-          Floating overlay (Affinity-style studio flyout): canvas width stays
-          stable whether the panel is open or closed. */}
+          Floating card (Affinity-style studio flyout): canvas width stays
+          stable whether the panel is open or closed. It starts right of the
+          vertical ruler and below the top options bar so neither is covered. */}
       {expanded && (
-        <div className="avero-slide-in absolute bottom-0 left-[56px] top-0 z-40 flex w-[264px] flex-col border-r border-[#2c2c31] bg-[#161618] shadow-2xl">
+        <div className="avero-slide-in absolute bottom-3 left-[74px] top-[76px] z-40 flex w-[264px] flex-col rounded-xl border border-[#2c2c31] bg-[#161618] shadow-2xl">
           <div className="flex items-center gap-2 border-b border-[#2c2c31] p-2">
             <Search size={13} className="shrink-0 text-[#6e6e78]" />
             <input
@@ -1222,9 +1223,10 @@ export default function ToolBar() {
         </div>
       )}
 
-      {/* Flyout for current family when sidebar closed */}
+      {/* Flyout for current family when sidebar closed. Same floating card
+          geometry as the sidebar: clear of the ruler and the top bar. */}
       {!expanded && openFamily && (
-        <div key={openFamily} className="avero-slide-in absolute bottom-0 left-[56px] top-0 z-40 w-[220px] overflow-y-auto border-r border-[#2c2c31] bg-[#161618] p-1.5 shadow-2xl">
+        <div key={openFamily} className="avero-slide-in absolute bottom-3 left-[74px] top-[76px] z-40 w-[220px] overflow-y-auto rounded-xl border border-[#2c2c31] bg-[#161618] p-1.5 shadow-2xl">
           {(() => {
             const f = TOOL_FAMILIES.find((x) => x.id === openFamily);
             if (!f) return null;

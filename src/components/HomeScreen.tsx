@@ -752,38 +752,71 @@ export default function HomeScreen() {
       </div>
 
       {showNew && (
-        <div className="avero-fade-in fixed inset-0 z-[70] grid place-items-center bg-black/70 p-4" onClick={() => !creating && setShowNew(false)}>
+        <div
+          className="avero-fade-in fixed inset-0 z-[70] grid place-items-center bg-black/70 p-4 backdrop-blur-[2px]"
+          onClick={() => !creating && !folderBusy && setShowNew(false)}
+        >
           <div
-            className="avero-pop w-[600px] max-w-full overflow-hidden rounded-xl border border-[#2c2c31] bg-[#1c1c1f] shadow-[0_24px_80px_rgba(0,0,0,0.6)]"
+            className="avero-pop w-[640px] max-w-full overflow-hidden rounded-2xl border border-white/10 bg-[#151517] shadow-[0_32px_96px_rgba(0,0,0,0.65)]"
             onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-label="New Project"
           >
-            <div className="flex items-center gap-3 border-b border-[#2c2c31] px-5 py-4">
-              <div className="grid h-9 w-9 place-items-center rounded-lg bg-[#2f7cf6] text-white">
-                <ImagePlus size={17} />
+            {/* Header elegan */}
+            <div className="flex items-center gap-3 border-b border-white/[0.07] bg-gradient-to-r from-[#161618] via-[#191922] to-[#161618] px-5 py-4">
+              <div className="relative grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-xl bg-gradient-to-br from-[#2f7cf6] to-[#19c2e0] text-white shadow-[0_8px_24px_rgba(47,124,246,0.4)]">
+                <ImagePlus size={19} />
+                {creating && <span className="avero-shimmer absolute inset-0" />}
               </div>
-              <div>
-                <div className="text-[13px] font-bold text-white">New Project</div>
-                <div className="text-[11px] text-[#6e6e78]">Canvas details, then a dedicated folder. Max 16384px per side</div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <div className="text-[14px] font-bold tracking-tight text-white">New Project</div>
+                  <span className="rounded-full border border-white/10 bg-white/[0.05] px-2 py-px font-mono text-[10px] text-[#8fb6f5]">
+                    .avx ready
+                  </span>
+                </div>
+                <div className="mt-0.5 truncate text-[11.5px] text-[#8f8f98]">
+                  Canvas first, folder optional — max 16384px per side
+                </div>
               </div>
-              <div className="ml-auto flex items-center gap-1 font-mono text-[10px] text-[#6e6e78]">
-                <span className="rounded border border-[#2f7cf6] bg-[#2f7cf6]/15 px-1.5 py-px text-[#8fb6f5]">1 Canvas</span>
+              <div className="ml-auto hidden items-center gap-1 font-mono text-[10px] text-[#6e6e78] sm:flex">
+                <span className="rounded-lg border border-[#2f7cf6]/40 bg-[#2f7cf6]/15 px-2 py-1 text-[#8fb6f5]">1 Canvas</span>
                 <span>→</span>
-                <span className={clsx("rounded border px-1.5 py-px", pfolder ? "border-[#2f7cf6] bg-[#2f7cf6]/15 text-[#8fb6f5]" : "border-[#2c2c31] bg-[#101012]")}>2 Folder</span>
+                <span
+                  className={clsx(
+                    "rounded-lg border px-2 py-1",
+                    pfolder ? "border-[#2f7cf6]/40 bg-[#2f7cf6]/15 text-[#8fb6f5]" : "border-white/10 bg-white/[0.04]",
+                  )}
+                >
+                  2 Folder
+                </span>
                 <span>→</span>
-                <span className={clsx("rounded border px-1.5 py-px", creating ? "border-[#2f7cf6] bg-[#2f7cf6]/15 text-[#8fb6f5]" : "border-[#2c2c31] bg-[#101012]")}>3 Create</span>
+                <span
+                  className={clsx(
+                    "rounded-lg border px-2 py-1",
+                    creating ? "border-[#2f7cf6]/40 bg-[#2f7cf6]/15 text-[#8fb6f5]" : "border-white/10 bg-white/[0.04]",
+                  )}
+                >
+                  3 Create
+                </span>
               </div>
               <button
-                onClick={() => !creating && setShowNew(false)}
-                disabled={creating}
-                className="rounded-md p-1.5 text-[#a7a7b0] hover:bg-[#232327] hover:text-white disabled:opacity-40"
+                onClick={() => !creating && !folderBusy && setShowNew(false)}
+                disabled={creating || folderBusy}
+                className="rounded-lg p-2 text-[#a7a7b0] transition hover:bg-white/[0.06] hover:text-white disabled:opacity-40"
                 title="Close (Esc)"
               >
-                <X size={15} />
+                <X size={16} />
               </button>
             </div>
-            <div className="max-h-[70vh] overflow-y-auto p-5">
-              <div className="avero-micro mb-1.5">01 - Canvas</div>
-              <div className="avero-micro mb-1.5">Aspect ratio shortcuts</div>
+
+            <div className="max-h-[72vh] overflow-y-auto p-5">
+              {/* 01 Canvas */}
+              <div className="flex items-center justify-between">
+                <div className="avero-micro">01 — Canvas</div>
+                <div className="font-mono text-[10px] text-[#4a4a52]">instant preview · no freeze</div>
+              </div>
+              <div className="avero-micro mb-1.5 mt-3">Aspect ratio shortcuts</div>
               <div className="mb-4 flex flex-wrap gap-1.5">
                 {RATIO_PRESETS.map((r) => (
                   <button
@@ -791,22 +824,26 @@ export default function HomeScreen() {
                     onClick={() => {
                       setDw(String(r.w));
                       setDh(String(r.h));
+                      setFormError(null);
                     }}
-                    title={`${r.w} by ${r.h}`}
+                    title={`${r.w} × ${r.h}`}
                     className={clsx(
-                      "rounded-md border px-2.5 py-1.5 font-mono text-[11px]",
+                      "rounded-lg border px-2.5 py-1.5 font-mono text-[11px] transition",
                       dw === String(r.w) && dh === String(r.h)
-                        ? "border-[#2f7cf6] bg-[#2f7cf6] text-white"
-                        : "border-[#2c2c31] bg-[#101012] text-[#a7a7b0] hover:border-[#3a3a41] hover:text-white",
+                        ? "border-[#2f7cf6] bg-[#2f7cf6] font-bold text-white shadow-[0_4px_16px_rgba(47,124,246,0.35)]"
+                        : "border-white/[0.08] bg-[#0e0e10] text-[#a7a7b0] hover:border-white/20 hover:text-white",
                     )}
                   >
                     {r.label}
                   </button>
                 ))}
               </div>
-              <label className="col-span-3">
+
+              <label className="block">
                 <span className="avero-micro mb-1.5 block">Project name</span>
                 <input
+                  // eslint-disable-next-line jsx-a11y/no-autofocus
+                  autoFocus
                   value={dn}
                   onChange={(e) => {
                     setDn(e.target.value);
@@ -814,20 +851,21 @@ export default function HomeScreen() {
                   }}
                   placeholder="Untitled-1"
                   maxLength={80}
-                  className="h-9 w-full rounded-md border border-[#2c2c31] bg-[#101012] px-3 text-[12px] text-white outline-none placeholder:text-[#4a4a52] focus:border-[#2f7cf6]"
+                  className="h-10 w-full rounded-xl border border-white/[0.08] bg-[#0e0e10] px-3 text-[13px] text-white outline-none placeholder:text-[#4a4a52] focus:border-[#2f7cf6]"
                 />
               </label>
+
               <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-end gap-2">
                 <label>
                   <span className="avero-micro mb-1.5 block">Width (px)</span>
                   <input
                     value={dw}
                     onChange={(e) => {
-                      setDw(e.target.value.replace(/[^0-9]/g, ""));
+                      setDw(e.target.value.replace(/[^0-9]/g, "").slice(0, 5));
                       setFormError(null);
                     }}
                     inputMode="numeric"
-                    className="h-9 w-full rounded-md border border-[#2c2c31] bg-[#101012] px-3 font-mono text-[12px] text-white outline-none focus:border-[#2f7cf6]"
+                    className="h-10 w-full rounded-xl border border-white/[0.08] bg-[#0e0e10] px-3 font-mono text-[13px] text-white outline-none focus:border-[#2f7cf6]"
                   />
                 </label>
                 <button
@@ -836,111 +874,174 @@ export default function HomeScreen() {
                     setDh(dw);
                   }}
                   title="Swap orientation"
-                  className="avero-lift mb-0.5 grid h-9 w-9 place-items-center rounded-md border border-[#2c2c31] bg-[#101012] text-[#a7a7b0] hover:border-[#3a3a41] hover:text-white"
+                  className="avero-lift mb-0.5 grid h-10 w-10 place-items-center rounded-xl border border-white/[0.08] bg-[#0e0e10] text-[#a7a7b0] hover:border-white/20 hover:text-white"
                 >
-                  <ArrowLeftRight size={14} />
+                  <ArrowLeftRight size={15} />
                 </button>
                 <label>
                   <span className="avero-micro mb-1.5 block">Height (px)</span>
                   <input
                     value={dh}
                     onChange={(e) => {
-                      setDh(e.target.value.replace(/[^0-9]/g, ""));
+                      setDh(e.target.value.replace(/[^0-9]/g, "").slice(0, 5));
                       setFormError(null);
                     }}
                     inputMode="numeric"
-                    className="h-9 w-full rounded-md border border-[#2c2c31] bg-[#101012] px-3 font-mono text-[12px] text-white outline-none focus:border-[#2f7cf6]"
+                    className="h-10 w-full rounded-xl border border-white/[0.08] bg-[#0e0e10] px-3 font-mono text-[13px] text-white outline-none focus:border-[#2f7cf6]"
                   />
                 </label>
               </div>
-              <label className="mt-3 block">
+
+              <div className="mt-3">
                 <span className="avero-micro mb-1.5 block">Background</span>
-                <div className="grid grid-cols-3 gap-1 rounded-md border border-[#2c2c31] bg-[#101012] p-1">
+                <div className="grid grid-cols-3 gap-1 rounded-xl border border-white/[0.08] bg-[#0e0e10] p-1">
                   {(["white", "black", "transparent"] as const).map((b) => (
                     <button
                       key={b}
                       onClick={() => setBg(b)}
                       className={clsx(
-                        "rounded px-2 py-1.5 text-[11px] font-medium capitalize",
-                        bg === b ? "bg-[#2f7cf6] text-white" : "text-[#a7a7b0] hover:bg-[#232327] hover:text-white",
+                        "flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[12px] font-medium capitalize transition",
+                        bg === b ? "bg-[#2f7cf6] text-white shadow-[0_4px_16px_rgba(47,124,246,0.35)]" : "text-[#a7a7b0] hover:bg-white/[0.06] hover:text-white",
                       )}
                     >
+                      <span
+                        className="h-3.5 w-3.5 rounded-full border border-white/25"
+                        style={{
+                          background:
+                            b === "transparent"
+                              ? "conic-gradient(#555 0 25%, #222 0 50%, #555 0 75%, #222 0)"
+                              : b === "white"
+                                ? "#ececee"
+                                : "#000",
+                        }}
+                      />
                       {b}
                     </button>
                   ))}
                 </div>
-              </label>
-              <div className="mt-3 flex items-center gap-2 rounded-md border border-[#2c2c31] bg-[#101012] px-3 py-2 font-mono text-[10px] text-[#6e6e78]">
+              </div>
+
+              {/* Live summary */}
+              <div className="mt-3 flex items-center gap-2.5 rounded-xl border border-white/[0.07] bg-[#0e0e10] px-3 py-2.5 font-mono text-[10.5px] text-[#8f8f98]">
                 <span
-                  className="inline-block shrink-0 rounded-[3px] border border-[#3a3a41]"
+                  className="inline-block shrink-0 rounded-[4px] border border-white/15"
                   style={{
-                    width: `${Math.max(8, Math.min(44, (44 * nw) / Math.max(nw, nh)))}px`,
-                    height: `${Math.max(6, Math.min(30, (30 * nh) / Math.max(nw, nh)))}px`,
-                    background: bg === "transparent" ? "conic-gradient(#2c2c31 0 25%, #101012 0 50%, #2c2c31 0 75%, #101012 0)" : bg === "white" ? "#ececee" : "#000000",
+                    width: `${Math.max(10, Math.min(48, (48 * nw) / Math.max(nw, nh)))}px`,
+                    height: `${Math.max(7, Math.min(32, (32 * nh) / Math.max(nw, nh)))}px`,
+                    background: bg === "transparent" ? "conic-gradient(#3a3a41 0 25%, #101012 0 50%, #3a3a41 0 75%, #101012 0)" : bg === "white" ? "#ececee" : "#000000",
                   }}
                   title="Live aspect preview"
                 />
-                <span>{nw > 0 && nh > 0 ? `${nw}x${nh}` : "0x0"}</span>
-                <span className="h-1 w-1 rounded-full bg-[#2c2c31]" />
+                <span className="text-white">{nw > 0 && nh > 0 ? `${nw}×${nh}` : "0×0"}</span>
+                <span className="h-1 w-1 rounded-full bg-white/15" />
                 <span>{newMp} MP</span>
-                <span className="h-1 w-1 rounded-full bg-[#2c2c31]" />
-                <span>about {newMb} MB per layer</span>
-                <span className="h-1 w-1 rounded-full bg-[#2c2c31]" />
+                <span className="h-1 w-1 rounded-full bg-white/15" />
+                <span>±{newMb} MB/layer</span>
+                <span className="h-1 w-1 rounded-full bg-white/15" />
                 <span className="capitalize">{bg}</span>
-                {(nw * nh > 2048 * 2048) && <span className="ml-auto text-[#8fb6f5]">tiled path</span>}
+                {nw * nh > 2048 * 2048 && <span className="ml-auto rounded-md bg-[#2f7cf6]/15 px-1.5 py-px text-[#8fb6f5]">tiled path</span>}
               </div>
-              <div className="avero-micro mb-1.5 mt-5">02 - Project folder</div>
-              <div className="rounded-md border border-[#2c2c31] bg-[#101012] p-3">
+
+              {/* 02 Folder — klik folder dijamin berfungsi */}
+              <div className="avero-micro mb-1.5 mt-5">02 — Project folder (optional)</div>
+              <div
+                className={clsx(
+                  "rounded-xl border p-3 transition",
+                  pfolder ? "border-[#2f7cf6]/30 bg-[#2f7cf6]/[0.06]" : "border-white/[0.08] bg-[#0e0e10]",
+                )}
+              >
                 <div className="flex items-center gap-2">
-                  <div className="min-w-0 flex-1 truncate rounded border border-[#2c2c31] bg-[#161618] px-2.5 py-2 font-mono text-[10px] text-[#a7a7b0]" title={pfolder ?? "No parent folder selected yet"}>
-                    {pfolder ?? (isDesktop ? "No folder selected - click Choose" : "Web preview: files download on save")}
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-white/10 bg-[#161618] text-[#8fb6f5]">
+                    <FolderOpen size={16} />
+                  </span>
+                  <div
+                    className="min-w-0 flex-1 truncate rounded-lg border border-white/[0.07] bg-[#161618] px-2.5 py-2 font-mono text-[10.5px] text-[#c9c9d1]"
+                    title={pfolder ?? "No parent folder selected yet"}
+                  >
+                    {pfolder ?? (isDesktop ? "No folder yet — optional, Create works anyway" : "Web preview: files download on save")}
                   </div>
+                  {pfolder && (
+                    <button
+                      onClick={() => setPfolder(null)}
+                      disabled={creating || folderBusy}
+                      title="Use in-memory project instead"
+                      className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-white/10 bg-[#161618] text-[#a7a7b0] transition hover:border-[#e5534b]/50 hover:text-white disabled:opacity-40"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
                   <button
                     onClick={() => void chooseProjectFolder()}
-                    disabled={creating}
-                    className="flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-[#2c2c31] bg-[#232327] px-3 text-[12px] text-white hover:border-[#3a3a41] disabled:opacity-40"
+                    disabled={creating || folderBusy}
+                    className="avero-lift flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-[#2f7cf6] px-3.5 text-[12px] font-semibold text-white shadow-[0_4px_16px_rgba(47,124,246,0.35)] disabled:opacity-50"
                   >
-                    <FolderOpen size={13} /> {pfolder ? "Change" : "Choose"}
+                    {folderBusy ? (
+                      <>
+                        <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                        Opening…
+                      </>
+                    ) : (
+                      <>
+                        <FolderOpen size={14} /> {pfolder ? "Change" : "Choose"}
+                      </>
+                    )}
                   </button>
                 </div>
-                <div className="mt-2 rounded border border-[#2c2c31] bg-[#161618] px-2.5 py-2 font-mono text-[10px] leading-relaxed text-[#6e6e78]">
+                <div className="mt-2 rounded-lg border border-white/[0.06] bg-[#161618] px-2.5 py-2 font-mono text-[10.5px] leading-relaxed text-[#6e6e78]">
                   <div className="text-[#a7a7b0]">Will be created:</div>
-                  <div className="truncate" title={pfolder ? joinPath(pfolder, sanitizeProjectName(dn.trim() || "Untitled")) : "-"}>
-                    {pfolder ? joinPath(pfolder, sanitizeProjectName(dn.trim() || "Untitled")) + "/" : "-"}
+                  <div className="truncate" title={pfolder ? joinPath(pfolder, sanitizeProjectName(dn.trim() || "Untitled")) : "In-memory project — Ctrl+S asks where to save"}>
+                    {pfolder ? `${joinPath(pfolder, sanitizeProjectName(dn.trim() || "Untitled"))}/` : "In-memory — Ctrl+S opens file manager for Name.avx"}
                   </div>
-                  <div className="truncate text-[#4a4a52]">
-                    {pfolder ? `├─ ${sanitizeProjectName(dn.trim() || "Untitled")}.avx (on first Ctrl+S) └─ images/` : "Pick a parent folder to preview the layout"}
-                  </div>
+                  {pfolder && (
+                    <div className="truncate text-[#4a4a52]">
+                      {`├─ ${sanitizeProjectName(dn.trim() || "Untitled")}.avx (on first Ctrl+S) └─ images/`}
+                    </div>
+                  )}
                 </div>
+                {!isDesktop && (
+                  <div className="mt-2 text-[11px] leading-snug text-[#6e6e78]">
+                    Web mode has no folder picker — everything stays in memory until you Save.
+                  </div>
+                )}
               </div>
+
               {formError && (
-                <div className="mt-3 rounded-md border border-[#e5534b]/50 bg-[#e5534b]/10 px-3 py-2 text-[11px] leading-relaxed text-[#f0883e]">
+                <div className="mt-3 rounded-xl border border-[#e5534b]/40 bg-[#e5534b]/10 px-3 py-2.5 text-[11.5px] leading-relaxed text-[#f0883e]">
                   {formError}
                 </div>
               )}
               {formInfo && (
-                <div className="mt-3 rounded-md border border-[#2f7cf6]/50 bg-[#2f7cf6]/10 px-3 py-2 text-[11px] leading-relaxed text-[#8fb6f5]">
+                <div className="mt-3 rounded-xl border border-[#2f7cf6]/40 bg-[#2f7cf6]/10 px-3 py-2.5 text-[11.5px] leading-relaxed text-[#8fb6f5]">
                   {formInfo}
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-2 border-t border-[#2c2c31] bg-[#161618] px-5 py-3">
-              <span className="font-mono text-[10px] text-[#6e6e78]">Enter creates, Esc closes</span>
+
+            <div className="flex items-center gap-2 border-t border-white/[0.07] bg-[#101012] px-5 py-3.5">
+              <span className="hidden font-mono text-[10.5px] text-[#4a4a52] sm:block">Enter creates · Esc closes</span>
+              <span className="font-mono text-[10.5px] text-[#4a4a52] sm:hidden">Esc closes</span>
               <div className="ml-auto flex gap-2">
                 <button
                   onClick={() => setShowNew(false)}
-                  disabled={creating}
-                  className="h-8 rounded-md border border-[#2c2c31] bg-[#232327] px-3 text-[12px] text-white hover:border-[#3a3a41] disabled:opacity-40"
+                  disabled={creating || folderBusy}
+                  className="h-9 rounded-lg border border-white/10 bg-white/[0.05] px-4 text-[12px] text-white transition hover:bg-white/[0.09] disabled:opacity-40"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={submitNew}
-                  disabled={creating}
-                  className="avero-btn-primary avero-lift relative h-8 overflow-hidden rounded-md px-4 text-[12px] font-semibold text-white disabled:opacity-60"
+                  disabled={creating || folderBusy}
+                  className="avero-btn-primary avero-lift relative flex h-9 items-center gap-2 overflow-hidden rounded-lg px-5 text-[12px] font-semibold text-white shadow-[0_8px_24px_rgba(47,124,246,0.35)] disabled:opacity-60"
                 >
                   {creating && <span className="avero-shimmer absolute inset-0" />}
-                  <span className="relative">{creating ? createStage || "Creating..." : "03 - Create project"}</span>
+                  {creating ? (
+                    <span className="relative flex items-center gap-2">
+                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                      {createStage || "Creating…"}
+                    </span>
+                  ) : (
+                    <span className="relative">Create project →</span>
+                  )}
                 </button>
               </div>
             </div>

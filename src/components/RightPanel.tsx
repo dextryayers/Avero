@@ -31,6 +31,7 @@ import {
   Brush,
   Puzzle,
   Box,
+  Pipette,
   History,
 } from "lucide-react";
 import { makeLayer, useEditorStore } from "../stores/useEditorStore";
@@ -216,6 +217,81 @@ export default function RightPanel() {
   // Affinity-style studio strip: colour tools above the main tab system.
   // Selecting a main tab always returns to tab content.
   const [studio, setStudio] = useState<null | "colour" | "swatches" | "stroke" | "brushes">(null);
+  // Dual column dock: left Layers stack, right Color stack in front.
+  // Collapse prefs and the right tab persist across reloads.
+  type RightTab = "colour" | "swatches" | "stroke" | "brushes" | "color";
+  const [rightTab, setRightTabState] = useState<RightTab>(() => {
+    try {
+      const v = localStorage.getItem("avero:dock-righttab");
+      if (v === "swatches" || v === "stroke" || v === "brushes" || v === "color") return v;
+    } catch {
+      /* ignore */
+    }
+    return "colour";
+  });
+  const [leftCollapsed, setLeftCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem("avero:dock-left") === "0";
+    } catch {
+      return false;
+    }
+  });
+  const [rightCollapsed, setRightCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem("avero:dock-right") === "0";
+    } catch {
+      return false;
+    }
+  });
+  // Narrow windows fall back to the legacy single column so the canvas keeps room.
+  const [narrow, setNarrow] = useState(() =>
+    typeof window === "undefined" ? true : window.innerWidth < 1100,
+  );
+  useEffect(() => {
+    const onR = () => setNarrow(window.innerWidth < 1100);
+    window.addEventListener("resize", onR);
+    return () => window.removeEventListener("resize", onR);
+  }, []);
+  useEffect(() => {
+    if (!narrow) {
+      // Dual mode owns colour on the right, so clear the overlay and move
+      // the left column off the Color tab when entering it.
+      setStudio(null);
+      setTab((t) => (t === "color" ? "layers" : t));
+    }
+  }, [narrow]);
+  function setRightTab(t: RightTab) {
+    setRightTabState(t);
+    try {
+      localStorage.setItem("avero:dock-righttab", t);
+    } catch {
+      /* ignore */
+    }
+  }
+  function toggleLeft() {
+    setLeftCollapsed((v) => {
+      const n = !v;
+      try {
+        localStorage.setItem("avero:dock-left", n ? "0" : "1");
+      } catch {
+        /* ignore */
+      }
+      return n;
+    });
+  }
+  function toggleRight() {
+    setRightCollapsed((v) => {
+      const n = !v;
+      try {
+        localStorage.setItem("avero:dock-right", n ? "0" : "1");
+      } catch {
+        /* ignore */
+      }
+      return n;
+    });
+  }
+  // In dual mode the Color tab lives in the right column.
+  const stripTabs = narrow ? tabs : tabs.filter((t) => t.id !== "color");
   const workspaceTab = useWorkspaceStore((s) => s.rightTab);
   useEffect(() => {
     if (workspaceTab && (tabs as { id: string }[]).some((t) => t.id === workspaceTab)) {
@@ -363,19 +439,84 @@ export default function RightPanel() {
     useProStore.getState().bumpHistogram();
   }
 
+  const dockW = narrow
+    ? "w-[308px]"
+    : leftCollapsed && rightCollapsed
+      ? "w-[44px]"
+      : leftCollapsed
+        ? "w-[248px]"
+        : rightCollapsed
+          ? "w-[232px]"
+          : "w-[480px]";
+  const bothHidden = !narrow && leftCollapsed && rightCollapsed;
+  const leftWrap = narrow
+    ? "flex min-h-0 flex-1 flex-col"
+    : leftCollapsed
+      ? "hidden"
+      : "flex min-h-0 w-[232px] shrink-0 flex-col border-r border-[#2c2c31]";
   return (
-    <div className="avero-contain flex w-[308px] shrink-0 flex-col border-l border-[#2c2c31] bg-[#1c1c1f]">
+    <div className={`avero-contain flex ${dockW} shrink-0 flex-col border-l border-[#2c2c31] bg-[#1c1c1f]`}>
       <div className="flex items-center gap-2 border-b border-[#2c2c31] bg-[#161618] px-2.5 py-2">
         <span className="avero-micro">Properties</span>
+        {!narrow && (
+          <span className="flex items-center gap-1">
+            <button
+              onClick={toggleLeft}
+              title={leftCollapsed ? "Show Layers column" : "Hide Layers column"}
+              aria-pressed={!leftCollapsed}
+              className={clsx(
+                "grid h-6 w-6 place-items-center rounded-md",
+                leftCollapsed
+                  ? "text-[#6e6e78] hover:bg-[#232327] hover:text-white"
+                  : "bg-[#2f7cf6] text-white",
+              )}
+            >
+              <Layers size={13} />
+            </button>
+            <button
+              onClick={toggleRight}
+              title={rightCollapsed ? "Show Color column" : "Hide Color column"}
+              aria-pressed={!rightCollapsed}
+              className={clsx(
+                "grid h-6 w-6 place-items-center rounded-md",
+                rightCollapsed
+                  ? "text-[#6e6e78] hover:bg-[#232327] hover:text-white"
+                  : "bg-[#2f7cf6] text-white",
+              )}
+            >
+              <Palette size={13} />
+            </button>
+          </span>
+        )}
         <span className="ml-auto font-mono text-[10px] tabular-nums text-[#6e6e78]">
           {doc.width}×{doc.height} · {layers.length} lyr
         </span>
       </div>
+      {bothHidden ? (
+        <div className="flex min-h-0 flex-1 flex-col items-center gap-2 py-2">
+          <button
+            onClick={toggleLeft}
+            title="Show Layers column"
+            className="grid h-7 w-7 place-items-center rounded-md text-[#a7a7b0] hover:bg-[#232327] hover:text-white"
+          >
+            <Layers size={14} />
+          </button>
+          <button
+            onClick={toggleRight}
+            title="Show Color column"
+            className="grid h-7 w-7 place-items-center rounded-md text-[#a7a7b0] hover:bg-[#232327] hover:text-white"
+          >
+            <Palette size={14} />
+          </button>
+        </div>
+      ) : (
+      <div className={narrow ? "flex min-h-0 flex-1 flex-col" : "flex min-h-0 flex-1 flex-row"}>
+        <div className={leftWrap}>
       <ScrollPager
         ariaLabel="Studio panels"
         className="border-b border-[#2c2c31] bg-[#161618] py-0.5 text-[10px]"
         jumpLabel="Panels"
-        jumpItems={tabs.map((t) => ({
+        jumpItems={stripTabs.map((t) => ({
           id: t.id,
           label: `${t.label} panel`,
           icon: t.icon,
@@ -394,7 +535,7 @@ export default function RightPanel() {
           setStudio(null);
         }}
       >
-        {tabs.map((t) => {
+        {stripTabs.map((t) => {
           const Icon = t.icon;
           const selected = tab === t.id;
           return (
@@ -425,6 +566,7 @@ export default function RightPanel() {
           );
         })}
       </ScrollPager>
+      {narrow && (
       <div className="grid grid-cols-4 border-b border-[#2c2c31] bg-[#101012]" role="tablist" aria-label="Colour studio">
         {(
           [
@@ -456,6 +598,7 @@ export default function RightPanel() {
           );
         })}
       </div>
+      )}
 
       {studio === null && tab === "layers" && <DockTabBar value={dock} onChange={setDock} />}
 
@@ -1178,6 +1321,50 @@ export default function RightPanel() {
           );
         })()}
     </div>
+    {!narrow && !rightCollapsed && (
+      <div className="flex min-h-0 w-[248px] shrink-0 flex-col">
+        <div className="grid grid-cols-5 border-b border-[#2c2c31] bg-[#161618]" role="tablist" aria-label="Color studio">
+          {(
+            [
+              { id: "colour", label: "Colour", icon: Palette },
+              { id: "swatches", label: "Swatch", icon: LayoutGrid },
+              { id: "stroke", label: "Stroke", icon: PenLine },
+              { id: "brushes", label: "Brush", icon: Brush },
+              { id: "color", label: "Color", icon: Pipette },
+            ] as const
+          ).map((t) => {
+            const Icon = t.icon;
+            const selected = rightTab === t.id;
+            return (
+              <button
+                key={t.id}
+                role="tab"
+                aria-selected={selected}
+                onClick={() => setRightTab(t.id)}
+                title={`${t.label} panel`}
+                className={clsx(
+                  "avero-lift flex items-center justify-center gap-1 whitespace-nowrap border-b-2 px-1 py-2 text-[10px]",
+                  selected
+                    ? "border-[#2f7cf6] bg-[#1c1c1f] font-semibold text-white"
+                    : "border-transparent text-[#6e6e78] hover:text-white",
+                )}
+              >
+                <Icon size={13} />
+              </button>
+            );
+          })}
+        </div>
+        <div className="avero-fade-in min-h-0 flex-1 overflow-y-auto" key={`right-${rightTab}`}>
+          {rightTab === "colour" && <ColourView />}
+          {rightTab === "swatches" && <SwatchesView />}
+          {rightTab === "stroke" && <StrokeView />}
+          {rightTab === "brushes" && <BrushesView />}
+          {rightTab === "color" && <ColorPanel />}
+        </div>
+      </div>
+    )}
+      </div>
+      )}
   );
 }
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useEditorStore } from "../stores/useEditorStore";
 import { useProStore } from "../stores/useProStore";
-import { isTauri, nativeBenchmark, nativeInfo, nativeStats, gpuReport, type NativeInfo } from "../io/nativeEngine";
+import { isTauri, nativeBenchmark, nativeInfo, nativeStats, gpuReport, cancelModelDownload, type NativeInfo } from "../io/nativeEngine";
 import { gpuBackend } from "../io/gpuBackend";
 import { clearRenderPools, layerManager } from "../engine/layerManager";
 import { showMessage, showError, askText } from "../ui/notify";
@@ -30,6 +30,43 @@ export default function StatusBar() {
   const [bench, setBench] = useState<string>("");
   const [ramMode, setRamMode] = useState<string>("");
   const [gpu, setGpu] = useState<string>("GPU…");
+  const [segProgress, setSegProgress] = useState<{ file: string; pct: number } | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    let unlisten: (() => void) | undefined;
+    function apply(file: string, pct: number) {
+      if (!alive) return;
+      if (pct >= 100) {
+        setSegProgress(null);
+      } else {
+        setSegProgress({ file, pct });
+      }
+    }
+    function onWindow(e: Event) {
+      const d = (e as CustomEvent).detail as { file: string; pct: number };
+      if (typeof d?.pct === "number") apply(String(d.file ?? "segment"), d.pct);
+    }
+    window.addEventListener("avero:segment-progress", onWindow);
+    (async () => {
+      try {
+        if (!isTauri()) return;
+        const { listen } = await import("@tauri-apps/api/event");
+        if (!alive) return;
+        unlisten = await listen("avero:segment-progress", (ev) => {
+          const d = ev.payload as { file: string; pct: number };
+          if (typeof d?.pct === "number") apply(String(d.file ?? "segment"), d.pct);
+        });
+      } catch {
+        /* web preview has no Tauri events */
+      }
+    })();
+    return () => {
+      alive = false;
+      window.removeEventListener("avero:segment-progress", onWindow);
+      if (unlisten) unlisten();
+    };
+  }, []);
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -273,6 +310,19 @@ export default function StatusBar() {
       >
         {gpu}
       </span>
+      {segProgress && (
+        <span className="flex items-center gap-1 rounded border border-[#2c2c31] bg-[#232327] px-1.5 py-0.5 font-mono text-[#8fb6f5]">
+          <span className="truncate max-w-[120px]">{segProgress.file}</span>
+          <span>{segProgress.pct}%</span>
+          <button
+            onClick={() => cancelModelDownload()}
+            className="text-[#8e8e98] hover:text-white"
+            title="Cancel download"
+          >
+            ×
+          </button>
+        </span>
+      )}
       <span
         className="ml-auto hidden max-w-[300px] truncate md:block font-mono"
         title={backendInfo}

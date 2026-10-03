@@ -796,6 +796,11 @@ export const useProStore = create<ProState>((set) => ({
   },
 }));
 
+/** Test-only: reset the histogram bump throttle so tests can observe ticks. */
+export function resetHistogramThrottle() {
+  lastHistBump = 0;
+}
+
 export function defaultAdjustmentParams(type: AdjustmentType) {
   return { ...defaultParams[type] };
 }

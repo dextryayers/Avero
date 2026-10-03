@@ -7,6 +7,8 @@ import { useEditorStore, makeLayer } from "../stores/useEditorStore";
 import { useWorkspaceStore } from "../stores/useWorkspaceStore";
 import { useNodeStore } from "../stores/useNodeStore";
 import { isTauri, nativeProcessCanvas } from "../io/nativeEngine";
+import { triggerAutoSegment } from "../io/autoSegmentTrigger";
+import { useObjectStore } from "../stores/useObjectStore";
 import { useHomeStore } from "../stores/useHomeStore";
 import { useProStore } from "../stores/useProStore";
 import { House, Search, Settings2 } from "lucide-react";
@@ -143,9 +145,11 @@ export default function TitleBar({
       size: info.file_size,
     });
     useHomeStore.getState().setHome(false);
+    useObjectStore.getState().clearObjects();
     window.dispatchEvent(
       new CustomEvent("avero:opened-image", { detail: { dataUrl, w: info.width, h: info.height } }),
     );
+    void triggerAutoSegment();
   }
 
   useEffect(() => {

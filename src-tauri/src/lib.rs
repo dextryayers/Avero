@@ -5,6 +5,7 @@ mod commands;
 mod convert;
 mod document;
 mod io;
+mod models;
 mod native;
 mod pro;
 mod ram;
@@ -21,9 +22,11 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
-            // Second launch (double-click while running): forward the .avx path.
+            // Second launch (double-click while running): forward the .avx or image path.
             if let Some(path) = io::find_avx_arg(&argv) {
                 let _ = app.emit("avero:open-avx-path", path);
+            } else if let Some(path) = io::find_image_arg(&argv) {
+                let _ = app.emit("avero:open-image-path", path);
             }
         }))
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -38,7 +41,9 @@ pub fn run() {
             io::cmd_write_text_file,
             io::cmd_write_text_atomic,
             io::cmd_register_avx_association,
+            io::cmd_register_image_association,
             io::cmd_startup_file,
+            io::cmd_startup_image,
             io::cmd_path_exists,
             io::cmd_ensure_dir,
             convert::cmd_probe_image,
@@ -76,6 +81,11 @@ pub fn run() {
             segment::cmd_segment_stuff,
             segment::cmd_segment_text,
             segment::cmd_segment_models_status,
+            models::cmd_model_manifest,
+            models::cmd_model_status,
+            models::cmd_delete_model,
+            models::cmd_download_model,
+            models::cmd_cancel_model_download,
             system::cmd_system_profile,
             system::cmd_engine_recommend
         ])

@@ -11,6 +11,7 @@ import {
   Monitor,
   Palette,
   RefreshCw,
+  Scan,
   Settings2,
   Zap,
 } from "lucide-react";
@@ -26,6 +27,7 @@ import { useProStore } from "../stores/useProStore";
 import { clearRecovery } from "../engine/recovery";
 import { layerManager } from "../engine/layerManager";
 import { showError, askConfirm } from "../ui/notify";
+import { modelManifest, modelStatus, downloadModel, deleteModel, type ModelInfo, type ModelStatus } from "../io/nativeEngine";
 import clsx from "clsx";
 
 function Seg<T extends string | number>({
@@ -107,7 +109,7 @@ function SectionHead({ title, info }: { title: string; info: string }) {
   );
 }
 
-type TabId = "hardware" | "engine" | "canvas" | "tools" | "shortcuts" | "workspace";
+type TabId = "hardware" | "engine" | "canvas" | "tools" | "shortcuts" | "workspace" | "segment";
 
 const TABS: { id: TabId; label: string; desc: string; icon: typeof Cpu }[] = [
   { id: "hardware", label: "Hardware", desc: "Device scan and score", icon: Cpu },
@@ -116,6 +118,7 @@ const TABS: { id: TabId; label: string; desc: string; icon: typeof Cpu }[] = [
   { id: "tools", label: "Tools", desc: "Brush defaults", icon: Brush },
   { id: "shortcuts", label: "Shortcuts", desc: "Every key, one table", icon: Keyboard },
   { id: "workspace", label: "Studio", desc: "Save, motion, storage", icon: Palette },
+  { id: "segment", label: "AI Segment", desc: "Auto object detection", icon: Scan },
 ];
 
 const TAB_INFO: Record<TabId, { title: string; info: string }> = {
@@ -143,6 +146,10 @@ const TAB_INFO: Record<TabId, { title: string; info: string }> = {
     title: "Studio and storage",
     info: "Autosave, interface motion and local storage. Recovery snapshots protect against crashes. Nuke canvas is the emergency free for stuck GPU memory.",
   },
+  segment: {
+    title: "AI Auto Segment",
+    info: "Local object detection splits photos into layers. Models download once and run fully offline. Auto Segment fires when a new image enters via dialog, drop, or double-click.",
+  },
 };
 
 export default function SettingsPanel({ onBack }: { onBack: () => void }) {
@@ -167,6 +174,9 @@ export default function SettingsPanel({ onBack }: { onBack: () => void }) {
       themeMode: st.themeMode,
       canvasQuality: st.canvasQuality,
       maxZoom: st.maxZoom,
+      autoSegment: st.autoSegment,
+      segmentQuality: st.segmentQuality,
+      segmentLabelsId: st.segmentLabelsId,
       set: st.set,
       applyRecommendation: st.applyRecommendation,
       resetAll: st.resetAll,
@@ -640,9 +650,30 @@ export default function SettingsPanel({ onBack }: { onBack: () => void }) {
                     Nuke canvas (free GPU/RAM)
                   </button>
                   <div className="font-mono text-[10px] leading-relaxed text-[#6e6e78]">
-                    settings key avero-settings-v2 · workspace avero-workspace · recovery avero-recovery
+                    Settings key avero-settings-v2 · workspace avero-workspace · recovery avero-recovery
                   </div>
                 </div>
+              </div>
+            )}
+
+            {tab === "segment" && (
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="space-y-3 rounded-lg border border-[#2c2c31] bg-[#1c1c1f] p-4">
+                  <div className="text-[12px] font-bold text-white">Auto Segment</div>
+                  <div className="text-[11px] text-[#6e6e78]">Local AI splits photos into layers. Models download once, then run offline.</div>
+                  <Toggle on={s.autoSegment} onFlip={() => s.set({ autoSegment: !s.autoSegment })} label="Auto Segment on image import" desc="Runs when a new image enters via dialog, drop, or double-click" />
+                  <Seg<string>
+                    label="Segment quality"
+                    value={s.segmentQuality}
+                    onPick={(v) => s.set({ segmentQuality: v as "fast" | "balanced" })}
+                    options={[
+                      { id: "fast", label: "Fast" },
+                      { id: "balanced", label: "Balanced" },
+                    ]}
+                  />
+                  <Toggle on={s.segmentLabelsId} onFlip={() => s.set({ segmentLabelsId: !s.segmentLabelsId })} label="Indonesian layer names" desc="Default is English. Enable for Indonesian labels." />
+                </div>
+                <SegmentModelManager />
               </div>
             )}
 
@@ -794,6 +825,150 @@ function GuideControls() {
         <button onClick={() => pro.clearSamplers()} className="flex-1 rounded bg-[#232327] px-2 py-1.5 text-[11px] text-[#a7a7b0] hover:text-white">Samplers ({samplers.length})</button>
         <button onClick={() => pro.clearMeasures()} className="flex-1 rounded bg-[#232327] px-2 py-1.5 text-[11px] text-[#a7a7b0] hover:text-white">Measures ({measures.length})</button>
       </div>
+    </div>
+  );
+}
+
+function SegmentModelManager() {
+  const [models, setModels] = useState<ModelInfo[]>([]);
+  const [status, setStatus] = useState<ModelStatus[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [m, s] = await Promise.all([modelManifest(), modelStatus()]);
+        if (cancelled) return;
+        setModels(m);
+        setStatus(s);
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    let unlisten: (() => void) | undefined;
+    function apply(file: string, pct: number) {
+      if (!alive) return;
+      setProgress((p) => ({ ...p, [file]: pct }));
+    }
+    function onWindow(e: Event) {
+      const d = (e as CustomEvent).detail as { file: string; pct: number };
+      if (typeof d?.pct === "number") apply(String(d.file ?? ""), d.pct);
+    }
+    window.addEventListener("avero:segment-progress", onWindow);
+    (async () => {
+      try {
+        const { listen } = await import("@tauri-apps/api/event");
+        if (!alive) return;
+        unlisten = await listen("avero:segment-progress", (ev) => {
+          const d = ev.payload as { file: string; pct: number };
+          if (typeof d?.pct === "number") apply(String(d.file ?? ""), d.pct);
+        });
+      } catch {
+        /* web preview has no Tauri events */
+      }
+    })();
+    return () => {
+      alive = false;
+      window.removeEventListener("avero:segment-progress", onWindow);
+      if (unlisten) unlisten();
+    };
+  }, []);
+
+  async function handleDownload(m: ModelInfo) {
+    setBusy(true);
+    try {
+      await downloadModel(m.file, m.url, m.sha256);
+      const s = await modelStatus();
+      setStatus(s);
+    } catch (e) {
+      showError(`Failed to download ${m.name}: ${String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDelete(m: ModelInfo) {
+    try {
+      await deleteModel(m.file);
+      const s = await modelStatus();
+      setStatus(s);
+    } catch (e) {
+      showError(`Failed to delete ${m.name}: ${String(e)}`);
+    }
+  }
+
+  async function handleDownloadAll() {
+    setBusy(true);
+    for (const m of models) {
+      try {
+        await downloadModel(m.file, m.url, m.sha256);
+      } catch (e) {
+        showError(`Failed to download ${m.name}: ${String(e)}`);
+      }
+    }
+    const s = await modelStatus();
+    setStatus(s);
+    setBusy(false);
+  }
+
+  return (
+    <div className="space-y-3 rounded-lg border border-[#2c2c31] bg-[#1c1c1f] p-4">
+      <div className="flex items-center gap-2 text-[12px] font-bold text-white">
+        <Scan size={14} className="text-[#8fb6f5]" /> AI Models
+      </div>
+      <div className="text-[11px] text-[#6e6e78]">Download once, run offline forever.</div>
+      <div className="space-y-2">
+        {models.map((m) => {
+          const found = status.find((s) => s.name === m.name)?.found ?? false;
+          const pct = progress[m.file] ?? 0;
+          return (
+            <div key={m.file} className="flex items-center justify-between rounded-md bg-[#232327] px-3 py-2">
+              <div>
+                <div className="text-[11px] text-white">{m.name}</div>
+                <div className="font-mono text-[10px] text-[#6e6e78]">
+                  {found ? "Ready" : pct > 0 ? `Downloading ${pct}%` : `${(m.size / 1024 / 1024).toFixed(1)} MB`}
+                </div>
+              </div>
+              <div className="flex gap-1">
+                {!found && (
+                  <button
+                    onClick={() => handleDownload(m)}
+                    disabled={busy}
+                    className="rounded bg-[#2f7cf6] px-2 py-1 text-[10px] text-white hover:bg-[#3a8bff] disabled:opacity-50"
+                  >
+                    Download
+                  </button>
+                )}
+                {found && (
+                  <button
+                    onClick={() => handleDelete(m)}
+                    disabled={busy}
+                    className="rounded border border-[#2c2c31] px-2 py-1 text-[10px] text-[#a7a7b0] hover:text-white disabled:opacity-50"
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <button
+        onClick={handleDownloadAll}
+        disabled={busy}
+        className="flex h-8 w-full items-center justify-center rounded-md bg-[#232327] text-[11px] text-white hover:bg-[#2c2c31] disabled:opacity-50"
+      >
+        {busy ? "Downloading..." : "Download all models"}
+      </button>
     </div>
   );
 }

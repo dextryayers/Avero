@@ -268,6 +268,74 @@ pub fn find_avx_arg(args: &[String]) -> Option<String> {
     None
 }
 
+const IMAGE_EXTS: &[&str] = &[
+    "jpg", "jpeg", "png", "webp", "bmp", "tiff", "tif", "gif",
+];
+
+pub fn is_image_path(path: &str) -> bool {
+    let lower = path.to_lowercase();
+    IMAGE_EXTS.iter().any(|ext| lower.ends_with(&format!(".{ext}")))
+}
+
+pub fn find_image_arg(args: &[String]) -> Option<String> {
+    for arg in args.iter().skip(1) {
+        let t = arg.trim().trim_matches('"').to_string();
+        if is_image_path(&t) && std::path::Path::new(&t).exists() {
+            return Some(t);
+        }
+    }
+    None
+}
+
+#[tauri::command]
+pub fn cmd_startup_image() -> Option<String> {
+    find_image_arg(&std::env::args().collect::<Vec<_>>())
+}
+
+#[tauri::command]
+pub fn cmd_register_image_association() -> Result<String, String> {
+    #[cfg(target_os = "windows")]
+    {
+        register_image_windows()?;
+        Ok("Image file associations registered".into())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Ok("File association is handled by the installer on this OS".into())
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn register_image_windows() -> Result<(), String> {
+    use winreg::{enums::*, RegKey};
+    let exe = std::env::current_exe().map_err(|e| format!("Cannot locate app binary: {e}"))?;
+    let exe_s = exe.to_string_lossy().to_string();
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    for ext in IMAGE_EXTS {
+        let (key, _) = hkcu
+            .create_subkey(&format!("Software\\Classes\\.{ext}"))
+            .map_err(|e| format!("Registry write failed for .{ext}: {e}"))?;
+        key.set_value("", &"AveroImageFile")
+            .map_err(|e| format!("Registry write failed for .{ext}: {e}"))?;
+    }
+    let (prog, _) = hkcu
+        .create_subkey("Software\\Classes\\AveroImageFile")
+        .map_err(|e| format!("Registry write failed: {e}"))?;
+    prog.set_value("", &"Avero Image")
+        .map_err(|e| format!("Registry write failed: {e}"))?;
+    let (icon, _) = hkcu
+        .create_subkey("Software\\Classes\\AveroImageFile\\DefaultIcon")
+        .map_err(|e| format!("Registry write failed: {e}"))?;
+    icon.set_value("", &format!("\"{exe_s}\",0"))
+        .map_err(|e| format!("Registry write failed: {e}"))?;
+    let (cmd, _) = hkcu
+        .create_subkey("Software\\Classes\\AveroImageFile\\shell\\open\\command")
+        .map_err(|e| format!("Registry write failed: {e}"))?;
+    cmd.set_value("", &format!("\"{exe_s}\" \"%1\""))
+        .map_err(|e| format!("Registry write failed: {e}"))?;
+    Ok(())
+}
+
 /// File the app was launched with (double-clicked .avx), if any.
 #[tauri::command]
 pub fn cmd_startup_file() -> Option<String> {

@@ -205,6 +205,49 @@ export async function segmentModelsStatus(): Promise<SegmentModelsStatus> {
   return invoke<SegmentModelsStatus>("cmd_segment_models_status");
 }
 
+// --- Plan5 Fase 6.2: model manager ---
+
+export interface ModelInfo {
+  name: string;
+  file: string;
+  url: string;
+  sha256: string;
+  size: number;
+}
+
+export interface ModelStatus {
+  name: string;
+  found: boolean;
+  size: number;
+}
+
+export async function modelManifest(): Promise<ModelInfo[]> {
+  if (!isTauri()) throw new Error("Model manager needs the desktop app");
+  return invoke<ModelInfo[]>("cmd_model_manifest");
+}
+
+export async function modelStatus(): Promise<ModelStatus[]> {
+  if (!isTauri()) throw new Error("Model manager needs the desktop app");
+  return invoke<[string, boolean, number][]>("cmd_model_status").then((rows) =>
+    rows.map(([name, found, size]) => ({ name, found, size })),
+  );
+}
+
+export async function downloadModel(file: string, url: string, sha256: string): Promise<void> {
+  if (!isTauri()) throw new Error("Model manager needs the desktop app");
+  return invoke("cmd_download_model", { file, url, sha256 });
+}
+
+export async function deleteModel(file: string): Promise<void> {
+  if (!isTauri()) throw new Error("Model manager needs the desktop app");
+  return invoke("cmd_delete_model", { file });
+}
+
+export function cancelModelDownload(): void {
+  if (!isTauri()) return;
+  void invoke("cmd_cancel_model_download").catch(() => undefined);
+}
+
 export async function segmentStuff(
   modelPath: string,
   rgba: Uint8ClampedArray | Uint8Array,

@@ -126,26 +126,37 @@ dengan tool yang sudah ada.
   load. File: `segment.rs` (`cmd_segment_text`).
 - Hasil: `cargo test` hijau.
 
-## FASE 4 - Merge + Refinement - DIEKSEKUSI PARSIAL (merge + guided; auto-run = Fase 6)
+## FASE 4 - Merge + Refinement - DIEKSEKUSI
 
 - [x] 4.1. `src/engine/segmentMerge.ts`: IoU, dedupe se-label IoU>0.85, filter area
-  0.3%, sort area, reading order, clamp box. Label EN dari Rust (toggle ID = Fase 6).
-- [x] 4.2. `src/engine/segmentMerge.test.ts`: 6 test hijau (IoU, dedupe, filter,
-  sort non-mutasi, reading order, clamp).
+  0.3%, sort area, reading order, clamp box. Label EN dari Rust (toggle ID = Fase 5.1).
+- [x] 4.2. `src/engine/segmentMerge.test.ts`: 8 test hijau (IoU, dedupe, filter,
+  sort non-mutasi, reading order, clamp, label ID, layer name).
 - [x] 4.3. Guided filter di Rust (integral-image box blur, radius 4, eps 0.01):
   dipakai mask YOLO + region stuff. Unit test: tepi sejajar dipertahankan tajam
   + mean tidak drift. Bug SAT off-by-one ditemukan dan diperbaiki saat testing.
 - [x] 4.4. Aturan overlap final: cutout independen (didokumentasikan, bukan bug).
-- Hasil: `cargo test` hijau (15 test segment), `npx vitest run` hijau.
+- [x] 4.5. BUG KRITIS DITEMUKAN + DIPERBAIKI: `dedupeSameLabel` dipanggil dengan
+  `frameArea` (480000) sebagai `iouThr` sehingga dedupe tidak pernah bekerja di
+  produksi. Diperbaiki ke default 0.85. Regression test: dedupe test hijau.
+- Hasil: `cargo test` hijau (15 test segment), `npx vitest run` hijau (145 test).
 
-## FASE 5 - Auto-Layer Plumbing (foto dasar utuh)
+## FASE 5 - Auto-Layer Plumbing (foto dasar utuh) - DIEKSEKUSI
 
-- [ ] 5.1. Tiap deteksi lolos -> layer raster transparan seukuran dokumen, cutout
-  di offset bbox, nama `{Label} {n}` (hormati toggle bahasa).
-- [ ] 5.2. Background/layer foto TIDAK disentuh + flag foto dipertahankan.
-  Regression test: pixel dasar byte-identik sebelum/sesudah.
-- [ ] 5.3. Active = objek terbesar + mask-nya ditulis ke selection (ants langsung).
-- [ ] 5.4. Notify jujur (jumlah objek, tanpa history entry) + tanpa toast spam.
+- [x] 5.1. Tiap deteksi lolos -> layer raster transparan seukuran dokumen, cutout
+  di offset bbox, nama `{Label} {n}` (hormati toggle bahasa). Toggle
+  `segmentLabelsId` di Settings (default EN). Fungsi `segmentLabelId` +
+  `segmentLayerName` di `segmentMerge.ts` (pure, unit-testable). Map 80+ label
+  COCO + ADE20K + Text. Case-insensitive lookup.
+- [x] 5.2. Background/layer foto TIDAK disentuh + flag foto dipertahankan.
+  Regression test: `isPhotoLayer` tetap true + canvas object identik
+  (no pixel mutation).
+- [x] 5.3. Active = objek terbesar + mask-nya ditulis ke selection (ants langsung).
+  Test: `activeLayerId` = layer terbesar + `restoreSelectionMask` dipanggil.
+- [x] 5.4. Notify jujur (jumlah objek, tanpa history entry) + tanpa toast spam.
+  Test: `history.length` = 0 + notify dengan count benar.
+- Hasil: `npx vitest run` hijau (145 test), `npx tsc --noEmit` hijau,
+  `npx vite build` hijau, `cargo test` hijau.
 
 ## FASE 6 - Frontend Auto-Run + Model Manager
 

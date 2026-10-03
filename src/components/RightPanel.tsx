@@ -52,6 +52,7 @@ import ArtboardPanel from "./ArtboardPanel";
 import PluginPanel from "./PluginPanel";
 import MockupPanel from "./MockupPanel";
 import NativeLabPanel from "./NativeLabPanel";
+import { ObjectsPanel } from "./ObjectsPanel";
 import { useWorkspaceStore } from "../stores/useWorkspaceStore";
 import { showError, showMessage, askConfirm, askText } from "../ui/notify";
 import { doUndo, doRedo, jumpToHistory } from "../engine/historyOps";
@@ -136,7 +137,8 @@ type Tab =
   | "art"
   | "plugin"
   | "mockup"
-  | "history";
+  | "history"
+  | "objects";
 
 const tabs: { id: Tab; label: string; icon: any }[] = [
   { id: "layers", label: "Layers", icon: Layers },
@@ -153,6 +155,7 @@ const tabs: { id: Tab; label: string; icon: any }[] = [
   { id: "plugin", label: "Plug", icon: Puzzle },
   { id: "mockup", label: "Mock", icon: Box },
   { id: "history", label: "Hist", icon: History },
+  { id: "objects", label: "Objects", icon: Box },
 ];
 
 export default function RightPanel() {
@@ -982,6 +985,7 @@ export default function RightPanel() {
         {studio === null && tab === "art" && <ArtboardPanel />}
         {studio === null && tab === "plugin" && <PluginPanel />}
         {studio === null && tab === "mockup" && <MockupPanel />}
+        {studio === null && tab === "objects" && <ObjectsPanel />}
 
         {studio === null && tab === "history" && (
           <div className="avero-slide-in p-2 text-[12px]">

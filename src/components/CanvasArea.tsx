@@ -3,6 +3,7 @@ import { useEditorStore, makeLayer, type ToolId } from "../stores/useEditorStore
 import { useProStore } from "../stores/useProStore";
 import { useArtboardStore } from "../stores/useArtboardStore";
 import { useHomeStore } from "../stores/useHomeStore";
+import { triggerAutoSegment } from "../io/autoSegmentTrigger";
 import { layerManager } from "../engine/layerManager";
 import { fitZoom } from "../engine/canvasMath";
 import {
@@ -536,6 +537,12 @@ export default function CanvasArea() {
         size: f.size,
       });
       useHomeStore.getState().setHome(false);
+      try {
+        const { useObjectStore } = await import("../stores/useObjectStore");
+        useObjectStore.getState().clearObjects();
+      } catch {
+        /* ignore */
+      }
       setTimeout(() => {
         const id =
           useEditorStore.getState().activeLayerId ?? useEditorStore.getState().layers[0]?.id;
@@ -549,6 +556,7 @@ export default function CanvasArea() {
         useEditorStore.getState().markDirty();
         useProStore.getState().bumpHistogram();
         fitToView();
+        void triggerAutoSegment();
       }, 60);
       } catch {
         /* ignore unreadable file */

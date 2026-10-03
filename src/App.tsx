@@ -12,6 +12,7 @@ import BootSplash from "./components/BootSplash";
 import HomeScreen, { openImageViaDialog } from "./components/HomeScreen";
 import Notifier from "./components/Notifier";
 import AppDialog from "./components/AppDialog";
+import { SegmentFirstRunDialog, wasSegmentDialogDismissed } from "./components/SegmentFirstRunDialog";
 
 // Code-split heavy routes: the editor workspace (canvas engine + panels),
 // settings and export dialog load on demand instead of in the first paint.
@@ -74,6 +75,15 @@ export default function App() {
   const [settingsReturn, setSettingsReturn] = useState<"home" | "editor">("home");
   const [booted, setBooted] = useState(false);
   const [recovery, setRecovery] = useState<ReturnType<typeof loadRecovery>>(null);
+  const [segmentDialog, setSegmentDialog] = useState(false);
+
+  useEffect(() => {
+    if (!booted) return;
+    if (wasSegmentDialogDismissed()) return;
+    if (!useSettingsStore.getState().autoSegment) return;
+    const t = setTimeout(() => setSegmentDialog(true), 800);
+    return () => clearTimeout(t);
+  }, [booted]);
   const newDocument = useEditorStore((s) => s.newDocument);
   const homeOpen = useHomeStore((s) => s.homeOpen);
   const setHome = useHomeStore((s) => s.setHome);
@@ -573,6 +583,11 @@ export default function App() {
         })
         .catch((err) => showError(`Failed to open project: ${String(err)}`));
     }
+    function onOpenImagePathEvent(e: Event) {
+      const path = (e as CustomEvent).detail as string;
+      if (!path) return;
+      window.dispatchEvent(new CustomEvent("avero:open-path", { detail: path }));
+    }
     window.addEventListener("keydown", onKey);
     window.addEventListener("keyup", onKeyUp);
     window.addEventListener("avero:open-settings", onSettingsEvent);
@@ -582,6 +597,7 @@ export default function App() {
     window.addEventListener("avero:save-avx", onSaveEvent);
     window.addEventListener("avero:open-avx", onOpenAvxEvent);
     window.addEventListener("avero:open-avx-path", onOpenAvxPathEvent);
+    window.addEventListener("avero:open-image-path", onOpenImagePathEvent);
     window.addEventListener("avero:select", onSelectEvent);
     window.addEventListener("avero:clip", onClipEvent);
     window.addEventListener("avero:auto-segment", onAutoSegmentEvent);
@@ -595,6 +611,7 @@ export default function App() {
       window.removeEventListener("avero:save-avx", onSaveEvent);
       window.removeEventListener("avero:open-avx", onOpenAvxEvent);
       window.removeEventListener("avero:open-avx-path", onOpenAvxPathEvent);
+      window.removeEventListener("avero:open-image-path", onOpenImagePathEvent);
       window.removeEventListener("avero:select", onSelectEvent);
       window.removeEventListener("avero:clip", onClipEvent);
       window.removeEventListener("avero:auto-segment", onAutoSegmentEvent);
@@ -655,6 +672,7 @@ export default function App() {
           <ExportDialog onClose={() => setExportOpen(false)} />
         </Suspense>
       )}
+      {segmentDialog && <SegmentFirstRunDialog onDone={() => setSegmentDialog(false)} />}
       {booted && <Onboarding />}
       <AppDialog />
       <Notifier />

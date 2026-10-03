@@ -6,6 +6,8 @@ import {
   filterMinArea,
   iouBoxes,
   readingOrder,
+  segmentLabelId,
+  segmentLayerName,
   sortAreaDesc,
   type MergeBox,
 } from "./segmentMerge";
@@ -61,5 +63,22 @@ describe("segment merge policy (plan5 Fase 4)", () => {
   it("clampBox rounds and stays inside the frame", () => {
     expect(clampBox({ x: -5.6, y: 2.4, w: 10.2, h: 10.2 }, 100, 100)).toEqual({ x: 0, y: 2, w: 10, h: 10 });
     expect(clampBox({ x: 95, y: 95, w: 50, h: 50 }, 100, 100)).toEqual({ x: 95, y: 95, w: 5, h: 5 });
+  });
+
+  it("segmentLabelId translates known labels and passes unknown through", () => {
+    expect(segmentLabelId("bus")).toBe("Bus");
+    expect(segmentLabelId("person")).toBe("Orang");
+    expect(segmentLabelId("house")).toBe("Rumah");
+    expect(segmentLabelId("Text")).toBe("Tulisan");
+    expect(segmentLabelId("skyscraper")).toBe("Gedung Pencakar Langit");
+    expect(segmentLabelId("unknownlabel")).toBe("unknownlabel");
+  });
+
+  it("segmentLayerName honors the language toggle", () => {
+    expect(segmentLayerName("Bus", 1, false)).toBe("Bus 1");
+    expect(segmentLayerName("Bus", 1, true)).toBe("Bus 1");
+    expect(segmentLayerName("Person", 2, true)).toBe("Orang 2");
+    expect(segmentLayerName("Text", 3, true)).toBe("Tulisan 3");
+    expect(segmentLayerName("house", 1, true)).toBe("Rumah 1");
   });
 });

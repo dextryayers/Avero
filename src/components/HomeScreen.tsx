@@ -35,6 +35,8 @@ import { useConvertStore } from "../stores/useConvertStore";
 import ConverterPage from "./ConverterPage";
 import { pickImageToOpen, rustDecodeToDataUrl, rustImageInfo } from "../io/tauriIo";
 import { showError, showMessage } from "../ui/notify";
+import { triggerAutoSegment } from "../io/autoSegmentTrigger";
+import { useObjectStore } from "../stores/useObjectStore";
 import clsx from "clsx";
 
 type PresetCat = "Photo" | "Print" | "Art" | "Web" | "Mobile" | "Film";
@@ -138,6 +140,8 @@ export async function openImageViaDialog(): Promise<boolean> {
     });
     setTimeout(() => drawDataUrlToActive(dataUrl, info.width, info.height), 60);
     useHomeStore.getState().setHome(false);
+    useObjectStore.getState().clearObjects();
+    void triggerAutoSegment();
     return true;
   } catch (e) {
     console.error(e);

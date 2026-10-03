@@ -90,3 +90,128 @@ export function clampBox(
   const h = Math.max(2, Math.min(H - y, Math.round(b.h)));
   return { x, y, w, h };
 }
+
+// Plan5 Fase 5.1: label language toggle. English is the default (matches the
+// UI); Indonesian labels are used when the user enables the Settings toggle.
+// The map covers the COCO things, curated ADE20K stuff and text labels the
+// Rust engine can emit. Unknown labels pass through unchanged.
+const SEGMENT_LABEL_ID: Record<string, string> = {
+  person: "Orang",
+  bicycle: "Sepeda",
+  car: "Mobil",
+  motorcycle: "Sepeda Motor",
+  airplane: "Pesawat",
+  bus: "Bus",
+  train: "Kereta",
+  truck: "Truk",
+  boat: "Perahu",
+  "traffic light": "Lampu Lalu Lintas",
+  "fire hydrant": "Hydrant",
+  "stop sign": "Rambu Berhenti",
+  "parking meter": "Parkir Meter",
+  bench: "Bangku",
+  bird: "Burung",
+  cat: "Kucing",
+  dog: "Anjing",
+  horse: "Kuda",
+  sheep: "Domba",
+  cow: "Sapi",
+  elephant: "Gajah",
+  bear: "Beruang",
+  zebra: "Zebra",
+  giraffe: "Jerapah",
+  backpack: "Ransel",
+  umbrella: "Payung",
+  handbag: "Tas Tangan",
+  tie: "Dasi",
+  suitcase: "Koper",
+  frisbee: "Frisbee",
+  skis: "Sepatu Salju",
+  snowboard: "Papan Salju",
+  "sports ball": "Bola",
+  kite: "Layangan",
+  "baseball bat": "Tongkat Bisbol",
+  "baseball glove": "Sarung Tangan Bisbol",
+  skateboard: "Skateboard",
+  surfboard: "Papan Selancar",
+  "tennis racket": "Raket Tenis",
+  bottle: "Botol",
+  "wine glass": "Gelas Anggur",
+  cup: "Cangkir",
+  fork: "Garpu",
+  knife: "Pisau",
+  spoon: "Sendok",
+  bowl: "Mangkuk",
+  banana: "Pisang",
+  apple: "Apel",
+  sandwich: "Sandwich",
+  orange: "Jeruk",
+  broccoli: "Brokoli",
+  carrot: "Wortel",
+  "hot dog": "Hot Dog",
+  pizza: "Pizza",
+  donut: "Donat",
+  cake: "Kue",
+  chair: "Kursi",
+  couch: "Sofa",
+  "potted plant": "Tanaman Pot",
+  bed: "Tempat Tidur",
+  "dining table": "Meja Makan",
+  toilet: "Toilet",
+  tv: "Televisi",
+  laptop: "Laptop",
+  mouse: "Mouse",
+  remote: "Remote",
+  keyboard: "Keyboard",
+  "cell phone": "Ponsel",
+  microwave: "Microwave",
+  oven: "Oven",
+  toaster: "Pemanggang Roti",
+  sink: "Wastafel",
+  refrigerator: "Kulkas",
+  book: "Buku",
+  clock: "Jam",
+  vase: "Vas",
+  scissors: "Gunting",
+  "teddy bear": "Boneka Beruang",
+  "hair dryer": "Pengering Rambut",
+  toothbrush: "Sikat Gigi",
+  // ADE20K curated stuff classes
+  house: "Rumah",
+  building: "Gedung",
+  sky: "Langit",
+  road: "Jalan",
+  grass: "Rumput",
+  tree: "Pohon",
+  water: "Air",
+  mountain: "Gunung",
+  sea: "Laut",
+  field: "Lapangan",
+  sidewalk: "Trotoar",
+  earth: "Tanah",
+  sand: "Pasir",
+  river: "Sungai",
+  hill: "Bukit",
+  palm: "Pohon Palem",
+  path: "Jalur",
+  fence: "Pagar",
+  bridge: "Jembatan",
+  tower: "Menara",
+  skyscraper: "Gedung Pencakar Langit",
+  lake: "Danau",
+  land: "Daratan",
+  // Text detection
+  text: "Tulisan",
+};
+
+/** Translate an English segment label to Indonesian (identity when unknown). */
+export function segmentLabelId(label: string): string {
+  const key = label.toLowerCase();
+  return SEGMENT_LABEL_ID[key] ?? label;
+}
+
+/** Build the layer name for a detected object, honoring the language toggle. */
+export function segmentLayerName(label: string, n: number, idMode: boolean): string {
+  const base = idMode ? segmentLabelId(label) : label;
+  return `${base} ${n}`;
+}

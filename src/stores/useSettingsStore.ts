@@ -2,6 +2,7 @@ import { create } from "zustand";
 
 export type PerfMode = "auto" | "eco" | "balanced" | "max";
 export type EngineDevice = "auto" | "cpu" | "gpu";
+export type SegmentQuality = "fast" | "balanced";
 
 export interface SettingsState {
   perfMode: PerfMode;
@@ -23,6 +24,10 @@ export interface SettingsState {
   autoFitOnOpen: boolean;
   confirmDestructive: boolean;
   maxZoom: number;
+  // ---- Plan5 segment settings ----
+  segmentLabelsId: boolean;
+  autoSegment: boolean;
+  segmentQuality: SegmentQuality;
   set: (p: Partial<SettingsState>) => void;
   resetAll: () => void;
   applyRecommendation: (r: { mode: string; device: string; tile: number; history_cap: number }) => void;
@@ -55,6 +60,10 @@ function load(): Partial<SettingsState> {
     if (typeof p.autoFitOnOpen === "boolean") out.autoFitOnOpen = p.autoFitOnOpen;
     if (typeof p.confirmDestructive === "boolean") out.confirmDestructive = p.confirmDestructive;
     if (typeof p.maxZoom === "number") out.maxZoom = [400, 800, 1600, 3200].includes(p.maxZoom) ? p.maxZoom : 800;
+    if (typeof p.segmentLabelsId === "boolean") out.segmentLabelsId = p.segmentLabelsId;
+    if (typeof p.autoSegment === "boolean") out.autoSegment = p.autoSegment;
+    if (p.segmentQuality === "fast" || p.segmentQuality === "balanced") out.segmentQuality = p.segmentQuality;
+    else out.segmentQuality = "balanced";
     return out;
   } catch {
     return {};
@@ -80,6 +89,9 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   autoFitOnOpen: true,
   confirmDestructive: true,
   maxZoom: 800,
+  segmentLabelsId: false,
+  autoSegment: true,
+  segmentQuality: "balanced",
   ...load(),
   set: (p) => {
     set(p);
@@ -105,6 +117,9 @@ export const useSettingsStore = create<SettingsState>((set) => ({
           autoFitOnOpen: s.autoFitOnOpen,
           confirmDestructive: s.confirmDestructive,
           maxZoom: s.maxZoom,
+          segmentLabelsId: s.segmentLabelsId,
+          autoSegment: s.autoSegment,
+          segmentQuality: s.segmentQuality,
         }),
       );
     } catch {
@@ -161,6 +176,9 @@ export const useSettingsStore = create<SettingsState>((set) => ({
       autoFitOnOpen: true,
       confirmDestructive: true,
       maxZoom: 800,
+      segmentLabelsId: false,
+      autoSegment: true,
+      segmentQuality: "balanced",
     };
     useSettingsStore.getState().set(fresh);
   },

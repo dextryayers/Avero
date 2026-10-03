@@ -31,9 +31,12 @@ import {
   CROP_RATIOS,
   ERASER_TOOLS,
   IS_CROP_TOOL,
+  IS_SELECTION_TOOL,
   IS_SHAPE_TOOL,
+  MARQUEE_TOOLS,
   PEN_TOOLS,
   SHAPE_KIND_OF,
+  TEXT_TOOLS,
   distortOf,
   isPaintTool,
   paintPreset,
@@ -440,8 +443,18 @@ export default function CanvasArea() {
   const activeMeta = layers.find((l) => l.id === activeLayerId);
   const isMoveFamily =
     tool === "move" || tool === "move-auto" || tool === "transform-free" || tool === "path-select";
+  // Flexible transform: Text tools and Select tools also show the move,
+  // scale and rotate box, so any selected layer stays adjustable.
+  // Text click selects existing text instead of always creating new text.
+  // Select click (no drag) selects the clicked layer, drag still marquees.
+  const isTextTool = (TEXT_TOOLS as Set<string>).has(tool);
+  const isSelectTool =
+    (MARQUEE_TOOLS as Set<string>).has(tool) || (IS_SELECTION_TOOL as Set<string>).has(tool);
   const showTransformBox =
-    isMoveFamily &&
+    (isMoveFamily ||
+      tool === "direct-select" ||
+      isTextTool ||
+      isSelectTool) &&
     !!activeLayerId &&
     !!activeMeta &&
     activeMeta.kind !== "background" &&
@@ -4411,9 +4424,28 @@ export default function CanvasArea() {
             return;
           }
           if (tool === "direct-select") {
-            // Direct: drag horizontally to rotate the active shape/vector layer.
+            // Flexible direct select: click any vector or text item to select
+            // it first, then drag horizontally to rotate it. The transform
+            // box also moves, scales and rotates the selected item.
             const st = useEditorStore.getState();
-            const id = st.activeLayerId;
+            try {
+              const proPick = useProStore.getState();
+              const ordered = [...st.layers].reverse();
+              const vecHittable = ordered
+                .filter((l) => l.visible && (l.kind === "shape" || l.kind === "text"))
+                .map((l) => {
+                  const canvas = layerManager.get(l.id);
+                  const bounds = canvas ? getContentBounds(canvas) : null;
+                  const t = proPick.transforms[l.id] ?? { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 };
+                  return { id: l.id, visible: l.visible, canvas, bounds, transform: t };
+                });
+              let hit = pickTopLayerAt(p.x, p.y, st.doc.width, st.doc.height, vecHittable);
+              if (!hit) hit = pickBoxAt(p.x, p.y, st.doc.width, st.doc.height, vecHittable);
+              if (hit && hit !== st.activeLayerId) st.setActiveLayer(hit);
+            } catch {
+              /* keep current active layer on pick failure */
+            }
+            const id = useEditorStore.getState().activeLayerId;
             if (!id) return;
             const spec = useProStore.getState().shapeSpecs[id];
             const meta = st.layers.find((l) => l.id === id);
@@ -4491,12 +4523,34 @@ export default function CanvasArea() {
               if (id) useProStore.getState().ensureTransform(id);
             }
             if (tool === "path-select") {
+              // Flexible path select: click any vector or text item to select
+              // it. Falls back to the topmost vector when clicking empty space.
               const st = useEditorStore.getState();
-              const vec = [...st.layers].reverse().find((l) => l.kind === "shape" || l.kind === "text");
-              if (vec && vec.id !== st.activeLayerId) st.setActiveLayer(vec.id);
-              else if (!vec) {
-                notify("Path Selection: no vector/text layer yet. Draw a shape or add text first.");
-                return;
+              let picked: string | null = null;
+              try {
+                const proPick = useProStore.getState();
+                const ordered = [...st.layers].reverse();
+                const vecHittable = ordered
+                  .filter((l) => l.visible && (l.kind === "shape" || l.kind === "text"))
+                  .map((l) => {
+                    const canvas = layerManager.get(l.id);
+                    const bounds = canvas ? getContentBounds(canvas) : null;
+                    const t = proPick.transforms[l.id] ?? { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 };
+                    return { id: l.id, visible: l.visible, canvas, bounds, transform: t };
+                  });
+                picked = pickTopLayerAt(p.x, p.y, st.doc.width, st.doc.height, vecHittable);
+                if (!picked) picked = pickBoxAt(p.x, p.y, st.doc.width, st.doc.height, vecHittable);
+              } catch {
+                picked = null;
+              }
+              if (picked && picked !== st.activeLayerId) st.setActiveLayer(picked);
+              else if (!picked) {
+                const vec = [...st.layers].reverse().find((l) => l.kind === "shape" || l.kind === "text");
+                if (vec && vec.id !== st.activeLayerId) st.setActiveLayer(vec.id);
+                else if (!vec) {
+                  notify("Path Selection: no vector/text layer yet. Draw a shape or add text first.");
+                  return;
+                }
               }
             }
             // Fase 3 (plan3): move-family tools refuse locked/hidden layers here,
@@ -5071,13 +5125,43 @@ export default function CanvasArea() {
             return;
           }
           if (
-            tool === "text" || tool === "text-vertical" ||
-            tool === "text-outline" || tool === "text-glow" || tool === "text-shadow" || tool === "text-arc" ||
-            tool === "text-3d" || tool === "text-neon" || tool === "text-gradient" ||
-            tool === "text-typewriter" || tool === "text-blocky" || tool === "text-condensed" ||
-            tool === "text-expanded" || tool === "text-emboss" || tool === "text-engrave" ||
-            tool === "text-chrome" || tool === "text-fire" || tool === "text-ice" || tool === "text-retro"
+            (TEXT_TOOLS as Set<string>).has(tool)
           ) {
+            // Flexible text: click existing text to select it and drag to move.
+            // Handles on the transform box scale it, the top button rotates it.
+            // Only an empty spot creates a new text layer.
+            try {
+              const stPick = useEditorStore.getState();
+              const proPick = useProStore.getState();
+              const ordered = [...stPick.layers].reverse();
+              const textHittable = ordered
+                .filter((l) => l.visible && l.kind === "text")
+                .map((l) => {
+                  const canvas = layerManager.get(l.id);
+                  const bounds = canvas ? getContentBounds(canvas) : null;
+                  const t = proPick.transforms[l.id] ?? { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 };
+                  return { id: l.id, visible: l.visible, canvas, bounds, transform: t };
+                });
+              let hit = pickTopLayerAt(p.x, p.y, stPick.doc.width, stPick.doc.height, textHittable);
+              if (!hit) hit = pickBoxAt(p.x, p.y, stPick.doc.width, stPick.doc.height, textHittable);
+              if (hit) {
+                if (hit !== stPick.activeLayerId) stPick.setActiveLayer(hit);
+                const meta = stPick.layers.find((l) => l.id === hit);
+                const nm = meta?.name ?? hit;
+                if (meta?.locked) {
+                  setCursor(`Selected ${nm} (locked)`);
+                  notify("Text is locked. Unlock it in Layers to move it.");
+                  return;
+                }
+                proPick.ensureTransform(hit);
+                const freshT = proPick.transforms[hit] ?? { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 };
+                moveDrag.current = { sx: e.clientX, sy: e.clientY, ox: freshT.x ?? 0, oy: freshT.y ?? 0 };
+                setCursor(`Selected ${nm}`);
+                return;
+              }
+            } catch {
+              /* fall through to create new text */
+            }
             if (tool === "text-outline") createTextLayer(p, undefined, false, "outline");
             else if (tool === "text-glow") createTextLayer(p, undefined, false, "glow");
             else if (tool === "text-shadow") createTextLayer(p, undefined, false, "shadow");
@@ -5660,6 +5744,43 @@ export default function CanvasArea() {
             const pro = useProStore.getState();
             // Fase E combine mode: bar buttons set selMode, Shift/Alt override per stroke.
             const combineMode = e.shiftKey ? "add" : e.altKey ? "subtract" : pro.selMode;
+            // Flexible select: click (no drag) picks the clicked layer so it
+            // can be moved, scaled and rotated with the transform box.
+            // Drag still draws the marquee selection as before.
+            if (
+              (tool === "select-rect" || tool === "select-ellipse" || tool === "select-square" ||
+                tool === "select-circle" || tool === "select-stadium" || tool === "select-crosshair" ||
+                tool === "select-rounded") &&
+              Math.abs(r.w) <= 4 && Math.abs(r.h) <= 4
+            ) {
+              setSelDrag(null);
+              try {
+                const stPick = useEditorStore.getState();
+                const proPick = useProStore.getState();
+                const ordered = [...stPick.layers].reverse();
+                const hittable = ordered
+                  .filter((l) => l.visible)
+                  .map((l) => {
+                    const canvas = layerManager.get(l.id);
+                    const bounds = canvas ? getContentBounds(canvas) : null;
+                    const t = proPick.transforms[l.id] ?? { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 };
+                    return { id: l.id, visible: l.visible, canvas, bounds, transform: t };
+                  });
+                const ux = selDrag.x1;
+                const uy = selDrag.y1;
+                let hit = pickTopLayerAt(ux, uy, stPick.doc.width, stPick.doc.height, hittable);
+                if (!hit) hit = pickBoxAt(ux, uy, stPick.doc.width, stPick.doc.height, hittable);
+                if (hit) {
+                  if (hit !== stPick.activeLayerId) stPick.setActiveLayer(hit);
+                  proPick.ensureTransform(hit);
+                  const nm = stPick.layers.find((l) => l.id === hit)?.name ?? hit;
+                  setCursor(`Selected ${nm}`);
+                }
+              } catch {
+                /* keep current selection on pick failure */
+              }
+              return;
+            }
             if (tool === "zoom-marquee") {
               // Zoom the viewport to fit the dragged rect.
               const rw = Math.abs(r.w);
@@ -5728,6 +5849,35 @@ export default function CanvasArea() {
             setLassoPts([]);
             window.dispatchEvent(new Event("avero:selection-changed"));
           } else if (tool === "select-lasso" || tool === "select-polygon" || tool === "magnetic-lasso" || tool === "lasso-straight") {
+            // Flexible select: a freehand click with no drag picks the
+            // clicked layer for move, scale and rotate. Drag still draws.
+            // Polygon and straight lasso keep click points for vertices.
+            if ((tool === "select-lasso" || tool === "magnetic-lasso") && lassoPts.length > 0 && lassoPts.length <= 2) {
+              try {
+                const stPick = useEditorStore.getState();
+                const proPick = useProStore.getState();
+                const ordered = [...stPick.layers].reverse();
+                const hittable = ordered
+                  .filter((l) => l.visible)
+                  .map((l) => {
+                    const canvas = layerManager.get(l.id);
+                    const bounds = canvas ? getContentBounds(canvas) : null;
+                    const t = proPick.transforms[l.id] ?? { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 };
+                    return { id: l.id, visible: l.visible, canvas, bounds, transform: t };
+                  });
+                const cp = lassoPts[0];
+                let hit = pickTopLayerAt(cp.x, cp.y, stPick.doc.width, stPick.doc.height, hittable);
+                if (!hit) hit = pickBoxAt(cp.x, cp.y, stPick.doc.width, stPick.doc.height, hittable);
+                if (hit) {
+                  if (hit !== stPick.activeLayerId) stPick.setActiveLayer(hit);
+                  proPick.ensureTransform(hit);
+                  const nm = stPick.layers.find((l) => l.id === hit)?.name ?? hit;
+                  setCursor(`Selected ${nm}`);
+                }
+              } catch {
+                /* keep current selection on pick failure */
+              }
+            }
             if (tool === "select-lasso" || tool === "magnetic-lasso") setLassoPts([]);
             // polygon keeps points until double-click closes
           }
@@ -5864,7 +6014,7 @@ export default function CanvasArea() {
                 ? "grab"
                 : tool === "rotate-view"
                   ? "ew-resize"
-                  : tool === "text" || tool === "text-vertical" || tool === "text-outline" || tool === "text-glow" || tool === "text-shadow" || tool === "text-arc" || tool === "text-3d" || tool === "text-neon" || tool === "text-gradient"
+                  : (TEXT_TOOLS as Set<string>).has(tool)
                     ? "text"
                     : tool === "move" || tool === "path-select" || tool === "direct-select" || tool === "move-auto" || tool === "transform-free"
                       ? "move"

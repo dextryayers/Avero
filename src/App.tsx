@@ -382,7 +382,7 @@ export default function App() {
         }
         const ed = useEditorStore.getState();
         const pro = useProStore.getState();
-        // M/U/R/O/G/P/J: putar sub-tool sekeluarga (semua manual 2026 terjangkau).
+        // M/U/R/O/G/P/J: cycle sub-tools inside one family (all manual 2026 presets stay reachable).
         if (t === "m") {
           const order = ["select-rect", "select-ellipse", "select-square", "select-rounded"] as const;
           const i = order.indexOf(ed.tool as (typeof order)[number]);
@@ -456,7 +456,7 @@ export default function App() {
           }
         }
       }
-      // Shift+huruf: putar keluarga tool (M marquee, R blur/sharpen/smudge, ...).
+      // Shift+letter: cycle the tool family (M marquee, R blur/sharpen/smudge, ...).
       {
         const hasMod = e.ctrlKey || e.metaKey || e.altKey;
         const isLetter = e.key.length === 1 && /[a-z]/i.test(e.key);

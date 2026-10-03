@@ -7,7 +7,7 @@ export interface TextSpec {
   color: string;
   bold: boolean;
   italic: boolean;
-  tracking: number; // px antar huruf
+  tracking: number; // px between letters
   leading: number; // line height multiplier
   fx?: string; // "none" or one of the Type family effects; unknown values render base
   x?: number; // creation anchor, keeps panel edits from jumping the text

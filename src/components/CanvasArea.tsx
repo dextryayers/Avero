@@ -4086,6 +4086,7 @@ export default function CanvasArea() {
     }
     const st = useEditorStore.getState();
     const size = defaultStickerSize(doc.width, doc.height);
+    const color = useEditorStore.getState().brushColor;
     const l = makeLayer(`${meta.label} ${st.layers.length + 1}`);
     const c = layerManager.ensure(l.id, doc.width, doc.height);
     const ok = renderStickerToLayer(
@@ -4094,6 +4095,7 @@ export default function CanvasArea() {
       Math.round(p.x - size / 2),
       Math.round(p.y - size / 2),
       size,
+      color,
     );
     if (!ok) {
       notify(`Could not place sticker: ${meta.label}.`);

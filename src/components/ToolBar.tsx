@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Brush,
   Circle,
@@ -513,12 +513,12 @@ import {
 } from "lucide-react";
 import { useEditorStore, type ToolId } from "../stores/useEditorStore";
 import { STICKER_BY_ID, STICKER_CATEGORIES, STICKER_META, STICKER_USAGE } from "../engine/stickers";
+import { paintStickerArt } from "../engine/stickerArt";
 import clsx from "clsx";
 
 export interface ToolDef {
   id: ToolId;
   icon: any;
-  glyph?: string;
   label: string;
   shortcut: string;
   description: string;
@@ -535,7 +535,7 @@ export interface ToolFamily {
 }
 
 // One distinct lucide icon per sticker (uniqueness is enforced by tests).
-// The grid itself renders the sticker glyph large, the icon is the fallback mark.
+// The grid renders live vector thumbnails in the brush color instead.
 const STICKER_ICONS: Record<string, any> = {
   "sticker-smile": Smile,
   "sticker-laugh": Laugh,
@@ -694,11 +694,10 @@ export const TOOL_FAMILIES: ToolFamily[] = [
     label: "Sticker",
     icon: Sticker,
     shortcut: "K",
-    description: "72 click to place stickers across faces, gestures, symbols, animals, food and nature. Pick one in the grid, then click the canvas to place it.",
+    description: "72 professional assets across marks, badges, frames, labels, nature and FX. Pick one in the grid, then click the canvas to place it.",
     tools: STICKER_META.map((s) => ({
       id: s.id as ToolId,
       icon: STICKER_ICONS[s.id] ?? Sticker,
-      glyph: s.glyph,
       label: s.label,
       shortcut: "K",
       description: s.description,
@@ -1242,7 +1241,7 @@ export function familyOfTool(toolId: string): string | null {
 }
 
 // Global icon uniqueness: 18 family headers + 488 sub-tools (416 explicit +
-// 72 stickers) must all use distinct lucide components. Glyph emoji is the
+// 72 stickers) must all use distinct lucide components. Vector art is the
 // primary sticker visual; icon is the fallback mark and must still be unique.
 export function allIconsGloballyUnique(): { ok: boolean; dupes: string[] } {
   const seen = new Map<unknown, string>();
@@ -1258,8 +1257,26 @@ export function allIconsGloballyUnique(): { ok: boolean; dupes: string[] } {
   return { ok: dupes.length === 0, dupes };
 }
 
-// Sticker sub picker: grouped grid view (not a list), one cell per sticker
-// showing the glyph large. Shared by the sidebar panel and the flyout.
+// Sticker sub picker: grouped grid view (not a list), one vector thumb per
+// sticker painted live in the brush color. Shared by the sidebar panel and
+// the flyout.
+function StickerArtThumb({ id, color }: { id: string; color: string }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const S = 44;
+    el.width = S;
+    el.height = S;
+    const g = el.getContext("2d");
+    if (!g) return;
+    const meta = STICKER_BY_ID[id];
+    if (!meta) return;
+    paintStickerArt(g, { shapes: meta.art, fx: meta.fx }, color, S);
+  }, [id, color]);
+  return <canvas ref={ref} className="h-[26px] w-[26px]" aria-hidden="true" />;
+}
+
 function StickerGrid({
   tools,
   activeId,
@@ -1271,6 +1288,7 @@ function StickerGrid({
   onPick: (id: ToolId) => void;
   columns: string;
 }) {
+  const brushColor = useEditorStore((s) => s.brushColor);
   return (
     <div>
       {STICKER_CATEGORIES.map((c) => {
@@ -1297,15 +1315,13 @@ function StickerGrid({
                     aria-label={t.label}
                     aria-pressed={active}
                     className={clsx(
-                      "avero-press grid aspect-square place-items-center rounded-md border text-[22px] leading-none",
+                      "avero-press grid aspect-square place-items-center rounded-md border leading-none",
                       active
                         ? "border-[#2f7cf6] bg-[#2f7cf6]/20"
                         : "border-transparent hover:border-[#2c2c31] hover:bg-[#232327]",
                     )}
                   >
-                    <span role="img" aria-hidden="true">
-                      {t.glyph ?? ""}
-                    </span>
+                    <StickerArtThumb id={t.id} color={brushColor} />
                   </button>
                 );
               })}

@@ -10,6 +10,7 @@ import {
   isStickerTool,
 } from "./stickers";
 import { TOOL_FAMILIES } from "../components/ToolBar";
+import { validateStickerArt } from "./stickerArt";
 import { STICKER_TOOLS, dispatchKindOf } from "./toolPresets";
 import { TOOL_HINT, topBarKindOf } from "./toolOptions";
 import type { ToolId } from "../stores/useEditorStore";
@@ -20,27 +21,39 @@ describe("sticker studio catalog", () => {
     expect(STICKER_IDS.length).toBe(STICKER_META.length);
   });
 
-  it("has unique ids, all prefixed, with glyph, label and description", () => {
+  it("has unique ids, all prefixed, with art, label and description", () => {
     const seen = new Set<string>();
     const dup: string[] = [];
     for (const s of STICKER_META) {
       if (seen.has(s.id)) dup.push(s.id);
       seen.add(s.id);
       expect(s.id.startsWith("sticker-"), s.id).toBe(true);
-      expect(s.glyph.trim().length, `${s.id} glyph`).toBeGreaterThan(0);
+      if (s.fx) {
+        expect(s.art, `${s.id} art`).toEqual([]);
+      } else {
+        expect(validateStickerArt(s.art), `${s.id} art`).toEqual([]);
+      }
       expect(s.label.trim().length, `${s.id} label`).toBeGreaterThan(0);
       expect(s.description.trim().length, `${s.id} description`).toBeGreaterThan(0);
     }
     expect(dup).toEqual([]);
   });
 
-  it("covers 6 categories with several stickers each", () => {
+  it("covers 6 professional categories with the frozen counts", () => {
     expect(STICKER_CATEGORIES.map((c) => c.id).sort()).toEqual(
-      ["animals", "faces", "food", "gestures", "nature", "symbols"].sort(),
+      ["badges", "frames", "fx", "labels", "marks", "nature"].sort(),
     );
+    const counts: Record<string, number> = {
+      marks: 14,
+      badges: 12,
+      frames: 12,
+      labels: 12,
+      nature: 10,
+      fx: 12,
+    };
     for (const c of STICKER_CATEGORIES) {
       const n = STICKER_META.filter((s) => s.category === c.id).length;
-      expect(n, c.id).toBeGreaterThanOrEqual(8);
+      expect(n, c.id).toBe(counts[c.id]);
     }
   });
 
@@ -83,7 +96,7 @@ describe("sticker studio catalog", () => {
   it("no em dash in sticker strings", () => {
     const bad: string[] = [];
     for (const s of STICKER_META) {
-      if (`${s.label} ${s.description} ${s.glyph}`.includes("\u2014")) bad.push(s.id);
+      if (`${s.label} ${s.description}`.includes("\u2014")) bad.push(s.id);
     }
     expect(bad).toEqual([]);
   });

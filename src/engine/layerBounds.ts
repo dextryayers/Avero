@@ -238,6 +238,96 @@ function clampScale(v: number): number {
 }
 
 /**
+ * Opposite anchor point in untransformed content coords for a handle.
+ * Corners anchor the opposite corner, edges anchor the opposite edge
+ * center, so the dragged side grows toward the pointer Canva style.
+ */
+export function anchorForHandle(content: ContentRect, handle: ResizeHandle): { x: number; y: number } {
+  const cx = content.x + content.w / 2;
+  const cy = content.y + content.h / 2;
+  switch (handle) {
+    case "nw":
+      return { x: content.x + content.w, y: content.y + content.h };
+    case "ne":
+      return { x: content.x, y: content.y + content.h };
+    case "sw":
+      return { x: content.x + content.w, y: content.y };
+    case "se":
+      return { x: content.x, y: content.y };
+    case "n":
+      return { x: cx, y: content.y + content.h };
+    case "s":
+      return { x: cx, y: content.y };
+    case "e":
+      return { x: content.x, y: cy };
+    case "w":
+      return { x: content.x + content.w, y: cy };
+  }
+}
+
+/**
+ * Exact opposite-corner anchored resize for the doc-center pivot compositor.
+ * Scale comes from the pointer distance to the fixed anchor (unrotated
+ * frame), so the dragged edge lands exactly under the pointer, the anchor
+ * never moves, and scales stay positive so mirrors never appear. Flip
+ * stays exclusive to the Flip buttons, which intentionally negate an axis.
+ */
+export function resizeAboutAnchor(
+  content: ContentRect,
+  docW: number,
+  docH: number,
+  start: LayerTransform,
+  handle: ResizeHandle,
+  pointerDoc: { x: number; y: number },
+  lockAspect: boolean,
+): { scaleX: number; scaleY: number; x: number; y: number } {
+  const signX = start.scaleX < 0 ? -1 : 1;
+  const signY = start.scaleY < 0 ? -1 : 1;
+  const anchor = anchorForHandle(content, handle);
+  const fixed = applyLayerTransform(anchor.x, anchor.y, docW, docH, start);
+  const rad = deg2rad(-start.rotation);
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const ux = (pointerDoc.x - fixed.x) * cos - (pointerDoc.y - fixed.y) * sin;
+  const uy = (pointerDoc.x - fixed.x) * sin + (pointerDoc.y - fixed.y) * cos;
+  const affectsX = handle === "nw" || handle === "ne" || handle === "sw" || handle === "se" || handle === "e" || handle === "w";
+  const affectsY = handle === "nw" || handle === "ne" || handle === "sw" || handle === "se" || handle === "n" || handle === "s";
+  const isCorner = affectsX && affectsY;
+  const rawX = content.w > 0 ? Math.abs(ux) / content.w : Math.abs(start.scaleX) || 1;
+  const rawY = content.h > 0 ? Math.abs(uy) / content.h : Math.abs(start.scaleY) || 1;
+  let magX = affectsX ? clampScale(rawX) : Math.abs(start.scaleX) || 1;
+  let magY = affectsY ? clampScale(rawY) : Math.abs(start.scaleY) || 1;
+  if (isCorner && lockAspect) {
+    const r = clampScale(Math.max(rawX, rawY));
+    magX = r;
+    magY = r;
+  }
+  const scaleX = affectsX ? signX * magX : start.scaleX;
+  const scaleY = affectsY ? signY * magY : start.scaleY;
+  // Compensate translation so the anchor maps back onto its fixed point.
+  const moved = applyLayerTransform(anchor.x, anchor.y, docW, docH, { ...start, scaleX, scaleY });
+  return { scaleX, scaleY, x: start.x + (fixed.x - moved.x), y: start.y + (fixed.y - moved.y) };
+}
+
+/**
+ * Rotation that spins in place: the content center stays pixel fixed while
+ * the angle follows the pointer, so layers never orbit the document center.
+ */
+export function rotateAboutContentCenter(
+  content: ContentRect,
+  docW: number,
+  docH: number,
+  start: LayerTransform,
+  nextRotation: number,
+): { rotation: number; x: number; y: number } {
+  const ccx = content.x + content.w / 2;
+  const ccy = content.y + content.h / 2;
+  const before = applyLayerTransform(ccx, ccy, docW, docH, start);
+  const after = applyLayerTransform(ccx, ccy, docW, docH, { ...start, rotation: nextRotation });
+  return { rotation: nextRotation, x: start.x + (before.x - after.x), y: start.y + (before.y - after.y) };
+}
+
+/**
  * Corner and edge resize math with a strict no mirror rule.
  * Local offsets are absolute distances from the box center, so dragging a
  * handle across the center shrinks the image toward zero and grows it again

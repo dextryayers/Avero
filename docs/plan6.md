@@ -165,6 +165,12 @@ rotate for anything placed on canvas.
   ring, edge lines carry a soft accent halo, navigator card uses an
   elevated blurred surface with a refined viewport rect and an accessible
   collapse toggle.
+- [x] 3.9. Transform exactness: resize is opposite corner anchored in doc
+  space so the dragged edge lands under the pointer with zero position
+  shift, rotation spins in place with the content center pixel fixed so
+  layers never orbit, and scales stay positive so mirrors never appear.
+  Flip stays exclusive to the Flip buttons. Proven by 7 new invariant
+  tests in `layerBounds.test.ts`.
 
 ## PHASE 4 - Right side panels premium upgrade - EXECUTED
 
@@ -308,8 +314,8 @@ Rust lab kernel, never as a frontend dependency.
 
 ## PHASE 6 - Verification - EXECUTED
 
-- [x] 6.1. `npm run test` fully green (213 passed, 26 files, up from 210
-  plus 25 with the assets registry contracts).
+- [x] 6.1. `npm run test` fully green (220 passed, 26 files, up from 213
+  plus 26 with the transform exactness invariants).
 - [x] 6.2. `npx tsc --noEmit` exit 0 with `noUnusedLocals` on.
 - [x] 6.3. Emdash and endash scan of src plus plan6 returns zero matches.
 - [x] 6.4. Interaction coverage executed statically instead of by hand

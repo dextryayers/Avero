@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  anchorForHandle,
   applyLayerTransform,
   inverseLayerTransform,
   pickBoxAt,
   pickTopLayerAt,
+  resizeAboutAnchor,
   resizeScales,
+  rotateAboutContentCenter,
   transformedBox,
 } from "./layerBounds";
 
@@ -91,5 +94,84 @@ describe("layerBounds transform math", () => {
     const u = resizeScales(200, 100, 1, 1, "se", 150, 10, true);
     expect(u.scaleX).toBeGreaterThan(0);
     expect(u.scaleX).toBeCloseTo(u.scaleY, 5);
+  });
+
+  it("anchors sit on opposite corners and edges", () => {
+    const c = { x: 100, y: 50, w: 200, h: 100 };
+    expect(anchorForHandle(c, "se")).toEqual({ x: 100, y: 50 });
+    expect(anchorForHandle(c, "nw")).toEqual({ x: 300, y: 150 });
+    expect(anchorForHandle(c, "e")).toEqual({ x: 100, y: 100 });
+    expect(anchorForHandle(c, "n")).toEqual({ x: 200, y: 150 });
+  });
+
+  it("se drag sizes each axis from the pointer with the opposite corner fixed", () => {
+    const c = { x: 100, y: 50, w: 200, h: 100 };
+    const start = { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 };
+    const fixed = applyLayerTransform(100, 50, 800, 600, start);
+    const next = resizeAboutAnchor(c, 800, 600, start, "se", { x: 500, y: 200 }, false);
+    expect(next.scaleX).toBeCloseTo(2, 5);
+    expect(next.scaleY).toBeCloseTo(1.5, 5);
+    const held = applyLayerTransform(100, 50, 800, 600, { ...start, ...next });
+    expect(held.x).toBeCloseTo(fixed.x, 5);
+    expect(held.y).toBeCloseTo(fixed.y, 5);
+  });
+
+  it("locked aspect corners stay uniform with the anchor fixed", () => {
+    const c = { x: 100, y: 50, w: 200, h: 100 };
+    const start = { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 };
+    const fixed = applyLayerTransform(100, 50, 800, 600, start);
+    const next = resizeAboutAnchor(c, 800, 600, start, "se", { x: 500, y: 200 }, true);
+    expect(next.scaleX).toBeCloseTo(2, 5);
+    expect(next.scaleY).toBeCloseTo(2, 5);
+    const held = applyLayerTransform(100, 50, 800, 600, { ...start, ...next });
+    expect(held.x).toBeCloseTo(fixed.x, 5);
+    expect(held.y).toBeCloseTo(fixed.y, 5);
+  });
+
+  it("edge drag changes one axis and holds the opposite edge", () => {
+    const c = { x: 100, y: 50, w: 200, h: 100 };
+    const start = { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 };
+    const fixed = applyLayerTransform(100, 100, 800, 600, start);
+    const next = resizeAboutAnchor(c, 800, 600, start, "e", { x: 400, y: 100 }, false);
+    expect(next.scaleX).toBeCloseTo(1.5, 5);
+    expect(next.scaleY).toBe(1);
+    const held = applyLayerTransform(100, 100, 800, 600, { ...start, ...next });
+    expect(held.x).toBeCloseTo(fixed.x, 5);
+    expect(held.y).toBeCloseTo(fixed.y, 5);
+  });
+
+  it("anchor drag never mirrors, even across the anchor", () => {
+    const c = { x: 100, y: 50, w: 200, h: 100 };
+    const start = { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 };
+    const tiny = resizeAboutAnchor(c, 800, 600, start, "se", { x: 100, y: 50 }, false);
+    expect(tiny.scaleX).toBeGreaterThan(0);
+    expect(tiny.scaleY).toBeGreaterThan(0);
+    const held = applyLayerTransform(100, 50, 800, 600, { ...start, ...tiny });
+    expect(held.x).toBeCloseTo(100, 5);
+    expect(held.y).toBeCloseTo(50, 5);
+  });
+
+  it("anchor holds under 45 deg rotation", () => {
+    const c = { x: 100, y: 50, w: 200, h: 100 };
+    const start = { x: 10, y: -20, scaleX: 1, scaleY: 1, rotation: 45 };
+    const fixed = applyLayerTransform(100, 50, 800, 600, start);
+    const moved = applyLayerTransform(300, 150, 800, 600, start);
+    const next = resizeAboutAnchor(c, 800, 600, start, "se", { x: moved.x + 10, y: moved.y + 70 }, false);
+    expect(next.scaleX).toBeGreaterThan(1);
+    expect(next.scaleY).toBeGreaterThan(1);
+    const held = applyLayerTransform(100, 50, 800, 600, { ...start, ...next });
+    expect(held.x).toBeCloseTo(fixed.x, 4);
+    expect(held.y).toBeCloseTo(fixed.y, 4);
+  });
+
+  it("rotation keeps the content center pixel fixed", () => {
+    const c = { x: 100, y: 50, w: 200, h: 100 };
+    const start = { x: 30, y: -40, scaleX: 1.5, scaleY: 0.75, rotation: 10 };
+    const before = applyLayerTransform(200, 100, 800, 600, start);
+    const next = rotateAboutContentCenter(c, 800, 600, start, 75);
+    expect(next.rotation).toBe(75);
+    const after = applyLayerTransform(200, 100, 800, 600, { ...start, ...next });
+    expect(after.x).toBeCloseTo(before.x, 5);
+    expect(after.y).toBeCloseTo(before.y, 5);
   });
 });

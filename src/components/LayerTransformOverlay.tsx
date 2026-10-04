@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { RotateCw } from "lucide-react";
 import { useEditorStore } from "../stores/useEditorStore";
 import { useProStore } from "../stores/useProStore";
-import { transformedBox, resizeScales, type ContentRect, type LayerTransform, type ResizeHandle } from "../engine/layerBounds";
+import { transformedBox, resizeAboutAnchor, rotateAboutContentCenter, type ContentRect, type LayerTransform, type ResizeHandle } from "../engine/layerBounds";
 
 interface Props {
   wrapRef: React.RefObject<HTMLDivElement | null>;
@@ -119,31 +119,19 @@ export default function LayerTransformOverlay(p: Props) {
       if (delta < -180) delta += 360;
       let next = d.startT.rotation + delta;
       if (ev.shiftKey) next = Math.round(next / 15) * 15;
-      pro.updateTransform(layerId, { rotation: normDeg(next) });
+      // Spin in place: compensate translation so the content center stays
+      // pixel fixed instead of orbiting the document center.
+      const spun = rotateAboutContentCenter(content, docW, docH, d.startT, normDeg(next));
+      pro.updateTransform(layerId, spun);
       return;
     }
-    // Resize: project the mouse onto the local box axes with inverse rotation.
+    // Resize: exact opposite-corner anchoring in doc space. The dragged edge
+    // lands under the pointer, the anchor never moves, scales stay positive.
     const dd = docFromClient(ev.clientX, ev.clientY);
     if (!dd) return;
-    const rad = ((-box.rotation * Math.PI) / 180);
-    const cos = Math.cos(rad);
-    const sin = Math.sin(rad);
-    const vx = dd.x - d.startCenterDoc.x;
-    const vy = dd.y - d.startCenterDoc.y;
-    const lx = vx * cos - vy * sin;
-    const ly = vx * sin + vy * cos;
     const h = d.handle!;
     const lockAspect = ev.shiftKey && (h === "nw" || h === "ne" || h === "sw" || h === "se");
-    const next = resizeScales(
-      content.w,
-      content.h,
-      d.startT.scaleX,
-      d.startT.scaleY,
-      h,
-      lx,
-      ly,
-      lockAspect,
-    );
+    const next = resizeAboutAnchor(content, docW, docH, d.startT, h, dd, lockAspect);
     pro.updateTransform(layerId, next);
   }
 

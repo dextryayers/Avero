@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bookmark, Layers, Shapes, Sparkles, Trash2, Type } from "lucide-react";
+import { Bookmark, Layers, Shapes, Sparkles, Trash2, Type, X } from "lucide-react";
 import clsx from "clsx";
 import {
   makeLayer,
@@ -552,19 +552,48 @@ export function TextStylesPanel() {
 // ships built-in paintable assets instead. Everything here really works.)
 // ---------------------------------------------------------------------------
 
-type AssetKind = "checker" | "dots" | "stripes" | "grid" | "sunset" | "ocean" | "neon" | "mono" | "ember" | "frost";
+export type AssetKind =
+  | "checker" | "dots" | "stripes" | "grid"
+  | "chevron" | "waves" | "halftone" | "bricks"
+  | "diamonds" | "rings" | "plus" | "triangles"
+  | "sunset" | "ocean" | "neon" | "mono" | "ember" | "frost"
+  | "candy" | "forest" | "lavender" | "peach"
+  | "midnight" | "copper" | "mint" | "royal"
+  | "noise" | "vignette" | "scanlines" | "paper";
 
-const ASSETS: { id: AssetKind; name: string; group: "Pattern" | "Gradient" }[] = [
+export type AssetGroup = "Pattern" | "Gradient" | "Texture";
+
+export const ASSETS: { id: AssetKind; name: string; group: AssetGroup }[] = [
   { id: "checker", name: "Checker", group: "Pattern" },
   { id: "dots", name: "Dots", group: "Pattern" },
   { id: "stripes", name: "Stripes", group: "Pattern" },
   { id: "grid", name: "Blueprint", group: "Pattern" },
+  { id: "chevron", name: "Chevron", group: "Pattern" },
+  { id: "waves", name: "Waves", group: "Pattern" },
+  { id: "halftone", name: "Halftone", group: "Pattern" },
+  { id: "bricks", name: "Bricks", group: "Pattern" },
+  { id: "diamonds", name: "Diamonds", group: "Pattern" },
+  { id: "rings", name: "Rings", group: "Pattern" },
+  { id: "plus", name: "Plus signs", group: "Pattern" },
+  { id: "triangles", name: "Triangles", group: "Pattern" },
   { id: "sunset", name: "Sunset", group: "Gradient" },
   { id: "ocean", name: "Ocean", group: "Gradient" },
   { id: "neon", name: "Neon", group: "Gradient" },
   { id: "mono", name: "Mono", group: "Gradient" },
   { id: "ember", name: "Ember", group: "Gradient" },
   { id: "frost", name: "Frost", group: "Gradient" },
+  { id: "candy", name: "Candy", group: "Gradient" },
+  { id: "forest", name: "Forest", group: "Gradient" },
+  { id: "lavender", name: "Lavender", group: "Gradient" },
+  { id: "peach", name: "Peach", group: "Gradient" },
+  { id: "midnight", name: "Midnight", group: "Gradient" },
+  { id: "copper", name: "Copper", group: "Gradient" },
+  { id: "mint", name: "Mint", group: "Gradient" },
+  { id: "royal", name: "Royal", group: "Gradient" },
+  { id: "noise", name: "Film grain", group: "Texture" },
+  { id: "vignette", name: "Vignette", group: "Texture" },
+  { id: "scanlines", name: "Scanlines", group: "Texture" },
+  { id: "paper", name: "Warm paper", group: "Texture" },
 ];
 
 export function paintAsset(g: CanvasRenderingContext2D, w: number, h: number, kind: AssetKind): void {
@@ -617,6 +646,161 @@ export function paintAsset(g: CanvasRenderingContext2D, w: number, h: number, ki
       g.lineTo(w, y + 0.5);
     }
     g.stroke();
+  } else if (kind === "chevron") {
+    const u = Math.max(12, Math.min(w, h) / 14);
+    g.fillStyle = "#1b1b1f";
+    g.fillRect(0, 0, w, h);
+    g.strokeStyle = "#2f7cf6";
+    g.lineWidth = Math.max(2, u / 5);
+    g.globalAlpha = 0.65;
+    g.beginPath();
+    for (let y = -u; y < h + u; y += u) {
+      for (let x = -u; x < w + u; x += u * 2) {
+        g.moveTo(x, y + u / 2);
+        g.lineTo(x + u, y);
+        g.lineTo(x + u * 2, y + u / 2);
+      }
+    }
+    g.stroke();
+    g.globalAlpha = 1;
+  } else if (kind === "waves") {
+    const u = Math.max(12, Math.min(w, h) / 14);
+    g.fillStyle = "#101014";
+    g.fillRect(0, 0, w, h);
+    g.strokeStyle = "rgba(56,224,255,0.55)";
+    g.lineWidth = Math.max(1.5, u / 8);
+    g.beginPath();
+    for (let y = 0; y < h + u; y += u) {
+      for (let x = -u; x <= w + u; x += 6) {
+        const yy = y + Math.sin((x / u) * Math.PI * 2) * (u / 4);
+        if (x <= -u + 6) g.moveTo(x, yy);
+        else g.lineTo(x, yy);
+      }
+    }
+    g.stroke();
+  } else if (kind === "halftone") {
+    g.fillStyle = "#141416";
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = "rgba(240,240,245,0.85)";
+    const s = Math.max(14, Math.min(w, h) / 12);
+    for (let y = s / 2, row = 0; y < h; y += s, row++) {
+      for (let x = s / 2 + (row % 2 === 0 ? 0 : s / 2); x < w; x += s) {
+        const r = Math.max(1, (x / Math.max(1, w)) * s * 0.32);
+        g.beginPath();
+        g.arc(x, y, r, 0, Math.PI * 2);
+        g.fill();
+      }
+    }
+  } else if (kind === "bricks") {
+    const u = Math.max(14, Math.min(w, h) / 12);
+    g.fillStyle = "#3a3a41";
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = "#8d3b2f";
+    let row = 0;
+    for (let y = 0; y < h; y += u, row++) {
+      for (let x = row % 2 === 0 ? 0 : -u; x < w; x += u * 2) {
+        g.fillRect(x + 2, y + 2, u * 2 - 4, u - 4);
+      }
+    }
+  } else if (kind === "diamonds") {
+    const u = Math.max(14, Math.min(w, h) / 12);
+    g.fillStyle = "#16161a";
+    g.fillRect(0, 0, w, h);
+    g.strokeStyle = "rgba(217,164,65,0.7)";
+    g.lineWidth = Math.max(1.5, u / 10);
+    const s = u * 0.42;
+    g.beginPath();
+    for (let y = 0; y < h + u; y += u) {
+      for (let x = 0; x < w + u; x += u) {
+        g.moveTo(x, y - s);
+        g.lineTo(x + s, y);
+        g.lineTo(x, y + s);
+        g.lineTo(x - s, y);
+        g.closePath();
+      }
+    }
+    g.stroke();
+  } else if (kind === "rings") {
+    const u = Math.max(16, Math.min(w, h) / 10);
+    g.fillStyle = "#101014";
+    g.fillRect(0, 0, w, h);
+    g.strokeStyle = "rgba(125,211,252,0.5)";
+    g.lineWidth = Math.max(1.5, u / 12);
+    const cx = w / 2;
+    const cy = h / 2;
+    g.beginPath();
+    for (let r = u / 2; r < Math.hypot(w, h) / 2 + u; r += u) {
+      g.moveTo(cx + r, cy);
+      g.arc(cx, cy, r, 0, Math.PI * 2);
+    }
+    g.stroke();
+  } else if (kind === "plus") {
+    const u = Math.max(16, Math.min(w, h) / 10);
+    g.fillStyle = "#1b1b1f";
+    g.fillRect(0, 0, w, h);
+    g.strokeStyle = "rgba(122,214,158,0.75)";
+    g.lineWidth = Math.max(2, u / 7);
+    g.lineCap = "round";
+    const a = u * 0.28;
+    g.beginPath();
+    for (let y = u / 2; y < h; y += u) {
+      for (let x = u / 2; x < w; x += u) {
+        g.moveTo(x - a, y);
+        g.lineTo(x + a, y);
+        g.moveTo(x, y - a);
+        g.lineTo(x, y + a);
+      }
+    }
+    g.stroke();
+  } else if (kind === "triangles") {
+    const u = Math.max(16, Math.min(w, h) / 10);
+    g.fillStyle = "#141419";
+    g.fillRect(0, 0, w, h);
+    g.strokeStyle = "rgba(201,160,255,0.6)";
+    g.lineWidth = Math.max(1.5, u / 10);
+    const hh = (u * Math.sqrt(3)) / 2;
+    g.beginPath();
+    for (let y = 0, row = 0; y < h + u; y += hh, row++) {
+      for (let x = row % 2 === 0 ? 0 : -u / 2; x < w + u; x += u) {
+        g.moveTo(x, y);
+        g.lineTo(x + u / 2, y + hh);
+        g.lineTo(x - u / 2, y + hh);
+        g.closePath();
+      }
+    }
+    g.stroke();
+  } else if (kind === "noise") {
+    const img = g.createImageData(w, h);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const v = 118 + Math.floor(Math.random() * 56) - 28;
+      img.data[i] = v;
+      img.data[i + 1] = v;
+      img.data[i + 2] = v;
+      img.data[i + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+  } else if (kind === "vignette") {
+    const grad = g.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.32, w / 2, h / 2, Math.hypot(w, h) / 2);
+    grad.addColorStop(0, "rgba(0,0,0,0)");
+    grad.addColorStop(1, "rgba(0,0,0,0.62)");
+    g.fillStyle = grad;
+    g.fillRect(0, 0, w, h);
+  } else if (kind === "scanlines") {
+    for (let y = 0; y < h; y += 6) {
+      g.fillStyle = "rgba(0,0,0,0.35)";
+      g.fillRect(0, y, w, 2);
+    }
+  } else if (kind === "paper") {
+    g.fillStyle = "#f2ede3";
+    g.fillRect(0, 0, w, h);
+    const img = g.getImageData(0, 0, w, h);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const n = Math.floor(Math.random() * 14) - 7;
+      img.data[i] = Math.max(0, Math.min(255, img.data[i] + n));
+      img.data[i + 1] = Math.max(0, Math.min(255, img.data[i + 1] + n));
+      img.data[i + 2] = Math.max(0, Math.min(255, img.data[i + 2] + n));
+    }
+    g.putImageData(img, 0, 0);
   } else {
     const stops: Record<string, [string, string, string]> = {
       sunset: ["#ff9a3c", "#ff3d68", "#5a30ff"],
@@ -625,6 +809,14 @@ export function paintAsset(g: CanvasRenderingContext2D, w: number, h: number, ki
       mono: ["#000000", "#6e6e78", "#ffffff"],
       ember: ["#1a0500", "#a8321f", "#ffb03c"],
       frost: ["#dfeefc", "#8fb6f5", "#ffffff"],
+      candy: ["#ff6ec7", "#7b5cff", "#4adede"],
+      forest: ["#0b3d2e", "#1f7a4d", "#b5e48c"],
+      lavender: ["#e0c3fc", "#8ec5fc", "#f9f9f9"],
+      peach: ["#ff9a8b", "#ff6a88", "#ff99ac"],
+      midnight: ["#0f2027", "#203a43", "#2c5364"],
+      copper: ["#3a1c00", "#b87333", "#ffd9a0"],
+      mint: ["#0ba360", "#3cba92", "#d4fc79"],
+      royal: ["#141e30", "#243b55", "#4e65ff"],
     };
     const [a, b, c] = stops[kind] ?? stops.sunset;
     const grad = g.createLinearGradient(0, 0, w, h);
@@ -651,6 +843,7 @@ function AssetThumb({ kind }: { kind: AssetKind }) {
 }
 
 export function AssetsPanel() {
+  const [query, setQuery] = useState("");
   function add(kind: AssetKind, name: string) {
     const st = useEditorStore.getState();
     const l = makeLayer(`Asset ${name}`);
@@ -662,26 +855,56 @@ export function AssetsPanel() {
     useProStore.getState().bumpHistogram();
     void showMessage(`Asset "${name}" added as a new layer.`);
   }
+  const needle = query.trim().toLowerCase();
+  const shown = needle === "" ? ASSETS : ASSETS.filter((a) => a.name.toLowerCase().includes(needle));
   return (
     <div className="avero-fade-in space-y-2 p-2">
-      {(["Pattern", "Gradient"] as const).map((group) => (
-        <div key={group}>
-          <div className="avero-micro px-1 pb-1.5 pt-1">{group}s</div>
-          <div className="grid grid-cols-2 gap-1.5">
-            {ASSETS.filter((a) => a.group === group).map((a) => (
-              <button
-                key={a.id}
-                onClick={() => add(a.id, a.name)}
-                title={`Paint "${a.name}" onto a new layer at document size`}
-                className="avero-press group overflow-hidden rounded-xl border border-[#2c2c31] bg-[#101012] p-1.5 text-left transition-colors hover:border-[#2f7cf6]/60"
-              >
-                <AssetThumb kind={a.id} />
-                <span className="mt-1.5 block truncate px-0.5 text-[11px] font-semibold text-white">{a.name}</span>
-              </button>
-            ))}
+      <div className="relative">
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search assets..."
+          aria-label="Search assets"
+          className="h-7 w-full rounded-md border border-[#2c2c31] bg-[#101012] px-2 pr-7 text-[11px] text-white outline-none placeholder:text-[#6e6e78] focus:border-[#2f7cf6]"
+        />
+        {query !== "" && (
+          <button
+            onClick={() => setQuery("")}
+            title="Clear search"
+            aria-label="Clear search"
+            className="absolute right-1 top-1/2 grid h-5 w-5 -translate-y-1/2 place-items-center rounded text-[#6e6e78] hover:bg-white/5 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#2f7cf6]"
+          >
+            <X size={12} />
+          </button>
+        )}
+      </div>
+      <div className="px-0.5 font-mono text-[9px] tabular-nums text-[#6e6e78]">
+        {shown.length} of {ASSETS.length} shown
+      </div>
+      {(["Pattern", "Gradient", "Texture"] as const).map((group) => {
+        const items = shown.filter((a) => a.group === group);
+        if (items.length === 0) return null;
+        return (
+          <div key={group}>
+            <div className="avero-micro px-1 pb-1.5 pt-1">
+              {group}s ({items.length})
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              {items.map((a) => (
+                <button
+                  key={a.id}
+                  onClick={() => add(a.id, a.name)}
+                  title={`Paint "${a.name}" onto a new layer at document size`}
+                  className="avero-press group overflow-hidden rounded-xl border border-[#2c2c31] bg-[#101012] p-1.5 text-left transition-colors hover:border-[#2f7cf6]/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#2f7cf6]"
+                >
+                  <AssetThumb kind={a.id} />
+                  <span className="mt-1.5 block truncate px-0.5 text-[11px] font-semibold text-white">{a.name}</span>
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
       <p className="px-1 text-[10px] leading-relaxed text-[#6e6e78]">
         Offline built-ins - one click paints the asset onto a fresh layer at full document size.
       </p>

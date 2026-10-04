@@ -190,7 +190,9 @@ premium, elegant, professional, smart, complete.
 - [x] 4.4. Varied choices pass: brush, stroke and swatch views expose full
   option ranges (size, opacity, hardness, flow, spacing, smoothing, blend,
   color) bound to live store values. Adjust and Filter tabs expose the
-  complete adjustment and filter sets with working apply and reset.
+  complete adjustment and filter sets with working apply and reset. Assets
+  grew from 10 to 30 offline procedurals (12 patterns, 14 gradients,
+  4 textures) with search, counts and one click paint to a fresh layer.
 - [x] 4.5. Empty states: shared `EmptyState` action slot in `ui/atoms.tsx`.
   Layers offers Add layer and Clear search starters. Objects offers Import
   photo. Batch queue offers Add photos. History intentionally has no
@@ -306,8 +308,8 @@ Rust lab kernel, never as a frontend dependency.
 
 ## PHASE 6 - Verification - EXECUTED
 
-- [x] 6.1. `npm run test` fully green (210 passed, 25 files, up from 209
-  plus 25 with the triangle edge exactness lock).
+- [x] 6.1. `npm run test` fully green (213 passed, 26 files, up from 210
+  plus 25 with the assets registry contracts).
 - [x] 6.2. `npx tsc --noEmit` exit 0 with `noUnusedLocals` on.
 - [x] 6.3. Emdash and endash scan of src plus plan6 returns zero matches.
 - [x] 6.4. Interaction coverage executed statically instead of by hand

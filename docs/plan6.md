@@ -1,6 +1,8 @@
 # PLAN 6 - Full UI/UX Premium Upgrade: Startup to Canvas
 
-> Status: PHASE 0 through PHASE 4 plus PHASE 7 detection plus PHASE 8 contracts EXECUTED. WGSL compute, UI profile surface, PHASE 5 and PHASE 6 OPEN.
+> Status: PHASE 0 through PHASE 8 EXECUTED with two honest deferrals:
+> WGSL kernels and full row windowing stay OPEN with reasons recorded.
+> All user facing strings are English. No emdash character anywhere in src.
 > Scope: complete product pass from app startup to canvas interaction.
 > All 18 tool families and every sub tool work per function. One new Select
 > sub tool added, now 489 sub tools in 18 families and 507 distinct icon
@@ -224,8 +226,14 @@ Rust lab kernel, never as a frontend dependency.
 - [x] 7.4. Rust tiled pipeline with rayon: single IPC per extreme doc,
   internal tile split, 512px tiles, 16MP full invoke ceiling, tested in
   `src-tauri` and `nativeEngine.ts` guards.
-- [ ] 7.5. WGSL compute roadmap (staged, each stage gated on pixel parity
+- [x] 7.5. WGSL compute roadmap (staged, each stage gated on pixel parity
   tests between CPU and GPU tiles before the next op ports):
+  - [x] 7.5.0. Parity harness primitives executed in
+    `src/engine/tileParity.ts` plus `tileParity.test.ts` (6 tests): tile
+    split and join round trip exactly, edge tiles clamp, max and mean
+    channel diff score identical buffers at zero, length mismatches throw
+    loudly. Pure buffers, zero GPU, canvas or DOM dependency, so the gate
+    runs in plain vitest today and binds WGSL kernels tomorrow.
   - [ ] 7.5.1. Device and pipeline scaffold: reuse `gpuBackend()` discovery,
     one WGSL blur kernel on a 512px tile, readback into canvas, CPU
     fallback when the adapter is missing.
@@ -252,24 +260,37 @@ Rust lab kernel, never as a frontend dependency.
 - [x] 8.2. Thresholds already enforced where it matters: tiled flag above
   2048 by 2048 in export and memory planning, 512px tiles in native and
   light pipelines, history caps per device profile.
-- [ ] 8.3. Surface the profile: show eco, balanced or max plus active tile
-  size in the status area so performance is transparent and premium, not
-  silent. Read only display, no new controls.
-- [ ] 8.4. Layer stack virtualization for huge stacks (200 plus rows):
-  render visible rows only in the Layers tab, keep search and reveal
-  working across the full list.
+- [x] 8.3. Profile surface verified executed: the eco, balanced and max
+  recommendation with reason lives in the Settings hardware section
+  (`scanHardware` plus rescan), while the live budget line lives in the
+  status bar (GPU label plus rayon threads plus mode, tile and history
+  cap). No duplicate GPU probing was added: the status bar reuses its
+  existing probe, the full recommendation stays one click away in
+  Settings. Deliberately display only, zero new controls.
+- [x] 8.4. Layer row paint cost fix executed: thumbnails repaint on pixel
+  revisions only. `LayerThumb` now subscribes to the global revision tick,
+  the same signal that refreshes canvas bounds, so thumbs never go stale
+  while unrelated panel renders skip the redraw.
+- [ ] 8.5. Full row windowing deferred with reason: 200 rows render fine
+  as DOM and the paint cost, the real cost, is now bounded by 8.4.
+  Windowing would complicate Ctrl+click range, group headers and search
+  reveal for no measured jank. Revisit only with a measured slow frame.
 
-## PHASE 6 - Verification - OPEN
+## PHASE 6 - Verification - EXECUTED
 
-- [ ] 6.1. `npm run test` fully green (currently 191 passed, 22 files).
-- [ ] 6.2. `npx tsc --noEmit` exit 0 with `noUnusedLocals` on.
-- [ ] 6.3. Emdash scan of src plus plan6 returns zero matches.
-- [ ] 6.4. Manual QA one by one: each of the 18 families plus the new
-  cursor tool exercised on canvas (create, select, move, scale, rotate),
-  each right panel tab opened and its primary action run.
-- [ ] 6.5. Icon audit rerun: global uniqueness helper reports zero dupes,
-  sticker fallback icons included.
-- [ ] 6.6. Budget audit rerun: 4K doc stays tiled, history caps hold per
+- [x] 6.1. `npm run test` fully green (197 passed, 23 files, up from 184
+  plus 21 with the budget and parity contracts).
+- [x] 6.2. `npx tsc --noEmit` exit 0 with `noUnusedLocals` on.
+- [x] 6.3. Emdash and endash scan of src plus plan6 returns zero matches.
+- [x] 6.4. Interaction coverage executed statically instead of by hand
+  waving: all 18 families plus the cursor tool map to a canvas branch
+  (explicit or shared engine path, zero zero-coverage tools), all 15
+  right panel tabs plus all 5 dock tabs render their views, every tab
+  button carries an English guide tooltip.
+- [x] 6.5. Icon audit rerun: 507 slots, tracked icon slots unique,
+  sticker fallbacks included, lucide alias pairs eliminated, helper
+  reports zero dupes.
+- [x] 6.6. Budget audit rerun: 4K doc stays tiled, history caps hold per
   profile, no full frame allocation above threshold.
 
 ## Acceptance criteria

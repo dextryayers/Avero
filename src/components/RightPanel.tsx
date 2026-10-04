@@ -99,8 +99,11 @@ export const BLEND_MODES: { id: string; label: string; group: string }[] = [
   { id: "luminosity", label: "Luminosity", group: "Component" },
 ];
 
-// 40px live layer thumbnail (checkerboard behind transparency).
-function LayerThumb({ id, w, h }: { id: string; w: number; h: number }) {
+// 40px live layer thumbnail (checkerboard behind transparency). Repaints on
+// pixel revisions only: id, size and the global revision tick. The tick is
+// the same signal that refreshes canvas bounds, so thumbs never go stale
+// while unrelated panel renders skip the redraw.
+function LayerThumb({ id, w, h, tick }: { id: string; w: number; h: number; tick: number }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const el = ref.current;
@@ -121,7 +124,7 @@ function LayerThumb({ id, w, h }: { id: string; w: number; h: number }) {
       const dh = Math.max(1, h * sc);
       g.drawImage(src, (S - dw) / 2, (S - dh) / 2, dw, dh);
     }
-  });
+  }, [id, w, h, tick]);
   return <canvas ref={ref} className="h-10 w-10 shrink-0 rounded border border-[#2c2c31]" />;
 }
 
@@ -359,6 +362,7 @@ export default function RightPanel({ dual = false, onToggleLayers, width }: { du
   const adjustments = useProStore((s) => s.adjustments);
   const filters = useProStore((s) => s.filters);
   const masks = useProStore((s) => s.masks);
+  const pixelTick = useProStore((s) => s.histogramTick);
 
   function handleUndo() {
     doUndo();
@@ -897,7 +901,7 @@ export default function RightPanel({ dual = false, onToggleLayers, width }: { du
                       )}
                     >
                       <div className="flex items-center gap-2">
-                        <LayerThumb id={l.id} w={doc.width} h={doc.height} />
+                        <LayerThumb id={l.id} w={doc.width} h={doc.height} tick={pixelTick} />
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-[12px] font-medium text-white">
                             {l.name} <span className="font-normal text-[#6e6e78]">({kindLabel[l.kind] ?? l.kind})</span>

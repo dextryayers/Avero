@@ -40,9 +40,7 @@ chrono = { version = "0.4", features = ["serde"] }
 rayon = "1"
 sysinfo = "0.30"
 bytemuck = "1"
-# Plan5 Fase 0: local YOLO11 inference (things). Exact RC pin: 2.0 stable is not
-# published yet and caret requirements skip prereleases. ort fetches prebuilt
-# ONNX Runtime binaries on first build (network required once, then cached).
+
 # No ndarray needed: Tensor::from_array accepts a plain (shape, Vec) tuple.
 ort = { version = "=2.0.0-rc.13" }
 reqwest = { version = "0.12", features = ["blocking", "rustls-tls"] }
@@ -53,9 +51,15 @@ winreg = "0.52"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
+# Release correctness rules (debug and release must behave the same):
+# - overflow-checks on: debug panics on arithmetic overflow while release
+#   would silently wrap pixels and sizes without this.
+# - panic unwind (not abort): a malformed image must surface as a command
+#   error, never kill the whole editor process instantly.
 [profile.release]
 codegen-units = 1
 lto = true
 opt-level = 3
-panic = "abort"
+panic = "unwind"
+overflow-checks = true
 strip = true

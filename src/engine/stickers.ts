@@ -1,4 +1,4 @@
-// Sticker engine: 72 professional assets in 6 categories, zero emoji.
+// Sticker engine: 216 professional assets in 8 categories, zero emoji.
 // Vector stamps render from declarative specs and FX overlays paint
 // procedurally, both in the brush color with a white halo and soft shadow.
 // Placed stickers become normal raster layers, which means the blue

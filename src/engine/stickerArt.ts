@@ -1027,4 +1027,451 @@ export const STICKER_V2: StickerArtSpec[] = [
     { op: "rect", x: 22, y: 56, w: 22, h: 22, fill: false, wgt: 6 },
     D(66, 66, 4), D(78, 56, 4), D(56, 78, 4),
   ]),
+  // Marks wave 2: directions and punctuation (12)
+  spec("sticker-arrow-up", "Arrow Up", "marks", [
+    L(50, 76, 50, 28, 8),
+    { op: "poly", pts: [[50, 28], [36, 46], [64, 46]] },
+  ]),
+  spec("sticker-arrow-down", "Arrow Down", "marks", [
+    L(50, 24, 50, 72, 8),
+    { op: "poly", pts: [[50, 72], [36, 54], [64, 54]] },
+  ]),
+  spec("sticker-arrow-left", "Arrow Left", "marks", [
+    L(72, 50, 28, 50, 8),
+    { op: "poly", pts: [[28, 50], [46, 36], [46, 64]] },
+  ]),
+  spec("sticker-double-arrow", "Double Arrow", "marks", [
+    L(24, 38, 76, 38, 7),
+    { op: "poly", pts: [[76, 38], [64, 29], [64, 47]] },
+    L(76, 62, 24, 62, 7),
+    { op: "poly", pts: [[24, 62], [36, 53], [36, 71]] },
+  ]),
+  spec("sticker-curved-arrow", "Curved Arrow", "marks", [
+    { op: "poly", pts: [[24, 66], [30, 40], [52, 30], [72, 34]], fill: false, wgt: 8 },
+    { op: "poly", pts: [[72, 34], [58, 32], [68, 46]] },
+  ]),
+  spec("sticker-shuffle", "Shuffle Mark", "marks", [
+    { op: "poly", pts: [[24, 34], [56, 34], [76, 58]], fill: false, wgt: 7 },
+    { op: "poly", pts: [[24, 66], [56, 66], [76, 42]], fill: false, wgt: 7 },
+    D(80, 50, 4),
+  ]),
+  spec("sticker-asterisk", "Asterisk Mark", "marks", [
+    L(50, 22, 50, 78, 8), L(26, 36, 74, 64, 8), L(74, 36, 26, 64, 8),
+  ]),
+  spec("sticker-at-sign", "At Sign", "marks", [
+    { op: "ring", cx: 50, cy: 50, r: 26, w: 7 },
+    D(50, 50, 8),
+    L(68, 40, 68, 66, 6),
+  ]),
+  spec("sticker-percent", "Percent Mark", "marks", [
+    D(34, 34, 10), D(66, 66, 10), L(72, 28, 28, 72, 8),
+  ]),
+  spec("sticker-exclaim", "Exclaim Mark", "marks", [
+    L(50, 24, 50, 58, 9), D(50, 72, 7),
+  ]),
+  spec("sticker-question", "Question Mark", "marks", [
+    { op: "poly", pts: [[38, 38], [50, 26], [64, 32], [62, 46], [50, 52]], fill: false, wgt: 9 },
+    D(50, 70, 7),
+  ]),
+  spec("sticker-undo", "Undo Mark", "marks", [
+    L(74, 38, 42, 38, 8), L(42, 38, 42, 64, 8),
+    { op: "poly", pts: [[42, 64], [31, 53], [53, 53]] },
+  ]),
+  // Badges wave 2: currency seals and shields (12)
+  spec("sticker-dollar-seal", "Dollar Seal", "badges", [
+    { op: "ring", cx: 50, cy: 50, r: 30, w: 7 },
+    L(50, 32, 50, 68, 6), L(40, 42, 60, 42, 5), L(40, 58, 60, 58, 5),
+  ]),
+  spec("sticker-euro-seal", "Euro Seal", "badges", [
+    { op: "ring", cx: 50, cy: 50, r: 30, w: 7 },
+    { op: "poly", pts: [[62, 36], [44, 36], [40, 50], [44, 64], [62, 64]], fill: false, wgt: 6 },
+    L(38, 50, 56, 50, 5),
+  ]),
+  spec("sticker-info-seal", "Info Seal", "badges", [
+    { op: "ring", cx: 50, cy: 50, r: 30, w: 7 },
+    D(50, 32, 5), L(50, 44, 50, 66, 7),
+  ]),
+  spec("sticker-minus-seal", "Minus Seal", "badges", [
+    { op: "ring", cx: 50, cy: 50, r: 30, w: 7 },
+    L(36, 50, 64, 50, 7),
+  ]),
+  spec("sticker-x-seal", "X Seal", "badges", [
+    { op: "ring", cx: 50, cy: 50, r: 30, w: 7 },
+    L(41, 41, 59, 59, 7), L(59, 41, 41, 59, 7),
+  ]),
+  spec("sticker-help-seal", "Help Seal", "badges", [
+    { op: "ring", cx: 50, cy: 50, r: 30, w: 7 },
+    { op: "poly", pts: [[43, 44], [50, 37], [57, 40], [55, 47], [50, 49]], fill: false, wgt: 6 },
+    D(50, 60, 4.5),
+  ]),
+  spec("sticker-ticket-trio", "Triple Ticket", "badges", [
+    { op: "rect", x: 16, y: 38, w: 20, h: 24, rr: 3 },
+    { op: "rect", x: 40, y: 38, w: 20, h: 24, rr: 3 },
+    { op: "rect", x: 64, y: 38, w: 20, h: 24, rr: 3 },
+  ]),
+  spec("sticker-ticket-tall", "Tall Ticket", "badges", [
+    { op: "rect", x: 34, y: 18, w: 32, h: 64 },
+    { op: "cut", cx: 50, cy: 18, r: 6 },
+    { op: "cut", cx: 50, cy: 82, r: 6 },
+  ]),
+  spec("sticker-ticket-slash", "Slash Ticket", "badges", [
+    { op: "rect", x: 20, y: 34, w: 60, h: 32, rr: 4 },
+    L(64, 28, 36, 72, 6),
+  ]),
+  spec("sticker-goal-seal", "Goal Seal", "badges", [
+    { op: "ring", cx: 50, cy: 50, r: 30, w: 7 },
+    { op: "ring", cx: 50, cy: 50, r: 18, w: 5 },
+    D(50, 50, 5),
+  ]),
+  spec("sticker-shield-band", "Shield Band", "badges", [
+    { op: "poly", pts: [[50, 18], [72, 28], [72, 50], [50, 80], [28, 50], [28, 28]] },
+    L(34, 46, 66, 46, 6),
+  ]),
+  spec("sticker-shield-star", "Shield Star", "badges", [
+    { op: "poly", pts: [[50, 18], [72, 28], [72, 50], [50, 80], [28, 50], [28, 28]] },
+    { op: "burst", cx: 50, cy: 48, ro: 12, ri: 6, n: 5 },
+  ]),
+  // Frames wave 2: panels and columns (12)
+  spec("sticker-group-frame", "Group Frame", "frames", [
+    { op: "rect", x: 18, y: 30, w: 44, h: 40, fill: false, wgt: 6 },
+    { op: "rect", x: 38, y: 24, w: 44, h: 40, fill: false, wgt: 6 },
+  ]),
+  spec("sticker-panel-frame", "Panel Frame", "frames", [
+    { op: "rect", x: 20, y: 20, w: 60, h: 60, fill: false, wgt: 6 },
+    L(20, 44, 80, 44, 4),
+  ]),
+  spec("sticker-gallery-frame", "Gallery Frame", "frames", [
+    { op: "rect", x: 16, y: 28, w: 20, h: 44, fill: false, wgt: 5 },
+    { op: "rect", x: 40, y: 28, w: 20, h: 44, fill: false, wgt: 5 },
+    { op: "rect", x: 64, y: 28, w: 20, h: 44, fill: false, wgt: 5 },
+  ]),
+  spec("sticker-trio-columns", "Trio Columns", "frames", [
+    { op: "rect", x: 22, y: 26, w: 14, h: 48 },
+    { op: "rect", x: 43, y: 26, w: 14, h: 48 },
+    { op: "rect", x: 64, y: 26, w: 14, h: 48 },
+  ]),
+  spec("sticker-quad-columns", "Quad Columns", "frames", [
+    { op: "rect", x: 18, y: 30, w: 10, h: 40 },
+    { op: "rect", x: 34, y: 30, w: 10, h: 40 },
+    { op: "rect", x: 50, y: 30, w: 10, h: 40 },
+    { op: "rect", x: 66, y: 30, w: 10, h: 40 },
+  ]),
+  spec("sticker-pip-frame", "Pip Frame", "frames", [
+    { op: "rect", x: 16, y: 24, w: 68, h: 52, fill: false, wgt: 6 },
+    { op: "rect", x: 58, y: 58, w: 20, h: 14 },
+  ]),
+  spec("sticker-trio-rows", "Trio Rows", "frames", [
+    { op: "rect", x: 22, y: 26, w: 56, h: 10 },
+    { op: "rect", x: 22, y: 45, w: 56, h: 10 },
+    { op: "rect", x: 22, y: 64, w: 56, h: 10 },
+  ]),
+  spec("sticker-combine-frame", "Combine Frame", "frames", [
+    { op: "ring", cx: 50, cy: 50, r: 30, w: 5 },
+    { op: "rect", x: 20, y: 20, w: 60, h: 60, fill: false, wgt: 4 },
+  ]),
+  spec("sticker-split-frame", "Split Frame", "frames", [
+    { op: "rect", x: 20, y: 20, w: 60, h: 60, fill: false, wgt: 6 },
+    L(50, 20, 50, 80, 5),
+  ]),
+  spec("sticker-app-frame", "App Frame", "frames", [
+    { op: "rect", x: 24, y: 20, w: 52, h: 60, rr: 8, fill: false, wgt: 6 },
+    L(36, 32, 64, 32, 4),
+    D(50, 68, 3.5),
+  ]),
+  spec("sticker-side-frame", "Side Frame", "frames", [
+    { op: "rect", x: 20, y: 20, w: 60, h: 60, fill: false, wgt: 6 },
+    { op: "rect", x: 20, y: 20, w: 16, h: 60 },
+  ]),
+  spec("sticker-bottom-frame", "Bottom Frame", "frames", [
+    { op: "rect", x: 20, y: 20, w: 60, h: 60, fill: false, wgt: 6 },
+    { op: "rect", x: 20, y: 58, w: 60, h: 22 },
+  ]),
+  // Labels wave 2: bookmarks and shop tags (12)
+  spec("sticker-bookmark-plus", "Bookmark Plus", "labels", [
+    { op: "poly", pts: [[36, 20], [64, 20], [64, 76], [50, 64], [36, 76]] },
+    L(50, 38, 50, 54, 5), L(42, 46, 58, 46, 5),
+  ]),
+  spec("sticker-bookmark-check", "Bookmark Check", "labels", [
+    { op: "poly", pts: [[36, 20], [64, 20], [64, 76], [50, 64], [36, 76]] },
+    L(43, 48, 49, 54, 5), L(49, 54, 59, 40, 5),
+  ]),
+  spec("sticker-bookmark-wide", "Wide Bookmark", "labels", [
+    { op: "poly", pts: [[26, 24], [74, 24], [74, 72], [50, 58], [26, 72]] },
+    D(50, 44, 6),
+  ]),
+  spec("sticker-bookmark-mini", "Mini Bookmark", "labels", [
+    { op: "poly", pts: [[40, 28], [60, 28], [60, 68], [50, 60], [40, 68]] },
+  ]),
+  spec("sticker-percent-square", "Percent Square", "labels", [
+    { op: "rect", x: 26, y: 26, w: 48, h: 48, rr: 8, fill: false, wgt: 6 },
+    D(42, 42, 6), D(58, 58, 6), L(62, 38, 38, 62, 6),
+  ]),
+  spec("sticker-percent-circle", "Percent Circle", "labels", [
+    { op: "ring", cx: 50, cy: 50, r: 30, w: 6 },
+    D(40, 40, 6), D(60, 60, 6), L(62, 38, 38, 62, 6),
+  ]),
+  spec("sticker-cash-label", "Cash Label", "labels", [
+    { op: "rect", x: 18, y: 34, w: 64, h: 32, rr: 4 },
+    D(50, 50, 9),
+  ]),
+  spec("sticker-receipt", "Receipt Slip", "labels", [
+    { op: "poly", pts: [[32, 16], [68, 16], [68, 78], [60, 70], [52, 78], [44, 70], [36, 78], [32, 70]] },
+    L(40, 30, 60, 30, 4), L(40, 40, 60, 40, 4),
+  ]),
+  spec("sticker-wallet", "Wallet Card", "labels", [
+    { op: "rect", x: 20, y: 32, w: 60, h: 36, rr: 6 },
+    { op: "rect", x: 52, y: 44, w: 22, h: 12, rr: 3 },
+    D(62, 50, 3),
+  ]),
+  spec("sticker-shop-bag", "Shop Bag", "labels", [
+    { op: "poly", pts: [[32, 36], [68, 36], [64, 78], [36, 78]] },
+    { op: "ring", cx: 50, cy: 32, r: 10, w: 5 },
+  ]),
+  spec("sticker-cart", "Cart", "labels", [
+    { op: "poly", pts: [[28, 40], [72, 40], [64, 72], [36, 72]] },
+    L(28, 40, 22, 30, 5),
+    D(42, 80, 5), D(60, 80, 5),
+  ]),
+  spec("sticker-storefront", "Storefront", "labels", [
+    { op: "poly", pts: [[20, 40], [80, 40], [72, 28], [28, 28]] },
+    { op: "rect", x: 24, y: 40, w: 52, h: 36 },
+    L(50, 40, 50, 76, 5),
+  ]),
+  // Nature wave 2: critters and trail gear (16)
+  spec("sticker-snail", "Snail", "nature", [
+    { op: "ring", cx: 50, cy: 54, r: 20, w: 7 },
+    { op: "ring", cx: 50, cy: 54, r: 10, w: 5 },
+    { op: "poly", pts: [[66, 60], [84, 52], [84, 66]] },
+    L(70, 44, 76, 34, 4),
+  ]),
+  spec("sticker-worm", "Worm Crawl", "nature", [
+    { op: "poly", pts: [[22, 62], [38, 50], [54, 58], [70, 46], [84, 52]], fill: false, wgt: 9 },
+    D(80, 44, 4),
+  ]),
+  spec("sticker-pack", "Trail Pack", "nature", [
+    { op: "rect", x: 32, y: 34, w: 36, h: 44, rr: 10 },
+    { op: "rect", x: 42, y: 24, w: 16, h: 12, rr: 4 },
+    L(32, 50, 68, 50, 4),
+  ]),
+  spec("sticker-trail-map", "Trail Map", "nature", [
+    { op: "rect", x: 24, y: 20, w: 52, h: 60, rr: 4, fill: false, wgt: 6 },
+    { op: "poly", pts: [[30, 66], [44, 54], [40, 42], [56, 34], [62, 24]], fill: false, wgt: 5 },
+    D(62, 24, 5), D(30, 66, 5),
+  ]),
+  spec("sticker-carrot", "Carrot", "nature", [
+    { op: "poly", pts: [[50, 30], [62, 34], [54, 78], [46, 78], [38, 34]] },
+    L(50, 30, 50, 18, 5), L(50, 30, 40, 22, 4), L(50, 30, 60, 22, 4),
+  ]),
+  spec("sticker-salad-bowl", "Salad Bowl", "nature", [
+    { op: "poly", pts: [[26, 52], [74, 52], [66, 76], [34, 76]] },
+    D(40, 42, 7), D(52, 38, 7), D(62, 44, 7),
+  ]),
+  spec("sticker-fish-side", "Fish Side", "nature", [
+    { op: "poly", pts: [[18, 52], [52, 34], [52, 70]] },
+    { op: "poly", pts: [[52, 52], [74, 38], [74, 66]] },
+    D(30, 48, 3.5),
+  ]),
+  spec("sticker-mouse", "Mouse", "nature", [
+    D(46, 56, 16), D(66, 40, 10),
+    { op: "poly", pts: [[60, 32], [64, 22], [70, 32]] },
+    L(62, 68, 84, 68, 4),
+  ]),
+  spec("sticker-city-rat", "City Rat", "nature", [
+    { op: "poly", pts: [[24, 60], [56, 44], [56, 72]] },
+    { op: "poly", pts: [[30, 44], [34, 32], [40, 44]] },
+    L(56, 58, 84, 58, 4),
+    D(34, 54, 3),
+  ]),
+  spec("sticker-cone-zone", "Cone Zone", "nature", [
+    { op: "poly", pts: [[40, 34], [60, 34], [56, 72], [44, 72]] },
+    { op: "rect", x: 36, y: 26, w: 28, h: 8 },
+    L(44, 48, 56, 48, 4),
+  ]),
+  spec("sticker-dot-beetle", "Dot Beetle", "nature", [
+    D(50, 52, 20),
+    L(50, 32, 50, 72, 5),
+    D(42, 46, 4), D(58, 46, 4), D(42, 60, 4), D(58, 60, 4),
+    L(38, 30, 32, 22, 4), L(62, 30, 68, 22, 4),
+  ]),
+  spec("sticker-axe", "Trail Axe", "nature", [
+    L(38, 78, 62, 30, 7),
+    { op: "poly", pts: [[62, 30], [78, 26], [74, 44], [60, 44]] },
+  ]),
+  spec("sticker-anvil", "Anvil", "nature", [
+    { op: "poly", pts: [[24, 36], [76, 36], [68, 48], [56, 48], [56, 68], [44, 68], [44, 48], [32, 48]] },
+    { op: "rect", x: 36, y: 68, w: 28, h: 8 },
+  ]),
+  spec("sticker-shovel", "Dig Shovel", "nature", [
+    L(58, 22, 42, 58, 7),
+    { op: "poly", pts: [[42, 58], [30, 64], [38, 80], [50, 72]] },
+  ]),
+  spec("sticker-pickaxe", "Pick Axe", "nature", [
+    L(50, 78, 50, 34, 7),
+    { op: "poly", pts: [[50, 34], [24, 40], [24, 30], [50, 24]] },
+    { op: "poly", pts: [[50, 34], [76, 40], [76, 30], [50, 24]] },
+  ]),
+  spec("sticker-tractor", "Field Tractor", "nature", [
+    { op: "rect", x: 30, y: 48, w: 26, h: 20, rr: 3 },
+    { op: "poly", pts: [[38, 48], [38, 32], [54, 32], [54, 48]] },
+    L(62, 32, 62, 44, 4),
+    D(34, 74, 9), D(62, 76, 6),
+  ]),
+  // Poster wave 2: steps, bells and stage (16)
+  spec("sticker-step-one", "Step One", "poster", [
+    { op: "ring", cx: 50, cy: 50, r: 32, w: 6 },
+    D(50, 50, 6),
+  ]),
+  spec("sticker-step-two", "Step Two", "poster", [
+    { op: "ring", cx: 50, cy: 50, r: 32, w: 6 },
+    D(40, 50, 5.5), D(60, 50, 5.5),
+  ]),
+  spec("sticker-step-three", "Step Three", "poster", [
+    { op: "ring", cx: 50, cy: 50, r: 32, w: 6 },
+    D(36, 50, 5), D(50, 50, 5), D(64, 50, 5),
+  ]),
+  spec("sticker-chime", "Chime Bell", "poster", [
+    { op: "poly", pts: [[50, 26], [66, 58], [34, 58]] },
+    D(50, 68, 6), D(50, 20, 4),
+  ]),
+  spec("sticker-ring-bell", "Ring Bell", "poster", [
+    { op: "poly", pts: [[32, 58], [32, 48], [68, 48], [68, 58]] },
+    L(50, 48, 50, 28, 6),
+    D(50, 24, 5), D(50, 66, 5),
+  ]),
+  spec("sticker-send-note", "Send Note", "poster", [
+    { op: "poly", pts: [[18, 54], [82, 38], [54, 50], [46, 68]] },
+    L(54, 50, 82, 38, 4),
+  ]),
+  spec("sticker-air-signal", "Air Signal", "poster", [
+    { op: "ring", cx: 50, cy: 56, r: 14, w: 5 },
+    { op: "ring", cx: 50, cy: 56, r: 26, w: 4 },
+    D(50, 56, 5),
+  ]),
+  spec("sticker-stage-mic", "Stage Mic", "poster", [
+    D(50, 32, 13),
+    L(50, 45, 50, 66, 7),
+    { op: "poly", pts: [[50, 66], [38, 80], [62, 80]] },
+  ]),
+  spec("sticker-love-day", "Love Day", "poster", [
+    D(38, 42, 13), D(62, 42, 13),
+    { op: "poly", pts: [[25, 49], [75, 49], [50, 78]] },
+    D(50, 28, 4),
+  ]),
+  spec("sticker-loud-day", "Loud Day", "poster", [
+    { op: "poly", pts: [[30, 44], [30, 60], [58, 68], [58, 36]] },
+    L(58, 36, 74, 30, 6),
+    L(40, 60, 40, 74, 5),
+  ]),
+  spec("sticker-flag-day", "Flag Day", "poster", [
+    L(34, 20, 34, 80, 6),
+    { op: "poly", pts: [[34, 24], [66, 24], [60, 36], [66, 48], [34, 48]] },
+  ]),
+  spec("sticker-drum-kit", "Drum Kit", "poster", [
+    { op: "poly", pts: [[30, 52], [70, 52], [64, 74], [36, 74]] },
+    L(36, 44, 28, 30, 5), L(64, 44, 72, 30, 5),
+    D(50, 44, 4),
+  ]),
+  spec("sticker-guitar-pick", "Guitar Pick", "poster", [
+    { op: "poly", pts: [[50, 22], [72, 50], [50, 80], [28, 50]] },
+    D(50, 52, 6),
+  ]),
+  spec("sticker-piano-keys", "Piano Keys", "poster", [
+    { op: "rect", x: 20, y: 36, w: 60, h: 28 },
+    L(32, 36, 32, 64, 4), L(44, 36, 44, 64, 4), L(56, 36, 56, 64, 4),
+    { op: "rect", x: 34, y: 36, w: 8, h: 16 },
+    { op: "rect", x: 50, y: 36, w: 8, h: 16 },
+  ]),
+  spec("sticker-vinyl", "Vinyl Record", "poster", [
+    { op: "ring", cx: 50, cy: 50, r: 32, w: 6 },
+    { op: "ring", cx: 50, cy: 50, r: 20, w: 4 },
+    D(50, 50, 8),
+    { op: "cut", cx: 50, cy: 50, r: 2.5 },
+  ]),
+  spec("sticker-song-note", "Song Note", "poster", [
+    D(36, 66, 8), D(64, 66, 8),
+    L(44, 66, 44, 28, 6), L(72, 66, 72, 28, 6),
+    L(44, 28, 72, 36, 6),
+  ]),
+  // Social wave 2: calls, mail and presence (16)
+  spec("sticker-bell-dot", "Bell Dot", "social", [
+    { op: "poly", pts: [[50, 24], [64, 58], [36, 58]] },
+    D(50, 68, 6), D(72, 30, 5),
+  ]),
+  spec("sticker-bell-echo", "Echo Bell", "social", [
+    { op: "poly", pts: [[50, 24], [64, 58], [36, 58]] },
+    D(50, 68, 6),
+    L(26, 44, 20, 36, 5), L(74, 44, 80, 36, 5),
+  ]),
+  spec("sticker-call-in", "Incoming Call", "social", [
+    { op: "poly", pts: [[30, 30], [40, 30], [44, 44], [56, 44], [60, 30], [70, 30], [66, 58], [58, 70], [42, 70], [34, 58]] },
+    L(30, 22, 24, 16, 4), L(70, 22, 76, 16, 4),
+  ]),
+  spec("sticker-call-off", "Muted Call", "social", [
+    { op: "poly", pts: [[30, 32], [40, 32], [44, 46], [56, 46], [60, 32], [70, 32], [66, 60], [58, 72], [42, 72], [34, 60]] },
+    L(28, 28, 72, 72, 7),
+  ]),
+  spec("sticker-mail-check", "Mail Check", "social", [
+    { op: "rect", x: 22, y: 34, w: 56, h: 32, rr: 4, fill: false, wgt: 6 },
+    L(22, 34, 50, 56, 6),
+    L(50, 56, 78, 34, 6),
+    L(42, 52, 48, 58, 5), L(48, 58, 60, 42, 5),
+  ]),
+  spec("sticker-mailbox", "Mailbox", "social", [
+    { op: "rect", x: 30, y: 44, w: 40, h: 28, rr: 4 },
+    L(50, 44, 50, 30, 6),
+    D(50, 26, 5),
+    L(36, 72, 64, 72, 5),
+  ]),
+  spec("sticker-inbox-tray", "Inbox Tray", "social", [
+    { op: "poly", pts: [[20, 40], [80, 40], [72, 72], [28, 72]] },
+    { op: "rect", x: 38, y: 48, w: 24, h: 10 },
+  ]),
+  spec("sticker-archive-box", "Archive Box", "social", [
+    { op: "rect", x: 24, y: 36, w: 52, h: 32, rr: 3 },
+    { op: "rect", x: 24, y: 36, w: 52, h: 10 },
+    L(50, 46, 50, 58, 4),
+  ]),
+  spec("sticker-cloud-up", "Cloud Upload", "social", [
+    D(40, 54, 12), D(54, 48, 15), D(66, 56, 10),
+    { op: "rect", x: 30, y: 54, w: 44, h: 12 },
+    L(50, 60, 50, 36, 6),
+    { op: "poly", pts: [[50, 36], [42, 46], [58, 46]] },
+  ]),
+  spec("sticker-user-search", "User Search", "social", [
+    D(42, 38, 12),
+    { op: "poly", pts: [[24, 72], [24, 62], [60, 62], [60, 72]] },
+    { op: "ring", cx: 66, cy: 60, r: 12, w: 5 },
+    L(74, 68, 82, 76, 5),
+  ]),
+  spec("sticker-link-chain", "Link Chain", "social", [
+    { op: "ring", cx: 38, cy: 50, r: 13, w: 6 },
+    { op: "ring", cx: 62, cy: 50, r: 13, w: 6 },
+  ]),
+  spec("sticker-signal-full", "Full Signal", "social", [
+    { op: "rect", x: 28, y: 58, w: 8, h: 14 },
+    { op: "rect", x: 40, y: 50, w: 8, h: 22 },
+    { op: "rect", x: 52, y: 42, w: 8, h: 30 },
+    { op: "rect", x: 64, y: 34, w: 8, h: 38 },
+  ]),
+  spec("sticker-battery-full", "Full Battery", "social", [
+    { op: "rect", x: 24, y: 38, w: 48, h: 24, rr: 4, fill: false, wgt: 6 },
+    { op: "rect", x: 28, y: 42, w: 36, h: 16 },
+    { op: "rect", x: 74, y: 44, w: 6, h: 12 },
+  ]),
+  spec("sticker-video-cam", "Video Cam", "social", [
+    { op: "rect", x: 22, y: 38, w: 40, h: 26, rr: 5 },
+    { op: "poly", pts: [[62, 46], [80, 38], [80, 70], [62, 62]] },
+    D(32, 51, 4),
+  ]),
+  spec("sticker-voicemail", "Voicemail", "social", [
+    { op: "rect", x: 22, y: 38, w: 56, h: 28, rr: 6, fill: false, wgt: 6 },
+    D(38, 52, 6), D(62, 52, 6),
+    L(44, 52, 56, 52, 5),
+  ]),
+  spec("sticker-cctv", "Watch Cam", "social", [
+    { op: "rect", x: 42, y: 20, w: 16, h: 6 },
+    L(50, 36, 50, 24, 5),
+    { op: "poly", pts: [[30, 36], [70, 36], [64, 54], [36, 54]] },
+    D(50, 62, 7),
+  ]),
 ];

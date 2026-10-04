@@ -11,9 +11,9 @@ import {
 import { STICKER_IDS } from "./stickers";
 
 describe("sticker v2 catalog (plan7 professional assets)", () => {
-  it("keeps all 72 legacy ids plus the 48 poster expansion ids", () => {
-    expect(STICKER_V2.length).toBe(120);
-    expect(new Set(STICKER_V2.map((s) => s.id)).size).toBe(120);
+  it("keeps all 72 legacy ids plus the 48 poster expansion ids plus 96 wave 2 ids", () => {
+    expect(STICKER_V2.length).toBe(216);
+    expect(new Set(STICKER_V2.map((s) => s.id)).size).toBe(216);
     for (const id of STICKER_IDS) {
       expect(STICKER_V2.some((s) => s.id === id), id).toBe(true);
     }
@@ -21,14 +21,14 @@ describe("sticker v2 catalog (plan7 professional assets)", () => {
 
   it("covers the 8 categories with the frozen counts", () => {
     const count = (c: string) => STICKER_V2.filter((s) => s.category === c).length;
-    expect(count("marks")).toBe(14);
-    expect(count("badges")).toBe(12);
-    expect(count("frames")).toBe(12);
-    expect(count("labels")).toBe(12);
-    expect(count("nature")).toBe(10);
+    expect(count("marks")).toBe(26);
+    expect(count("badges")).toBe(24);
+    expect(count("frames")).toBe(24);
+    expect(count("labels")).toBe(24);
+    expect(count("nature")).toBe(26);
     expect(count("fx")).toBe(24);
-    expect(count("poster")).toBe(24);
-    expect(count("social")).toBe(12);
+    expect(count("poster")).toBe(40);
+    expect(count("social")).toBe(28);
   });
 
   it("labels are clean English with no emoji", () => {
@@ -39,9 +39,9 @@ describe("sticker v2 catalog (plan7 professional assets)", () => {
     }
   });
 
-  it("all 96 stamp specs validate clean", () => {
+  it("all 192 stamp specs validate clean", () => {
     const stamps = STICKER_V2.filter((s) => !s.fx);
-    expect(stamps.length).toBe(96);
+    expect(stamps.length).toBe(192);
     for (const s of stamps) {
       expect(validateStickerArt(s.shapes), s.id).toEqual([]);
     }

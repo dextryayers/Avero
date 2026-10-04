@@ -44,14 +44,14 @@ describe("sticker studio catalog", () => {
       ["badges", "frames", "fx", "labels", "marks", "nature", "poster", "social"].sort(),
     );
     const counts: Record<string, number> = {
-      marks: 14,
-      badges: 12,
-      frames: 12,
-      labels: 12,
-      nature: 10,
+      marks: 26,
+      badges: 24,
+      frames: 24,
+      labels: 24,
+      nature: 26,
       fx: 24,
-      poster: 24,
-      social: 12,
+      poster: 40,
+      social: 28,
     };
     for (const c of STICKER_CATEGORIES) {
       const n = STICKER_META.filter((s) => s.category === c.id).length;

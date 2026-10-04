@@ -1,15 +1,17 @@
 import { useState } from "react";
-import { Brush, LayoutGrid, Palette, PenLine, Pipette } from "lucide-react";
+import { Brush, LayoutGrid, Palette, PenLine, Pipette, VenetianMask } from "lucide-react";
 import clsx from "clsx";
 import { BrushesView, ColourView, StrokeView, SwatchesView } from "./StudioViews";
 import ColorPanel from "./ColorPanel";
+import BgRemovePanel from "./BgRemovePanel";
 
-export type ColorDockTab = "colour" | "swatches" | "stroke" | "brushes" | "color";
+export type ColorDockTab = "colour" | "swatches" | "stroke" | "bg" | "brushes" | "color";
 
 const DOCK_TABS = [
   { id: "colour", label: "Colour", icon: Palette, hint: "Colour studio. Pick and tune the working color." },
   { id: "swatches", label: "Swatch", icon: LayoutGrid, hint: "Swatches. Save and reuse favorite colors." },
   { id: "stroke", label: "Stroke", icon: PenLine, hint: "Stroke studio. Width and style for lines and shapes." },
+  { id: "bg", label: "BG", icon: VenetianMask, hint: "Remove BG. Cut the subject out of the active photo." },
   { id: "brushes", label: "Brush", icon: Brush, hint: "Brushes. Presets with size, flow and blend options." },
   { id: "color", label: "Color", icon: Pipette, hint: "Color picker. Sample values and set foreground color." },
 ] as const;
@@ -21,7 +23,7 @@ export default function ColorDock({ onToggle, width }: { onToggle: () => void; w
   const [tab, setTabState] = useState<ColorDockTab>(() => {
     try {
       const v = localStorage.getItem("avero:dock-righttab");
-      if (v === "swatches" || v === "stroke" || v === "brushes" || v === "color") return v;
+      if (v === "swatches" || v === "stroke" || v === "bg" || v === "brushes" || v === "color") return v;
     } catch {
       /* ignore */
     }
@@ -53,7 +55,7 @@ export default function ColorDock({ onToggle, width }: { onToggle: () => void; w
           <Palette size={13} />
         </button>
       </div>
-      <div className="grid grid-cols-5 border-b border-[#2c2c31] bg-[#161618]" role="tablist" aria-label="Color studio">
+      <div className="grid grid-cols-6 border-b border-[#2c2c31] bg-[#161618]" role="tablist" aria-label="Color studio">
         {DOCK_TABS.map((t) => {
           const Icon = t.icon;
           const selected = tab === t.id;
@@ -81,6 +83,7 @@ export default function ColorDock({ onToggle, width }: { onToggle: () => void; w
         {tab === "colour" && <ColourView />}
         {tab === "swatches" && <SwatchesView />}
         {tab === "stroke" && <StrokeView />}
+        {tab === "bg" && <BgRemovePanel />}
         {tab === "brushes" && <BrushesView />}
         {tab === "color" && <ColorPanel />}
       </div>

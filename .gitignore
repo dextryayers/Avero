@@ -30,3 +30,6 @@ Cargo.lock
 *.njsproj
 *.sln
 *.sw?
+
+# Local AI model weights (large files, not committed)
+model/

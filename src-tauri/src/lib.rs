@@ -9,6 +9,7 @@ mod models;
 mod native;
 mod pro;
 mod ram;
+mod rmbg;
 pub mod segment;
 mod system;
 
@@ -83,6 +84,8 @@ pub fn run() {
             segment::cmd_segment_stuff,
             segment::cmd_segment_text,
             segment::cmd_segment_models_status,
+            rmbg::cmd_rmbg_status,
+            rmbg::cmd_rmbg_remove,
             models::cmd_model_manifest,
             models::cmd_model_status,
             models::cmd_delete_model,

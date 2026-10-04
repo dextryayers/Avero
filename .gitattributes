@@ -1,1 +1,2 @@
+# Large AI model weights via Git LFS (GitHub blocks regular files over 100MB)
 *.onnx filter=lfs diff=lfs merge=lfs -text

@@ -23,6 +23,7 @@ interface RmbgResult {
   kept_pct: number;
   removed: number;
   inverted: boolean;
+  flat_bg: boolean;
 }
 
 type BgMode = "mask" | "new";
@@ -203,8 +204,9 @@ export default function BgRemovePanel() {
       const manual = invertTouched.current;
       invertTouched.current = false;
       const oriented = res.inverted && !manual ? " · auto-oriented" : "";
+      const flat = res.flat_bg ? " · flat-page mode" : "";
       setStats(
-        `Subject ${res.kept_pct.toFixed(1)}% of frame · removed ${res.removed} speck${res.removed === 1 ? "" : "s"}${oriented} · ${(res.millis / 1000).toFixed(1)}s`,
+        `Subject ${res.kept_pct.toFixed(1)}% of frame · removed ${res.removed} speck${res.removed === 1 ? "" : "s"}${oriented}${flat} · ${(res.millis / 1000).toFixed(1)}s`,
       );
       if (mode === "mask") {
         const snap = layerManager.snapshot(id);

@@ -795,6 +795,9 @@ pub struct RmbgResult {
     pub removed: usize,
     /// True when the matte orientation was flipped (auto or forced).
     pub inverted: bool,
+    /// True when the neural matte looked backwards on a flat page and the
+    /// deterministic page-color mask took over instead.
+    pub flat_bg: bool,
 }
 
 #[tauri::command]
@@ -861,6 +864,22 @@ pub fn cmd_rmbg_remove(
     // Frontend can still re-threshold live.
     let suggested = otsu_threshold(&soft);
     let bin: Vec<u8> = soft.iter().map(|&v| if v >= suggested { 255 } else { 0 }).collect();
+    // Flat-page rescue: the neural matte owns the whole frame on uniform
+    // pages (logo on white) instead of the subject. A page-color mask is
+    // exact there, so it takes over; good photo mattes never trip the gate
+    // and flow through untouched.
+    let mut flat_bg = false;
+    let bin = if border_fg_ratio(&bin, mw, mh) > 0.5 {
+        match page_color_if_uniform(&rgba, w as usize, h as usize) {
+            Some(page) => {
+                flat_bg = true;
+                flat_bg_mask(&rgba, w as usize, h as usize, page, 32.0, mw, mh)
+            }
+            None => bin,
+        }
+    } else {
+        bin
+    };
     let bridged = close_small_gaps(&bin, mw, mh);
     let (mut matte, auto_flipped) = match invert {
         Some(true) => (invert_mask(&bridged), true),
@@ -911,6 +930,7 @@ pub fn cmd_rmbg_remove(
         kept_pct,
         removed: dropped,
         inverted,
+        flat_bg,
     })
 }
 
@@ -1102,5 +1122,36 @@ mod tests {
         let (t, d) = drop_bg_colored_border(&bin, s, s, &rgba, s, s, 24.0);
         assert_eq!(d, 0);
         assert_eq!(t.iter().filter(|&&v| v != 0).count(), s * s);
+    }
+
+    #[test]
+    fn flat_page_helpers_behave() {
+        // Uniform page with a dark rect: page color detected, mask
+        // keeps exactly the rect.
+        let s = 48usize;
+        let mut rgba = vec![253u8; s * s * 4];
+        for y in 18..32 {
+            for x in 18..32 {
+                let p = (y * s + x) * 4;
+                rgba[p] = 20;
+                rgba[p + 1] = 30;
+                rgba[p + 2] = 60;
+            }
+        }
+        let page = page_color_if_uniform(&rgba, s, s).expect("uniform page");
+        assert!(page[0] > 240.0);
+        let m = flat_bg_mask(&rgba, s, s, page, 32.0, s, s);
+        assert_eq!(m.iter().filter(|&&v| v != 0).count(), 196);
+        // Half-dark frame is not a flat page.
+        for y in 0..s {
+            for x in 0..24 {
+                let p = (y * s + x) * 4;
+                rgba[p] = 10;
+                rgba[p + 1] = 10;
+                rgba[p + 2] = 10;
+            }
+        }
+        assert_eq!(page_color_if_uniform(&rgba, s, s), None);
+        assert_eq!(page_color_if_uniform(&[], 0, 0), None);
     }
 }

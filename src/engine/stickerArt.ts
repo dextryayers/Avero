@@ -621,11 +621,11 @@ export const STICKER_V2: StickerArtSpec[] = [
   ]),
   spec("sticker-butterfly", "Ruler", "labels", [
     L(16, 50, 84, 50, 5),
-    L(28, 44, 28, 56, 4),
-    L(40, 44, 40, 56, 4),
-    L(52, 44, 52, 56, 4),
-    L(64, 44, 64, 56, 4),
-    L(76, 44, 76, 56, 4),
+    L(26, 44, 26, 56, 4),
+    L(38, 44, 38, 56, 4),
+    L(50, 44, 50, 56, 4),
+    L(62, 44, 62, 56, 4),
+    L(74, 44, 74, 56, 4),
   ]),
   spec("sticker-ladybug", "North Arrow", "labels", [
     { op: "ring", cx: 50, cy: 52, r: 28, w: 6 },

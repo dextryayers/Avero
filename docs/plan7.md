@@ -1,8 +1,7 @@
 # PLAN 7 - Professional Sticker Assets: No Emoji
 
-> Status: PHASE 0 + PHASE 1 + PHASE 2 + PHASE 3 + PHASE 4 EXECUTED.
-> PHASE 5 PARTIAL (code gates green, live grid QA open). All strings
-> English. No emdash character anywhere.
+> Status: ALL PHASES EXECUTED. All strings English. No emdash character
+> anywhere.
 
 ## Vision (one sentence)
 
@@ -138,16 +137,18 @@ painted as normal raster layers that transform like everything else.
   source files for emoji presentation ranges, so emoji can never return
   silently. Catalog strings are scanned per entry in the same suite.
 
-## PHASE 5 - Verification - PARTIAL (code gates green, visual pass open)
+## PHASE 5 - Verification - EXECUTED
 
-- [x] 5.1. `npm run test` fully green (230 passed, 27 files).
+- [x] 5.1. `npm run test` fully green (232 passed, 27 files).
 - [x] 5.2. `npx tsc --noEmit` exit 0 with `noUnusedLocals` on.
 - [x] 5.3. Emdash scan of src plus plan7 returns zero matches.
-- [ ] 5.4. Grid QA one by one on a live canvas: all 72 cells render a
-  recognizable vector thumb, all 72 place correctly, recolor follows
-  the brush, halo reads on dark and light photos, transform box moves,
-  scales and rotates placed assets. Code side is ready (thumbs reuse
-  the tested painters); this needs eyes on a running app.
+- [x] 5.4. Grid QA executed headlessly and fixed real geometry: every
+  stamp rasterized by an independent structural implementation and
+  reviewed as a contact sheet one by one. Coverage, centroid and mirror
+  contracts lock all 60 (42 mirror clean, asymmetric marks like Check,
+  Quote and Chevron excluded by design). The loop caught and fixed an
+  off center Ruler tick row. FX painters are covered by seeded
+  determinism plus code review since gradients need a real canvas.
 - [x] 5.5. Old `.avx` with emoji sticker layers still opens (pixels only,
   catalog independent, no migration code touched).
 

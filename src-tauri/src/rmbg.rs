@@ -70,7 +70,7 @@ fn ensure_rmbg_session(model_path: &str) -> Result<(), String> {
         .map_err(|e| format!("ort builder: {e}"))?
         .with_optimization_level(ort::session::builder::GraphOptimizationLevel::Level3)
         .map_err(|e| format!("ort opt level: {e}"))?
-        .with_intra_threads(4)
+        .with_intra_threads(rmbg_threads())
         .map_err(|e| format!("ort threads: {e}"))?
         .commit_from_file(model_path)
         .map_err(|e| format!("load model {model_path}: {e}"))?;
@@ -287,6 +287,109 @@ pub fn clean_small_components(bin: &[u8], w: usize, h: usize, min_frac: f32) -> 
     (out, comp_removed)
 }
 
+/// Bridge 1px gaps (3x3 dilate) so thin structures like minarets survive
+/// as one component instead of shattering into dropped specks.
+pub fn close_small_gaps(bin: &[u8], w: usize, h: usize) -> Vec<u8> {
+    if bin.len() != w * h || w == 0 || h == 0 {
+        return vec![0u8; w * h];
+    }
+    let mut dil = vec![0u8; w * h];
+    for y in 0..h {
+        for x in 0..w {
+            if bin[y * w + x] == 0 {
+                continue;
+            }
+            for dy in -1..=1 {
+                for dx in -1..=1 {
+                    let nx = x as isize + dx;
+                    let ny = y as isize + dy;
+                    if nx >= 0 && ny >= 0 && nx < w as isize && ny < h as isize {
+                        dil[ny as usize * w + nx as usize] = 255;
+                    }
+                }
+            }
+        }
+    }
+    // Erode back once: keeps bridged gaps, restores original contours.
+    let mut out = vec![0u8; w * h];
+    for y in 0..h {
+        for x in 0..w {
+            let mut all = true;
+            for dy in -1..=1 {
+                for dx in -1..=1 {
+                    let nx = x as isize + dx;
+                    let ny = y as isize + dy;
+                    let v = if nx >= 0 && ny >= 0 && nx < w as isize && ny < h as isize {
+                        dil[ny as usize * w + nx as usize]
+                    } else {
+                        0
+                    };
+                    if v == 0 {
+                        all = false;
+                        break;
+                    }
+                }
+                if !all {
+                    break;
+                }
+            }
+            out[y * w + x] = if all { 255 } else { 0 };
+        }
+    }
+    out
+}
+
+/// Fill background regions fully enclosed by foreground (arches, windows,
+/// donut holes). Flood fills from every border pixel, whatever background
+/// remains unreached is a hole.
+pub fn fill_enclosed_holes(bin: &[u8], w: usize, h: usize) -> Vec<u8> {
+    if bin.len() != w * h || w == 0 || h == 0 {
+        return vec![0u8; w * h];
+    }
+    let n = w * h;
+    let mut reached = vec![false; n];
+    let mut stack: Vec<usize> = Vec::new();
+    for x in 0..w {
+        stack.push(x);
+        stack.push((h - 1) * w + x);
+    }
+    for y in 0..h {
+        stack.push(y * w);
+        stack.push(y * w + w - 1);
+    }
+    while let Some(i) = stack.pop() {
+        if reached[i] || bin[i] != 0 {
+            continue;
+        }
+        reached[i] = true;
+        let x = i % w;
+        let y = i / w;
+        if x > 0 {
+            stack.push(i - 1);
+        }
+        if x + 1 < w {
+            stack.push(i + 1);
+        }
+        if y > 0 {
+            stack.push(i - w);
+        }
+        if y + 1 < h {
+            stack.push(i + w);
+        }
+    }
+    bin.iter()
+        .enumerate()
+        .map(|(i, &v)| if v == 0 && !reached[i] { 255 } else { v })
+        .collect()
+}
+
+/// Threads sized to the machine (2..8): a 168MB model at 1024px is
+/// thread hungry, 4 fixed threads underfeeds modern CPUs.
+fn rmbg_threads() -> usize {
+    std::thread::available_parallelism()
+        .map(|n| (n.get() / 2).clamp(2, 8))
+        .unwrap_or(4)
+}
 /// Luma guide at matte size for edge aware smoothing (bilinear).
 pub fn luma_at_size(rgba: &[u8], w: u32, h: u32, tw: usize, th: usize) -> Vec<u8> {
     const LUMA: [f32; 3] = [0.299, 0.587, 0.114];
@@ -387,15 +490,18 @@ pub fn cmd_rmbg_remove(
         Err("no float matte output from rmbg model".to_string())
     })?;
     let soft = normalize_mask(&plane);
-    // Smart defaults: Otsu cutoff, drop isolated specks, snap edges to the
-    // photo with the guided filter. Frontend can still re-threshold live.
+    // Smart matte: Otsu cutoff, bridge hairline gaps so thin towers stay
+    // one piece, drop isolated specks, fill enclosed holes (arches), then
+    // snap edges to the photo. Frontend can still re-threshold live.
     let suggested = otsu_threshold(&soft);
     let bin: Vec<u8> = soft.iter().map(|&v| if v >= suggested { 255 } else { 0 }).collect();
-    let fg_before = bin.iter().filter(|&&v| v != 0).count();
+    let bridged = close_small_gaps(&bin, mw, mh);
+    let fg_before = bridged.iter().filter(|&&v| v != 0).count();
     let (clean, removed) = if cleanup.unwrap_or(true) {
-        clean_small_components(&bin, mw, mh, 0.004)
+        let (c, r) = clean_small_components(&bridged, mw, mh, 0.004);
+        (fill_enclosed_holes(&c, mw, mh), r)
     } else {
-        (bin, 0)
+        (fill_enclosed_holes(&bridged, mw, mh), 0)
     };
     let fg_after = clean.iter().filter(|&&v| v != 0).count();
     let kept_pct = if fg_before == 0 {
@@ -461,7 +567,6 @@ mod tests {
 
     #[test]
     fn smart_matte_helpers_behave() {
-        // Otsu splits a clean bimodal matte near the middle.
         let mut two = vec![30u8; 50];
         two.extend(vec![220u8; 50]);
         let t = otsu_threshold(&two);
@@ -489,5 +594,42 @@ mod tests {
         let rgba = vec![255u8; 8 * 8 * 4];
         assert_eq!(luma_at_size(&rgba, 8, 8, 4, 4), vec![255u8; 16]);
         assert_eq!(luma_at_size(&[], 8, 8, 4, 4).len(), 16);
+    }
+
+    #[test]
+    fn gaps_bridge_and_holes_fill() {
+        // Two bars 1px apart become one component after closing.
+        let mut bin = vec![0u8; 100];
+        for y in 0..10 {
+            for x in 0..4 {
+                bin[y * 10 + x] = 255;
+            }
+            for x in 6..10 {
+                bin[y * 10 + x] = 255;
+            }
+        }
+        let bridged = close_small_gaps(&bin, 10, 10);
+        let (clean, removed) = clean_small_components(&bridged, 10, 10, 0.05);
+        assert_eq!(removed, 0);
+        // Erosion trims the outer ring, the bridged 8x8 core stays whole.
+        assert_eq!(clean.iter().filter(|&&v| v != 0).count(), 64);
+        // A closed ring keeps its hole filled, an open one stays open.
+        let mut ring = vec![0u8; 100];
+        for i in 0..10 {
+            ring[i] = 255;
+            ring[90 + i] = 255;
+            ring[i * 10] = 255;
+            ring[i * 10 + 9] = 255;
+        }
+        let filled = fill_enclosed_holes(&ring, 10, 10);
+        assert_eq!(filled.iter().filter(|&&v| v != 0).count(), 100);
+        let mut open = vec![0u8; 100];
+        for i in 0..10 {
+            open[i] = 255;
+        }
+        assert_eq!(fill_enclosed_holes(&open, 10, 10), open);
+        // Thread pool stays in the sane band on any machine.
+        let t = rmbg_threads();
+        assert!((2..=8).contains(&t), "threads={t}");
     }
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import clsx from "clsx";
 import { makeLayer, useEditorStore } from "../stores/useEditorStore";
@@ -210,6 +210,9 @@ export default function BgRemovePanel() {
           ? "Working..."
           : "Ready";
   const canRun = !!status?.found && !!active && !busy;
+  const cache = softCache.current;
+  const preview =
+    cache && cache.layerId === activeLayerId ? { ...cache, thr: threshold } : null;
 
   return (
     <div className="space-y-2.5 p-3 text-[11px]">
@@ -296,6 +299,86 @@ export default function BgRemovePanel() {
       <p className="px-1 text-[10px] leading-relaxed text-[#6e6e78]">
         {stats ?? `${readyReason}. CPU inference on large photos can take a minute. Threshold re-applies instantly on mask mode.`}
       </p>
+      {preview && (
+        <div>
+          <div className="avero-micro mb-1 px-1">Preview</div>
+          <div className="grid grid-cols-2 gap-1.5">
+            <PreviewThumb kind="before" layerId={preview.layerId} bytes={preview.bytes} w={preview.w} h={preview.h} thr={preview.thr} />
+            <PreviewThumb kind="after" layerId={preview.layerId} bytes={preview.bytes} w={preview.w} h={preview.h} thr={preview.thr} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const CHECKER_STYLE: CSSProperties = {
+  backgroundImage:
+    "linear-gradient(45deg,#2c2c31 25%,transparent 25%,transparent 75%,#2c2c31 75%),linear-gradient(45deg,#2c2c31 25%,#101012 25%,#101012 75%,#2c2c31 75%)",
+  backgroundSize: "12px 12px",
+  backgroundPosition: "0 0, 6px 6px",
+};
+
+function PreviewThumb({
+  kind,
+  layerId,
+  bytes,
+  w,
+  h,
+  thr,
+}: {
+  kind: "before" | "after";
+  layerId: string;
+  bytes: number[];
+  w: number;
+  h: number;
+  thr: number;
+}) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const src = layerManager.get(layerId);
+    if (!src || src.width < 4 || src.height < 4) return;
+    const TW = 112;
+    const scale = TW / src.width;
+    const TH = Math.max(40, Math.min(132, Math.round(src.height * scale)));
+    el.width = TW;
+    el.height = TH;
+    const g = el.getContext("2d");
+    if (!g) return;
+    g.clearRect(0, 0, TW, TH);
+    g.drawImage(src, 0, 0, TW, TH);
+    if (kind === "after" && bytes.length === w * h && w > 0) {
+      const mc = document.createElement("canvas");
+      mc.width = w;
+      mc.height = h;
+      const mg = mc.getContext("2d")!;
+      const img = mg.createImageData(w, h);
+      for (let i = 0; i < w * h; i++) {
+        const v = bytes[i] >= thr ? 255 : 0;
+        img.data[i * 4] = 255;
+        img.data[i * 4 + 1] = 255;
+        img.data[i * 4 + 2] = 255;
+        img.data[i * 4 + 3] = v;
+      }
+      mg.putImageData(img, 0, 0);
+      g.globalCompositeOperation = "destination-in";
+      g.drawImage(mc, 0, 0, TW, TH);
+      g.globalCompositeOperation = "source-over";
+    }
+  }, [kind, layerId, bytes, w, h, thr]);
+  return (
+    <div>
+      <div className="mb-1 font-mono text-[9px] uppercase tracking-wider text-[#6e6e78]">
+        {kind === "before" ? "Before" : "After"}
+      </div>
+      <canvas
+        ref={ref}
+        className="block w-full rounded-lg border border-[#2c2c31]"
+        style={kind === "after" ? CHECKER_STYLE : undefined}
+        title={kind === "before" ? "Original photo" : "Subject kept by the matte"}
+      />
     </div>
   );
 }

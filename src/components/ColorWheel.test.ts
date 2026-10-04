@@ -76,6 +76,19 @@ describe("colour math (studio Colour tab)", () => {
     expect(c.v).toBeCloseTo(2 / 3, 2);
   });
 
+  it("triangle is exactly centered in the widget", () => {
+    for (const size of [120, 172, 184, 240]) {
+      const v = triVertices(size, 70);
+      const cx = (v.ex + v.wx + v.bx) / 3;
+      const cy = (v.ey + v.wy + v.by) / 3;
+      expect(cx).toBeCloseTo(size / 2, 5);
+      expect(cy).toBeCloseTo(size / 2, 5);
+      expect(v.ey).toBeCloseTo(size / 2, 5);
+      expect(v.wx).toBeCloseTo(v.bx, 5);
+      expect(v.wy + v.by).toBeCloseTo(size, 5);
+    }
+  });
+
   it("triangle clamps outside points and round-trips", () => {
     const v = triVertices(184, 70);
     const far = triSV(-500, -500, v);

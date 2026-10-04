@@ -200,7 +200,8 @@ premium, elegant, professional, smart, complete.
   pattern as the existing dock tab persistence.
 - [x] 4.7. Colour premium: hue ring kept, saturation square replaced by a
   modern right facing SV triangle (pure hue apex east, white north west,
-  black south west, barycentric math unit tested). RGB fields join HSL,
+  black south west, barycentric math unit tested, centroid locked to the
+  widget center with a crisp outline, letter free harmony chips). RGB fields join HSL,
   harmony chips (complement, two analogous, two triadic) paint on click,
   swatches gain 4 curated professional sets (Essentials, Skin tones, Neon,
   Pastel, 32 chips) above user swatches.
@@ -304,8 +305,8 @@ Rust lab kernel, never as a frontend dependency.
 
 ## PHASE 6 - Verification - EXECUTED
 
-- [x] 6.1. `npm run test` fully green (208 passed, 25 files, up from 203
-  plus 25 with the color triangle contracts).
+- [x] 6.1. `npm run test` fully green (209 passed, 25 files, up from 208
+  plus 25 with the triangle centering lock).
 - [x] 6.2. `npx tsc --noEmit` exit 0 with `noUnusedLocals` on.
 - [x] 6.3. Emdash and endash scan of src plus plan6 returns zero matches.
 - [x] 6.4. Interaction coverage executed statically instead of by hand

@@ -138,15 +138,13 @@ export function ColourView() {
         <div className="flex items-center gap-1.5">
           {harmony.map((hc) => (
             <button
-              key={hc.label}
+              key={`${hc.label}-${hc.hex}`}
               onClick={() => setBrush({ color: hc.hex })}
               title={`${hc.title} ${hc.hex} - click to paint with it`}
               aria-label={`Paint with ${hc.title} ${hc.hex}`}
-              className="avero-lift flex h-7 flex-1 flex-col items-center justify-center gap-0 rounded-lg ring-1 ring-white/15 transition-all hover:scale-105 hover:ring-2 hover:ring-white/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#2f7cf6]"
+              className="avero-lift h-6 flex-1 rounded-lg ring-1 ring-white/15 transition-all hover:scale-105 hover:ring-2 hover:ring-white/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#2f7cf6]"
               style={{ backgroundColor: hc.hex }}
-            >
-              <span className="rounded bg-black/45 px-1 font-mono text-[9px] font-semibold text-white">{hc.label}</span>
-            </button>
+            />
           ))}
         </div>
       </div>
@@ -164,7 +162,7 @@ export function ColourView() {
                 onClick={() => setBrush({ color: c })}
                 title={`${c} - click to paint with it`}
                 aria-label={`Paint with ${c}`}
-                className={`h-5 rounded-md ring-1 transition-all hover:scale-110 hover:ring-2 hover:ring-white/60 ${
+                className={`h-6 rounded-md ring-1 transition-all hover:scale-110 hover:ring-2 hover:ring-white/60 ${
                   c.toLowerCase() === brushColor.toLowerCase() ? "ring-2 ring-[#2f7cf6]" : "ring-white/15"
                 }`}
                 style={{ backgroundColor: c }}

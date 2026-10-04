@@ -221,6 +221,18 @@ export default function ColorWheel({ size = 172 }: { size?: number }) {
       }
     }
     ctx.putImageData(img, 0, 0);
+    // Crisp 1px outline so the triangle edges read clean and exactly
+    // centered against the dark widget background.
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(v.ex, v.ey);
+    ctx.lineTo(v.wx, v.wy);
+    ctx.lineTo(v.bx, v.by);
+    ctx.closePath();
+    ctx.strokeStyle = "rgba(255,255,255,0.22)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
     //eslint-disable-next-line react-hooks/exhaustive-deps
   }, [h, size]);
 

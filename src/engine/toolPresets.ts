@@ -697,6 +697,22 @@ export function isPaintTool(t: ToolId): boolean {
   return PAINT_TOOLS.has(t);
 }
 
+// One item per layer (plan6): deposit-only brush presets open a fresh
+// transparent layer per stroke, so every stroke stays separately selectable,
+// movable and resizable. Sampling and tonal tools stay on the active layer
+// by design and are listed here: color-replacement reads destination hue,
+// mixer-brush, brush-wet, art-oil and art-smear mix or drag destination
+// pixels. Separating those would silently break their function.
+export const STAY_ON_LAYER_TOOLS = new Set<ToolId>([
+  "color-replacement",
+  "mixer-brush",
+  "brush-wet",
+  "art-oil",
+  "art-smear",
+]);
+
+export const FRESH_STROKE_TOOLS: Set<ToolId> = new Set([...PAINT_TOOLS].filter((t) => !STAY_ON_LAYER_TOOLS.has(t)));
+
 export function retouchModeOf(t: ToolId): RetouchMode | null {
   return RETOUCH_MAP[t] ?? null;
 }

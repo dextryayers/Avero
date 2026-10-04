@@ -202,6 +202,49 @@ export function drawLassoSelection(w: number, h: number, points: { x: number; y:
   });
 }
 
+export interface CrossBars {
+  vx: number;
+  vy: number;
+  vw: number;
+  vh: number;
+  hx: number;
+  hy: number;
+  hw: number;
+  hh: number;
+}
+
+/**
+ * Plus geometry for the crosshair marquee: full-span bars centered on the
+ * rect, so the selected shape matches the crosshair function and icon.
+ * Arm thickness scales with the smaller side, minimum 3px. Pure math,
+ * unit tested; callers pass normalized x, y with positive w, h.
+ */
+export function crossBars(x: number, y: number, w: number, h: number): CrossBars {
+  const t = Math.max(3, Math.round(Math.min(w, h) / 5));
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  return {
+    vx: Math.round(cx - t / 2),
+    vy: Math.round(y),
+    vw: t,
+    vh: Math.round(h),
+    hx: Math.round(x),
+    hy: Math.round(cy - t / 2),
+    hw: Math.round(w),
+    hh: t,
+  };
+}
+
+export function drawCrossSelection(w: number, h: number, r: RectSel, mode: SelCombineMode = "new") {
+  withMode(w, h, mode, (ctx) => {
+    const x = Math.min(r.x, r.x + r.w);
+    const y = Math.min(r.y, r.y + r.h);
+    const b = crossBars(x, y, Math.abs(r.w), Math.abs(r.h));
+    ctx.fillRect(b.vx, b.vy, b.vw, b.vh);
+    ctx.fillRect(b.hx, b.hy, b.hw, b.hh);
+  });
+}
+
 // Color Range: select ALL pixels similar to a hex color (global, not flood).
 export function colorRangeSelection(w: number, h: number, img: ImageData, hex: string, tolerance: number, mode: SelCombineMode = "new") {
   const r0 = parseInt(hex.slice(1, 3), 16);

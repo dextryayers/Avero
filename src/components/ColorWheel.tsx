@@ -56,24 +56,119 @@ export function hslToRgb(h: number, s: number, l: number): [number, number, numb
   return [Math.round(chan(hn + 1 / 3) * 255), Math.round(chan(hn) * 255), Math.round(chan(hn - 1 / 3) * 255)];
 }
 
-// Affinity-style colour wheel: hue ring outside, saturation/lightness square
-// inside. Writes the shared brush color live; markers follow brushColor.
+export function hsvToRgb(h: number, s: number, v: number): [number, number, number] {
+  const hn = (((h % 360) + 360) % 360) / 360;
+  const sn = Math.max(0, Math.min(1, s / 100));
+  const vn = Math.max(0, Math.min(1, v / 100));
+  const i = Math.floor(hn * 6);
+  const f = hn * 6 - i;
+  const p = vn * (1 - sn);
+  const q = vn * (1 - f * sn);
+  const t = vn * (1 - (1 - f) * sn);
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  switch (i % 6) {
+    case 0: r = vn; g = t; b = p; break;
+    case 1: r = q; g = vn; b = p; break;
+    case 2: r = p; g = vn; b = t; break;
+    case 3: r = p; g = q; b = vn; break;
+    case 4: r = t; g = p; b = vn; break;
+    default: r = vn; g = p; b = q; break;
+  }
+  return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+}
+
+export function rgbToHsv(r: number, g: number, b: number): [number, number, number] {
+  const rn = r / 255;
+  const gn = g / 255;
+  const bn = b / 255;
+  const mx = Math.max(rn, gn, bn);
+  const mn = Math.min(rn, gn, bn);
+  const d = mx - mn;
+  let h = 0;
+  if (d !== 0) {
+    if (mx === rn) h = ((gn - bn) / d) % 6;
+    else if (mx === gn) h = (bn - rn) / d + 2;
+    else h = (rn - gn) / d + 4;
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+  const s = mx === 0 ? 0 : d / mx;
+  return [Math.round(h) % 360, Math.round(s * 100), Math.round(mx * 100)];
+}
+
+export interface TriVertices {
+  ex: number;
+  ey: number;
+  wx: number;
+  wy: number;
+  bx: number;
+  by: number;
+}
+
+/** Right facing SV triangle vertices for a widget of side `size`: apex east
+ * carries pure hue, top west is white, bottom west is black. */
+export function triVertices(size: number, radius: number): TriVertices {
+  const cx = size / 2;
+  const cy = size / 2;
+  const h = (radius * Math.sqrt(3)) / 2;
+  return { ex: cx + radius, ey: cy, wx: cx - radius / 2, wy: cy - h, bx: cx - radius / 2, by: cy + h };
+}
+
+/** Barycentric weights (apex, white, black) for a point, clamped inside. */
+export function triWeights(px: number, py: number, v: TriVertices): [number, number, number] {
+  const d = (v.wy - v.by) * (v.ex - v.bx) + (v.bx - v.wx) * (v.ey - v.by);
+  if (d === 0) return [0, 0, 1];
+  let wE = ((v.wy - v.by) * (px - v.bx) + (v.bx - v.wx) * (py - v.by)) / d;
+  let wW = ((v.by - v.ey) * (px - v.bx) + (v.ex - v.bx) * (py - v.by)) / d;
+  let wB = 1 - wE - wW;
+  wE = Math.max(0, wE);
+  wW = Math.max(0, wW);
+  wB = Math.max(0, wB);
+  const sum = wE + wW + wB || 1;
+  return [wE / sum, wW / sum, wB / sum];
+}
+
+/** SV fractions (0..1) for a widget point inside the triangle. */
+export function triSV(px: number, py: number, v: TriVertices): { s: number; v: number } {
+  const [wE, wW] = triWeights(px, py, v);
+  const vv = Math.max(0, Math.min(1, wE + wW));
+  const ss = vv <= 1e-6 ? 0 : Math.max(0, Math.min(1, wE / vv));
+  return { s: ss, v: vv };
+}
+
+/** Widget point for SV fractions inside the triangle. */
+export function triPoint(s: number, v: TriVertices, vv: number): { x: number; y: number } {
+  const sc = Math.max(0, Math.min(1, s));
+  const vc = Math.max(0, Math.min(1, vv));
+  const wE = sc * vc;
+  const wW = (1 - sc) * vc;
+  const wB = 1 - vc;
+  return {
+    x: wE * v.ex + wW * v.wx + wB * v.bx,
+    y: wE * v.ey + wW * v.wy + wB * v.by,
+  };
+}
+
+// Affinity-style colour wheel: hue ring outside, modern right facing SV
+// triangle inside. Writes the shared brush color live; markers follow brushColor.
 export default function ColorWheel({ size = 172 }: { size?: number }) {
   const brushColor = useEditorStore((s) => s.brushColor);
   const setBrush = useEditorStore((s) => s.setBrush);
   const ringRef = useRef<HTMLCanvasElement>(null);
-  const boxRef = useRef<HTMLCanvasElement>(null);
-  const dragMode = useRef<"hue" | "sl" | null>(null);
+  const triRef = useRef<HTMLCanvasElement>(null);
+  const dragMode = useRef<"hue" | "sv" | null>(null);
 
   const [r, g, b] = hexToRgb(brushColor);
   const [h, s, l] = rgbToHsl(r, g, b);
+  const [hs, ss, vs] = rgbToHsv(r, g, b);
 
   const ringOuter = size / 2;
   const ringWidth = Math.max(12, size * 0.09);
   const ringInner = ringOuter - ringWidth;
-  const boxSide = Math.floor(ringInner * Math.SQRT2);
-  const boxX = (size - boxSide) / 2;
-  const boxY = (size - boxSide) / 2;
+  const triR = Math.max(24, ringInner - 6);
+  const tri = triVertices(size, triR);
 
   // Paint the hue ring once (hue-independent).
   useEffect(() => {
@@ -96,21 +191,29 @@ export default function ColorWheel({ size = 172 }: { size?: number }) {
     //eslint-disable-next-line react-hooks/exhaustive-deps
   }, [size]);
 
-  // Paint the SL square whenever hue changes.
+  // Paint the SV triangle whenever hue changes. Pixels outside the
+  // triangle stay transparent so the dark widget shows through.
   useEffect(() => {
-    const c = boxRef.current;
+    const c = triRef.current;
     if (!c) return;
-    c.width = boxSide;
-    c.height = boxSide;
+    c.width = size;
+    c.height = size;
     const ctx = c.getContext("2d");
     if (!ctx) return;
-    const img = ctx.createImageData(boxSide, boxSide);
-    for (let yy = 0; yy < boxSide; yy++) {
-      for (let xx = 0; xx < boxSide; xx++) {
-        const ss = (xx / Math.max(1, boxSide - 1)) * 100;
-        const ll = 100 - (yy / Math.max(1, boxSide - 1)) * 100;
-        const [rr, gg, bb] = hslToRgb(h, ss, ll);
-        const idx = (yy * boxSide + xx) * 4;
+    const v = triVertices(size, Math.max(24, size / 2 - Math.max(12, size * 0.09) - 6));
+    const img = ctx.createImageData(size, size);
+    const minX = Math.max(0, Math.floor(Math.min(v.ex, v.wx, v.bx)));
+    const maxX = Math.min(size - 1, Math.ceil(Math.max(v.ex, v.wx, v.bx)));
+    const minY = Math.max(0, Math.floor(Math.min(v.ey, v.wy, v.by)));
+    const maxY = Math.min(size - 1, Math.ceil(Math.max(v.ey, v.wy, v.by)));
+    for (let yy = minY; yy <= maxY; yy++) {
+      for (let xx = minX; xx <= maxX; xx++) {
+        const [wE, wW, wB] = triWeights(xx + 0.5, yy + 0.5, v);
+        if (wE <= 0 && wW <= 0) continue;
+        const vv = wE + wW;
+        const ss = vv <= 1e-6 ? 0 : wE / vv;
+        const [rr, gg, bb] = hsvToRgb(h, ss * 100, vv * 100);
+        const idx = (yy * size + xx) * 4;
         img.data[idx] = rr;
         img.data[idx + 1] = gg;
         img.data[idx + 2] = bb;
@@ -119,9 +222,9 @@ export default function ColorWheel({ size = 172 }: { size?: number }) {
     }
     ctx.putImageData(img, 0, 0);
     //eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [h, boxSide]);
+  }, [h, size]);
 
-  const pickAt = (clientX: number, clientY: number, el: HTMLCanvasElement, mode: "hue" | "sl") => {
+  const pickAt = (clientX: number, clientY: number, el: HTMLCanvasElement, mode: "hue" | "sv") => {
     const rect = el.getBoundingClientRect();
     if (mode === "hue") {
       // Ring canvas spans the whole widget: coordinates are widget pixels.
@@ -133,13 +236,13 @@ export default function ColorWheel({ size = 172 }: { size?: number }) {
       const [nr, ng, nb] = hslToRgb(nh, s, l);
       setBrush({ color: rgbToHex(nr, ng, nb) });
     } else {
-      // Box canvas is exactly the SL square: coordinates are box pixels.
-      const scale = boxSide / Math.max(1, rect.width);
+      // Triangle canvas spans the whole widget: coordinates are widget pixels.
+      const scale = size / Math.max(1, rect.width);
       const px = (clientX - rect.left) * scale;
       const py = (clientY - rect.top) * scale;
-      const ns = Math.max(0, Math.min(100, Math.round((px / Math.max(1, boxSide - 1)) * 100)));
-      const nl = Math.max(0, Math.min(100, Math.round(100 - (py / Math.max(1, boxSide - 1)) * 100)));
-      const [nr, ng, nb] = hslToRgb(h, ns, nl);
+      const v = triVertices(size, triR);
+      const { s: ns, v: nv } = triSV(px, py, v);
+      const [nr, ng, nb] = hsvToRgb(h, ns * 100, nv * 100);
       setBrush({ color: rgbToHex(nr, ng, nb) });
     }
   };
@@ -147,8 +250,7 @@ export default function ColorWheel({ size = 172 }: { size?: number }) {
   const hueAng = (((h + 90) % 360) * Math.PI) / 180;
   const hueX = size / 2 + Math.cos(hueAng) * ((ringOuter + ringInner) / 2);
   const hueY = size / 2 + Math.sin(hueAng) * ((ringOuter + ringInner) / 2);
-  const slX = boxX + (s / 100) * (boxSide - 1);
-  const slY = boxY + (1 - l / 100) * (boxSide - 1);
+  const svPt = triPoint(ss / 100, tri, vs / 100);
 
   return (
     <div

@@ -605,6 +605,10 @@ export interface HistoryEntry {
   // Captured at undo time: the canvas AFTER the stroke, so redo can repaint.
   redoSnapshot?: ImageData | null;
   maskRedoSnapshot?: ImageData | null;
+  // One item per layer (plan6): the stroke opened this fresh layer, so undo
+  // removes the layer and redo recreates it from the stored spec.
+  createdLayerId?: string;
+  createdLayer?: { name: string; kind: LayerMeta["kind"]; opacity: number; blendMode: string };
   time: number;
 }
 

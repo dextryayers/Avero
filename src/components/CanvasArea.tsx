@@ -7,6 +7,8 @@ import { fitZoom } from "../engine/canvasMath";
 import {
   clearSelectionMask,
   colorRangeSelection,
+  crossBars,
+  drawCrossSelection,
   drawEllipseSelection,
   drawLassoSelection,
   drawRectSelection,
@@ -30,6 +32,7 @@ import {
   CROP_OVERLAY_TOOLS,
   CROP_RATIOS,
   ERASER_TOOLS,
+  FRESH_STROKE_TOOLS,
   IS_CROP_TOOL,
   IS_SELECTION_TOOL,
   IS_SHAPE_TOOL,
@@ -309,6 +312,10 @@ export default function CanvasArea() {
   const cloneHintShown = useRef(false);
   const healHintShown = useRef(false);
   const lastPaintRef = useRef<string | null>(null);
+  // Stroke target for the active paint gesture: the exact layer id resolved
+  // on mousedown (fresh stroke layer or eraser retarget). Mousemove paints
+  // through this ref so dabs never land on a stale closure layer.
+  const strokeLayerRef = useRef<string | null>(null);
   const [penDrag, setPenDrag] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
   const [shapeDrag, setShapeDrag] = useState<{ x0: number; y0: number; x1: number; y1: number; kind: string } | null>(null);
   const [sliceDrag, setSliceDrag] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
@@ -965,7 +972,13 @@ export default function CanvasArea() {
       ctx.setLineDash([6, 4]);
       ctx.lineDashOffset = -ants;
       ctx.strokeStyle = "#fff";
-      ctx.strokeRect(x, y, wpx, hpx);
+      if ((tool as string) === "select-crosshair") {
+        const b = crossBars(Math.min(rx0, rx1), Math.min(ry0, ry1), Math.abs(rx1 - rx0), Math.abs(ry1 - ry0));
+        ctx.strokeRect(ox + b.vx * s, oy + b.vy * s, b.vw * s, b.vh * s);
+        ctx.strokeRect(ox + b.hx * s, oy + b.hy * s, b.hw * s, b.hh * s);
+      } else {
+        ctx.strokeRect(x, y, wpx, hpx);
+      }
       ctx.restore();
     }
     if (lassoPts.length > 1) {
@@ -1563,9 +1576,9 @@ export default function CanvasArea() {
     }
     if (curTool === "pattern-stamp" || curTool === "texture-stamp" || curTool === "art-canvas" || curTool === "pattern-dots") {
       ctx.restore();
-      if (curTool === "pattern-dots") patternStampTo(x, y, "dots");
-      else if (curTool === "pattern-stamp") patternStampTo(x, y, useProStore.getState().patternMotif);
-      else patternStampTo(x, y, "checker");
+      if (curTool === "pattern-dots") patternStampTo(x, y, "dots", aid);
+      else if (curTool === "pattern-stamp") patternStampTo(x, y, useProStore.getState().patternMotif, aid);
+      else patternStampTo(x, y, "checker", aid);
       return;
     }
     if (
@@ -1586,7 +1599,7 @@ export default function CanvasArea() {
       const sp0 = brushSprite(brushSize, Math.max(50, brushHardness), brushColor);
       stampLine(ctx, sp0, brushSize, last.x, last.y, x, y, true);
       ctx.restore();
-      retouchTo(x, y, "posterize");
+      retouchTo(x, y, "posterize", aid);
       return;
     }
     // Plan4 Fase 1: true pixel-block eraser. eraser-hard stays a solid disc;
@@ -1881,9 +1894,10 @@ export default function CanvasArea() {
   // Manual 2026: dots/stripes/grid variants for textile/poster work.
   // Tile cache is keyed per (size, color, kind) instead of rebuilt per dab.
   const patternCache = useRef(new Map<string, HTMLCanvasElement>());
-  function patternStampTo(x: number, y: number, kind: "checker" | "dots" | "stripes" | "grid" = "checker") {
-    if (!activeLayerId) return;
-    const c = layerManager.ensure(activeLayerId, doc.width, doc.height);
+  function patternStampTo(x: number, y: number, kind: "checker" | "dots" | "stripes" | "grid" = "checker", forceId?: string) {
+    const aid = forceId ?? useEditorStore.getState().activeLayerId ?? activeLayerId;
+    if (!aid) return;
+    const c = layerManager.ensure(aid, doc.width, doc.height);
     const ctx = c.getContext("2d")!;
     const last = lastPos.current ?? { x, y };
     const s = Math.max(8, Math.round(brushSize));
@@ -1987,12 +2001,13 @@ export default function CanvasArea() {
     return pts;
   }
 
-  function retouchTo(x: number, y: number, mode: RetouchMode) {
-    if (!activeLayerId) return;
-    const meta = layers.find((l) => l.id === activeLayerId);
+  function retouchTo(x: number, y: number, mode: RetouchMode, forceId?: string) {
+    const aid = forceId ?? activeLayerId;
+    if (!aid) return;
+    const meta = layers.find((l) => l.id === aid);
     if (!meta || meta.locked || !meta.visible) return;
     const last = lastPos.current ?? { x, y };
-    const c = layerManager.ensure(activeLayerId, doc.width, doc.height);
+    const c = layerManager.ensure(aid, doc.width, doc.height);
     const ctx = c.getContext("2d", { willReadFrequently: true })!;
     const edSt = useEditorStore.getState();
     const flowMul = Math.max(1, Math.min(100, edSt.brushFlow ?? 100)) / 100;
@@ -5293,10 +5308,15 @@ export default function CanvasArea() {
             const strokeMeta = strokeLayerId
               ? useEditorStore.getState().layers.find((l) => l.id === strokeLayerId)
               : undefined;
+            // One item per layer (plan6): deposit brushes open a fresh layer
+            // per stroke so strokes never fuse. Sampling tools stay on the
+            // active layer through FRESH_STROKE_TOOLS membership.
+            let freshStrokeId: string | null = null;
+            let freshStrokeSpec: { name: string; kind: "raster" | "background" | "text" | "shape" | "group" | "fill"; opacity: number; blendMode: string } | null = null;
             if (
               isBrush &&
-              strokeLayerId &&
-              needsFreshPaintLayer(strokeMeta?.kind, layerManager.isPhotoLayer(strokeLayerId))
+              (needsFreshPaintLayer(strokeMeta?.kind, layerManager.isPhotoLayer(strokeLayerId ?? "")) ||
+                FRESH_STROKE_TOOLS.has(tool))
             ) {
               const st = useEditorStore.getState();
               // Smart layer: name the auto-created stroke layer after the tool
@@ -5308,6 +5328,8 @@ export default function CanvasArea() {
               st.addLayer(l);
               st.setActiveLayer(l.id);
               strokeLayerId = l.id;
+              freshStrokeId = l.id;
+              freshStrokeSpec = { name: l.name, kind: l.kind, opacity: l.opacity, blendMode: l.blendMode };
               lastPaintRef.current = l.id;
               if (!paintLayerToastShown.current) {
                 paintLayerToastShown.current = true;
@@ -5402,9 +5424,11 @@ export default function CanvasArea() {
                 layerId: strokeLayerId,
                 snapshot: snap,
                 maskSnapshot: maskSnap,
+                ...(freshStrokeId && freshStrokeSpec ? { createdLayerId: freshStrokeId, createdLayer: freshStrokeSpec } : {}),
               });
             }
             setIsPainting(true);
+            strokeLayerRef.current = strokeLayerId ?? null;
             lastPos.current = null;
             captureStrokeSel();
             if (tool === "smudge" || distortLegacy || dk !== null) pickSmudgeColor(p);
@@ -5660,7 +5684,7 @@ export default function CanvasArea() {
             // Plan4 Fase 1.3: magic-eraser is click-only (one flood per click).
             // Flooding on every mousemove dragrew the erased region and burned
             // full-image passes per move event for no reason.
-            } else if (isBrush || (isEraser && tool !== "magic-eraser")) paintTo(p.x, p.y, isEraser);
+            } else if (isBrush || (isEraser && tool !== "magic-eraser")) paintTo(p.x, p.y, isEraser, strokeLayerRef.current ?? undefined);
             else if (dk2 !== null) distortTo(p.x, p.y, dk2);
             else if (rm2 !== null) retouchTo(p.x, p.y, rm2);
             else if (tool === "smudge" || tool === "liquify" || tool === "warp") {
@@ -5809,11 +5833,12 @@ export default function CanvasArea() {
             } else if (tool === "single-column") {
               drawRectSelection(doc.width, doc.height, { x: Math.round(r.x), y: 0, w: 1, h: doc.height }, combineMode);
             } else if (tool === "select-crosshair") {
-              // Symmetric about the start point: mirror the drag vector.
+              // Cross shape mirrored around the start point, matching the
+              // crosshair function and icon instead of a plain box.
               const w = selDrag.x1 - selDrag.x0;
               const h = selDrag.y1 - selDrag.y0;
               if (Math.abs(w) > 4 && Math.abs(h) > 4) {
-                drawRectSelection(doc.width, doc.height, { x: selDrag.x0 - w, y: selDrag.y0 - h, w: w * 2, h: h * 2 }, combineMode);
+                drawCrossSelection(doc.width, doc.height, { x: selDrag.x0 - w, y: selDrag.y0 - h, w: w * 2, h: h * 2 }, combineMode);
                 if (pro.selFeather > 0) featherSelection(pro.selFeather);
               }
             } else if (Math.abs(r.w) > 4 && Math.abs(r.h) > 4) {
@@ -5975,6 +6000,7 @@ export default function CanvasArea() {
             bumpHistogram();
           }
           setIsPainting(false);
+          strokeLayerRef.current = null;
           lastPos.current = null;
           panning.current = null;
           quickLast.current = null;
@@ -5993,6 +6019,7 @@ export default function CanvasArea() {
         }}
         onMouseLeave={() => {
           setIsPainting(false);
+          strokeLayerRef.current = null;
           lastPos.current = null;
           panning.current = null;
           quickLast.current = null;

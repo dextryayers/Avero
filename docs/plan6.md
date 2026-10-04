@@ -36,6 +36,13 @@ moved, scaled and rotated with zero friction.
    with unique icon, dispatch set, top bar kind, hint, canvas behavior,
    shortcut cycle, plus test updates. A tool merged without all seven is
    rejected.
+6. One item per layer: deposit brush strokes open a fresh layer per stroke
+   so strokes never fuse and each stays separately selectable, movable and
+   resizable. Sampling and tonal tools (color replacement, mixer group,
+   erasers, retouch, distort, clone, smudge) stay on the active layer by
+   design because they read destination pixels. Undoing a fresh stroke
+   removes its layer instead of leaving an empty shell, and redo
+   recreates it.
 
 ## PHASE 0 - Baseline audit and language gate - EXECUTED
 
@@ -56,8 +63,10 @@ canvas behavior, shortcut cycle. One by one:
 
 - [x] 1.1. Move (7): click to select topmost layer, drag to move with snap,
   transform box with handles and rotate button.
-- [x] 1.2. Select (22 plus 1 new, see Phase 2): marquee drag selects areas,
-  click with no drag selects the clicked layer for transform.
+- [x] 1.2. Select (23 total, including the new cursor, see Phase 2): marquee drag selects areas,
+  click with no drag selects the clicked layer for transform. Crosshair
+  draws a true cross (full span bars, thickness scales with size) in both
+  commit and drag preview, matching its function and icon.
 - [x] 1.3. Lasso (18): freehand drag draws, click picks the layer for
   select-lasso and magnetic-lasso. Polygon and straight lasso keep click
   points for vertices.
@@ -70,6 +79,9 @@ canvas behavior, shortcut cycle. One by one:
   measure, notes and counts pin markers, guides and grids toggle.
 - [x] 1.7. Brush (59): every preset paints with a distinct fingerprint
   (hardness, flow, blend, scatter). Proven pairwise distinct in tests.
+  Deposit presets open a fresh layer per stroke. Sampling presets (color
+  replacement, mixer group) stay on layer. Mousemove dabs target the exact
+  stroke layer through a ref, never a stale closure.
 - [x] 1.8. Eraser (6): all six route to the photo safe paint path.
 - [x] 1.9. Heal (39): every tool maps to a distinct retouch mode plus tweak.
 - [x] 1.10. Stamp (10): eight clone dispatch tools plus two history brushes
@@ -278,8 +290,8 @@ Rust lab kernel, never as a frontend dependency.
 
 ## PHASE 6 - Verification - EXECUTED
 
-- [x] 6.1. `npm run test` fully green (197 passed, 23 files, up from 184
-  plus 21 with the budget and parity contracts).
+- [x] 6.1. `npm run test` fully green (203 passed, 25 files, up from 197
+  plus 23 with the stroke and crosshair contracts).
 - [x] 6.2. `npx tsc --noEmit` exit 0 with `noUnusedLocals` on.
 - [x] 6.3. Emdash and endash scan of src plus plan6 returns zero matches.
 - [x] 6.4. Interaction coverage executed statically instead of by hand
@@ -306,3 +318,5 @@ Rust lab kernel, never as a frontend dependency.
    tiled fallback, no CUDA dependency in the portable build.
 7. Lightweight budgets hold: 4K stays tiled, RAM stays flat, eco devices
    stay smooth.
+8. Every new stroke lands on its own layer and undo removes it. Sampling
+   tools stay on layer by design.

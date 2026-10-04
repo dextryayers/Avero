@@ -10,6 +10,8 @@ import {
   dispatchKindOf,
   ERASER_TOOLS,
   CLONE_TOOLS,
+  FRESH_STROKE_TOOLS,
+  STAY_ON_LAYER_TOOLS,
   MOVE_TOOLS,
   MARQUEE_TOOLS,
   EYEDROPPER_TOOLS,
@@ -115,5 +117,20 @@ describe("tool registry completeness (plan2 A.0)", () => {
 
   it("click tools all dispatch to click", () => {
     for (const id of CLICK_TOOLS) expect(dispatchKindOf(id)).toBe("click");
+  });
+
+  it("fresh stroke set partitions paint tools with documented keepers", () => {
+    for (const id of PAINT_TOOLS) {
+      const fresh = FRESH_STROKE_TOOLS.has(id);
+      const keeper = (STAY_ON_LAYER_TOOLS as Set<string>).has(id);
+      expect(fresh !== keeper, id).toBe(true);
+    }
+    expect([...STAY_ON_LAYER_TOOLS].sort()).toEqual([
+      "art-oil",
+      "art-smear",
+      "brush-wet",
+      "color-replacement",
+      "mixer-brush",
+    ]);
   });
 });

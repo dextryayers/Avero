@@ -649,7 +649,7 @@ export const TOOL_FAMILIES: ToolFamily[] = [
       { id: "select-border", icon: Orbit, label: "Border Smooth", shortcut: "M", description: "Smooth and tighten selection border.", usage: "Click to smooth border." },
       { id: "select-circle", icon: Circle, label: "Circle Marquee", shortcut: "M", description: "Perfect circle selection, round locked.", usage: "Drag to select a circle. Click a layer to select it for move, scale and rotate." },
       { id: "select-stadium", icon: Pill, label: "Stadium Marquee", shortcut: "M", description: "Capsule selection for pills and tags.", usage: "Drag to select a capsule. Click a layer to select it for move, scale and rotate." },
-      { id: "select-crosshair", icon: Crosshair, label: "Crosshair Select", shortcut: "M", description: "Mirror drag both ways from start point.", usage: "Drag out from center. Click a layer to select it for move, scale and rotate." },
+      { id: "select-crosshair", icon: Crosshair, label: "Crosshair Select", shortcut: "M", description: "Cross shaped selection mirrored both ways from the start point.", usage: "Drag out from center to select a cross. Click a layer to select it for move, scale and rotate." },
       { id: "select-last", icon: Undo2, label: "Reselect Last", shortcut: "M", description: "Restore the previous selection.", usage: "Click to restore selection." },
       { id: "select-inverse-click", icon: FlipHorizontal2, label: "Invert Click", shortcut: "M", description: "Invert the current selection.", usage: "Click to invert." },
       { id: "select-feather-2", icon: Feather, label: "Feather 2px", shortcut: "Y", description: "Quick soft 2px edge feather.", usage: "Click to feather 2px." },

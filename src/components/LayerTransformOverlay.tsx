@@ -160,24 +160,24 @@ export default function LayerTransformOverlay(p: Props) {
 
   const handleBase: React.CSSProperties = {
     position: "absolute",
-    width: 10,
-    height: 10,
-    background: "#fff",
+    width: 12,
+    height: 12,
+    background: "#ffffff",
     border: `2px solid ${BLUE}`,
-    borderRadius: 2,
-    boxShadow: "0 1px 4px rgba(0,0,0,0.5)",
+    borderRadius: 999,
+    boxShadow: "0 1px 6px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.35)",
     zIndex: 3,
   };
 
   const handles: { k: HandleKind; style: React.CSSProperties; cursor: string; title: string }[] = [
-    { k: "nw", style: { left: -6, top: -6 }, cursor: "nwse-resize", title: "Drag a corner to resize (Shift locks aspect)" },
-    { k: "ne", style: { right: -6, top: -6 }, cursor: "nesw-resize", title: "Drag a corner to resize (Shift locks aspect)" },
-    { k: "sw", style: { left: -6, bottom: -6 }, cursor: "nesw-resize", title: "Drag a corner to resize (Shift locks aspect)" },
-    { k: "se", style: { right: -6, bottom: -6 }, cursor: "nwse-resize", title: "Drag a corner to resize (Shift locks aspect)" },
-    { k: "n", style: { left: "50%", top: -6, transform: "translateX(-50%)" }, cursor: "ns-resize", title: "Drag the top or bottom edge for height" },
-    { k: "s", style: { left: "50%", bottom: -6, transform: "translateX(-50%)" }, cursor: "ns-resize", title: "Drag the top or bottom edge for height" },
-    { k: "w", style: { left: -6, top: "50%", transform: "translateY(-50%)" }, cursor: "ew-resize", title: "Drag the left or right edge for width" },
-    { k: "e", style: { right: -6, top: "50%", transform: "translateY(-50%)" }, cursor: "ew-resize", title: "Drag the left or right edge for width" },
+    { k: "nw", style: { left: -7, top: -7 }, cursor: "nwse-resize", title: "Drag a corner to resize (Shift locks aspect)" },
+    { k: "ne", style: { right: -7, top: -7 }, cursor: "nesw-resize", title: "Drag a corner to resize (Shift locks aspect)" },
+    { k: "sw", style: { left: -7, bottom: -7 }, cursor: "nesw-resize", title: "Drag a corner to resize (Shift locks aspect)" },
+    { k: "se", style: { right: -7, bottom: -7 }, cursor: "nwse-resize", title: "Drag a corner to resize (Shift locks aspect)" },
+    { k: "n", style: { left: "50%", top: -7, transform: "translateX(-50%)" }, cursor: "ns-resize", title: "Drag the top or bottom edge for height" },
+    { k: "s", style: { left: "50%", bottom: -7, transform: "translateX(-50%)" }, cursor: "ns-resize", title: "Drag the top or bottom edge for height" },
+    { k: "w", style: { left: -7, top: "50%", transform: "translateY(-50%)" }, cursor: "ew-resize", title: "Drag the left or right edge for width" },
+    { k: "e", style: { right: -7, top: "50%", transform: "translateY(-50%)" }, cursor: "ew-resize", title: "Drag the left or right edge for width" },
   ];
 
   return (
@@ -218,15 +218,15 @@ export default function LayerTransformOverlay(p: Props) {
         {/* blue edge lines */}
         <div
           className="absolute inset-0"
-          style={{ border: `1.5px solid ${BLUE}`, boxShadow: "0 0 0 1px rgba(0,0,0,0.35)" }}
+          style={{ border: `1.5px solid ${BLUE}`, boxShadow: "0 0 0 1px rgba(0,0,0,0.4), 0 0 12px rgba(47,124,246,0.25)" }}
         />
         {/* connector to the rotate button */}
         <div
           className="absolute left-1/2"
           style={{
-            top: -30,
+            top: -32,
             width: 1.5,
-            height: 24,
+            height: 26,
             background: BLUE,
             transform: "translateX(-50%)",
           }}
@@ -236,16 +236,16 @@ export default function LayerTransformOverlay(p: Props) {
           data-testid="layer-rotate-handle"
           title="Drag to rotate the image (Shift snaps to 15 deg)"
           aria-label="Rotate image"
-          className="absolute grid place-items-center rounded-full"
+          className="absolute grid place-items-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2f7cf6]"
           style={{
             left: "50%",
-            top: -56,
-            width: 26,
-            height: 26,
+            top: -58,
+            width: 28,
+            height: 28,
             transform: `translateX(-50%) rotate(${-box.rotation}deg)`,
             background: "#111114",
             border: `1.5px solid ${BLUE}`,
-            boxShadow: "0 2px 8px rgba(0,0,0,0.6)",
+            boxShadow: "0 2px 10px rgba(0,0,0,0.65), 0 0 8px rgba(47,124,246,0.35)",
             cursor: "grab",
             zIndex: 4,
           }}

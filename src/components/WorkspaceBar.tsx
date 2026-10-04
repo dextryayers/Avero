@@ -24,8 +24,10 @@ export default function WorkspaceBar() {
           <button
             key={w.id}
             onClick={() => setWorkspace(w.id as any)}
+            title={`Switch to ${w.label} workspace`}
+            aria-pressed={active === w.id}
             className={clsx(
-              "flex h-7 items-center gap-1.5 rounded-md border px-2.5 font-medium",
+              "flex h-7 items-center gap-1.5 rounded-md border px-2.5 font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#2f7cf6]",
               active === w.id
                 ? "border-[#2f7cf6] bg-[#2f7cf6] text-white"
                 : "border-[#2c2c31] bg-transparent text-[#a7a7b0] hover:border-[#3a3a41] hover:text-white",

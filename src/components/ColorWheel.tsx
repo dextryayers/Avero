@@ -162,7 +162,7 @@ export default function ColorWheel({ size = 172 }: { size?: number }) {
 
   const [r, g, b] = hexToRgb(brushColor);
   const [h, s, l] = rgbToHsl(r, g, b);
-  const [hs, ss, vs] = rgbToHsv(r, g, b);
+  const [, ss, vs] = rgbToHsv(r, g, b);
 
   const ringOuter = size / 2;
   const ringWidth = Math.max(12, size * 0.09);
@@ -208,7 +208,7 @@ export default function ColorWheel({ size = 172 }: { size?: number }) {
     const maxY = Math.min(size - 1, Math.ceil(Math.max(v.ey, v.wy, v.by)));
     for (let yy = minY; yy <= maxY; yy++) {
       for (let xx = minX; xx <= maxX; xx++) {
-        const [wE, wW, wB] = triWeights(xx + 0.5, yy + 0.5, v);
+        const [wE, wW] = triWeights(xx + 0.5, yy + 0.5, v);
         if (wE <= 0 && wW <= 0) continue;
         const vv = wE + wW;
         const ss = vv <= 1e-6 ? 0 : wE / vv;
@@ -262,15 +262,15 @@ export default function ColorWheel({ size = 172 }: { size?: number }) {
         const cx = e.clientX - rect.left;
         const cy = e.clientY - rect.top;
         const dist = Math.hypot(cx - size / 2, cy - size / 2);
-        const mode = dist >= ringInner - 4 ? "hue" : "sl";
+        const mode = dist >= ringInner - 4 ? "hue" : "sv";
         dragMode.current = mode;
         el.setPointerCapture?.(e.pointerId);
-        const target = mode === "hue" ? ringRef.current! : boxRef.current!;
+        const target = mode === "hue" ? ringRef.current! : triRef.current!;
         pickAt(e.clientX, e.clientY, target, mode);
       }}
       onPointerMove={(e) => {
         if (!e.buttons || !dragMode.current) return;
-        const el = dragMode.current === "hue" ? ringRef.current! : boxRef.current!;
+        const el = dragMode.current === "hue" ? ringRef.current! : triRef.current!;
         if (el) pickAt(e.clientX, e.clientY, el, dragMode.current);
       }}
       onPointerUp={() => {
@@ -278,18 +278,14 @@ export default function ColorWheel({ size = 172 }: { size?: number }) {
       }}
     >
       <canvas ref={ringRef} className="absolute inset-0 h-full w-full" />
-      <canvas
-        ref={boxRef}
-        className="absolute"
-        style={{ left: boxX, top: boxY, width: boxSide, height: boxSide }}
-      />
+      <canvas ref={triRef} className="absolute inset-0 h-full w-full" />
       <div
         className="pointer-events-none absolute h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow"
         style={{ left: hueX, top: hueY }}
       />
       <div
         className="pointer-events-none absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white shadow"
-        style={{ left: slX, top: slY }}
+        style={{ left: svPt.x, top: svPt.y }}
       />
     </div>
   );

@@ -953,6 +953,7 @@ export default function TitleBar({
                   <button
                     key={it.label}
                     onClick={() => runAction(it.action)}
+                    title={it.hint ? `${it.label} (${it.hint})` : it.label}
                     className="group flex w-full items-center justify-between gap-3 rounded-lg px-3 py-1.5 text-left text-[12px] text-[#c9c9d1] transition-colors hover:bg-[#2f7cf6] hover:text-white"
                   >
                     <span className="truncate">{it.label}</span>
@@ -971,7 +972,8 @@ export default function TitleBar({
 
       <button
         onClick={onOpenCommand}
-        className="ml-2 hidden h-8 items-center gap-1.5 rounded-md border border-[#2c2c31] bg-[#101012] px-3 text-[11px] text-[#6e6e78] hover:border-[#3a3a41] hover:text-white md:flex"
+        title="Open command palette (Ctrl+K)"
+        className="ml-2 hidden h-8 items-center gap-1.5 rounded-md border border-[#2c2c31] bg-[#101012] px-3 text-[11px] text-[#6e6e78] hover:border-[#3a3a41] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#2f7cf6] md:flex"
       >
         <Search size={13} /> Ctrl+K all actions
       </button>

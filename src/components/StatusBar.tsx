@@ -221,6 +221,8 @@ export default function StatusBar() {
       </span>
       <button
         onClick={toggleRulers}
+        title="Toggle rulers"
+        aria-pressed={showRulers}
         className={showRulers ? chipOn : chip}
       >
         Rulers {showRulers ? "on" : "off"}

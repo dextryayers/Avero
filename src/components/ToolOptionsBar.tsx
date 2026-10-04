@@ -611,7 +611,8 @@ export default function ToolOptionsBar({
         {src && (
           <button
             onClick={() => (needsHeal ? setHealSource(null) : setCloneSource(null))}
-            className="rounded-lg bg-white/5 px-2 py-1 text-[11px] text-white hover:bg-white/10"
+            title="Clear clone source point"
+            className="rounded-lg bg-white/5 px-2 py-1 text-[11px] text-white hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#2f7cf6]"
           >
             Clear
           </button>

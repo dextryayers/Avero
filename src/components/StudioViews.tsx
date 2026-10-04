@@ -50,6 +50,26 @@ export function ColourView() {
     setBrush({ color: rgbToHex(nr, ng, nb) });
   };
 
+  const setRGB = (nr: number, ng: number, nb: number) => {
+    setBrush({ color: rgbToHex(nr, ng, nb) });
+  };
+
+  // Harmony chips from the current hue: complement plus two analogous and
+  // two triadic partners. Click paints with that partner.
+  const harmony: { label: string; title: string; hex: string }[] = (() => {
+    const shifts: { label: string; title: string; deg: number }[] = [
+      { label: "C", title: "Complement", deg: 180 },
+      { label: "A-", title: "Analogous minus 30", deg: -30 },
+      { label: "A+", title: "Analogous plus 30", deg: 30 },
+      { label: "T-", title: "Triadic minus 120", deg: -120 },
+      { label: "T+", title: "Triadic plus 120", deg: 120 },
+    ];
+    return shifts.map((sh) => {
+      const [hr, hg, hb] = hslToRgb(h + sh.deg, Math.max(s, 35), Math.max(l, 30));
+      return { label: sh.label, title: `${sh.title} of current color`, hex: rgbToHex(hr, hg, hb) };
+    });
+  })();
+
   const numCls =
     "h-6 w-full min-w-0 rounded border border-[#2c2c31] bg-[#101012] px-1 font-mono text-[11px] text-white outline-none focus:border-[#2f7cf6]";
   return (
@@ -91,6 +111,45 @@ export function ColourView() {
         title="Brush opacity - number keys 1-0"
         onChange={(v) => setBrush({ opacity: v })}
       />
+      <div className="grid grid-cols-3 gap-1.5">
+        {(
+          [
+            { k: "R", v: r, set: (v: number) => setRGB(v, g, b) },
+            { k: "G", v: g, set: (v: number) => setRGB(r, v, b) },
+            { k: "B", v: b, set: (v: number) => setRGB(r, g, v) },
+          ] as const
+        ).map((f) => (
+          <label key={f.k} className="flex items-center gap-1 text-[10px] text-[#6e6e78]">
+            {f.k}
+            <input
+              type="number"
+              value={f.v}
+              min={0}
+              max={255}
+              onChange={(e) => f.set(Math.max(0, Math.min(255, Number(e.target.value))))}
+              aria-label={`${f.k} value`}
+              className={numCls}
+            />
+          </label>
+        ))}
+      </div>
+      <div>
+        <div className="mb-1 text-[11px] font-medium text-[#8e8e98]">Harmony</div>
+        <div className="flex items-center gap-1.5">
+          {harmony.map((hc) => (
+            <button
+              key={hc.label}
+              onClick={() => setBrush({ color: hc.hex })}
+              title={`${hc.title} ${hc.hex} - click to paint with it`}
+              aria-label={`Paint with ${hc.title} ${hc.hex}`}
+              className="avero-lift flex h-7 flex-1 flex-col items-center justify-center gap-0 rounded-lg ring-1 ring-white/15 transition-all hover:scale-105 hover:ring-2 hover:ring-white/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#2f7cf6]"
+              style={{ backgroundColor: hc.hex }}
+            >
+              <span className="rounded bg-black/45 px-1 font-mono text-[9px] font-semibold text-white">{hc.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
       <div>
         <div className="mb-1 text-[11px] font-medium text-[#8e8e98]">Recent</div>
         {recents.length === 0 ? (

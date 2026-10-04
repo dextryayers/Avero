@@ -160,6 +160,11 @@ rotate for anything placed on canvas.
   text tools with the text cursor.
 - [x] 3.7. Guidance strings updated per tool (Text 19, marquee 7, lasso 2,
   direct, path) in full English, no emdash.
+- [x] 3.8. Canvas chrome premium: transform handles are now ringed premium
+  circles with halo shadow, rotate button enlarged with glow plus focus
+  ring, edge lines carry a soft accent halo, navigator card uses an
+  elevated blurred surface with a refined viewport rect and an accessible
+  collapse toggle.
 
 ## PHASE 4 - Right side panels premium upgrade - EXECUTED
 
@@ -193,18 +198,27 @@ premium, elegant, professional, smart, complete.
 - [x] 4.6. Panel persistence: active tab, kind filter and the Brush plus
   Layer properties collapses persist across reloads via localStorage, same
   pattern as the existing dock tab persistence.
+- [x] 4.7. Colour premium: hue ring kept, saturation square replaced by a
+  modern right facing SV triangle (pure hue apex east, white north west,
+  black south west, barycentric math unit tested). RGB fields join HSL,
+  harmony chips (complement, two analogous, two triadic) paint on click,
+  swatches gain 4 curated professional sets (Essentials, Skin tones, Neon,
+  Pastel, 32 chips) above user swatches.
 
 ## PHASE 5 - Global premium polish - EXECUTED
 
 - [x] 5.1. Type scale lock: all new strings reuse the shared micro scale
   and mono tabular numerals already used in both panels. No ad hoc sizes.
 - [x] 5.2. Focus visibility: tab buttons, new panel buttons and empty
-  state actions show an accent focus ring. No keyboard traps introduced;
+  state actions show an accent focus ring, extended across left, top and
+  bottom chrome (workspace pills, command palette trigger, rulers chip,
+  clone source clear). No keyboard traps introduced;
   flyouts, grids and dialogs keep existing tab order.
 - [x] 5.3. Tooltip pass: the 4 text buttons without titles (brush console,
   layer properties, clear history, layer menu items) now carry English
-  titles. Icon only buttons across both panels already carried titles.
-  No emdash.
+  titles, plus 5 chrome buttons across TitleBar, StatusBar, WorkspaceBar
+  and ToolOptionsBar. Icon only buttons across both panels already carried
+  titles. No emdash.
 - [x] 5.4. Notify voice: new user facing strings kept short and English
   (locked text notice, selection confirmations). Existing notify strings
   verified English with zero emdash.
@@ -290,8 +304,8 @@ Rust lab kernel, never as a frontend dependency.
 
 ## PHASE 6 - Verification - EXECUTED
 
-- [x] 6.1. `npm run test` fully green (203 passed, 25 files, up from 197
-  plus 23 with the stroke and crosshair contracts).
+- [x] 6.1. `npm run test` fully green (208 passed, 25 files, up from 203
+  plus 25 with the color triangle contracts).
 - [x] 6.2. `npx tsc --noEmit` exit 0 with `noUnusedLocals` on.
 - [x] 6.3. Emdash and endash scan of src plus plan6 returns zero matches.
 - [x] 6.4. Interaction coverage executed statically instead of by hand

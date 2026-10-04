@@ -214,13 +214,14 @@ function Navigator({ wrapW, wrapH }: { wrapW: number; wrapH: number }) {
     useEditorStore.getState().setPan(np.panX, np.panY);
   };
   return (
-    <div className="avero-fade-in absolute bottom-16 right-3 z-20 overflow-hidden rounded-md border border-[#2c2c31] bg-[#1c1c1f]">
+    <div className="avero-fade-in absolute bottom-16 right-3 z-20 overflow-hidden rounded-xl border border-[#2c2c31] bg-[#161618]/95 shadow-[0_12px_36px_rgba(0,0,0,0.55)] backdrop-blur-xl">
       <div className="flex items-center justify-between px-2 py-1">
         <span className="text-[10px] font-semibold uppercase tracking-wide text-[#6e6e78]">Navigator</span>
         <button
           onClick={() => setOpen((v) => !v)}
-          className="rounded px-1.5 font-mono text-[11px] text-[#a7a7b0] hover:bg-[#232327] hover:text-white"
+          className="rounded px-1.5 font-mono text-[11px] text-[#a7a7b0] hover:bg-[#232327] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#2f7cf6]"
           title={open ? "Collapse navigator" : "Expand navigator"}
+          aria-expanded={open}
         >
           {open ? "-" : "+"}
         </button>
@@ -246,7 +247,7 @@ function Navigator({ wrapW, wrapH }: { wrapW: number; wrapH: number }) {
             }}
           />
           <div
-            className="pointer-events-none absolute rounded-[1px] border border-red-500/90 shadow-[0_0_0_1px_rgba(0,0,0,0.5)]"
+            className="pointer-events-none absolute rounded-[2px] border-[1.5px] border-red-500/90 shadow-[0_0_0_1px_rgba(0,0,0,0.55),0_0_8px_rgba(239,68,68,0.35)]"
             style={{
               left: Math.max(0, vr.x * kx),
               top: Math.max(0, vr.y * ky),

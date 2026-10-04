@@ -14,11 +14,13 @@ export type StickerShape =
   | { op: "burst"; cx: number; cy: number; ro: number; ri: number; n: number; fill?: boolean; wgt?: number }
   | { op: "cut"; cx: number; cy: number; r: number };
 
-export type NewStickerCategory = "marks" | "badges" | "frames" | "labels" | "nature" | "fx";
+export type NewStickerCategory = "marks" | "badges" | "frames" | "labels" | "nature" | "fx" | "poster" | "social";
 
 export type StickerFxKind =
   | "sunburst" | "lens-flare" | "bokeh" | "grain" | "vignette" | "streak"
-  | "glow-orb" | "sparkle-spray" | "haze" | "duotone" | "edge-burn" | "beam";
+  | "glow-orb" | "sparkle-spray" | "haze" | "duotone" | "edge-burn" | "beam"
+  | "confetti" | "starfield" | "rainbow-rings" | "dots-fade" | "plus-field" | "grain-fine"
+  | "leak" | "prism" | "checker-fade" | "wave-band" | "ring-burst" | "spotlight";
 
 export interface StickerArtSpec {
   /** Stable legacy id, reused unchanged so registry and docs never churn. */
@@ -300,6 +302,176 @@ export function paintStickerFx(
       grad.addColorStop(1, rgba(r, gg, b, 0));
       g.fillStyle = grad;
       g.fillRect(s * 0.32, 0, s * 0.36, s);
+      break;
+    }
+    case "confetti": {
+      const rand = mulberry32(hashSeed("fx:confetti"));
+      for (let i = 0; i < 14; i++) {
+        const x = (0.1 + rand() * 0.8) * s;
+        const y = (0.1 + rand() * 0.8) * s;
+        const w = s * (0.025 + rand() * 0.03);
+        const h = s * (0.04 + rand() * 0.04);
+        g.save();
+        g.translate(x, y);
+        g.rotate(rand() * Math.PI);
+        g.fillStyle = i % 3 === 2 ? "rgba(255,255,255,0.9)" : rgba(r, gg, b, 0.85);
+        g.fillRect(-w / 2, -h / 2, w, h);
+        g.restore();
+      }
+      break;
+    }
+    case "starfield": {
+      const rand = mulberry32(hashSeed("fx:starfield"));
+      for (let i = 0; i < 22; i++) {
+        const x = (0.06 + rand() * 0.88) * s;
+        const y = (0.06 + rand() * 0.88) * s;
+        const rad = s * (0.008 + rand() * 0.022);
+        dot(x / s, y / s, rad / s, 0.3 + rand() * 0.6);
+      }
+      for (let i = 0; i < 4; i++) {
+        const x = (0.2 + rand() * 0.6) * s;
+        const y = (0.2 + rand() * 0.6) * s;
+        const a = s * 0.035;
+        g.strokeStyle = rgba(255, 255, 255, 0.8);
+        g.lineWidth = Math.max(1.5, s * 0.01);
+        g.beginPath();
+        g.moveTo(x - a, y);
+        g.lineTo(x + a, y);
+        g.moveTo(x, y - a);
+        g.lineTo(x, y + a);
+        g.stroke();
+      }
+      break;
+    }
+    case "rainbow-rings": {
+      for (let i = 0; i < 5; i++) {
+        g.beginPath();
+        g.strokeStyle = rgba(r, gg, b, 0.6 - i * 0.09);
+        g.lineWidth = Math.max(2, s * 0.022);
+        g.arc(s / 2, s / 2, s * (0.1 + i * 0.08), 0, Math.PI * 2);
+        g.stroke();
+      }
+      break;
+    }
+    case "dots-fade": {
+      const rand = mulberry32(hashSeed("fx:dots-fade"));
+      const n = 9;
+      for (let gy = 0; gy < n; gy++) {
+        for (let gx = 0; gx < n; gx++) {
+          const x = ((gx + 0.5) / n) * s;
+          const y = ((gy + 0.5) / n) * s;
+          const dist = Math.hypot(x - s / 2, y - s / 2) / (s / 2);
+          if (dist > 1) continue;
+          const rad = Math.max(0.6, s * 0.028 * (1 - dist * 0.8) + rand() * s * 0.004);
+          dot(x / s, y / s, rad / s, 0.75);
+        }
+      }
+      break;
+    }
+    case "plus-field": {
+      const n = 4;
+      g.strokeStyle = rgba(r, gg, b, 0.8);
+      g.lineWidth = Math.max(2, s * 0.02);
+      g.lineCap = "round";
+      const a = s * 0.045;
+      g.beginPath();
+      for (let gy = 0; gy < n; gy++) {
+        for (let gx = 0; gx < n; gx++) {
+          const x = ((gx + 0.5) / n) * s;
+          const y = ((gy + 0.5) / n) * s;
+          g.moveTo(x - a, y);
+          g.lineTo(x + a, y);
+          g.moveTo(x, y - a);
+          g.lineTo(x, y + a);
+        }
+      }
+      g.stroke();
+      break;
+    }
+    case "grain-fine": {
+      const rand = mulberry32(hashSeed("fx:grain-fine"));
+      for (let i = 0; i < Math.round(s * s * 0.16); i++) {
+        const x = Math.floor(rand() * s);
+        const y = Math.floor(rand() * s);
+        const light = rand() > 0.5;
+        g.fillStyle = light ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)";
+        g.fillRect(x, y, 1, 1);
+      }
+      break;
+    }
+    case "leak": {
+      const grad = g.createRadialGradient(s * 0.85, s * 0.1, 0, s * 0.85, s * 0.1, s * 0.9);
+      grad.addColorStop(0, rgba(r, gg, b, 0.55));
+      grad.addColorStop(1, rgba(r, gg, b, 0));
+      g.fillStyle = grad;
+      g.fillRect(0, 0, s, s);
+      break;
+    }
+    case "prism": {
+      g.beginPath();
+      g.moveTo(s * 0.5, s * 0.16);
+      g.lineTo(s * 0.82, s * 0.72);
+      g.lineTo(s * 0.18, s * 0.72);
+      g.closePath();
+      g.strokeStyle = rgba(r, gg, b, 0.9);
+      g.lineWidth = Math.max(2, s * 0.03);
+      g.stroke();
+      g.beginPath();
+      g.moveTo(s * 0.18, s * 0.56);
+      g.lineTo(s * 0.82, s * 0.56);
+      g.strokeStyle = rgba(r, gg, b, 0.55);
+      g.lineWidth = Math.max(1.5, s * 0.018);
+      g.stroke();
+      break;
+    }
+    case "checker-fade": {
+      const n = 8;
+      const cell = s / n;
+      for (let gy = 0; gy < n; gy++) {
+        for (let gx = 0; gx < n; gx++) {
+          if ((gx + gy) % 2 !== 0) continue;
+          const cx = (gx + 0.5) * cell;
+          const cy = (gy + 0.5) * cell;
+          const dist = Math.hypot(cx - s / 2, cy - s / 2) / (s / 2);
+          if (dist > 1) continue;
+          g.fillStyle = rgba(r, gg, b, 0.7 * (1 - dist * 0.75));
+          g.fillRect(gx * cell, gy * cell, cell, cell);
+        }
+      }
+      break;
+    }
+    case "wave-band": {
+      g.strokeStyle = rgba(r, gg, b, 0.7);
+      g.lineWidth = Math.max(2, s * 0.025);
+      g.beginPath();
+      for (let row = 0; row < 3; row++) {
+        const yBase = s * (0.3 + row * 0.2);
+        for (let x = 0; x <= s; x += 6) {
+          const y = yBase + Math.sin((x / s) * Math.PI * 2) * s * 0.04;
+          if (x === 0) g.moveTo(x, y);
+          else g.lineTo(x, y);
+        }
+      }
+      g.stroke();
+      break;
+    }
+    case "ring-burst": {
+      for (let i = 0; i < 6; i++) {
+        g.beginPath();
+        g.strokeStyle = rgba(r, gg, b, 0.55 - i * 0.06);
+        g.lineWidth = Math.max(1.5, s * 0.014);
+        g.arc(s / 2, s / 2, s * (0.07 + i * 0.065), 0, Math.PI * 2);
+        g.stroke();
+      }
+      dot(0.5, 0.5, 0.04, 0.8);
+      break;
+    }
+    case "spotlight": {
+      const grad = g.createRadialGradient(s * 0.5, s * 0.16, 0, s * 0.5, s * 0.16, s * 0.55);
+      grad.addColorStop(0, rgba(r, gg, b, 0.6));
+      grad.addColorStop(1, rgba(r, gg, b, 0));
+      g.fillStyle = grad;
+      g.fillRect(0, 0, s, s);
       break;
     }
     default:
@@ -688,4 +860,171 @@ export const STICKER_V2: StickerArtSpec[] = [
   spec("sticker-bubble-tea", "Duotone Wash", "fx", [], "duotone"),
   spec("sticker-strawberry", "Edge Burn", "fx", [], "edge-burn"),
   spec("sticker-watermelon", "Soft Beam", "fx", [], "beam"),
+  spec("sticker-confetti", "Confetti", "fx", [], "confetti"),
+  spec("sticker-starfield", "Starfield", "fx", [], "starfield"),
+  spec("sticker-rainbow-rings", "Rainbow Rings", "fx", [], "rainbow-rings"),
+  spec("sticker-dots-fade", "Dots Fade", "fx", [], "dots-fade"),
+  spec("sticker-plus-field", "Plus Field", "fx", [], "plus-field"),
+  spec("sticker-grain-fine", "Fine Grain", "fx", [], "grain-fine"),
+  spec("sticker-leak", "Light Leak", "fx", [], "leak"),
+  spec("sticker-prism", "Prism", "fx", [], "prism"),
+  spec("sticker-checker-fade", "Checker Fade", "fx", [], "checker-fade"),
+  spec("sticker-wave-band", "Wave Band", "fx", [], "wave-band"),
+  spec("sticker-ring-burst", "Ring Burst", "fx", [], "ring-burst"),
+  spec("sticker-spotlight", "Spotlight", "fx", [], "spotlight"),
+  // Poster builders (24): callouts, rules, seals and ornaments for posters
+  spec("sticker-burst-big", "Big Burst", "poster", [{ op: "burst", cx: 50, cy: 50, ro: 38, ri: 24, n: 16 }]),
+  spec("sticker-seal-double", "Double Seal", "poster", [
+    { op: "ring", cx: 50, cy: 50, r: 32, w: 6 },
+    { op: "ring", cx: 50, cy: 50, r: 22, w: 4 },
+  ]),
+  spec("sticker-ribbon-split", "Split Ribbon", "poster", [
+    { op: "poly", pts: [[8, 36], [46, 36], [36, 50], [46, 64], [8, 64], [18, 50]] },
+    { op: "poly", pts: [[92, 36], [54, 36], [64, 50], [54, 64], [92, 64], [82, 50]] },
+  ]),
+  spec("sticker-price-circle", "Price Circle", "poster", [
+    { op: "ring", cx: 50, cy: 50, r: 30, w: 6 },
+    { op: "burst", cx: 50, cy: 50, ro: 14, ri: 8, n: 8 },
+  ]),
+  spec("sticker-tag-wide", "Wide Tag", "poster", [
+    { op: "poly", pts: [[12, 32], [68, 32], [88, 50], [68, 68], [12, 68]] },
+    { op: "cut", cx: 22, cy: 50, r: 5 },
+  ]),
+  spec("sticker-rule-double", "Double Rule", "poster", [L(16, 42, 84, 42, 6), L(16, 58, 84, 58, 6)]),
+  spec("sticker-rule-dotted", "Dotted Rule", "poster", [
+    D(14, 50, 3.5), D(23, 50, 3.5), D(32, 50, 3.5), D(41, 50, 3.5), D(50, 50, 3.5),
+    D(59, 50, 3.5), D(68, 50, 3.5), D(77, 50, 3.5), D(86, 50, 3.5),
+  ]),
+  spec("sticker-rule-zigzag", "Zigzag Rule", "poster", [
+    L(14, 60, 30, 40, 6), L(30, 40, 46, 60, 6), L(46, 60, 62, 40, 6), L(62, 40, 78, 60, 6),
+  ]),
+  spec("sticker-arrow-divider", "Arrow Divider", "poster", [
+    L(12, 50, 88, 50, 5),
+    { op: "poly", pts: [[88, 50], [74, 42], [74, 58]] },
+  ]),
+  spec("sticker-corner-flourish", "Corner Flourish", "poster", [
+    L(30, 48, 30, 30, 6), L(30, 30, 48, 30, 6), D(30, 56, 3.5),
+    L(70, 48, 70, 30, 6), L(70, 30, 52, 30, 6), D(70, 56, 3.5),
+    L(30, 52, 30, 70, 6), L(30, 70, 48, 70, 6), D(30, 44, 3.5),
+    L(70, 52, 70, 70, 6), L(70, 70, 52, 70, 6), D(70, 44, 3.5),
+  ]),
+  spec("sticker-photo-corners", "Photo Corners", "poster", [
+    { op: "poly", pts: [[16, 16], [34, 16], [16, 34]] },
+    { op: "poly", pts: [[84, 16], [66, 16], [84, 34]] },
+    { op: "poly", pts: [[16, 84], [34, 84], [16, 66]] },
+    { op: "poly", pts: [[84, 84], [66, 84], [84, 66]] },
+  ]),
+  spec("sticker-shield-mini", "Mini Shield", "poster", [
+    { op: "poly", pts: [[50, 26], [66, 32], [66, 50], [50, 72], [34, 50], [34, 32]] },
+  ]),
+  spec("sticker-check-seal", "Check Seal", "poster", [
+    { op: "burst", cx: 50, cy: 50, ro: 30, ri: 22, n: 12 },
+    L(40, 52, 47, 59, 6),
+    L(47, 59, 61, 42, 6),
+  ]),
+  spec("sticker-cross-seal", "Cross Seal", "poster", [
+    { op: "ring", cx: 50, cy: 50, r: 30, w: 6 },
+    L(40, 40, 60, 60, 7),
+    L(60, 40, 40, 60, 7),
+  ]),
+  spec("sticker-step-four", "Step Four", "poster", [
+    { op: "ring", cx: 50, cy: 50, r: 32, w: 6 },
+    D(38, 38, 5.5), D(62, 38, 5.5), D(38, 62, 5.5), D(62, 62, 5.5),
+  ]),
+  spec("sticker-step-five", "Step Five", "poster", [
+    { op: "ring", cx: 50, cy: 50, r: 32, w: 6 },
+    D(38, 38, 5.5), D(62, 38, 5.5), D(50, 50, 5.5), D(38, 62, 5.5), D(62, 62, 5.5),
+  ]),
+  spec("sticker-step-six", "Step Six", "poster", [
+    { op: "ring", cx: 50, cy: 50, r: 32, w: 6 },
+    D(38, 34, 5), D(62, 34, 5), D(38, 50, 5), D(62, 50, 5), D(38, 66, 5), D(62, 66, 5),
+  ]),
+  spec("sticker-quote-big", "Big Quote", "poster", [
+    L(52, 30, 34, 50, 8), L(34, 50, 52, 70, 8),
+    L(74, 30, 56, 50, 8), L(56, 50, 74, 70, 8),
+  ]),
+  spec("sticker-frame-double", "Double Frame", "poster", [
+    { op: "rect", x: 20, y: 20, w: 60, h: 60, fill: false, wgt: 6 },
+    { op: "rect", x: 30, y: 30, w: 40, h: 40, fill: false, wgt: 4 },
+  ]),
+  spec("sticker-rosette", "Rosette", "poster", [
+    { op: "burst", cx: 50, cy: 42, ro: 26, ri: 18, n: 10 },
+    { op: "poly", pts: [[40, 62], [60, 62], [56, 84], [50, 76], [44, 84]] },
+  ]),
+  spec("sticker-divider-dots", "Dot Divider", "poster", [
+    D(20, 50, 3.5), D(30, 50, 3.5), D(40, 50, 3.5), D(50, 50, 3.5), D(60, 50, 3.5), D(70, 50, 3.5), D(80, 50, 3.5),
+  ]),
+  spec("sticker-frame-rings", "Ring Frame", "poster", [
+    { op: "ring", cx: 50, cy: 50, r: 34, w: 5 },
+    { op: "ring", cx: 50, cy: 50, r: 24, w: 4 },
+  ]),
+  spec("sticker-banner-tall", "Tall Banner", "poster", [
+    { op: "poly", pts: [[34, 12], [66, 12], [66, 72], [50, 60], [34, 72]] },
+  ]),
+  spec("sticker-sparkle-ring", "Sparkle Ring", "poster", [
+    { op: "ring", cx: 50, cy: 50, r: 26, w: 5 },
+    { op: "burst", cx: 50, cy: 14, ro: 8, ri: 3, n: 4 },
+    { op: "burst", cx: 86, cy: 50, ro: 8, ri: 3, n: 4 },
+    { op: "burst", cx: 50, cy: 86, ro: 8, ri: 3, n: 4 },
+    { op: "burst", cx: 14, cy: 50, ro: 8, ri: 3, n: 4 },
+  ]),
+  // Social contact minis (12)
+  spec("sticker-envelope", "Envelope", "social", [
+    { op: "rect", x: 22, y: 34, w: 56, h: 32, rr: 4, fill: false, wgt: 7 },
+    L(22, 34, 50, 56, 6),
+    L(50, 56, 78, 34, 6),
+  ]),
+  spec("sticker-phone", "Phone", "social", [
+    { op: "rect", x: 34, y: 20, w: 32, h: 60, rr: 8, fill: false, wgt: 7 },
+    L(44, 28, 56, 28, 5),
+    D(50, 70, 4),
+  ]),
+  spec("sticker-clock", "Clock", "social", [
+    { op: "ring", cx: 50, cy: 50, r: 30, w: 7 },
+    L(50, 50, 50, 30, 6),
+    L(50, 50, 64, 58, 6),
+    D(50, 50, 4),
+  ]),
+  spec("sticker-globe", "Globe", "social", [
+    { op: "ring", cx: 50, cy: 50, r: 30, w: 6 },
+    L(50, 20, 50, 80, 5),
+    L(20, 50, 80, 50, 5),
+  ]),
+  spec("sticker-camera", "Camera", "social", [
+    { op: "rect", x: 22, y: 36, w: 56, h: 34, rr: 6, fill: false, wgt: 7 },
+    { op: "poly", pts: [[36, 36], [36, 28], [48, 28], [48, 36]], fill: false, wgt: 6 },
+    D(50, 53, 9),
+  ]),
+  spec("sticker-music", "Music Note", "social", [
+    D(38, 68, 9),
+    L(47, 68, 47, 26, 6),
+    { op: "poly", pts: [[47, 26], [65, 34], [47, 44]] },
+  ]),
+  spec("sticker-hash", "Hash", "social", [
+    L(40, 28, 36, 72, 6), L(60, 28, 56, 72, 6),
+    L(28, 44, 72, 40, 6), L(28, 60, 72, 56, 6),
+  ]),
+  spec("sticker-share", "Share", "social", [
+    D(30, 50, 8), D(70, 34, 8), D(70, 66, 8),
+    L(30, 50, 70, 34, 6), L(30, 50, 70, 66, 6),
+  ]),
+  spec("sticker-chat-dots", "Chat Dots", "social", [
+    { op: "rect", x: 24, y: 30, w: 52, h: 32, rr: 10, fill: false, wgt: 6 },
+    D(40, 46, 4), D(52, 46, 4), D(64, 46, 4),
+  ]),
+  spec("sticker-play", "Play", "social", [
+    { op: "ring", cx: 50, cy: 50, r: 30, w: 6 },
+    { op: "poly", pts: [[44, 34], [44, 66], [68, 50]] },
+  ]),
+  spec("sticker-mic", "Mic", "social", [
+    { op: "rect", x: 42, y: 20, w: 16, h: 30, rr: 8 },
+    L(50, 50, 50, 72, 6),
+    L(38, 72, 62, 72, 6),
+  ]),
+  spec("sticker-qr", "QR Frame", "social", [
+    { op: "rect", x: 22, y: 22, w: 22, h: 22, fill: false, wgt: 6 },
+    { op: "rect", x: 56, y: 22, w: 22, h: 22, fill: false, wgt: 6 },
+    { op: "rect", x: 22, y: 56, w: 22, h: 22, fill: false, wgt: 6 },
+    D(66, 66, 4), D(78, 56, 4), D(56, 78, 4),
+  ]),
 ];

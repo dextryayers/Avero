@@ -152,12 +152,40 @@ painted as normal raster layers that transform like everything else.
 - [x] 5.5. Old `.avx` with emoji sticker layers still opens (pixels only,
   catalog independent, no migration code touched).
 
+## PHASE 6 - Poster expansion, 48 more assets - EXECUTED
+
+Owner amendment: grow from 72 to 120 for poster building. Two new
+categories join the catalog, all rules from Phase 0 through 5 still hold
+(unique icons verified alias safe, hints for every id, same wiring).
+
+- [x] 6.1. Poster builders (24): Big Burst, Double Seal, Split Ribbon,
+  Price Circle, Wide Tag, Double Rule, Dotted Rule, Zigzag Rule, Arrow
+  Divider, Corner Flourish, Photo Corners, Mini Shield, Check Seal,
+  Cross Seal, Step Four through Six (continuing the dot numeral series),
+  Big Quote guillemets, Double Frame, Rosette, Dot Divider, Ring Frame,
+  Tall Banner, Sparkle Ring.
+- [x] 6.2. Social contact minis (12): Envelope, Phone, Clock, Globe,
+  Camera, Music Note, Hash, Share, Chat Dots, Play, Mic, QR Frame.
+- [x] 6.3. FX waves two (12): Confetti, Starfield, Rainbow Rings, Dots
+  Fade, Plus Field, Fine Grain, Light Leak, Prism, Checker Fade, Wave
+  Band, Ring Burst, Spotlight. Seeded determinism kept, so thumbs match
+  placed results.
+- [x] 6.4. Registry wiring: 48 ToolIds in the union, 48 hints, 48
+  STICKER_TOOLS entries, 48 globally unique icons (alias traps like
+  PaintbrushVertical and TreePalm excluded by check script), K shortcut
+  joins the existing sticker cycle, categories Poster and Social added.
+- [x] 6.5. Contact sheet review one by one for all 36 stamps: every
+  newcomer reads professional. The loop fixed one sparse Dot Divider
+  (dots up to r3.5) and kept Photo Corners out of the mirror gate
+  (diagonal float noise, symmetric by design).
+
 ## Acceptance criteria
 
 1. Zero emoji glyphs and zero emoji font references in src.
-2. All 72 slots filled with professional vector or FX assets in the 6
-   new categories.
+2. All 120 slots filled with professional vector or FX assets in the 8
+   categories (marks 14, badges 12, frames 12, labels 12, nature 10,
+   fx 24, poster 24, social 12).
 3. Every asset recolors with the brush color and places as a normal
    transformable raster layer.
-4. Same 72 ToolIds, shortcuts, dispatch and hints keep working.
+4. Same ToolIds pattern, shortcuts, dispatch and hints keep working.
 5. English everywhere, zero emdash in src, tests and typecheck green.

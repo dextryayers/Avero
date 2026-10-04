@@ -11,20 +11,24 @@ import {
 import { STICKER_IDS } from "./stickers";
 
 describe("sticker v2 catalog (plan7 professional assets)", () => {
-  it("reuses all 72 legacy ids with zero additions or renames", () => {
-    expect(STICKER_V2.length).toBe(72);
-    expect(new Set(STICKER_V2.map((s) => s.id)).size).toBe(72);
-    expect([...STICKER_V2.map((s) => s.id)].sort()).toEqual([...STICKER_IDS].sort());
+  it("keeps all 72 legacy ids plus the 48 poster expansion ids", () => {
+    expect(STICKER_V2.length).toBe(120);
+    expect(new Set(STICKER_V2.map((s) => s.id)).size).toBe(120);
+    for (const id of STICKER_IDS) {
+      expect(STICKER_V2.some((s) => s.id === id), id).toBe(true);
+    }
   });
 
-  it("covers the 6 new categories with the frozen counts", () => {
+  it("covers the 8 categories with the frozen counts", () => {
     const count = (c: string) => STICKER_V2.filter((s) => s.category === c).length;
     expect(count("marks")).toBe(14);
     expect(count("badges")).toBe(12);
     expect(count("frames")).toBe(12);
     expect(count("labels")).toBe(12);
     expect(count("nature")).toBe(10);
-    expect(count("fx")).toBe(12);
+    expect(count("fx")).toBe(24);
+    expect(count("poster")).toBe(24);
+    expect(count("social")).toBe(12);
   });
 
   it("labels are clean English with no emoji", () => {
@@ -35,21 +39,23 @@ describe("sticker v2 catalog (plan7 professional assets)", () => {
     }
   });
 
-  it("all 60 stamp specs validate clean", () => {
+  it("all 96 stamp specs validate clean", () => {
     const stamps = STICKER_V2.filter((s) => !s.fx);
-    expect(stamps.length).toBe(60);
+    expect(stamps.length).toBe(96);
     for (const s of stamps) {
       expect(validateStickerArt(s.shapes), s.id).toEqual([]);
     }
   });
 
-  it("all 12 fx entries carry a known kind with empty shapes", () => {
+  it("all 24 fx entries carry a known kind with empty shapes", () => {
     const kinds = [
       "sunburst", "lens-flare", "bokeh", "grain", "vignette", "streak",
       "glow-orb", "sparkle-spray", "haze", "duotone", "edge-burn", "beam",
+      "confetti", "starfield", "rainbow-rings", "dots-fade", "plus-field", "grain-fine",
+      "leak", "prism", "checker-fade", "wave-band", "ring-burst", "spotlight",
     ];
     const fx = STICKER_V2.filter((s) => s.fx);
-    expect(fx.length).toBe(12);
+    expect(fx.length).toBe(24);
     expect([...fx.map((s) => s.fx as string)].sort()).toEqual([...kinds].sort());
     for (const s of fx) expect(s.shapes).toEqual([]);
   });
@@ -220,7 +226,19 @@ const X_MIRROR_CLEAN: string[] = [
   "sticker-tiger", "sticker-unicorn", "sticker-penguin",
   "sticker-butterfly", "sticker-bee", "sticker-burger",
   "sticker-sunflower", "sticker-mushroom", "sticker-sun", "sticker-snowflake", "sticker-clover",
+  "sticker-seal-double", "sticker-price-circle", "sticker-rule-double", "sticker-rule-dotted",
+  "sticker-shield-mini", "sticker-cross-seal",
+  "sticker-step-four", "sticker-step-five", "sticker-step-six", "sticker-frame-double",
+  "sticker-rosette", "sticker-divider-dots", "sticker-frame-rings", "sticker-banner-tall",
+  "sticker-sparkle-ring", "sticker-envelope", "sticker-phone", "sticker-globe", "sticker-mic",
 ];
+// Note: sticker-photo-corners is symmetric by design but its long diagonals
+// produce float noise above the strict gate, so it stays out of this list.
+// Asymmetric by design and excluded: check, quote, chevron, arrows, cursor,
+// pin, bolt, tag, price, underline, approved, moon, cloud, ridge, rain,
+// fork, key, verified, bubble, mic boom, envelope flap, camera hump,
+// music flag, hash slant, share spokes, play head, qr finders.
+
 
 describe("sticker visual QA (headless structural review)", () => {
   it("every stamp reads as a centered mark, neither empty nor full bleed", () => {

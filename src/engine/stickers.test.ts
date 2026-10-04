@@ -39,9 +39,9 @@ describe("sticker studio catalog", () => {
     expect(dup).toEqual([]);
   });
 
-  it("covers 6 professional categories with the frozen counts", () => {
+  it("covers 8 professional categories with the frozen counts", () => {
     expect(STICKER_CATEGORIES.map((c) => c.id).sort()).toEqual(
-      ["badges", "frames", "fx", "labels", "marks", "nature"].sort(),
+      ["badges", "frames", "fx", "labels", "marks", "nature", "poster", "social"].sort(),
     );
     const counts: Record<string, number> = {
       marks: 14,
@@ -49,7 +49,9 @@ describe("sticker studio catalog", () => {
       frames: 12,
       labels: 12,
       nature: 10,
-      fx: 12,
+      fx: 24,
+      poster: 24,
+      social: 12,
     };
     for (const c of STICKER_CATEGORIES) {
       const n = STICKER_META.filter((s) => s.category === c.id).length;

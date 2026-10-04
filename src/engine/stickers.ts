@@ -26,6 +26,8 @@ export const STICKER_CATEGORIES: { id: StickerCategory; label: string }[] = [
   { id: "labels", label: "Labels" },
   { id: "nature", label: "Nature" },
   { id: "fx", label: "FX" },
+  { id: "poster", label: "Poster" },
+  { id: "social", label: "Social" },
 ];
 
 export const STICKER_META: StickerMeta[] = STICKER_V2.map((s) => ({

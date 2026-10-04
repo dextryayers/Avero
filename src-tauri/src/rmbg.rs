@@ -1,22 +1,64 @@
-// RMBG background removal (U2-Net family ONNX export, e.g. model-rmbg-1.4.onnx).
-// Pure helpers (normalize, resize, tensor layout) are unit tested without a
-// model; the ort session path needs the .onnx in <exe-dir>/models/.
-// Graph input/output names are read from the session, never hardcoded, so
-// any rembg style export keeps working.
+// Avero Remove BG engine: three high precision ONNX models with one shared
+// maximum performance pipeline. Each model is selectable in the UI as
+// Avero Remove BG I, II, or III. All three use ImageNet normalize at a 1024
+// working square and the same smart matte post pipeline, so results stay
+// clean and consistent while each backbone keeps its own strength.
+// Graph input and output names are read from the session, never hardcoded,
+// so all three exports work without per model hacks. Pure helpers are unit
+// tested without a model. Model files resolve from <exe-dir>/models/ with
+// fallbacks to the repo model/ folder for development.
 
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::sync::{Mutex, OnceLock};
 
 use crate::segment::{guided_refine, upscale_gray};
 
-/// File name expected next to the executable, inside the models folder.
+/// Default file for backward compatibility (Avero Remove BG I).
 pub const RMBG_FILE: &str = "model-rmbg-1.4.onnx";
-/// Working square the export expects (verified against the model graph:
-/// it rejects anything but 1024 on the spatial dims).
+/// Working square every bundled export expects. RMBG2-0 accepts dynamic
+/// shapes but 1024 is its tuned size, so one size fits all three models.
 pub const RMBG_INPUT: u32 = 1024;
-/// ImageNet normalize used by this export family.
+/// ImageNet normalize shared by all three model families.
 pub const RMBG_MEAN: [f32; 3] = [0.485, 0.456, 0.406];
 pub const RMBG_STD: [f32; 3] = [0.229, 0.224, 0.225];
+
+/// Registry entry for one selectable background removal model.
+#[derive(Clone, Copy, Debug)]
+pub struct RmbgModelDef {
+    pub id: &'static str,
+    pub label: &'static str,
+    pub file: &'static str,
+    pub input_size: u32,
+    pub tagline: &'static str,
+}
+
+/// All selectable models in UI order. I is the fast balanced U2-Net,
+// II is the high detail RMBG-2.0 backbone, III is the ultra precise
+// BiRefNet backbone for hair and fine edges.
+pub const RMBG_MODELS: [RmbgModelDef; 3] = [
+    RmbgModelDef {
+        id: "avero-1",
+        label: "Avero Remove BG I",
+        file: "model-rmbg-1.4.onnx",
+        input_size: 1024,
+        tagline: "Fast balanced cutout for everyday photos",
+    },
+    RmbgModelDef {
+        id: "avero-2",
+        label: "Avero Remove BG II",
+        file: "RMBG2-0.onnx",
+        input_size: 1024,
+        tagline: "High detail backbone for portraits and products",
+    },
+    RmbgModelDef {
+        id: "avero-3",
+        label: "Avero Remove BG III",
+        file: "BiReFNet.onnx",
+        input_size: 1024,
+        tagline: "Ultra precise backbone for hair and fine edges",
+    },
+];
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RmbgStatus {
@@ -25,24 +67,152 @@ pub struct RmbgStatus {
     pub size_mb: f64,
 }
 
-/// Candidate model path: <exe-dir>/models/model-rmbg-1.4.onnx.
-pub fn default_rmbg_path() -> String {
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RmbgModelStatus {
+    pub id: String,
+    pub label: String,
+    pub file: String,
+    pub found: bool,
+    pub path: String,
+    pub size_mb: f64,
+    pub input_size: u32,
+    pub tagline: String,
+}
+
+/// Folder next to the executable that ships the ONNX files.
+pub fn rmbg_models_dir() -> std::path::PathBuf {
     let base = std::env::current_exe()
         .ok()
         .and_then(|p| p.parent().map(|p| p.to_path_buf()))
         .unwrap_or_else(|| std::path::PathBuf::from("."));
     base.join("models")
-        .join(RMBG_FILE)
+}
+
+/// Every location searched for a model file, in priority order.
+fn candidate_paths_for(file: &str) -> Vec<std::path::PathBuf> {
+    let mut out = Vec::with_capacity(5);
+    out.push(rmbg_models_dir().join(file));
+    // Development fallbacks: repo root model/ and models/ folders.
+    if let Ok(cwd) = std::env::current_dir() {
+        out.push(cwd.join("model").join(file));
+        out.push(cwd.join("models").join(file));
+        if let Some(parent) = cwd.parent() {
+            out.push(parent.join("model").join(file));
+        }
+    }
+    // Next to the executable, singular folder variant.
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            out.push(dir.join("model").join(file));
+        }
+    }
+    out
+}
+
+/// First existing path for a file, if any.
+fn find_model_file(file: &str) -> Option<std::path::PathBuf> {
+    candidate_paths_for(file)
+        .into_iter()
+        .find(|p| p.is_file())
+}
+
+/// Canonical expected path used in messages when a file is missing.
+pub fn expected_rmbg_path_for(file: &str) -> String {
+    rmbg_models_dir()
+        .join(file)
         .to_string_lossy()
         .into_owned()
 }
 
+/// Candidate model path for the legacy single model API.
+pub fn default_rmbg_path() -> String {
+    if let Some(p) = find_model_file(RMBG_FILE) {
+        return p.to_string_lossy().into_owned();
+    }
+    expected_rmbg_path_for(RMBG_FILE)
+}
+
+/// Resolve a user supplied model reference (absolute path, file name,
+// or registry id) to an existing file when possible.
+fn resolve_rmbg_file(requested_path: Option<&str>, requested_id: Option<&str>) -> Option<String> {
+    if let Some(id) = requested_id {
+        let clean = id.trim();
+        if !clean.is_empty() {
+            if let Some(def) = RMBG_MODELS.iter().find(|m| m.id == clean) {
+                if let Some(p) = find_model_file(def.file) {
+                    return Some(p.to_string_lossy().into_owned());
+                }
+                return Some(expected_rmbg_path_for(def.file));
+            }
+        }
+    }
+    if let Some(p) = requested_path {
+        let clean = p.trim();
+        if !clean.is_empty() && clean != "null" {
+            let pb = std::path::PathBuf::from(clean);
+            if pb.is_file() {
+                return Some(clean.to_owned());
+            }
+            // Bare file name: search known folders.
+            if let Some(name) = pb.file_name().and_then(|n| n.to_str()) {
+                if let Some(found) = find_model_file(name) {
+                    return Some(found.to_string_lossy().into_owned());
+                }
+            }
+            return Some(clean.to_owned());
+        }
+    }
+    // Default: first available model in registry order.
+    for def in RMBG_MODELS.iter() {
+        if let Some(p) = find_model_file(def.file) {
+            return Some(p.to_string_lossy().into_owned());
+        }
+    }
+    Some(default_rmbg_path())
+}
+
+fn status_for_def(def: &RmbgModelDef) -> RmbgModelStatus {
+    match find_model_file(def.file) {
+        Some(p) => {
+            let size_mb =
+                std::fs::metadata(&p).map(|m| m.len() as f64 / 1048576.0).unwrap_or(0.0);
+            RmbgModelStatus {
+                id: def.id.to_string(),
+                label: def.label.to_string(),
+                file: def.file.to_string(),
+                found: size_mb > 1.0,
+                path: p.to_string_lossy().into_owned(),
+                size_mb,
+                input_size: def.input_size,
+                tagline: def.tagline.to_string(),
+            }
+        }
+        None => RmbgModelStatus {
+            id: def.id.to_string(),
+            label: def.label.to_string(),
+            file: def.file.to_string(),
+            found: false,
+            path: expected_rmbg_path_for(def.file),
+            size_mb: 0.0,
+            input_size: def.input_size,
+            tagline: def.tagline.to_string(),
+        },
+    }
+}
+
+#[tauri::command]
+pub fn cmd_rmbg_models_status() -> Vec<RmbgModelStatus> {
+    RMBG_MODELS.iter().map(status_for_def).collect()
+}
+
 #[tauri::command]
 pub fn cmd_rmbg_status() -> RmbgStatus {
-    let path = default_rmbg_path();
-    let size_mb = std::fs::metadata(&path).map(|m| m.len() as f64 / 1048576.0).unwrap_or(0.0);
-    let found = size_mb > 1.0;
-    RmbgStatus { found, path, size_mb }
+    let s = status_for_def(&RMBG_MODELS[0]);
+    RmbgStatus {
+        found: s.found,
+        path: s.path,
+        size_mb: s.size_mb,
+    }
 }
 
 static RMBG_SESSIONS: OnceLock<Mutex<std::collections::HashMap<String, ort::session::Session>>> =
@@ -63,15 +233,21 @@ fn ensure_rmbg_session(model_path: &str) -> Result<(), String> {
     }
     if !std::path::Path::new(model_path).is_file() {
         return Err(format!(
-            "RMBG model not found at {model_path}. Place model-rmbg-1.4.onnx in <exe-dir>/models/."
+            "Background removal model not found at {model_path}. Place the ONNX file in <exe-dir>/models/."
         ));
     }
     let session = ort::session::Session::builder()
         .map_err(|e| format!("ort builder: {e}"))?
         .with_optimization_level(ort::session::builder::GraphOptimizationLevel::Level3)
         .map_err(|e| format!("ort opt level: {e}"))?
+        .with_memory_pattern(true)
+        .map_err(|e| format!("ort memory pattern: {e}"))?
         .with_intra_threads(rmbg_threads())
         .map_err(|e| format!("ort threads: {e}"))?
+        .with_inter_threads(1)
+        .map_err(|e| format!("ort inter threads: {e}"))?
+        .with_parallel_execution(false)
+        .map_err(|e| format!("ort execution mode: {e}"))?
         .commit_from_file(model_path)
         .map_err(|e| format!("load model {model_path}: {e}"))?;
     guard.insert(model_path.to_string(), session);
@@ -91,7 +267,9 @@ fn use_rmbg_session<R>(model_path: &str, f: impl FnOnce(&mut ort::session::Sessi
 // Pure math (unit-tested, no ort, no model).
 // ---------------------------------------------------------------------------
 
-/// Bilinear sample of one RGBA channel row.
+/// Bilinear sample of one RGBA channel row (kept for tests and reference,
+/// the hot preprocess path inlines this math inside a rayon row loop).
+#[allow(dead_code)]
 fn sample_bilinear(rgba: &[u8], w: u32, h: u32, c: usize, x: f32, y: f32) -> f32 {
     let wi = w as i64;
     let hi = h as i64;
@@ -108,6 +286,8 @@ fn sample_bilinear(rgba: &[u8], w: u32, h: u32, c: usize, x: f32, y: f32) -> f32
 }
 
 /// RGBA -> ImageNet normalized NCHW float tensor at the working square.
+// Parallel over output rows with rayon for maximum throughput on
+// multicore machines. Bilinear sampling keeps matte edges smooth.
 pub fn rmbg_input(rgba: &[u8], w: u32, h: u32) -> Result<(Vec<f32>, [usize; 4]), String> {
     if w < 8 || h < 8 || w > 4096 || h > 4096 {
         return Err(format!("rmbg size out of range: {w}x{h}"));
@@ -120,18 +300,51 @@ pub fn rmbg_input(rgba: &[u8], w: u32, h: u32) -> Result<(Vec<f32>, [usize; 4]),
     }
     let s = RMBG_INPUT as usize;
     let mut out = vec![0f32; 3 * s * s];
-    for y in 0..s {
-        for x in 0..s {
-            // plain resize (export expects a square side)
-            let sx = (x as f32 + 0.5) * w as f32 / s as f32 - 0.5;
-            let sy = (y as f32 + 0.5) * h as f32 / s as f32 - 0.5;
-            for c in 0..3 {
-                // matte edges stay smooth: bilinear, not nearest
-                out[c * s * s + y * s + x] =
-                    (sample_bilinear(rgba, w, h, c, sx, sy) - RMBG_MEAN[c]) / RMBG_STD[c];
+    let wf = w as f32;
+    let hf = h as f32;
+    let sf = s as f32;
+    out.par_chunks_mut(s)
+        .enumerate()
+        .for_each(|(row, chunk)| {
+            let plane = row / s;
+            let y = row % s;
+            let sy = (y as f32 + 0.5) * hf / sf - 0.5;
+            let y0f = sy.floor();
+            let mut y0 = y0f as i64;
+            if y0 < 0 {
+                y0 = 0;
+            } else if y0 > h as i64 - 1 {
+                y0 = h as i64 - 1;
             }
-        }
-    }
+            let y0u = y0 as usize;
+            let y1u = (y0u + 1).min(h as usize - 1);
+            let fy = (sy - y0f).clamp(0.0, 1.0);
+            let mean = RMBG_MEAN[plane];
+            let std = RMBG_STD[plane];
+            let wi = w as usize;
+            for x in 0..s {
+                let sx = (x as f32 + 0.5) * wf / sf - 0.5;
+                let x0f = sx.floor();
+                let mut x0 = x0f as i64;
+                if x0 < 0 {
+                    x0 = 0;
+                } else if x0 > w as i64 - 1 {
+                    x0 = w as i64 - 1;
+                }
+                let x0u = x0 as usize;
+                let x1u = (x0u + 1).min(wi - 1);
+                let fx = (sx - x0f).clamp(0.0, 1.0);
+                let base = plane;
+                let t0 = rgba[(y0u * wi + x0u) * 4 + base] as f32 / 255.0;
+                let t1 = rgba[(y0u * wi + x1u) * 4 + base] as f32 / 255.0;
+                let b0 = rgba[(y1u * wi + x0u) * 4 + base] as f32 / 255.0;
+                let b1 = rgba[(y1u * wi + x1u) * 4 + base] as f32 / 255.0;
+                let top = t0 * (1.0 - fx) + t1 * fx;
+                let bot = b0 * (1.0 - fx) + b1 * fx;
+                let v = top * (1.0 - fy) + bot * fy;
+                chunk[x] = (v - mean) / std;
+            }
+        });
     Ok((out, [1usize, 3, s, s]))
 }
 
@@ -489,14 +702,16 @@ pub fn page_color_if_uniform(rgba: &[u8], w: usize, h: usize) -> Option<[f32; 3]
     Some(mean)
 }
 
-/// Foreground where the source color differs from the page color beyond
-/// tolerance, sampled at matte size. Deterministic and exact on flat
-/// graphics where the neural matte guesses backwards.
-pub fn flat_bg_mask(
+/// Page removal by flood fill: BFS from every frame border pixel over
+/// source colors near the seed, at matte size. Unlike a global color
+/// cutoff it survives page gradients, vignette, and JPEG shading: the
+/// fill spreads through near colors and stops at the subject edge.
+/// Foreground is whatever the page fill never reaches.
+pub fn flood_page_mask(
     rgba: &[u8],
     sw: usize,
     sh: usize,
-    page: [f32; 3],
+    seed: [f32; 3],
     tol: f32,
     mw: usize,
     mh: usize,
@@ -504,21 +719,131 @@ pub fn flat_bg_mask(
     if mw == 0 || mh == 0 || sw == 0 || sh == 0 || rgba.len() < sw * sh * 4 {
         return vec![0u8; mw * mh];
     }
-    let mut out = vec![0u8; mw * mh];
+    let near = |x: usize, y: usize| {
+        let sx = (x * sw / mw).min(sw - 1);
+        let sy = (y * sh / mh).min(sh - 1);
+        let p = (sy * sw + sx) * 4;
+        ((rgba[p] as f32 - seed[0]).powi(2)
+            + (rgba[p + 1] as f32 - seed[1]).powi(2)
+            + (rgba[p + 2] as f32 - seed[2]).powi(2))
+            .sqrt()
+            <= tol
+    };
+    let mut reached = vec![false; mw * mh];
+    let mut stack: Vec<usize> = Vec::new();
+    for x in 0..mw {
+        stack.push(x);
+        stack.push((mh - 1) * mw + x);
+    }
     for y in 0..mh {
-        for x in 0..mw {
-            let sx = (x * sw / mw).min(sw - 1);
-            let sy = (y * sh / mh).min(sh - 1);
-            let p = (sy * sw + sx) * 4;
-            let d = ((rgba[p] as f32 - page[0]).powi(2)
-                + (rgba[p + 1] as f32 - page[1]).powi(2)
-                + (rgba[p + 2] as f32 - page[2]).powi(2))
-            .sqrt();
-            out[y * mw + x] = if d > tol { 255 } else { 0 };
+        stack.push(y * mw);
+        stack.push(y * mw + mw - 1);
+    }
+    while let Some(i) = stack.pop() {
+        if reached[i] || !near(i % mw, i / mw) {
+            continue;
+        }
+        reached[i] = true;
+        let x = i % mw;
+        let y = i / mw;
+        if x > 0 {
+            stack.push(i - 1);
+        }
+        if x + 1 < mw {
+            stack.push(i + 1);
+        }
+        if y > 0 {
+            stack.push(i - mw);
+        }
+        if y + 1 < mh {
+            stack.push(i + mw);
         }
     }
-    out
+    reached.iter().map(|&r| if r { 0 } else { 255 }).collect()
 }
+
+/// Mean color of the center patch: the subject usually lives there. Page
+/// mode is rejected when the center looks like the page seed (white dress
+/// on a white page), where flooding would eat the subject itself.
+pub fn center_patch_mean(rgba: &[u8], w: usize, h: usize) -> [f32; 3] {
+    if w == 0 || h == 0 || rgba.len() < w * h * 4 {
+        return [0.0, 0.0, 0.0];
+    }
+    let (x0, x1) = (w * 45 / 100, w * 55 / 100);
+    let (y0, y1) = (h * 45 / 100, h * 55 / 100);
+    let mut sum = [0u64; 3];
+    let mut n = 0u64;
+    for y in y0..=y1.min(h - 1) {
+        for x in x0..=x1.min(w - 1) {
+            let p = (y * w + x) * 4;
+            sum[0] += rgba[p] as u64;
+            sum[1] += rgba[p + 1] as u64;
+            sum[2] += rgba[p + 2] as u64;
+            n += 1;
+        }
+    }
+    let n = n.max(1) as f32;
+    [sum[0] as f32 / n, sum[1] as f32 / n, sum[2] as f32 / n]
+}
+
+/// Quality score of a binary subject mask: centered and coherent wins,
+/// frame-touching sprawl loses. Drives automatic cutoff selection so one
+/// click lands on the subject instead of the brightest blob.
+pub fn mask_quality(bin: &[u8], w: usize, h: usize) -> f32 {
+    if bin.len() != w * h || w < 8 || h < 8 {
+        return f32::MIN;
+    }
+    let fg = bin.iter().filter(|&&v| v != 0).count();
+    if fg == 0 || fg == w * h {
+        return f32::MIN;
+    }
+    let (_, sizes, _) = label_components(bin, w, h);
+    let largest = sizes.iter().max().copied().unwrap_or(0) as f32 / fg as f32;
+    let border = border_fg_ratio(bin, w, h);
+    let (x0, x1) = (w * 40 / 100, w * 60 / 100);
+    let (y0, y1) = (h * 40 / 100, h * 60 / 100);
+    let mut cfg = 0usize;
+    let mut cn = 0usize;
+    for y in y0..=y1.min(h - 1) {
+        for x in x0..=x1.min(w - 1) {
+            cn += 1;
+            if bin[y * w + x] != 0 {
+                cfg += 1;
+            }
+        }
+    }
+    let center = if cn == 0 { 0.0 } else { cfg as f32 / cn as f32 };
+    3.0 * center + 2.0 * largest - 3.0 * border
+}
+
+/// Pick the cutoff whose mask scores best: Otsu plus scaled fallbacks in
+/// both directions. A too-high Otsu that keeps only bright blobs (white
+/// shirt on dark suit) loses to a lower cutoff that recovers the coherent
+/// centered subject; a too-low Otsu that floods the background loses on
+/// border contact. Returns the winning threshold.
+pub fn pick_threshold(soft: &[u8], w: usize, h: usize) -> u8 {
+    let t0 = otsu_threshold(soft) as u16;
+    let raw = [t0 * 5 / 4, t0, t0 * 3 / 4, t0 / 2, t0 / 3];
+    let mut best = t0.clamp(1, 254) as u8;
+    let mut best_score = f32::MIN;
+    let mut seen = [false; 256];
+    for t in raw {
+        let t = t.clamp(10, 245) as u8;
+        if seen[t as usize] {
+            continue;
+        }
+        seen[t as usize] = true;
+        let bin: Vec<u8> = soft.iter().map(|&v| if v >= t { 255 } else { 0 }).collect();
+        let bridged = close_small_gaps(&bin, w, h);
+        let s = mask_quality(&bridged, w, h);
+        if s > best_score {
+            best_score = s;
+            best = t;
+        }
+    }
+    best
+}
+
 /// Page/backdrop estimate: mean color of small patches in the four
 /// corners. Real photos have background in at least some corners; flat
 /// graphics have the page color in all of them.
@@ -740,7 +1065,7 @@ pub fn fill_enclosed_holes(bin: &[u8], w: usize, h: usize) -> Vec<u8> {
         .collect()
 }
 
-/// Threads sized to the machine (2..8): a 168MB model at 1024px is
+/// Threads sized to the machine (2..8): large backbones at 1024px are
 /// thread hungry, 4 fixed threads underfeeds modern CPUs.
 fn rmbg_threads() -> usize {
     std::thread::available_parallelism()
@@ -748,6 +1073,7 @@ fn rmbg_threads() -> usize {
         .unwrap_or(4)
 }
 /// Luma guide at matte size for edge aware smoothing (bilinear).
+/// Parallel over rows with rayon for maximum throughput.
 pub fn luma_at_size(rgba: &[u8], w: u32, h: u32, tw: usize, th: usize) -> Vec<u8> {
     const LUMA: [f32; 3] = [0.299, 0.587, 0.114];
     let wu = w.max(1) as usize;
@@ -756,27 +1082,41 @@ pub fn luma_at_size(rgba: &[u8], w: u32, h: u32, tw: usize, th: usize) -> Vec<u8
         return vec![0u8; tw.max(1) * th.max(1)];
     }
     let mut out = vec![0u8; tw * th];
-    for y in 0..th {
-        let gy = (y as f32 + 0.5) * hu as f32 / th as f32 - 0.5;
-        let y0 = (gy.floor() as isize).clamp(0, hu as isize - 1) as usize;
-        let y1 = (y0 + 1).min(hu - 1);
-        let fy = (gy - y0 as f32).clamp(0.0, 1.0);
-        for x in 0..tw {
-            let gx = (x as f32 + 0.5) * wu as f32 / tw as f32 - 0.5;
-            let x0 = (gx.floor() as isize).clamp(0, wu as isize - 1) as usize;
-            let x1 = (x0 + 1).min(wu - 1);
-            let fx = (gx - x0 as f32).clamp(0.0, 1.0);
-            let px = |xx: usize, yy: usize| {
-                let i = (yy * wu + xx) * 4;
-                (rgba[i] as f32 * LUMA[0] + rgba[i + 1] as f32 * LUMA[1] + rgba[i + 2] as f32 * LUMA[2]).clamp(0.0, 255.0)
-            };
-            let v = px(x0, y0) * (1.0 - fx) * (1.0 - fy)
-                + px(x1, y0) * fx * (1.0 - fy)
-                + px(x0, y1) * (1.0 - fx) * fy
-                + px(x1, y1) * fx * fy;
-            out[y * tw + x] = v.round().clamp(0.0, 255.0) as u8;
-        }
-    }
+    out.par_chunks_mut(tw)
+        .enumerate()
+        .for_each(|(y, row)| {
+            let gy = (y as f32 + 0.5) * hu as f32 / th as f32 - 0.5;
+            let y0 = (gy.floor() as isize).clamp(0, hu as isize - 1) as usize;
+            let y1 = (y0 + 1).min(hu - 1);
+            let fy = (gy - y0 as f32).clamp(0.0, 1.0);
+            for (x, v) in row.iter_mut().enumerate() {
+                let gx = (x as f32 + 0.5) * wu as f32 / tw as f32 - 0.5;
+                let x0 = (gx.floor() as isize).clamp(0, wu as isize - 1) as usize;
+                let x1 = (x0 + 1).min(wu - 1);
+                let fx = (gx - x0 as f32).clamp(0.0, 1.0);
+                let i00 = (y0 * wu + x0) * 4;
+                let i10 = (y0 * wu + x1) * 4;
+                let i01 = (y1 * wu + x0) * 4;
+                let i11 = (y1 * wu + x1) * 4;
+                let p00 = rgba[i00] as f32 * LUMA[0]
+                    + rgba[i00 + 1] as f32 * LUMA[1]
+                    + rgba[i00 + 2] as f32 * LUMA[2];
+                let p10 = rgba[i10] as f32 * LUMA[0]
+                    + rgba[i10 + 1] as f32 * LUMA[1]
+                    + rgba[i10 + 2] as f32 * LUMA[2];
+                let p01 = rgba[i01] as f32 * LUMA[0]
+                    + rgba[i01 + 1] as f32 * LUMA[1]
+                    + rgba[i01 + 2] as f32 * LUMA[2];
+                let p11 = rgba[i11] as f32 * LUMA[0]
+                    + rgba[i11 + 1] as f32 * LUMA[1]
+                    + rgba[i11 + 2] as f32 * LUMA[2];
+                let mix = p00 * (1.0 - fx) * (1.0 - fy)
+                    + p10 * fx * (1.0 - fy)
+                    + p01 * (1.0 - fx) * fy
+                    + p11 * fx * fy;
+                *v = mix.round().clamp(0.0, 255.0) as u8;
+            }
+        });
     out
 }
 
@@ -798,6 +1138,12 @@ pub struct RmbgResult {
     /// True when the neural matte looked backwards on a flat page and the
     /// deterministic page-color mask took over instead.
     pub flat_bg: bool,
+    /// Registry id of the model that produced this matte.
+    #[serde(default)]
+    pub model_id: String,
+    /// Display label of the model that produced this matte.
+    #[serde(default)]
+    pub model_label: String,
 }
 
 #[tauri::command]
@@ -812,6 +1158,7 @@ pub fn cmd_rmbg_remove(
     trim_borders: Option<bool>,
     keep_largest: Option<usize>,
     smart_trim: Option<bool>,
+    model_id: Option<String>,
 ) -> Result<RmbgResult, String> {
     let t0 = std::time::Instant::now();
     let w = width.max(8).min(4096);
@@ -819,7 +1166,16 @@ pub fn cmd_rmbg_remove(
     if rgba.len() != (w as usize) * (h as usize) * 4 {
         return Err(format!("RGBA size mismatch: got {} bytes for {w}x{h}", rgba.len()));
     }
-    let path = model_path.unwrap_or_else(default_rmbg_path);
+    let path = resolve_rmbg_file(model_path.as_deref(), model_id.as_deref())
+        .unwrap_or_else(default_rmbg_path);
+    let (used_id, used_label) = RMBG_MODELS
+        .iter()
+        .find(|m| {
+            path.ends_with(m.file)
+                || model_id.as_deref().unwrap_or("") == m.id
+        })
+        .map(|m| (m.id.to_string(), m.label.to_string()))
+        .unwrap_or(("avero-1".to_string(), "Avero Remove BG I".to_string()));
     let (tensor, dims) = rmbg_input(&rgba, w, h)?;
     let (mw, mh, plane) = use_rmbg_session(&path, |session| {
         let name = session
@@ -856,26 +1212,38 @@ pub fn cmd_rmbg_remove(
         Err("no float matte output from rmbg model".to_string())
     })?;
     let soft = normalize_mask(&plane);
-    // Smart matte: Otsu cutoff, bridge hairline gaps so thin towers stay
+    // Smart matte: best-of cutoff from scored candidates, bridge hairline
     // one piece, fix backwards orientation on flat graphics (logo on a
     // page: the model keeps the page), trim edge-touching leftovers on
     // request, drop isolated specks, keep the main subject on request,
     // fill enclosed holes (arches), then snap edges to the photo.
     // Frontend can still re-threshold live.
-    let suggested = otsu_threshold(&soft);
+    let suggested = pick_threshold(&soft, mw, mh);
     let bin: Vec<u8> = soft.iter().map(|&v| if v >= suggested { 255 } else { 0 }).collect();
     // Flat-page rescue: the neural matte owns the whole frame on uniform
-    // pages (logo on white) instead of the subject. A page-color mask is
-    // exact there, so it takes over; good photo mattes never trip the gate
-    // and flow through untouched.
+    // pages (logo on white) instead of the subject. Page removal by flood
+    // fill takes over there; good photo mattes never trip the gate and
+    // flow through untouched. The rescue is self-validating: it must keep
+    // a sane subject fraction and the center must differ from the page,
+    // otherwise the neural matte stands.
     let mut flat_bg = false;
     let bin = if border_fg_ratio(&bin, mw, mh) > 0.5 {
-        match page_color_if_uniform(&rgba, w as usize, h as usize) {
-            Some(page) => {
-                flat_bg = true;
-                flat_bg_mask(&rgba, w as usize, h as usize, page, 32.0, mw, mh)
-            }
-            None => bin,
+        let sw = w as usize;
+        let sh = h as usize;
+        let seed = page_color_if_uniform(&rgba, sw, sh).unwrap_or_else(|| corner_bg_color(&rgba, sw, sh));
+        let center = center_patch_mean(&rgba, sw, sh);
+        let center_d = ((center[0] - seed[0]).powi(2)
+            + (center[1] - seed[1]).powi(2)
+            + (center[2] - seed[2]).powi(2))
+        .sqrt();
+        let page_mask = flood_page_mask(&rgba, sw, sh, seed, 40.0, mw, mh);
+        let fg = page_mask.iter().filter(|&&v| v != 0).count();
+        let frac = fg as f32 / (mw * mh).max(1) as f32;
+        if frac > 0.02 && frac < 0.85 && center_d > 60.0 {
+            flat_bg = true;
+            page_mask
+        } else {
+            bin
         }
     } else {
         bin
@@ -931,6 +1299,8 @@ pub fn cmd_rmbg_remove(
         removed: dropped,
         inverted,
         flat_bg,
+        model_id: used_id,
+        model_label: used_label,
     })
 }
 
@@ -941,8 +1311,22 @@ mod tests {
     #[test]
     fn status_path_points_at_exe_models() {
         let p = default_rmbg_path();
-        assert!(p.ends_with("models/model-rmbg-1.4.onnx") || p.ends_with("models\\model-rmbg-1.4.onnx"));
+        assert!(p.ends_with("model-rmbg-1.4.onnx"));
+        assert!(p.contains("model"));
         assert_eq!(RMBG_INPUT, 1024);
+        assert_eq!(RMBG_MODELS.len(), 3);
+        assert_eq!(RMBG_MODELS[0].id, "avero-1");
+        assert_eq!(RMBG_MODELS[1].id, "avero-2");
+        assert_eq!(RMBG_MODELS[2].id, "avero-3");
+        assert_eq!(RMBG_MODELS[0].file, "model-rmbg-1.4.onnx");
+        assert_eq!(RMBG_MODELS[1].file, "RMBG2-0.onnx");
+        assert_eq!(RMBG_MODELS[2].file, "BiReFNet.onnx");
+        let all = RMBG_MODELS.iter().map(status_for_def).collect::<Vec<_>>();
+        assert_eq!(all.len(), 3);
+        assert_eq!(all[0].label, "Avero Remove BG I");
+        // Resolver prefers registry ids and falls back in order.
+        let r = resolve_rmbg_file(None, Some("avero-2"));
+        assert!(r.unwrap().ends_with("RMBG2-0.onnx"));
     }
 
     #[test]
@@ -1140,7 +1524,7 @@ mod tests {
         }
         let page = page_color_if_uniform(&rgba, s, s).expect("uniform page");
         assert!(page[0] > 240.0);
-        let m = flat_bg_mask(&rgba, s, s, page, 32.0, s, s);
+        let m = flood_page_mask(&rgba, s, s, page, 40.0, s, s);
         assert_eq!(m.iter().filter(|&&v| v != 0).count(), 196);
         // Half-dark frame is not a flat page.
         for y in 0..s {
@@ -1153,5 +1537,94 @@ mod tests {
         }
         assert_eq!(page_color_if_uniform(&rgba, s, s), None);
         assert_eq!(page_color_if_uniform(&[], 0, 0), None);
+    }
+
+    #[test]
+    fn flood_page_survives_gradient_and_validates() {        // Page with a horizontal shade gradient plus a dark rect: flood
+        // from the borders absorbs the whole gradient, keeps the rect.
+        let s = 48usize;
+        let mut rgba = vec![0u8; s * s * 4];
+        for y in 0..s {
+            for x in 0..s {
+                let v = 250u8.saturating_sub((x as u8) / 3);
+                let p = (y * s + x) * 4;
+                rgba[p] = v;
+                rgba[p + 1] = v;
+                rgba[p + 2] = v;
+                rgba[p + 3] = 255;
+            }
+        }
+        for y in 18..32 {
+            for x in 18..32 {
+                let p = (y * s + x) * 4;
+                rgba[p] = 20;
+                rgba[p + 1] = 30;
+                rgba[p + 2] = 60;
+            }
+        }
+        let seed = corner_bg_color(&rgba, s, s);
+        let m = flood_page_mask(&rgba, s, s, seed, 40.0, s, s);
+        assert_eq!(m.iter().filter(|&&v| v != 0).count(), 196);
+        // Center check distinguishes subject from page-colored subject.
+        let center = center_patch_mean(&rgba, s, s);
+        let d = ((center[0] - seed[0]).powi(2)
+            + (center[1] - seed[1]).powi(2)
+            + (center[2] - seed[2]).powi(2))
+        .sqrt();
+        assert!(d > 60.0);
+        // All-white frame: nothing to keep, center matches the seed.
+        let white = vec![255u8; s * s * 4];
+        let seed = corner_bg_color(&white, s, s);
+        let m = flood_page_mask(&white, s, s, seed, 40.0, s, s);
+        assert_eq!(m.iter().filter(|&&v| v != 0).count(), 0);
+        let center = center_patch_mean(&white, s, s);
+        let d = ((center[0] - seed[0]).powi(2)
+            + (center[1] - seed[1]).powi(2)
+            + (center[2] - seed[2]).powi(2))
+        .sqrt();
+        assert!(d < 60.0);
+    }
+
+    #[test]
+    fn cutoff_pick_recovers_mid_tone_subject() {
+        // Portrait-like trimodal matte: dark bg (30), mid suit (120)
+        // centered, bright blob (230) sprawling to the borders. A naive
+        // high cutoff keeps only the blob; the picker must go lower and
+        // recover the centered suit without flooding the background.
+        let (w, h) = (60usize, 60usize);
+        let mut soft = vec![30u8; w * h];
+        for y in 15..45 {
+            for x in 20..40 {
+                soft[y * w + x] = 120;
+            }
+        }
+        for y in 30..60 {
+            for x in 0..60 {
+                soft[y * w + x] = 230;
+            }
+        }
+        // Centered coherent mask outscores border sprawl.
+        let mut good = vec![0u8; w * h];
+        for y in 15..45 {
+            for x in 20..40 {
+                good[y * w + x] = 255;
+            }
+        }
+        let mut bad = vec![0u8; w * h];
+        for y in 30..60 {
+            for x in 0..60 {
+                bad[y * w + x] = 255;
+            }
+        }
+        assert!(mask_quality(&good, w, h) > mask_quality(&bad, w, h));
+        // Empty and full masks score worst.
+        assert_eq!(mask_quality(&vec![0u8; w * h], w, h), f32::MIN);
+        assert_eq!(mask_quality(&vec![255u8; w * h], w, h), f32::MIN);
+        // The picker recovers the suit: mid-tone pixels kept, bg dropped.
+        let t = pick_threshold(&soft, w, h);
+        assert!(t <= 120, "picked={t}");
+        let bin: Vec<u8> = soft.iter().map(|&v| if v >= t { 255 } else { 0 }).collect();
+        assert_eq!(bin[20 * w + 25], 255);
+        assert_eq!(bin[5 * w + 5], 0);
     }
 }

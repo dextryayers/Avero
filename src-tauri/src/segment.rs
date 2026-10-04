@@ -273,17 +273,19 @@ pub fn assemble_mask(
 }
 
 /// Bilinear grayscale upscale (keeps soft edges for feathered cutouts).
+/// Parallel over rows with rayon for maximum throughput.
 pub fn upscale_gray(src: &[u8], sw: usize, sh: usize, dw: usize, dh: usize) -> Vec<u8> {
+    use rayon::prelude::*;
     if sw == 0 || sh == 0 || dw == 0 || dh == 0 || src.len() < sw * sh {
         return vec![];
     }
     let mut out = vec![0u8; dw * dh];
-    for y in 0..dh {
+    out.par_chunks_mut(dw).enumerate().for_each(|(y, row)| {
         let gy = (y as f32 + 0.5) * sh as f32 / dh as f32 - 0.5;
         let y0 = (gy.floor() as isize).clamp(0, sh as isize - 1) as usize;
         let y1 = (y0 + 1).min(sh - 1);
         let fy = (gy - y0 as f32).clamp(0.0, 1.0);
-        for x in 0..dw {
+        for (x, v) in row.iter_mut().enumerate() {
             let gx = (x as f32 + 0.5) * sw as f32 / dw as f32 - 0.5;
             let x0 = (gx.floor() as isize).clamp(0, sw as isize - 1) as usize;
             let x1 = (x0 + 1).min(sw - 1);
@@ -292,10 +294,10 @@ pub fn upscale_gray(src: &[u8], sw: usize, sh: usize, dw: usize, dh: usize) -> V
             let b = src[y0 * sw + x1] as f32;
             let c = src[y1 * sw + x0] as f32;
             let d = src[y1 * sw + x1] as f32;
-            let v = a * (1.0 - fx) * (1.0 - fy) + b * fx * (1.0 - fy) + c * (1.0 - fx) * fy + d * fx * fy;
-            out[y * dw + x] = v.round().clamp(0.0, 255.0) as u8;
+            let mix = a * (1.0 - fx) * (1.0 - fy) + b * fx * (1.0 - fy) + c * (1.0 - fx) * fy + d * fx * fy;
+            *v = mix.round().clamp(0.0, 255.0) as u8;
         }
-    }
+    });
     out
 }
 
@@ -915,36 +917,46 @@ fn box_blur(src: &[f32], w: usize, h: usize, r: usize) -> Vec<f32> {
 
 /// Guided filter: snap a soft mask to the guide image edges.
 /// mask/guide are 0-255 grayscale of identical size. Returns refined 0-255.
+/// Data parallel with rayon on all elementwise passes for maximum speed.
 pub fn guided_refine(mask: &[u8], guide: &[u8], w: usize, h: usize, radius: usize, eps: f32) -> Vec<u8> {
+    use rayon::prelude::*;
     assert_eq!(mask.len(), w * h);
     assert_eq!(guide.len(), w * h);
     let n = w * h;
-    let guide_f: Vec<f32> = guide.iter().map(|&v| v as f32 / 255.0).collect();
-    let mask_f: Vec<f32> = mask.iter().map(|&v| v as f32 / 255.0).collect();
+    let guide_f: Vec<f32> = guide.par_iter().map(|&v| v as f32 / 255.0).collect();
+    let mask_f: Vec<f32> = mask.par_iter().map(|&v| v as f32 / 255.0).collect();
     let mean_i = box_blur(&guide_f, w, h, radius);
     let mean_p = box_blur(&mask_f, w, h, radius);
     let mut corr_i = vec![0f32; n];
     let mut corr_ip = vec![0f32; n];
-    for i in 0..n {
-        corr_i[i] = guide_f[i] * guide_f[i];
-        corr_ip[i] = guide_f[i] * mask_f[i];
-    }
+    corr_i
+        .par_iter_mut()
+        .zip(corr_ip.par_iter_mut())
+        .enumerate()
+        .for_each(|(i, (ci, cip))| {
+            *ci = guide_f[i] * guide_f[i];
+            *cip = guide_f[i] * mask_f[i];
+        });
     let corr_i = box_blur(&corr_i, w, h, radius);
     let corr_ip = box_blur(&corr_ip, w, h, radius);
     let mut a = vec![0f32; n];
     let mut b = vec![0f32; n];
-    for i in 0..n {
-        let var_i = (corr_i[i] - mean_i[i] * mean_i[i]).max(0.0);
-        let cov = corr_ip[i] - mean_i[i] * mean_p[i];
-        a[i] = cov / (var_i + eps);
-        b[i] = mean_p[i] - a[i] * mean_i[i];
-    }
+    a.par_iter_mut()
+        .zip(b.par_iter_mut())
+        .enumerate()
+        .for_each(|(i, (pa, pb))| {
+            let var_i = (corr_i[i] - mean_i[i] * mean_i[i]).max(0.0);
+            let cov = corr_ip[i] - mean_i[i] * mean_p[i];
+            let va = cov / (var_i + eps);
+            *pa = va;
+            *pb = mean_p[i] - va * mean_i[i];
+        });
     let mean_a = box_blur(&a, w, h, radius);
     let mean_b = box_blur(&b, w, h, radius);
     let mut out = vec![0u8; n];
-    for i in 0..n {
-        out[i] = ((mean_a[i] * guide_f[i] + mean_b[i]).clamp(0.0, 1.0) * 255.0 + 0.5) as u8;
-    }
+    out.par_iter_mut().enumerate().for_each(|(i, v)| {
+        *v = ((mean_a[i] * guide_f[i] + mean_b[i]).clamp(0.0, 1.0) * 255.0 + 0.5) as u8;
+    });
     out
 }
 

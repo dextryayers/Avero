@@ -6,12 +6,16 @@ import { useProStore } from "../stores/useProStore";
 import { layerManager } from "../engine/layerManager";
 import { getContentBounds } from "../engine/layerBounds";
 import { notify, notifyError, notifySuccess } from "../ui/notify";
-import { DockSlider } from "../ui/atoms";
 
-interface RmbgStatus {
+interface RmbgModelStatus {
+  id: string;
+  label: string;
+  file: string;
   found: boolean;
   path: string;
   size_mb: number;
+  input_size: number;
+  tagline: string;
 }
 
 interface RmbgResult {
@@ -24,36 +28,78 @@ interface RmbgResult {
   removed: number;
   inverted: boolean;
   flat_bg: boolean;
+  model_id?: string;
+  model_label?: string;
 }
 
 type BgMode = "mask" | "new";
 
-// Remove Background studio: RMBG model inference through Tauri, placed in
-// the Color column between Stroke and Brush. The panel is contextual: it
-// arms itself when a visible unlocked photo or raster layer with pixels is
-// active. Output is either a live layer mask (undoable, feathered) or a
-// cutout on a fresh layer, both transformable like everything else.
+/// Expert feather picked once: soft enough to hide jaggies, tight enough
+/// to keep logo edges crisp. No slider, one less decision per click.
+const FEATHER_AUTO = 2;
+const MODEL_STORAGE_KEY = "avero:rmbg-model-id";
+
+const MODEL_FALLBACK: RmbgModelStatus[] = [
+  {
+    id: "avero-1",
+    label: "Avero Remove BG I",
+    file: "model-rmbg-1.4.onnx",
+    found: false,
+    path: "",
+    size_mb: 0,
+    input_size: 1024,
+    tagline: "Fast balanced cutout for everyday photos",
+  },
+  {
+    id: "avero-2",
+    label: "Avero Remove BG II",
+    file: "RMBG2-0.onnx",
+    found: false,
+    path: "",
+    size_mb: 0,
+    input_size: 1024,
+    tagline: "High detail backbone for portraits and products",
+  },
+  {
+    id: "avero-3",
+    label: "Avero Remove BG III",
+    file: "BiReFNet.onnx",
+    found: false,
+    path: "",
+    size_mb: 0,
+    input_size: 1024,
+    tagline: "Ultra precise backbone for hair and fine edges",
+  },
+];
+
+// Remove Background studio with three selectable engines.
+// Each dropdown entry maps to exactly one ONNX file in the models folder:
+//   Avero Remove BG I   -> model-rmbg-1.4.onnx (fast balanced)
+//   Avero Remove BG II  -> RMBG2-0.onnx (high detail)
+//   Avero Remove BG III -> BiReFNet.onnx (ultra precise)
+// Inference runs in Rust through Tauri with a shared maximum performance
+// pipeline: parallel 1024px preprocess, smart cutoff selection, gap bridging,
+// orientation fix, page rescue, speck cleanup, hole fill, and guided edge
+// refinement. Output is a live layer mask or a cutout on a fresh layer.
 export default function BgRemovePanel() {
   const layers = useEditorStore((s) => s.layers);
   const activeLayerId = useEditorStore((s) => s.activeLayerId);
   const doc = useEditorStore((s) => s.doc);
-  const [status, setStatus] = useState<RmbgStatus | null>(null);
+  const [models, setModels] = useState<RmbgModelStatus[] | null>(null);
+  const [selectedId, setSelectedId] = useState<string>(() => {
+    try {
+      return localStorage.getItem(MODEL_STORAGE_KEY) || "avero-1";
+    } catch {
+      return "avero-1";
+    }
+  });
   const [busy, setBusy] = useState(false);
-  const [threshold, setThreshold] = useState(128);
-  const [feather, setFeather] = useState(2);
   const [mode, setMode] = useState<BgMode>("mask");
-  const [cleanup, setCleanup] = useState(true);
-  const [smooth, setSmooth] = useState(true);
-  const [trim, setTrim] = useState(false);
-  const [keepMain, setKeepMain] = useState(false);
-  const [smartTrim, setSmartTrim] = useState(true);
-  const [invert, setInvert] = useState(false);
-  const [suggested, setSuggested] = useState<number | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [stats, setStats] = useState<string | null>(null);
-  const softCache = useRef<{ layerId: string; bytes: number[]; w: number; h: number; inv: boolean } | null>(null);
-  // Invert flips are instant; everything else applies on the next run.
-  const invertTouched = useRef(false);
+  // One-click panel: every smart default is hardcoded below and the engine
+  // decides orientation, page rescue, trim, and cutoff automatically.
+  const softCache = useRef<{ layerId: string; bytes: number[]; w: number; h: number; inv: boolean; thr: number } | null>(null);
 
   useEffect(() => {
     if (!busy) {
@@ -67,17 +113,39 @@ export default function BgRemovePanel() {
 
   useEffect(() => {
     let alive = true;
-    invoke<RmbgStatus>("cmd_rmbg_status")
-      .then((s) => {
-        if (alive) setStatus(s);
+    invoke<RmbgModelStatus[]>("cmd_rmbg_models_status")
+      .then((list) => {
+        if (!alive) return;
+        if (Array.isArray(list) && list.length > 0) {
+          setModels(list);
+          setSelectedId((prev) => {
+            const kept = list.some((m) => m.id === prev) ? prev : "avero-1";
+            const target = list.find((m) => m.id === kept);
+            if (target && !target.found) {
+              const firstReady = list.find((m) => m.found);
+              return firstReady ? firstReady.id : kept;
+            }
+            return kept;
+          });
+        } else {
+          setModels(MODEL_FALLBACK);
+        }
       })
       .catch(() => {
-        if (alive) setStatus(null);
+        if (alive) setModels(MODEL_FALLBACK);
       });
     return () => {
       alive = false;
     };
   }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(MODEL_STORAGE_KEY, selectedId);
+    } catch {
+      /* ignore */
+    }
+  }, [selectedId]);
 
   const active = useMemo(() => {
     const meta = layers.find((l) => l.id === activeLayerId);
@@ -93,6 +161,13 @@ export default function BgRemovePanel() {
     }
     return meta;
   }, [layers, activeLayerId]);
+
+  const selected = useMemo(() => {
+    const list = models ?? MODEL_FALLBACK;
+    return list.find((m) => m.id === selectedId) ?? list[0];
+  }, [models, selectedId]);
+
+  const readyCount = useMemo(() => (models ?? []).filter((m) => m.found).length, [models]);
 
   function maskCanvasFromBytes(bytes: number[], w: number, h: number, thr: number, inv: boolean): HTMLCanvasElement {
     const mc = document.createElement("canvas");
@@ -123,43 +198,6 @@ export default function BgRemovePanel() {
     pro.updateMask(layerId, { enabled: true, hasMask: true, feather: fth });
   }
 
-  function reapplyLive(thr: number, inv: boolean) {
-    // Live re-apply from the cached matte, no re-inference needed.
-    const st = useEditorStore.getState();
-    const c = softCache.current;
-    if (c && st.activeLayerId === c.layerId && mode === "mask") {
-      try {
-        applySoftMask(c.layerId, c.bytes, c.w, c.h, thr, useProStore.getState().masks[c.layerId]?.feather ?? feather, inv);
-        st.markDirty();
-        useProStore.getState().bumpHistogram();
-      } catch {
-        /* keep slider value on paint failure */
-      }
-    }
-  }
-
-  function onThreshold(v: number) {
-    setThreshold(v);
-    reapplyLive(v, invert);
-  }
-
-  function onInvert(v: boolean) {
-    setInvert(v);
-    invertTouched.current = true;
-    const c = softCache.current;
-    if (c) c.inv = v;
-    reapplyLive(threshold, v);
-  }
-
-  function onFeather(v: number) {
-    setFeather(v);
-    const id = useEditorStore.getState().activeLayerId;
-    if (id && mode === "mask") {
-      useProStore.getState().updateMask(id, { feather: v });
-      useEditorStore.getState().markDirty();
-    }
-  }
-
   async function onRemove() {
     const st = useEditorStore.getState();
     const id = st.activeLayerId;
@@ -168,8 +206,11 @@ export default function BgRemovePanel() {
       notify("Remove BG: select a photo layer first.", "error");
       return;
     }
-    if (!status?.found) {
-      notifyError("Remove BG: model file missing. Place model-rmbg-1.4.onnx in the models folder shown below.");
+    const engine = selected;
+    if (!engine?.found) {
+      notifyError(
+        `${engine?.label ?? "Remove BG"}: model file missing. Place ${engine?.file ?? "the ONNX file"} in the models folder shown below.`
+      );
       return;
     }
     const src = layerManager.get(id);
@@ -182,40 +223,37 @@ export default function BgRemovePanel() {
       const sctx = src.getContext("2d", { willReadFrequently: true })!;
       const data = sctx.getImageData(0, 0, src.width, src.height).data;
       const res = await invoke<RmbgResult>("cmd_rmbg_remove", {
-        model_path: null,
+        model_path: engine.path,
+        model_id: engine.id,
         rgba: Array.from(data),
         width: src.width,
         height: src.height,
-        cleanup,
-        smooth,
-        invert: invertTouched.current ? invert : null,
-        trim_borders: trim,
-        keep_largest: keepMain ? 1 : 0,
-        smart_trim: smartTrim,
+        cleanup: true,
+        smooth: true,
+        invert: null,
+        trim_borders: false,
+        keep_largest: 0,
+        smart_trim: true,
       });
       if (!res.mask || res.mask.length !== res.width * res.height || res.width < 4) {
         notifyError("Remove BG: model returned an empty matte. Try another photo.");
         return;
       }
-      softCache.current = { layerId: id, bytes: res.mask, w: res.width, h: res.height, inv: res.inverted };
-      setThreshold(res.suggested);
-      setSuggested(res.suggested);
-      setInvert(res.inverted);
-      const manual = invertTouched.current;
-      invertTouched.current = false;
-      const oriented = res.inverted && !manual ? " · auto-oriented" : "";
-      const flat = res.flat_bg ? " · flat-page mode" : "";
+      softCache.current = { layerId: id, bytes: res.mask, w: res.width, h: res.height, inv: res.inverted, thr: res.suggested };
+      const engineLabel = res.model_label || engine.label;
+      const oriented = res.inverted ? " plus auto orientation" : "";
+      const flat = res.flat_bg ? " plus page mode" : "";
       setStats(
-        `Subject ${res.kept_pct.toFixed(1)}% of frame · removed ${res.removed} speck${res.removed === 1 ? "" : "s"}${oriented}${flat} · ${(res.millis / 1000).toFixed(1)}s`,
+        `${engineLabel}: subject ${res.kept_pct.toFixed(1)}% of frame, threshold ${res.suggested}, cleaned ${res.removed} speck${res.removed === 1 ? "" : "s"}${oriented}${flat} in ${(res.millis / 1000).toFixed(1)}s`
       );
       if (mode === "mask") {
         const snap = layerManager.snapshot(id);
         const maskSnap = layerManager.snapshotMask(id);
-        if (snap) st.pushHistory({ label: "Remove background", layerId: id, snapshot: snap, maskSnapshot: maskSnap });
-        applySoftMask(id, res.mask, res.width, res.height, res.suggested, feather, res.inverted);
+        if (snap) st.pushHistory({ label: `Remove background (${engineLabel})`, layerId: id, snapshot: snap, maskSnapshot: maskSnap });
+        applySoftMask(id, res.mask, res.width, res.height, res.suggested, FEATHER_AUTO, res.inverted);
         st.markDirty();
         useProStore.getState().bumpHistogram();
-        notifySuccess(`Background removed in ${(res.millis / 1000).toFixed(1)}s. Adjust threshold live, undo restores.`);
+        notifySuccess(`${engineLabel} finished in ${(res.millis / 1000).toFixed(1)}s. Undo restores the photo.`);
       } else {
         const mc = maskCanvasFromBytes(res.mask, res.width, res.height, res.suggested, res.inverted);
         const cut = document.createElement("canvas");
@@ -234,7 +272,7 @@ export default function BgRemovePanel() {
         useProStore.getState().ensureTransform(l.id);
         st.markDirty();
         useProStore.getState().bumpHistogram();
-        notifySuccess(`Background cut to a new layer in ${(res.millis / 1000).toFixed(1)}s.`);
+        notifySuccess(`${engineLabel} cut to a new layer in ${(res.millis / 1000).toFixed(1)}s.`);
       }
     } catch (e) {
       notifyError(`Remove BG failed: ${e instanceof Error ? e.message : String(e)}`);
@@ -243,36 +281,66 @@ export default function BgRemovePanel() {
     }
   }
 
-  const readyReason = !status
-    ? "Checking model..."
-    : !status.found
-      ? "Model file missing"
+  const list = models ?? MODEL_FALLBACK;
+  const readyReason = !models
+    ? "Checking models..."
+    : !selected?.found
+      ? `${selected?.label ?? "Model"} file missing`
       : !active
         ? "Select a visible photo layer"
         : busy
           ? "Working..."
           : "Ready";
-  const canRun = !!status?.found && !!active && !busy;
+  const canRun = !!selected?.found && !!active && !busy;
   const cache = softCache.current;
-  const preview =
-    cache && cache.layerId === activeLayerId ? { ...cache, thr: threshold } : null;
+  const preview = cache && cache.layerId === activeLayerId ? cache : null;
 
   return (
     <div className="space-y-2.5 p-3 text-[11px]">
       <div className="flex items-center gap-2 rounded-lg border border-[#2c2c31] bg-[#101012] px-2 py-1.5">
         <span
-          className={clsx("h-2 w-2 shrink-0 rounded-full", status?.found ? "bg-[#7ad69e]" : "bg-[#d9a441]")}
-          title={status?.found ? "Model ready" : "Model missing"}
+          className={clsx("h-2 w-2 shrink-0 rounded-full", readyCount > 0 ? "bg-[#7ad69e]" : "bg-[#d9a441]")}
+          title={readyCount > 0 ? "Background removal engine ready" : "Model missing"}
         />
-        <span className="min-w-0 flex-1 truncate text-[#c9c9d1]" title={status ? status.path : "Checking model file"}>
-          {status ? (status.found ? `RMBG ready (${status.size_mb.toFixed(0)} MB)` : "RMBG model missing") : "Checking model..."}
+        <span className="min-w-0 flex-1 truncate text-[#c9c9d1]" title="Installed background removal engines">
+          {models ? (readyCount > 0 ? `${readyCount} of ${list.length} engines ready` : "No BG engine installed") : "Checking engines..."}
         </span>
         <span className="avero-micro shrink-0">Smart</span>
       </div>
-      {!status?.found && status !== null && (
+
+      <div>
+        <div className="avero-micro mb-1 px-1">Engine</div>
+        <select
+          value={selected?.id ?? "avero-1"}
+          onChange={(e) => setSelectedId(e.target.value)}
+          aria-label="Background removal engine"
+          title="Pick one engine. Each entry runs a different ONNX model."
+          className="w-full rounded-lg border border-[#2c2c31] bg-[#101012] px-2 py-1.5 text-[11px] font-semibold text-white outline-none focus:border-[#2f7cf6]"
+        >
+          {list.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.label}{m.found ? ` (${m.size_mb.toFixed(0)} MB ready)` : " (missing)"}
+            </option>
+          ))}
+        </select>
+        {selected && (
+          <div className="mt-1 rounded-lg border border-[#2c2c31] bg-[#101012] px-2 py-1.5 leading-relaxed">
+            <div className="font-semibold text-white">{selected.label}</div>
+            <div className="text-[10px] text-[#8e8e98]">{selected.tagline}</div>
+            <div className="mt-0.5 font-mono text-[9px] text-[#6e6e78]">
+              {selected.file} plus 1024px precision pipeline
+            </div>
+          </div>
+        )}
+      </div>
+
+      {!selected?.found && selected && (
         <div className="rounded-lg border border-dashed border-[#2c2c31] px-2 py-1.5 text-[10px] leading-relaxed text-[#6e6e78]">
-          Place <span className="font-mono text-[#a7a7b0]">model-rmbg-1.4.onnx</span> in:
-          <div className="mt-1 break-all font-mono text-[9px] text-[#8e8e98]">{status.path}</div>
+          Place <span className="font-mono text-[#a7a7b0]">{selected.file}</span> in:
+          <div className="mt-1 break-all font-mono text-[9px] text-[#8e8e98]">{selected.path || "models folder next to the app"}</div>
+          <div className="mt-1">
+            Missing engines stay selectable so you can see what each one needs. Install the file, restart the status check, and the engine activates.
+          </div>
         </div>
       )}
       <div>
@@ -310,68 +378,16 @@ export default function BgRemovePanel() {
         ))}
       </div>
       </div>
-      <div>
-        <div className="mb-1 flex items-center justify-between px-1">
-          <span className="avero-micro">Refine</span>
-          {suggested !== null && threshold === suggested && (
-            <span className="rounded bg-[#2f7cf6]/15 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-[#7db3ff]" title="Threshold follows the automatic suggestion">
-              Auto
-            </span>
-          )}
-        </div>
-        <div className="space-y-2">
-          <DockSlider label="Threshold" value={threshold} min={1} max={254} title="Subject cutoff, live on mask mode" onChange={onThreshold} />
-          <DockSlider label="Feather" value={feather} min={0} max={20} suffix="px" title="Soften mask edges" onChange={onFeather} />
-        </div>
-      </div>
-      <details className="rounded-lg border border-[#2c2c31] bg-[#101012]">
-        <summary className="cursor-pointer list-none px-2 py-1.5 text-[11px] font-medium text-[#a7a7b0] hover:text-white" title="Rarely needed: the smart pipeline already orients, trims backdrop, and cleans specks">
-          Advanced
-        </summary>
-        <div className="grid grid-cols-2 gap-1 p-1 pt-0">
-          {(
-            [
-              { id: "cleanup", label: "Clean specks", hint: "Drop isolated fragments smaller than the subject", value: cleanup, set: setCleanup, live: false },
-              { id: "smooth", label: "Smooth edges", hint: "Snap matte edges to photo detail", value: smooth, set: setSmooth, live: false },
-              { id: "smart", label: "Smart edge trim", hint: "Auto-drop edge pieces painted in backdrop color", value: smartTrim, set: setSmartTrim, live: false },
-              { id: "trim", label: "Trim all edges", hint: "Drop every piece touching the frame", value: trim, set: setTrim, live: false },
-              { id: "main", label: "Main subject", hint: "Keep only the largest piece", value: keepMain, set: setKeepMain, live: false },
-              { id: "invert", label: "Invert mask", hint: "Flip subject and background instantly", value: invert, set: onInvert, live: true },
-            ] as const
-          ).map((t) => (
-            <button
-              key={t.id}
-              onClick={() => t.set(!t.value)}
-              title={t.live ? t.hint : `${t.hint} (applies on next run)`}
-              aria-pressed={t.value}
-              className={clsx(
-                "flex items-center justify-between rounded-lg border px-2 py-1.5 text-[11px] font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#2f7cf6]",
-                t.value ? "border-[#2f7cf6]/60 bg-[#2f7cf6]/15 text-white" : "border-[#2c2c31] text-[#6e6e78] hover:text-white",
-              )}
-            >
-              {t.label}
-              <span className={clsx("relative h-4 w-7 shrink-0 rounded-full transition-colors", t.value ? "bg-[#2f7cf6]" : "bg-[#3a3a41]")}>
-                <span
-                  className={clsx(
-                    "absolute top-0.5 h-3 w-3 rounded-full bg-white transition-all",
-                    t.value ? "left-3.5" : "left-0.5",
-                  )}
-                />
-              </span>
-            </button>
-          ))}
-        </div>
-      </details>
       <button
         onClick={() => void onRemove()}
         disabled={!canRun}
-        title={canRun ? "Remove the background of the active photo" : readyReason}
+        title={canRun ? `Run ${selected?.label ?? "Remove BG"} on the active photo` : readyReason}
         className="avero-press w-full rounded-lg bg-[#2f7cf6] py-2 text-[12px] font-bold text-white shadow-[0_2px_10px_rgba(47,124,246,0.45)] hover:bg-[#3b8bff] disabled:cursor-not-allowed disabled:opacity-40"
       >
-        {busy ? `Working... ${elapsed.toFixed(0)}s` : "Remove Background"}
+        {busy ? `Working with ${selected?.label ?? "engine"}... ${elapsed.toFixed(0)}s` : `Remove Background with ${selected?.label ?? "engine"}`}
       </button>
       <p className="px-1 text-[10px] leading-relaxed text-[#6e6e78]">
-        {stats ?? `${readyReason}. One click handles orientation, backdrop trim, and specks. Large photos can take a minute on CPU.`}
+        {stats ?? `${readyReason}. One click: orientation, page rescue, trim, and cutoff are fully automatic.`}
       </p>
       {preview && (
         <div>

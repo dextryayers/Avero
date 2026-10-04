@@ -85,6 +85,7 @@ pub fn run() {
             segment::cmd_segment_text,
             segment::cmd_segment_models_status,
             rmbg::cmd_rmbg_status,
+            rmbg::cmd_rmbg_models_status,
             rmbg::cmd_rmbg_remove,
             models::cmd_model_manifest,
             models::cmd_model_status,

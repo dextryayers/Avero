@@ -205,6 +205,61 @@ export async function segmentModelsStatus(): Promise<SegmentModelsStatus> {
   return invoke<SegmentModelsStatus>("cmd_segment_models_status");
 }
 
+// --- Avero Remove BG I to III: three selectable ONNX engines ---
+
+export interface RmbgModelStatus {
+  id: string;
+  label: string;
+  file: string;
+  found: boolean;
+  path: string;
+  size_mb: number;
+  input_size: number;
+  tagline: string;
+}
+
+export interface RmbgRemoveResult {
+  mask: number[];
+  width: number;
+  height: number;
+  millis: number;
+  suggested: number;
+  kept_pct: number;
+  removed: number;
+  inverted: boolean;
+  flat_bg: boolean;
+  model_id?: string;
+  model_label?: string;
+}
+
+export async function rmbgModelsStatus(): Promise<RmbgModelStatus[]> {
+  if (!isTauri()) throw new Error("Remove BG needs the desktop app");
+  return invoke<RmbgModelStatus[]>("cmd_rmbg_models_status");
+}
+
+export async function rmbgRemove(
+  model: RmbgModelStatus,
+  rgba: Uint8ClampedArray | Uint8Array,
+  width: number,
+  height: number
+): Promise<RmbgRemoveResult> {
+  if (!isTauri()) throw new Error("Remove BG needs the desktop app");
+  if (rgba.length !== width * height * 4) throw new Error("Remove BG buffer size mismatch");
+  return invoke<RmbgRemoveResult>("cmd_rmbg_remove", {
+    model_path: model.path,
+    model_id: model.id,
+    rgba: Array.from(rgba),
+    width,
+    height,
+    cleanup: true,
+    smooth: true,
+    invert: null,
+    trim_borders: false,
+    keep_largest: 0,
+    smart_trim: true,
+  });
+}
+
 // --- Plan5 Fase 6.2: model manager ---
 
 export interface ModelInfo {

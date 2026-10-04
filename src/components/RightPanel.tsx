@@ -203,9 +203,40 @@ export default function RightPanel({ dual = false, onToggleLayers, width }: { du
     });
   }
   const [query, setQuery] = useState("");
-  const [kindFilter, setKindFilter] = useState<"all" | "raster" | "text" | "shape" | "background">("all");
-  const [showBrush, setShowBrush] = useState(true);
-  const [showProps, setShowProps] = useState(true);
+  const [kindFilter, setKindFilter] = useState<"all" | "raster" | "text" | "shape" | "background">(() => {
+    try {
+      const v = localStorage.getItem("avero:layers-kind");
+      if (v === "raster" || v === "text" || v === "shape" || v === "background") return v;
+    } catch {
+      /* ignore */
+    }
+    return "all";
+  });
+  const [showBrush, setShowBrush] = useState(() => {
+    try {
+      return localStorage.getItem("avero:layers-brush-open") !== "0";
+    } catch {
+      /* ignore */
+    }
+    return true;
+  });
+  const [showProps, setShowProps] = useState(() => {
+    try {
+      return localStorage.getItem("avero:layers-props-open") !== "0";
+    } catch {
+      /* ignore */
+    }
+    return true;
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("avero:layers-kind", kindFilter);
+      localStorage.setItem("avero:layers-brush-open", showBrush ? "1" : "0");
+      localStorage.setItem("avero:layers-props-open", showProps ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  }, [kindFilter, showBrush, showProps]);
   // Affinity-style layer studio tabs (Layers/Effects/Styles/Text/Assets).
   const [dock, setDock] = useState<DockTab>("layers");
   // Right-click layer menu: clamped viewport position + target layer id.
@@ -268,7 +299,8 @@ export default function RightPanel({ dual = false, onToggleLayers, width }: { du
     setStudio(null);
     requestAnimationFrame(() => {
       try {
-        document.querySelector(`[data-layer-row="${id}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        document.querySelector(`[data-layer-row="${id}"]`)?.scrollIntoView({ block: "nearest", behavior: reduce ? "auto" : "smooth" });
       } catch {
         /* keep current scroll on query failure */
       }
@@ -490,7 +522,7 @@ export default function RightPanel({ dual = false, onToggleLayers, width }: { du
               }}
               title={TAB_HINTS[t.id]}
               className={clsx(
-                "avero-lift flex shrink-0 flex-col items-center gap-0.5 whitespace-nowrap rounded-t-md border-b-2 px-2 pb-1.5 pt-2 transition-colors",
+                "avero-lift flex shrink-0 flex-col items-center gap-0.5 whitespace-nowrap rounded-t-md border-b-2 px-2 pb-1.5 pt-2 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#2f7cf6]",
                 selected
                   ? "border-[#2f7cf6] bg-[#232327] font-semibold text-white"
                   : "border-transparent text-[#6e6e78] hover:bg-[#232327] hover:text-white",
@@ -527,7 +559,7 @@ export default function RightPanel({ dual = false, onToggleLayers, width }: { du
               onClick={() => setStudio(selected ? null : t.id)}
               title={`${t.label} studio (click again to close)`}
               className={clsx(
-                "avero-lift flex items-center justify-center gap-1.5 whitespace-nowrap border-b-2 px-1 py-2 text-[10px]",
+                "avero-lift flex items-center justify-center gap-1.5 whitespace-nowrap border-b-2 px-1 py-2 text-[10px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#2f7cf6]",
                 selected
                   ? "border-[#2f7cf6] bg-[#1c1c1f] font-semibold text-white"
                   : "border-transparent text-[#6e6e78] hover:text-white",
@@ -642,7 +674,7 @@ export default function RightPanel({ dual = false, onToggleLayers, width }: { du
                       onClick={() => setQuery("")}
                       title="Clear search"
                       aria-label="Clear search"
-                      className="absolute right-1 top-1/2 grid h-5 w-5 -translate-y-1/2 place-items-center rounded text-[#6e6e78] hover:bg-white/5 hover:text-white"
+                      className="absolute right-1 top-1/2 grid h-5 w-5 -translate-y-1/2 place-items-center rounded text-[#6e6e78] hover:bg-white/5 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#2f7cf6]"
                     >
                       <X size={12} />
                     </button>
@@ -664,7 +696,7 @@ export default function RightPanel({ dual = false, onToggleLayers, width }: { du
                   onClick={revealActiveLayer}
                   title="Reveal active layer: clear filters and scroll to it"
                   aria-label="Reveal active layer"
-                  className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-[#2c2c31] text-[#a7a7b0] hover:border-[#2f7cf6]/60 hover:text-white"
+                  className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-[#2c2c31] text-[#a7a7b0] hover:border-[#2f7cf6]/60 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#2f7cf6]"
                 >
                   <LocateFixed size={13} />
                 </button>
@@ -741,10 +773,36 @@ export default function RightPanel({ dual = false, onToggleLayers, width }: { du
                       (query.trim() === "" || l.name.toLowerCase().includes(query.trim().toLowerCase())),
                   );
                 if (vis.length === 0) {
+                  if (layers.length === 0) {
+                    return (
+                      <EmptyState
+                        title="No layers"
+                        hint="Add a layer to start."
+                        action={{
+                          label: "Add layer",
+                          title: "Create a new transparent layer",
+                          onClick: () => {
+                            const l = makeLayer(`Layer ${layers.length + 1}`);
+                            layerManager.ensure(l.id, doc.width, doc.height);
+                            useProStore.getState().ensureTransform(l.id);
+                            addLayer(l);
+                          },
+                        }}
+                      />
+                    );
+                  }
                   return (
                     <EmptyState
-                      title={layers.length === 0 ? "No layers" : "No matches"}
-                      hint={layers.length === 0 ? "Add a layer to start." : "Try a different search or kind filter."}
+                      title="No matches"
+                      hint="Try a different search or kind filter."
+                      action={{
+                        label: "Clear search",
+                        title: "Clear search text and kind filter",
+                        onClick: () => {
+                          setQuery("");
+                          setKindFilter("all");
+                        },
+                      }}
                     />
                   );
                 }
@@ -963,7 +1021,7 @@ export default function RightPanel({ dual = false, onToggleLayers, width }: { du
             </div>
 
             <div className="border-t border-[#2c2c31] p-3">
-              <button onClick={() => setShowBrush((v) => !v)} aria-expanded={showBrush} className="mb-1.5 flex w-full items-center justify-between rounded-md px-1 py-0.5 transition-colors hover:bg-white/5">
+              <button onClick={() => setShowBrush((v) => !v)} aria-expanded={showBrush} title="Toggle brush console" className="mb-1.5 flex w-full items-center justify-between rounded-md px-1 py-0.5 transition-colors hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#2f7cf6]">
                 <h4 className="avero-micro">Brush</h4>
                 <CollapseChevron open={showBrush} />
               </button>
@@ -992,7 +1050,7 @@ export default function RightPanel({ dual = false, onToggleLayers, width }: { du
               )}
             </div>
             <div className="border-t border-[#2c2c31] p-3">
-              <button onClick={() => setShowProps((v) => !v)} aria-expanded={showProps} className="mb-1.5 flex w-full items-center justify-between rounded-md px-1 py-0.5 transition-colors hover:bg-white/5">
+              <button onClick={() => setShowProps((v) => !v)} aria-expanded={showProps} title="Toggle layer properties" className="mb-1.5 flex w-full items-center justify-between rounded-md px-1 py-0.5 transition-colors hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#2f7cf6]">
                 <h4 className="avero-micro">Layer properties</h4>
                 <CollapseChevron open={showProps} />
               </button>
@@ -1124,14 +1182,18 @@ export default function RightPanel({ dual = false, onToggleLayers, width }: { du
               {history.length > 0 && (
                 <button
                   onClick={() => useEditorStore.getState().clearHistory()}
-                  className="avero-lift rounded bg-[#232327] px-2 py-0.5 text-[10px] text-[#a7a7b0] hover:text-white"
+                  title="Clear undo history"
+                  className="avero-lift rounded bg-[#232327] px-2 py-0.5 text-[10px] text-[#a7a7b0] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#2f7cf6]"
                 >
                   Clear
                 </button>
               )}
             </div>
             {history.length === 0 && (
-              <div className="p-3 text-center text-[#6e6e78]">No history yet. Paint or transform to record steps.</div>
+              <EmptyState
+                title="No history yet"
+                hint="Paint or transform to record steps. Recording is automatic."
+              />
             )}
             {history.map((h, i) => (
               <button
@@ -1281,6 +1343,7 @@ export default function RightPanel({ dual = false, onToggleLayers, width }: { du
                       role="menuitem"
                       disabled={it.disabled}
                       onClick={it.run}
+                      title={it.label}
                       className={clsx(
                         "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] transition-colors disabled:opacity-40",
                         it.danger ? "text-red-300 hover:bg-red-950/60 hover:text-red-200" : "text-[#c9c9d1] hover:bg-[#2f7cf6] hover:text-white",

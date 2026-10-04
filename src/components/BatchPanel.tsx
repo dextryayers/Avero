@@ -2,6 +2,7 @@ import { useAutomationStore } from "../stores/useAutomationStore";
 import { useProStore } from "../stores/useProStore";
 import { open } from "@tauri-apps/plugin-dialog";
 import { askText } from "../ui/notify";
+import { EmptyState } from "../ui/atoms";
 
 export default function BatchPanel() {
   const recording = useAutomationStore((s) => s.recording);
@@ -141,7 +142,13 @@ export default function BatchPanel() {
           + Add product photos (500 files ready)
         </button>
         <div className="mt-1.5 max-h-44 space-y-1 overflow-y-auto">
-          {batch.length === 0 && <div className="text-[11px] text-[#a7a7b0]">Queue empty.</div>}
+          {batch.length === 0 && (
+            <EmptyState
+              title="Queue empty"
+              hint="Add product photos to process them together."
+              action={{ label: "Add photos", title: "Add product photos to the batch queue", onClick: () => void pickFiles() }}
+            />
+          )}
           {batch.map((b) => (
             <div key={b.id} className="rounded bg-[#161618] px-2 py-1.5 text-[11px]">
               <div className="flex justify-between">

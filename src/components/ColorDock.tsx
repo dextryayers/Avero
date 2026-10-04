@@ -65,7 +65,7 @@ export default function ColorDock({ onToggle, width }: { onToggle: () => void; w
               onClick={() => setTab(t.id)}
               title={t.hint}
               className={clsx(
-                "avero-lift flex flex-col items-center gap-0.5 whitespace-nowrap border-b-2 px-1 pb-1.5 pt-2 text-[9px]",
+                "avero-lift flex flex-col items-center gap-0.5 whitespace-nowrap border-b-2 px-1 pb-1.5 pt-2 text-[9px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#2f7cf6]",
                 selected
                   ? "border-[#2f7cf6] bg-[#1c1c1f] font-semibold text-white"
                   : "border-transparent text-[#6e6e78] hover:text-white",

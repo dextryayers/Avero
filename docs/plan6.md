@@ -1,6 +1,6 @@
 # PLAN 6 - Full UI/UX Premium Upgrade: Startup to Canvas
 
-> Status: PHASE 0 + PHASE 1 + PHASE 2 + PHASE 3 EXECUTED. PHASE 4 PARTIAL.
+> Status: PHASE 0 through PHASE 4 plus PHASE 7 detection plus PHASE 8 contracts EXECUTED. WGSL compute, UI profile surface, PHASE 5 and PHASE 6 OPEN.
 > Scope: complete product pass from app startup to canvas interaction.
 > All 18 tool families and every sub tool work per function. One new Select
 > sub tool added, now 489 sub tools in 18 families and 507 distinct icon
@@ -147,7 +147,7 @@ rotate for anything placed on canvas.
 - [x] 3.7. Guidance strings updated per tool (Text 19, marquee 7, lasso 2,
   direct, path) in full English, no emdash.
 
-## PHASE 4 - Right side panels premium upgrade - PARTIAL
+## PHASE 4 - Right side panels premium upgrade - EXECUTED
 
 The two right panels are `ColorDock` (Colour, Swatch, Stroke, Brush, Color)
 and `RightPanel` dual (Layers plus Select, Mask, Adjust, Filter, Memory,
@@ -159,45 +159,118 @@ premium, elegant, professional, smart, complete.
   collapse groups, right click menu, thumbnails and history. No dead tab.
 - [x] 4.2. Premium tab bar (both panels): icon plus label tabs with tooltips
   that carry full English descriptions, active state with accent underline
-  and panel background, keyboard reachable tablist roles kept.
+  and panel background, keyboard reachable tablist roles kept. Every tab
+  button plus new panel buttons show a visible focus ring.
 - [x] 4.3. Layers tab smart pass: result count in search, clear search
-  control, reveal active layer control, kind filter pills with counts,
+  control, reveal active layer control, kind filter options with live
+  counts,
   per row lock, visibility, opacity quick control and rename affordance.
-  Every control dispatches to the real store, nothing decorative.
+  Every control dispatches to the real store, nothing decorative. Reveal
+  respects reduced motion. Search text stays session only by design so a
+  returning user never faces a stale filter.
 - [x] 4.4. Varied choices pass: brush, stroke and swatch views expose full
   option ranges (size, opacity, hardness, flow, spacing, smoothing, blend,
   color) bound to live store values. Adjust and Filter tabs expose the
   complete adjustment and filter sets with working apply and reset.
-- [ ] 4.5. Empty states: premium illustrated empty states for Layers (no
-  layers beyond background), History (no undo steps), Objects (no detected
-  objects) and Batch (no jobs) with one click starter actions.
-- [ ] 4.6. Panel persistence: active tab, kind filter and section collapse
-  persist across reloads via localStorage, same pattern as the existing
-  dock tab persistence.
+- [x] 4.5. Empty states: shared `EmptyState` action slot in `ui/atoms.tsx`.
+  Layers offers Add layer and Clear search starters. Objects offers Import
+  photo. Batch queue offers Add photos. History intentionally has no
+  starter because steps record automatically; it explains that instead.
+- [x] 4.6. Panel persistence: active tab, kind filter and the Brush plus
+  Layer properties collapses persist across reloads via localStorage, same
+  pattern as the existing dock tab persistence.
 
-## PHASE 5 - Global premium polish - OPEN
+## PHASE 5 - Global premium polish - EXECUTED
 
-- [ ] 5.1. Type scale lock: micro labels, panel titles and control text use
-  the shared `avero-micro` scale only. No ad hoc font sizes in new code.
-- [ ] 5.2. Focus visibility: every interactive control shows a visible
-  focus ring. No keyboard traps in flyouts, grids or dialogs.
-- [ ] 5.3. Tooltip pass: every icon only button carries an English title
-  that states name, shortcut and outcome. No emdash.
-- [ ] 5.4. Notify voice: short English confirmations for destructive or
-  async outcomes (group, ungroup, slice, count, note, selection ops).
-- [ ] 5.5. Motion restraint: existing press, lift, fade and slide utilities
-  only. No new animation libraries. Reduced motion respected.
+- [x] 5.1. Type scale lock: all new strings reuse the shared micro scale
+  and mono tabular numerals already used in both panels. No ad hoc sizes.
+- [x] 5.2. Focus visibility: tab buttons, new panel buttons and empty
+  state actions show an accent focus ring. No keyboard traps introduced;
+  flyouts, grids and dialogs keep existing tab order.
+- [x] 5.3. Tooltip pass: the 4 text buttons without titles (brush console,
+  layer properties, clear history, layer menu items) now carry English
+  titles. Icon only buttons across both panels already carried titles.
+  No emdash.
+- [x] 5.4. Notify voice: new user facing strings kept short and English
+  (locked text notice, selection confirmations). Existing notify strings
+  verified English with zero emdash.
+- [x] 5.5. Motion restraint: no new animation libraries and no new motion
+  utilities. Reveal scroll is the only motion added and it switches to
+  instant scroll under reduced motion preference.
+
+## PHASE 7 - GPU and CPU acceleration - PARTIAL (detection plus contracts done)
+
+Honest hardware map first. The frontend runs inside a WebView, so only
+browser reachable APIs count: WebGPU (D3D12 on Windows, Vulkan on Linux,
+Metal on macOS) preferred, WebGL2 (ANGLE or OpenGL) as fallback, tiled CPU
+when no GPU exists. CUDA is deliberately out of scope for the editor: it is
+NVIDIA only, it has no browser or WebView API, and shipping it would break
+the portable offline promise. CUDA may return only as an optional native
+Rust lab kernel, never as a frontend dependency.
+
+- [x] 7.1. Detection that never blocks UI: lazy cached backend probe in
+  `src/io/gpuBackend.ts` (WebGPU adapter with high performance preference,
+  WebGL2 renderer string plus max texture, CPU fallback), device profiles
+  in `src/io/hardware.ts` (max, balanced, eco with tile and history caps
+  plus rayon thread counts), status reporting in `src/io/gpuCanvas.ts`.
+- [x] 7.2. Tile and DPR budgets wired to detection: backend tile 256, 512
+  or 1024, DPR caps 2.0, 1.75 and 1.5, history caps 15, 8 and 4, full res
+  guards that route large docs to tiled pipelines in `nativeEngine.ts`,
+  `projectIo.ts` and `memoryManager.ts`. Compositing stays on drawImage so
+  the WebView GPU composites while Rust handles pixel math per tile.
+- [x] 7.3. Pooling that removes per frame allocation: pooled composite
+  canvas, scratch canvas pool for dab temps, pattern tile cache keyed by
+  size, color and kind in `CanvasArea.tsx`.
+- [x] 7.4. Rust tiled pipeline with rayon: single IPC per extreme doc,
+  internal tile split, 512px tiles, 16MP full invoke ceiling, tested in
+  `src-tauri` and `nativeEngine.ts` guards.
+- [ ] 7.5. WGSL compute roadmap (staged, each stage gated on pixel parity
+  tests between CPU and GPU tiles before the next op ports):
+  - [ ] 7.5.1. Device and pipeline scaffold: reuse `gpuBackend()` discovery,
+    one WGSL blur kernel on a 512px tile, readback into canvas, CPU
+    fallback when the adapter is missing.
+  - [ ] 7.5.2. Port order by win size: box blur, gaussian, levels, then
+    adjustments. One op per release, each with a diff threshold test.
+  - [ ] 7.5.3. Brush dab path stays CPU (latency beats throughput for
+    single dabs); only full layer ops (fill, filter, adjust) go WGSL.
+  - [ ] 7.5.4. WebGL2 shader fallback for pre WebGPU drivers, same tile
+    protocol, same parity tests.
+  - [ ] 7.5.5. Optional desktop only `wgpu` in Rust behind a Tauri command,
+    same tile protocol. Rejected for now: binary size plus portability
+    cost outweigh a second GPU stack while WebGPU covers all three OSes.
+- [ ] 7.6. CUDA revisit gate: only if a native NVIDIA only lab feature is
+  requested, isolated behind a Tauri command, never in the web build.
+
+## PHASE 8 - Lightweight budgets that hold on eco devices - PARTIAL
+
+- [x] 8.1. Budget contracts as pure tested math in
+  `src/engine/renderBudget.ts` plus `renderBudget.test.ts` (7 tests):
+  tile RAM (512px tile costs exactly 1 MB), document estimate, tile
+  threshold at 2048 by 2048, tile grid coverage, DPR clamp with safe
+  fallback, tile size policy from texture limits. No DOM, no GPU, zero
+  visual risk.
+- [x] 8.2. Thresholds already enforced where it matters: tiled flag above
+  2048 by 2048 in export and memory planning, 512px tiles in native and
+  light pipelines, history caps per device profile.
+- [ ] 8.3. Surface the profile: show eco, balanced or max plus active tile
+  size in the status area so performance is transparent and premium, not
+  silent. Read only display, no new controls.
+- [ ] 8.4. Layer stack virtualization for huge stacks (200 plus rows):
+  render visible rows only in the Layers tab, keep search and reveal
+  working across the full list.
 
 ## PHASE 6 - Verification - OPEN
 
-- [ ] 6.1. `npm run test` fully green (currently 184 passed, 21 files).
+- [ ] 6.1. `npm run test` fully green (currently 191 passed, 22 files).
 - [ ] 6.2. `npx tsc --noEmit` exit 0 with `noUnusedLocals` on.
-- [ ] 6.3. Emdash scan of src returns zero matches.
+- [ ] 6.3. Emdash scan of src plus plan6 returns zero matches.
 - [ ] 6.4. Manual QA one by one: each of the 18 families plus the new
   cursor tool exercised on canvas (create, select, move, scale, rotate),
   each right panel tab opened and its primary action run.
 - [ ] 6.5. Icon audit rerun: global uniqueness helper reports zero dupes,
   sticker fallback icons included.
+- [ ] 6.6. Budget audit rerun: 4K doc stays tiled, history caps hold per
+  profile, no full frame allocation above threshold.
 
 ## Acceptance criteria
 
@@ -208,3 +281,7 @@ premium, elegant, professional, smart, complete.
 4. Both right panels look premium and every control works with rich,
    varied, complete choices.
 5. English everywhere, zero emdash in src, tests and typecheck green.
+6. Acceleration is honest and fast: GPU detected where present with CPU
+   tiled fallback, no CUDA dependency in the portable build.
+7. Lightweight budgets hold: 4K stays tiled, RAM stays flat, eco devices
+   stay smooth.

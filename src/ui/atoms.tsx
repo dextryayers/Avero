@@ -270,16 +270,27 @@ export function EmptyState({
   title,
   hint,
   icon,
+  action,
 }: {
   title: string;
   hint?: string;
   icon?: ReactNode;
+  action?: { label: string; title: string; onClick: () => void };
 }) {
   return (
     <div className="flex flex-col items-center gap-1.5 px-6 py-8 text-center">
       {icon && <span className="mb-1 text-[#3a3a41]">{icon}</span>}
       <div className="text-[12px] font-semibold text-[#c9c9d1]">{title}</div>
       {hint && <div className="max-w-[260px] text-[11px] leading-relaxed text-[#6e6e78]">{hint}</div>}
+      {action && (
+        <button
+          onClick={action.onClick}
+          title={action.title}
+          className="avero-btn-primary avero-lift mt-2 rounded-md px-3 py-1.5 text-[11px] font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2f7cf6]"
+        >
+          {action.label}
+        </button>
+      )}
     </div>
   );
 }

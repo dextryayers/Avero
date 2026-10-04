@@ -4,6 +4,7 @@ import { useEditorStore } from "../stores/useEditorStore";
 import { layerManager } from "../engine/layerManager";
 import { restoreSelectionMask } from "../engine/selection";
 import { askConfirm, askText } from "../ui/notify";
+import { EmptyState } from "../ui/atoms";
 
 // Plan5 Fase 7: Objects panel. Lists detected objects with label, confidence,
 // and mask thumbnail. Click to select (marching ants), ctrl-click to pin.
@@ -98,12 +99,17 @@ export function ObjectsPanel() {
 
   if (objects.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <div className="text-[13px] font-medium text-[#a7a7b0]">No objects yet</div>
-        <div className="mt-1 text-[11px] text-[#6e6e78]">
-          Open a photo with Auto Segment on.
-        </div>
-      </div>
+      <EmptyState
+        title="No objects yet"
+        hint="Open a photo with Auto Segment on."
+        action={{
+          label: "Import photo",
+          title: "Import a photo to detect objects from",
+          onClick: () => {
+            void import("../io/importImage").then(({ importImageAsLayer }) => importImageAsLayer());
+          },
+        }}
+      />
     );
   }
 

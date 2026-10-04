@@ -287,6 +287,363 @@ pub fn clean_small_components(bin: &[u8], w: usize, h: usize, min_frac: f32) -> 
     (out, comp_removed)
 }
 
+/// Fraction of frame border pixels that are foreground. Flat graphics
+/// (logos on white) fool the model into keeping the whole page, which
+/// shows up as a border owned by foreground.
+pub fn border_fg_ratio(bin: &[u8], w: usize, h: usize) -> f32 {
+    if bin.len() != w * h || w < 3 || h < 3 {
+        return 0.0;
+    }
+    let mut fg = 0usize;
+    let mut n = 0usize;
+    for x in 0..w {
+        for &y in &[0, h - 1] {
+            n += 1;
+            if bin[y * w + x] != 0 {
+                fg += 1;
+            }
+        }
+    }
+    for y in 1..h - 1 {
+        for &x in &[0, w - 1] {
+            n += 1;
+            if bin[y * w + x] != 0 {
+                fg += 1;
+            }
+        }
+    }
+    if n == 0 {
+        0.0
+    } else {
+        fg as f32 / n as f32
+    }
+}
+
+/// Flip foreground and background.
+pub fn invert_mask(bin: &[u8]) -> Vec<u8> {
+    bin.iter().map(|&v| if v != 0 { 0 } else { 255 }).collect()
+}
+
+/// Pick the orientation whose background owns the frame edges. Flips only
+/// on decisive evidence: the flipped mask barely touches the border while
+/// the original clearly does. Correct photo mattes never satisfy this, so
+/// they pass through untouched. Returns (mask, was_flipped).
+pub fn orient_subject(bin: Vec<u8>, w: usize, h: usize) -> (Vec<u8>, bool) {
+    let b = border_fg_ratio(&bin, w, h);
+    if b < 0.01 {
+        return (bin, false);
+    }
+    let flipped = invert_mask(&bin);
+    let f = border_fg_ratio(&flipped, w, h);
+    if f < 0.15 && b > f + 0.20 {
+        (flipped, true)
+    } else {
+        (bin, false)
+    }
+}
+
+/// Label 4-connected foreground components. Returns (id per pixel with
+/// u32::MAX for background, area per component, touches-border per
+/// component).
+fn label_components(bin: &[u8], w: usize, h: usize) -> (Vec<u32>, Vec<usize>, Vec<bool>) {
+    let n = w * h;
+    let mut ids = vec![u32::MAX; n];
+    let mut sizes: Vec<usize> = Vec::new();
+    let mut touches: Vec<bool> = Vec::new();
+    let mut stack: Vec<usize> = Vec::new();
+    for i in 0..n {
+        if bin[i] == 0 || ids[i] != u32::MAX {
+            continue;
+        }
+        let cid = sizes.len() as u32;
+        let mut size = 0usize;
+        let mut tb = false;
+        stack.push(i);
+        ids[i] = cid;
+        while let Some(p) = stack.pop() {
+            size += 1;
+            let x = p % w;
+            let y = p / w;
+            if x == 0 || y == 0 || x == w - 1 || y == h - 1 {
+                tb = true;
+            }
+            if x > 0 && bin[p - 1] != 0 && ids[p - 1] == u32::MAX {
+                ids[p - 1] = cid;
+                stack.push(p - 1);
+            }
+            if x + 1 < w && bin[p + 1] != 0 && ids[p + 1] == u32::MAX {
+                ids[p + 1] = cid;
+                stack.push(p + 1);
+            }
+            if y > 0 && bin[p - w] != 0 && ids[p - w] == u32::MAX {
+                ids[p - w] = cid;
+                stack.push(p - w);
+            }
+            if y + 1 < h && bin[p + w] != 0 && ids[p + w] == u32::MAX {
+                ids[p + w] = cid;
+                stack.push(p + w);
+            }
+        }
+        sizes.push(size);
+        touches.push(tb);
+    }
+    (ids, sizes, touches)
+}
+
+/// Drop foreground components touching the frame edge: leftover page,
+/// backdrop, or wall fragments around the subject. Returns (mask, dropped).
+pub fn drop_border_components(bin: &[u8], w: usize, h: usize) -> (Vec<u8>, usize) {
+    if bin.len() != w * h || w == 0 || h == 0 {
+        return (vec![0u8; w * h], 0);
+    }
+    let (ids, _sizes, touches) = label_components(bin, w, h);
+    let drop: Vec<bool> = touches.iter().map(|&t| t).collect();
+    let dropped = drop.iter().filter(|&&d| d).count();
+    let out: Vec<u8> = bin
+        .iter()
+        .enumerate()
+        .map(|(i, &v)| {
+            if v != 0 && ids[i] != u32::MAX && drop[ids[i] as usize] {
+                0
+            } else {
+                v
+            }
+        })
+        .collect();
+    (out, dropped)
+}
+
+/// Keep only the `keep` largest components (0 = off). Returns (mask, dropped).
+pub fn keep_largest_components(bin: &[u8], w: usize, h: usize, keep: usize) -> (Vec<u8>, usize) {
+    if bin.len() != w * h || w == 0 || h == 0 {
+        return (vec![0u8; w * h], 0);
+    }
+    if keep == 0 {
+        return (bin.to_vec(), 0);
+    }
+    let (ids, sizes, _touches) = label_components(bin, w, h);
+    if sizes.len() <= keep {
+        return (bin.to_vec(), 0);
+    }
+    let mut order: Vec<usize> = (0..sizes.len()).collect();
+    order.sort_unstable_by(|&a, &b| sizes[b].cmp(&sizes[a]));
+    let keep_set: Vec<bool> = {
+        let mut k = vec![false; sizes.len()];
+        for &c in order.iter().take(keep) {
+            k[c] = true;
+        }
+        k
+    };
+    let dropped = sizes.len() - keep;
+    let out: Vec<u8> = bin
+        .iter()
+        .enumerate()
+        .map(|(i, &v)| {
+            if v != 0 && ids[i] != u32::MAX && !keep_set[ids[i] as usize] {
+                0
+            } else {
+                v
+            }
+        })
+        .collect();
+    (out, dropped)
+}
+
+/// Page color when the frame corners are provably uniform (flat graphics:
+/// logo on a white page, screenshot on solid backdrop). Pooled stddev under
+/// 10 per channel counts as uniform; anything textured returns None.
+pub fn page_color_if_uniform(rgba: &[u8], w: usize, h: usize) -> Option<[f32; 3]> {
+    if w < 16 || h < 16 || rgba.len() < w * h * 4 {
+        return None;
+    }
+    let r = 6usize;
+    let mut sum = [0u64; 3];
+    let mut sq = [0u64; 3];
+    let mut n = 0u64;
+    for (cx, cy) in [(r, r), (w - 1 - r, r), (r, h - 1 - r), (w - 1 - r, h - 1 - r)] {
+        for y in cy - r..=cy + r {
+            for x in cx - r..=cx + r {
+                let p = (y * w + x) * 4;
+                for k in 0..3 {
+                    let v = rgba[p + k] as u64;
+                    sum[k] += v;
+                    sq[k] += v * v;
+                }
+                n += 1;
+            }
+        }
+    }
+    if n == 0 {
+        return None;
+    }
+    let nf = n as f64;
+    let mut mean = [0f32; 3];
+    for k in 0..3 {
+        let m = sum[k] as f64 / nf;
+        let var = (sq[k] as f64 / nf - m * m).max(0.0);
+        if var.sqrt() > 10.0 {
+            return None;
+        }
+        mean[k] = m as f32;
+    }
+    Some(mean)
+}
+
+/// Foreground where the source color differs from the page color beyond
+/// tolerance, sampled at matte size. Deterministic and exact on flat
+/// graphics where the neural matte guesses backwards.
+pub fn flat_bg_mask(
+    rgba: &[u8],
+    sw: usize,
+    sh: usize,
+    page: [f32; 3],
+    tol: f32,
+    mw: usize,
+    mh: usize,
+) -> Vec<u8> {
+    if mw == 0 || mh == 0 || sw == 0 || sh == 0 || rgba.len() < sw * sh * 4 {
+        return vec![0u8; mw * mh];
+    }
+    let mut out = vec![0u8; mw * mh];
+    for y in 0..mh {
+        for x in 0..mw {
+            let sx = (x * sw / mw).min(sw - 1);
+            let sy = (y * sh / mh).min(sh - 1);
+            let p = (sy * sw + sx) * 4;
+            let d = ((rgba[p] as f32 - page[0]).powi(2)
+                + (rgba[p + 1] as f32 - page[1]).powi(2)
+                + (rgba[p + 2] as f32 - page[2]).powi(2))
+            .sqrt();
+            out[y * mw + x] = if d > tol { 255 } else { 0 };
+        }
+    }
+    out
+}
+/// Page/backdrop estimate: mean color of small patches in the four
+/// corners. Real photos have background in at least some corners; flat
+/// graphics have the page color in all of them.
+pub fn corner_bg_color(rgba: &[u8], w: usize, h: usize) -> [f32; 3] {
+    if w == 0 || h == 0 || rgba.len() < w * h * 4 {
+        return [0.0, 0.0, 0.0];
+    }
+    let r = 4usize.min(w / 4).min(h / 4);
+    let patch = |cx: usize, cy: usize| {
+        let mut sum = [0u64; 3];
+        let mut n = 0u64;
+        for y in cy.saturating_sub(r)..=(cy + r).min(h - 1) {
+            for x in cx.saturating_sub(r)..=(cx + r).min(w - 1) {
+                let p = (y * w + x) * 4;
+                sum[0] += rgba[p] as u64;
+                sum[1] += rgba[p + 1] as u64;
+                sum[2] += rgba[p + 2] as u64;
+                n += 1;
+            }
+        }
+        (sum, n.max(1))
+    };
+    let corners = [(r, r), (w - 1 - r, r), (r, h - 1 - r), (w - 1 - r, h - 1 - r)];
+    let mut sum = [0u64; 3];
+    let mut n = 0u64;
+    for (cx, cy) in corners {
+        let (s, c) = patch(cx, cy);
+        for k in 0..3 {
+            sum[k] += s[k];
+        }
+        n += c;
+    }
+    let n = n.max(1) as f32;
+    [sum[0] as f32 / n, sum[1] as f32 / n, sum[2] as f32 / n]
+}
+
+/// Mean source color per component id. Matte-space labels map onto source
+/// pixels by nearest scaling, good enough for a color likeness check.
+fn component_colors(
+    bin: &[u8],
+    mw: usize,
+    mh: usize,
+    rgba: &[u8],
+    sw: usize,
+    sh: usize,
+    ids: &[u32],
+    ncomp: usize,
+) -> Vec<[f32; 3]> {
+    let mut sum = vec![[0u64; 3]; ncomp];
+    let mut cnt = vec![0u64; ncomp];
+    for (i, &v) in bin.iter().enumerate() {
+        if v == 0 {
+            continue;
+        }
+        let c = ids[i] as usize;
+        if c >= ncomp {
+            continue;
+        }
+        let sx = ((i % mw) * sw / mw).min(sw - 1);
+        let sy = ((i / mw) * sh / mh).min(sh - 1);
+        let p = (sy * sw + sx) * 4;
+        if p + 2 >= rgba.len() {
+            continue;
+        }
+        sum[c][0] += rgba[p] as u64;
+        sum[c][1] += rgba[p + 1] as u64;
+        sum[c][2] += rgba[p + 2] as u64;
+        cnt[c] += 1;
+    }
+    sum.iter()
+        .zip(cnt.iter())
+        .map(|(s, &c)| {
+            let c = c.max(1) as f32;
+            [s[0] as f32 / c, s[1] as f32 / c, s[2] as f32 / c]
+        })
+        .collect()
+}
+
+/// Smart edge trim: drop border-touching components whose color matches the
+/// page/backdrop estimate within tolerance. Conservative on purpose: only
+/// near-identical colors go, so a subject that happens to touch the frame
+/// survives unless it is painted in backdrop color. Returns (mask, dropped).
+pub fn drop_bg_colored_border(
+    bin: &[u8],
+    mw: usize,
+    mh: usize,
+    rgba: &[u8],
+    sw: usize,
+    sh: usize,
+    tol: f32,
+) -> (Vec<u8>, usize) {
+    if bin.len() != mw * mh || mw == 0 || mh == 0 {
+        return (vec![0u8; mw * mh], 0);
+    }
+    let (ids, sizes, touches) = label_components(bin, mw, mh);
+    if sizes.is_empty() {
+        return (bin.to_vec(), 0);
+    }
+    let bg = corner_bg_color(rgba, sw, sh);
+    let means = component_colors(bin, mw, mh, rgba, sw, sh, &ids, sizes.len());
+    let drop: Vec<bool> = touches
+        .iter()
+        .zip(means.iter())
+        .map(|(&t, m)| {
+            if !t {
+                return false;
+            }
+            let d = ((m[0] - bg[0]).powi(2) + (m[1] - bg[1]).powi(2) + (m[2] - bg[2]).powi(2)).sqrt();
+            d <= tol
+        })
+        .collect();
+    let dropped = drop.iter().filter(|&&d| d).count();
+    let out: Vec<u8> = bin
+        .iter()
+        .enumerate()
+        .map(|(i, &v)| {
+            if v != 0 && ids[i] != u32::MAX && drop[ids[i] as usize] {
+                0
+            } else {
+                v
+            }
+        })
+        .collect();
+    (out, dropped)
+}
 /// Bridge 1px gaps (3x3 dilate) so thin structures like minarets survive
 /// as one component instead of shattering into dropped specks.
 pub fn close_small_gaps(bin: &[u8], w: usize, h: usize) -> Vec<u8> {
@@ -432,10 +789,12 @@ pub struct RmbgResult {
     pub millis: u128,
     /// Otsu suggestion computed on the matte: the smart default threshold.
     pub suggested: u8,
-    /// Foreground kept after cleanup, 0..100 percent of raw foreground.
+    /// Subject coverage, 0..100 percent of the frame after cleanup.
     pub kept_pct: f32,
-    /// Isolated components dropped by the cleanup.
+    /// Components dropped by orientation fix, border trim, and cleanup.
     pub removed: usize,
+    /// True when the matte orientation was flipped (auto or forced).
+    pub inverted: bool,
 }
 
 #[tauri::command]
@@ -446,6 +805,10 @@ pub fn cmd_rmbg_remove(
     height: u32,
     cleanup: Option<bool>,
     smooth: Option<bool>,
+    invert: Option<bool>,
+    trim_borders: Option<bool>,
+    keep_largest: Option<usize>,
+    smart_trim: Option<bool>,
 ) -> Result<RmbgResult, String> {
     let t0 = std::time::Instant::now();
     let w = width.max(8).min(4096);
@@ -491,30 +854,50 @@ pub fn cmd_rmbg_remove(
     })?;
     let soft = normalize_mask(&plane);
     // Smart matte: Otsu cutoff, bridge hairline gaps so thin towers stay
-    // one piece, drop isolated specks, fill enclosed holes (arches), then
-    // snap edges to the photo. Frontend can still re-threshold live.
+    // one piece, fix backwards orientation on flat graphics (logo on a
+    // page: the model keeps the page), trim edge-touching leftovers on
+    // request, drop isolated specks, keep the main subject on request,
+    // fill enclosed holes (arches), then snap edges to the photo.
+    // Frontend can still re-threshold live.
     let suggested = otsu_threshold(&soft);
     let bin: Vec<u8> = soft.iter().map(|&v| if v >= suggested { 255 } else { 0 }).collect();
     let bridged = close_small_gaps(&bin, mw, mh);
-    let fg_before = bridged.iter().filter(|&&v| v != 0).count();
+    let (mut matte, auto_flipped) = match invert {
+        Some(true) => (invert_mask(&bridged), true),
+        Some(false) => (bridged, false),
+        None => orient_subject(bridged, mw, mh),
+    };
+    let inverted = auto_flipped || invert == Some(true);
+    let mut dropped: usize = 0;
+    // Smart trim first: edge-touching pieces painted in backdrop color go,
+    // real subjects stay even when they touch the frame.
+    if smart_trim.unwrap_or(true) {
+        let (m, d) = drop_bg_colored_border(&matte, mw, mh, &rgba, w as usize, h as usize, 24.0);
+        matte = m;
+        dropped += d;
+    }
+    if trim_borders.unwrap_or(false) {
+        let (m, d) = drop_border_components(&matte, mw, mh);
+        matte = m;
+        dropped += d;
+    }
     let (clean, removed) = if cleanup.unwrap_or(true) {
-        let (c, r) = clean_small_components(&bridged, mw, mh, 0.004);
-        (fill_enclosed_holes(&c, mw, mh), r)
+        clean_small_components(&matte, mw, mh, 0.004)
     } else {
-        (fill_enclosed_holes(&bridged, mw, mh), 0)
+        (matte, 0)
     };
-    let fg_after = clean.iter().filter(|&&v| v != 0).count();
-    let kept_pct = if fg_before == 0 {
-        0.0
-    } else {
-        100.0 * fg_after as f32 / fg_before as f32
-    };
+    dropped += removed;
+    let (subject, kdrop) = keep_largest_components(&clean, mw, mh, keep_largest.unwrap_or(0));
+    dropped += kdrop;
+    let holed = fill_enclosed_holes(&subject, mw, mh);
+    let fg_after = holed.iter().filter(|&&v| v != 0).count();
+    let kept_pct = 100.0 * fg_after as f32 / (mw * mh).max(1) as f32;
     let refined = if smooth.unwrap_or(true) {
         let guide = luma_at_size(&rgba, w, h, mw, mh);
-        guided_refine(&clean, &guide, mw, mh, 4, 0.01)
+        guided_refine(&holed, &guide, mw, mh, 4, 0.01)
     } else {
         soft.iter()
-            .zip(clean.iter())
+            .zip(holed.iter())
             .map(|(&s, &c)| if c == 0 { 0 } else { s })
             .collect()
     };
@@ -526,7 +909,8 @@ pub fn cmd_rmbg_remove(
         millis: t0.elapsed().as_millis(),
         suggested,
         kept_pct,
-        removed,
+        removed: dropped,
+        inverted,
     })
 }
 
@@ -631,5 +1015,92 @@ mod tests {
         // Thread pool stays in the sane band on any machine.
         let t = rmbg_threads();
         assert!((2..=8).contains(&t), "threads={t}");
+    }
+
+    #[test]
+    fn orientation_fix_and_subject_filters() {
+        // Logo-on-page: everything fg except an enclosed pocket reads as a
+        // backwards matte and flips; the flipped border is clean.
+        let mut page = vec![255u8; 100];
+        for y in 3..7 {
+            for x in 3..7 {
+                page[y * 10 + x] = 0;
+            }
+        }
+        assert!(border_fg_ratio(&page, 10, 10) > 0.9);
+        let (fixed, flipped) = orient_subject(page, 10, 10);
+        assert!(flipped);
+        assert!(border_fg_ratio(&fixed, 10, 10) < 0.15);
+        // Correct photo matte (clean border, subject inside) passes through.
+        let mut photo = vec![0u8; 100];
+        for y in 2..8 {
+            for x in 2..8 {
+                photo[y * 10 + x] = 255;
+            }
+        }
+        let (same, flipped) = orient_subject(photo.clone(), 10, 10);
+        assert!(!flipped);
+        assert_eq!(same, photo);
+        // Forced orientations are honored.
+        assert_eq!(invert_mask(&[0, 255, 0]), vec![255, 0, 255]);
+        // Edge-touching slab goes with trim, centered block stays.
+        let mut trim = vec![0u8; 100];
+        for i in 0..10 {
+            trim[i] = 255;
+            trim[50 + i] = 255;
+        }
+        for y in 7..9 {
+            for x in 4..6 {
+                trim[y * 10 + x] = 255;
+            }
+        }
+        let (t, d) = drop_border_components(&trim, 10, 10);
+        assert_eq!(d, 2);
+        assert_eq!(t.iter().filter(|&&v| v != 0).count(), 4);
+        // Keep-largest isolates the hero component.
+        let (k, d) = keep_largest_components(&trim, 10, 10, 1);
+        assert_eq!(d, 2);
+        assert_eq!(k.iter().filter(|&&v| v != 0).count(), 10);
+        assert_eq!(keep_largest_components(&trim, 10, 10, 0).1, 0);
+        assert_eq!(keep_largest_components(&trim, 10, 10, 9).1, 0);
+    }
+
+    #[test]
+    fn smart_trim_keeps_subject_drops_backdrop() {
+        // 32x32 white page, dark rect subject in the middle, one white
+        // slab kept along the top edge: smart trim drops the slab only.
+        let s = 32usize;
+        let mut rgba = vec![255u8; s * s * 4];
+        for y in 12..22 {
+            for x in 12..22 {
+                let p = (y * s + x) * 4;
+                rgba[p] = 20;
+                rgba[p + 1] = 20;
+                rgba[p + 2] = 20;
+            }
+        }
+        let bg = corner_bg_color(&rgba, s, s);
+        assert!(bg[0] > 250.0 && bg[1] > 250.0 && bg[2] > 250.0);
+        let mut bin = vec![0u8; s * s];
+        for x in 0..s {
+            bin[x] = 255;
+        }
+        for y in 12..22 {
+            for x in 12..22 {
+                bin[y * s + x] = 255;
+            }
+        }
+        let (t, d) = drop_bg_colored_border(&bin, s, s, &rgba, s, s, 24.0);
+        assert_eq!(d, 1);
+        assert_eq!(t.iter().filter(|&&v| v != 0).count(), 100);
+        // A subject touching the frame in its own color survives.
+        for y in 0..s {
+            for x in 0..s {
+                bin[y * s + x] = 255;
+            }
+        }
+        let (t, d) = drop_bg_colored_border(&bin, s, s, &rgba, s, s, 24.0);
+        assert_eq!(d, 0);
+        assert_eq!(t.iter().filter(|&&v| v != 0).count(), s * s);
     }
 }

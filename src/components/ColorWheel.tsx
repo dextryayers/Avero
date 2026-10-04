@@ -116,13 +116,19 @@ export function triVertices(size: number, radius: number): TriVertices {
   return { ex: cx + radius, ey: cy, wx: cx - radius / 2, wy: cy - h, bx: cx - radius / 2, by: cy + h };
 }
 
-/** Barycentric weights (apex, white, black) for a point, clamped inside. */
-export function triWeights(px: number, py: number, v: TriVertices): [number, number, number] {
+/** Barycentric weights (apex, white, black) for a point, unclamped.
+ * Negative weight means outside the triangle on that edge. */
+export function triRawWeights(px: number, py: number, v: TriVertices): [number, number, number] {
   const d = (v.wy - v.by) * (v.ex - v.bx) + (v.bx - v.wx) * (v.ey - v.by);
   if (d === 0) return [0, 0, 1];
-  let wE = ((v.wy - v.by) * (px - v.bx) + (v.bx - v.wx) * (py - v.by)) / d;
-  let wW = ((v.by - v.ey) * (px - v.bx) + (v.ex - v.bx) * (py - v.by)) / d;
-  let wB = 1 - wE - wW;
+  const wE = ((v.wy - v.by) * (px - v.bx) + (v.bx - v.wx) * (py - v.by)) / d;
+  const wW = ((v.by - v.ey) * (px - v.bx) + (v.ex - v.bx) * (py - v.by)) / d;
+  return [wE, wW, 1 - wE - wW];
+}
+
+/** Barycentric weights (apex, white, black) for a point, clamped inside. */
+export function triWeights(px: number, py: number, v: TriVertices): [number, number, number] {
+  let [wE, wW, wB] = triRawWeights(px, py, v);
   wE = Math.max(0, wE);
   wW = Math.max(0, wW);
   wB = Math.max(0, wB);
@@ -208,8 +214,8 @@ export default function ColorWheel({ size = 172 }: { size?: number }) {
     const maxY = Math.min(size - 1, Math.ceil(Math.max(v.ey, v.wy, v.by)));
     for (let yy = minY; yy <= maxY; yy++) {
       for (let xx = minX; xx <= maxX; xx++) {
-        const [wE, wW] = triWeights(xx + 0.5, yy + 0.5, v);
-        if (wE <= 0 && wW <= 0) continue;
+        const [wE, wW, wB] = triRawWeights(xx + 0.5, yy + 0.5, v);
+        if (wE < 0 || wW < 0 || wB < 0) continue;
         const vv = wE + wW;
         const ss = vv <= 1e-6 ? 0 : wE / vv;
         const [rr, gg, bb] = hsvToRgb(h, ss * 100, vv * 100);

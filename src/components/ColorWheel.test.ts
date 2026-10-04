@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { hexToRgb, rgbToHex, rgbToHsl, hslToRgb, hsvToRgb, rgbToHsv, triVertices, triSV, triPoint } from "./ColorWheel";
+import { hexToRgb, rgbToHex, rgbToHsl, hslToRgb, hsvToRgb, rgbToHsv, triVertices, triRawWeights, triSV, triPoint } from "./ColorWheel";
 
 describe("colour math (studio Colour tab)", () => {
   it("hexToRgb parses 6-digit hex", () => {
@@ -102,5 +102,17 @@ describe("colour math (studio Colour tab)", () => {
       expect(back.s).toBeCloseTo(s, 1);
       expect(back.v).toBeCloseTo(vv, 1);
     }
+  });
+
+  it("raw weights flag outside pixels for exact edges", () => {
+    const v = triVertices(184, 70);
+    const maxX = Math.max(v.ex, v.wx, v.bx);
+    const minY = Math.min(v.ey, v.wy, v.by);
+    const [a, b, c] = triRawWeights(maxX, minY, v);
+    expect(a < 0 || b < 0 || c < 0).toBe(true);
+    const [d, e, f] = triRawWeights((v.ex + v.wx + v.bx) / 3, (v.ey + v.wy + v.by) / 3, v);
+    expect(d).toBeGreaterThanOrEqual(0);
+    expect(e).toBeGreaterThanOrEqual(0);
+    expect(f).toBeGreaterThanOrEqual(0);
   });
 });

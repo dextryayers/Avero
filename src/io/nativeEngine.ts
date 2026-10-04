@@ -237,6 +237,11 @@ export async function rmbgModelsStatus(): Promise<RmbgModelStatus[]> {
   return invoke<RmbgModelStatus[]>("cmd_rmbg_models_status");
 }
 
+export async function rmbgModelsDir(): Promise<string> {
+  if (!isTauri()) throw new Error("Remove BG needs the desktop app");
+  return invoke<string>("cmd_rmbg_models_dir");
+}
+
 export async function rmbgRemove(
   model: RmbgModelStatus,
   rgba: Uint8ClampedArray | Uint8Array,

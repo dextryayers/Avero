@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { openPath } from "@tauri-apps/plugin-opener";
 import clsx from "clsx";
 import { makeLayer, useEditorStore } from "../stores/useEditorStore";
 import { useProStore } from "../stores/useProStore";
@@ -34,10 +35,17 @@ interface RmbgResult {
 
 type BgMode = "mask" | "new";
 
-/// Expert feather picked once: soft enough to hide jaggies, tight enough
-/// to keep logo edges crisp. No slider, one less decision per click.
-const FEATHER_AUTO = 2;
+/// Per model feather: the coarse backbone needs a slightly softer edge to
+/// hide jaggies, while the detail backbones stay tight at 1px so hair and
+/// fine edges survive. No slider, one less decision per click.
+function featherForModel(modelId: string): number {
+  return modelId === "avero-1" ? 2 : 1;
+}
 const MODEL_STORAGE_KEY = "avero:rmbg-model-id";
+/// Longest side sent to the inference backend. The models see 1024px
+/// regardless, so capping input at 2048px keeps full edge quality while
+/// cutting IPC payload and backend guide cost by up to 8x on large photos.
+const MAX_SEND_SIDE = 2048;
 
 const MODEL_FALLBACK: RmbgModelStatus[] = [
   {
@@ -111,32 +119,39 @@ export default function BgRemovePanel() {
     return () => clearInterval(t);
   }, [busy]);
 
+  const loadModels = useCallback(async () => {
+    try {
+      const list = await invoke<RmbgModelStatus[]>("cmd_rmbg_models_status");
+      if (Array.isArray(list) && list.length > 0) {
+        setModels(list);
+        setSelectedId((prev) => {
+          const kept = list.some((m) => m.id === prev) ? prev : "avero-1";
+          const target = list.find((m) => m.id === kept);
+          if (target && !target.found) {
+            const firstReady = list.find((m) => m.found);
+            return firstReady ? firstReady.id : kept;
+          }
+          return kept;
+        });
+      } else {
+        setModels(MODEL_FALLBACK);
+      }
+    } catch {
+      setModels(MODEL_FALLBACK);
+    }
+  }, []);
+
   useEffect(() => {
-    let alive = true;
-    invoke<RmbgModelStatus[]>("cmd_rmbg_models_status")
-      .then((list) => {
-        if (!alive) return;
-        if (Array.isArray(list) && list.length > 0) {
-          setModels(list);
-          setSelectedId((prev) => {
-            const kept = list.some((m) => m.id === prev) ? prev : "avero-1";
-            const target = list.find((m) => m.id === kept);
-            if (target && !target.found) {
-              const firstReady = list.find((m) => m.found);
-              return firstReady ? firstReady.id : kept;
-            }
-            return kept;
-          });
-        } else {
-          setModels(MODEL_FALLBACK);
-        }
-      })
-      .catch(() => {
-        if (alive) setModels(MODEL_FALLBACK);
-      });
-    return () => {
-      alive = false;
-    };
+    void loadModels();
+  }, [loadModels]);
+
+  const onShowFolder = useCallback(async () => {
+    try {
+      const dir = await invoke<string>("cmd_rmbg_models_dir");
+      if (dir) await openPath(dir);
+    } catch {
+      notify("Could not open the models folder.", "error");
+    }
   }, []);
 
   useEffect(() => {
@@ -169,19 +184,23 @@ export default function BgRemovePanel() {
 
   const readyCount = useMemo(() => (models ?? []).filter((m) => m.found).length, [models]);
 
-  function maskCanvasFromBytes(bytes: number[], w: number, h: number, thr: number, inv: boolean): HTMLCanvasElement {
+  // Soft alpha matte: the backend returns a fully oriented 0..255 matte
+  // with smooth hair falloff, so alpha is used directly. Hard thresholding
+  // here would turn soft strands into blocky chunks and messy halos.
+  // The thr argument stays for signature compatibility and is unused.
+  function maskCanvasFromBytes(bytes: number[], w: number, h: number, _thr: number, _inv: boolean): HTMLCanvasElement {
+    void _thr;
+    void _inv;
     const mc = document.createElement("canvas");
     mc.width = w;
     mc.height = h;
     const g = mc.getContext("2d")!;
     const img = g.createImageData(w, h);
     for (let i = 0; i < w * h; i++) {
-      const fg = bytes[i] >= thr;
-      const v = (fg !== inv ? 255 : 0);
       img.data[i * 4] = 255;
       img.data[i * 4 + 1] = 255;
       img.data[i * 4 + 2] = 255;
-      img.data[i * 4 + 3] = v;
+      img.data[i * 4 + 3] = bytes[i];
     }
     g.putImageData(img, 0, 0);
     return mc;
@@ -220,14 +239,35 @@ export default function BgRemovePanel() {
     }
     setBusy(true);
     try {
-      const sctx = src.getContext("2d", { willReadFrequently: true })!;
-      const data = sctx.getImageData(0, 0, src.width, src.height).data;
+      // Downscale huge photos before IPC: the models only see 1024px, so a
+      // 2048px guide keeps full edge quality while the transfer runs up to
+      // 8x faster. The returned matte scales back up on apply.
+      let sendW = src.width;
+      let sendH = src.height;
+      const longest = Math.max(sendW, sendH);
+      let sendData: Uint8ClampedArray;
+      if (longest > MAX_SEND_SIDE) {
+        const scale = MAX_SEND_SIDE / longest;
+        sendW = Math.max(8, Math.round(src.width * scale));
+        sendH = Math.max(8, Math.round(src.height * scale));
+        const tmp = document.createElement("canvas");
+        tmp.width = sendW;
+        tmp.height = sendH;
+        const tctx = tmp.getContext("2d", { willReadFrequently: true })!;
+        tctx.imageSmoothingEnabled = true;
+        tctx.imageSmoothingQuality = "high";
+        tctx.drawImage(src, 0, 0, sendW, sendH);
+        sendData = tctx.getImageData(0, 0, sendW, sendH).data;
+      } else {
+        const sctx = src.getContext("2d", { willReadFrequently: true })!;
+        sendData = sctx.getImageData(0, 0, src.width, src.height).data;
+      }
       const res = await invoke<RmbgResult>("cmd_rmbg_remove", {
         model_path: engine.path,
         model_id: engine.id,
-        rgba: Array.from(data),
-        width: src.width,
-        height: src.height,
+        rgba: Array.from(sendData),
+        width: sendW,
+        height: sendH,
         cleanup: true,
         smooth: true,
         invert: null,
@@ -250,7 +290,7 @@ export default function BgRemovePanel() {
         const snap = layerManager.snapshot(id);
         const maskSnap = layerManager.snapshotMask(id);
         if (snap) st.pushHistory({ label: `Remove background (${engineLabel})`, layerId: id, snapshot: snap, maskSnapshot: maskSnap });
-        applySoftMask(id, res.mask, res.width, res.height, res.suggested, FEATHER_AUTO, res.inverted);
+        applySoftMask(id, res.mask, res.width, res.height, res.suggested, featherForModel(engine.id), res.inverted);
         st.markDirty();
         useProStore.getState().bumpHistogram();
         notifySuccess(`${engineLabel} finished in ${(res.millis / 1000).toFixed(1)}s. Undo restores the photo.`);
@@ -305,6 +345,13 @@ export default function BgRemovePanel() {
         <span className="min-w-0 flex-1 truncate text-[#c9c9d1]" title="Installed background removal engines">
           {models ? (readyCount > 0 ? `${readyCount} of ${list.length} engines ready` : "No BG engine installed") : "Checking engines..."}
         </span>
+        <button
+          onClick={() => void loadModels()}
+          title="Rescan the models folder for newly installed engines"
+          className="shrink-0 rounded-md bg-white/5 px-2 py-1 text-[10px] font-semibold text-[#c9c9d1] hover:bg-white/10 hover:text-white"
+        >
+          Rescan
+        </button>
         <span className="avero-micro shrink-0">Smart</span>
       </div>
 
@@ -339,7 +386,23 @@ export default function BgRemovePanel() {
           Place <span className="font-mono text-[#a7a7b0]">{selected.file}</span> in:
           <div className="mt-1 break-all font-mono text-[9px] text-[#8e8e98]">{selected.path || "models folder next to the app"}</div>
           <div className="mt-1">
-            Missing engines stay selectable so you can see what each one needs. Install the file, restart the status check, and the engine activates.
+            Missing engines stay selectable so you can see what each one needs. Install the file, then press Rescan.
+          </div>
+          <div className="mt-1.5 flex gap-1.5">
+            <button
+              onClick={() => void loadModels()}
+              title="Rescan the models folder"
+              className="rounded-md bg-[#2f7cf6] px-2 py-1 text-[10px] font-bold text-white hover:bg-[#3b8bff]"
+            >
+              Rescan
+            </button>
+            <button
+              onClick={() => void onShowFolder()}
+              title="Open the models folder in the file manager"
+              className="rounded-md bg-white/5 px-2 py-1 text-[10px] font-semibold text-[#c9c9d1] hover:bg-white/10 hover:text-white"
+            >
+              Show folder
+            </button>
           </div>
         </div>
       )}
@@ -477,13 +540,14 @@ function PreviewThumb({
       mc.height = h;
       const mg = mc.getContext("2d")!;
       const img = mg.createImageData(w, h);
+      // Soft preview: same direct alpha as the real apply path.
+      void thr;
+      void inv;
       for (let i = 0; i < w * h; i++) {
-        const fg = bytes[i] >= thr;
-        const v = (fg !== inv ? 255 : 0);
         img.data[i * 4] = 255;
         img.data[i * 4 + 1] = 255;
         img.data[i * 4 + 2] = 255;
-        img.data[i * 4 + 3] = v;
+        img.data[i * 4 + 3] = bytes[i];
       }
       mg.putImageData(img, 0, 0);
       g.globalCompositeOperation = "destination-in";

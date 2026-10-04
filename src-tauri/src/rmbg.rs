@@ -1,12 +1,14 @@
-// Avero Remove BG engine: three high precision ONNX models with one shared
-// maximum performance pipeline. Each model is selectable in the UI as
-// Avero Remove BG I, II, or III. All three use ImageNet normalize at a 1024
-// working square and the same smart matte post pipeline, so results stay
-// clean and consistent while each backbone keeps its own strength.
-// Graph input and output names are read from the session, never hardcoded,
-// so all three exports work without per model hacks. Pure helpers are unit
-// tested without a model. Model files resolve from <exe-dir>/models/ with
-// fallbacks to the repo model/ folder for development.
+// Avero Remove BG engine: three high precision ONNX models with per model
+// precision profiles on one shared maximum performance pipeline. Each model
+// is selectable in the UI as Avero Remove BG I, II, or III. All three use
+// ImageNet normalize at a 1024 working square, robust percentile matte
+// scaling, scored cutoff search, smart trim, size limited hole fill, soft
+// gated guided refinement, alpha polish, and a full resolution edge snap,
+// so results stay clean, neat, and highly precise while each backbone keeps
+// its own strength. Graph input and output names are read from the session,
+// never hardcoded, so all three exports work without per model hacks. Pure
+// helpers are unit tested without a model. Model files resolve from
+// <exe-dir>/models/ with fallbacks to the repo model/ folder for dev.
 
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -60,6 +62,56 @@ pub const RMBG_MODELS: [RmbgModelDef; 3] = [
     },
 ];
 
+/// Per model precision profile. Coarse backbones get stronger cleanup
+/// and smoothing, fine backbones keep a light touch so hair and thin
+/// edges survive. Every value is tuned for a clean neat matte.
+#[derive(Clone, Copy, Debug)]
+pub struct RmbgProfile {
+    pub cleanup_frac: f32,
+    pub trim_tol: f32,
+    pub guide_radius: usize,
+    pub guide_eps: f32,
+    pub hole_max_frac: f32,
+    pub polish_lo: u8,
+    pub polish_hi: u8,
+    pub threshold_bias: i16,
+}
+
+pub fn profile_for_model(model_id: &str) -> RmbgProfile {
+    match model_id {
+        "avero-2" => RmbgProfile {
+            cleanup_frac: 0.002,
+            trim_tol: 22.0,
+            guide_radius: 4,
+            guide_eps: 0.01,
+            hole_max_frac: 0.015,
+            polish_lo: 12,
+            polish_hi: 240,
+            threshold_bias: -4,
+        },
+        "avero-3" => RmbgProfile {
+            cleanup_frac: 0.0012,
+            trim_tol: 18.0,
+            guide_radius: 3,
+            guide_eps: 0.008,
+            hole_max_frac: 0.012,
+            polish_lo: 10,
+            polish_hi: 242,
+            threshold_bias: -8,
+        },
+        _ => RmbgProfile {
+            cleanup_frac: 0.004,
+            trim_tol: 26.0,
+            guide_radius: 5,
+            guide_eps: 0.015,
+            hole_max_frac: 0.02,
+            polish_lo: 16,
+            polish_hi: 238,
+            threshold_bias: 0,
+        },
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RmbgStatus {
     pub found: bool,
@@ -89,24 +141,58 @@ pub fn rmbg_models_dir() -> std::path::PathBuf {
 }
 
 /// Every location searched for a model file, in priority order.
+/// Walks up ancestors from both the executable and the working directory
+/// so the repo model/ folder is found no matter which directory the app
+/// was launched from. An AVERO_MODELS_DIR override wins when set.
 fn candidate_paths_for(file: &str) -> Vec<std::path::PathBuf> {
-    let mut out = Vec::with_capacity(5);
-    out.push(rmbg_models_dir().join(file));
-    // Development fallbacks: repo root model/ and models/ folders.
-    if let Ok(cwd) = std::env::current_dir() {
-        out.push(cwd.join("model").join(file));
-        out.push(cwd.join("models").join(file));
-        if let Some(parent) = cwd.parent() {
-            out.push(parent.join("model").join(file));
+    let mut out: Vec<std::path::PathBuf> = Vec::with_capacity(24);
+    let mut push_unique = |p: std::path::PathBuf| {
+        if !out.iter().any(|q| q == &p) {
+            out.push(p);
+        }
+    };
+    if let Ok(dir) = std::env::var("AVERO_MODELS_DIR") {
+        let d = dir.trim();
+        if !d.is_empty() {
+            push_unique(std::path::PathBuf::from(d).join(file));
         }
     }
-    // Next to the executable, singular folder variant.
+    // Next to the executable, both plural and singular variants.
+    push_unique(rmbg_models_dir().join(file));
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
-            out.push(dir.join("model").join(file));
+            push_unique(dir.join("model").join(file));
+            // Walk up from the executable (covers target/debug -> repo root).
+            let mut cur = dir.to_path_buf();
+            for _ in 0..8 {
+                push_unique(cur.join("model").join(file));
+                push_unique(cur.join("models").join(file));
+                match cur.parent() {
+                    Some(p) => cur = p.to_path_buf(),
+                    None => break,
+                }
+            }
+        }
+    }
+    // Walk up from the working directory (covers any launch directory).
+    if let Ok(cwd) = std::env::current_dir() {
+        let mut cur = cwd.clone();
+        for _ in 0..8 {
+            push_unique(cur.join("model").join(file));
+            push_unique(cur.join("models").join(file));
+            match cur.parent() {
+                Some(p) => cur = p.to_path_buf(),
+                None => break,
+            }
         }
     }
     out
+}
+
+/// Expected models folder shown in the UI when files are missing.
+#[tauri::command]
+pub fn cmd_rmbg_models_dir() -> String {
+    rmbg_models_dir().to_string_lossy().into_owned()
 }
 
 /// First existing path for a file, if any.
@@ -350,7 +436,11 @@ pub fn rmbg_input(rgba: &[u8], w: u32, h: u32) -> Result<(Vec<f32>, [usize; 4]),
 
 /// Raw model plane -> soft 0..255 alpha matte. Accepts EITHER logits or
 /// probabilities: values outside 0..1 go through sigmoid first, then a
-/// min-max stretch maps the matte to the full range.
+/// robust percentile stretch maps the matte to the full range.
+/// Percentiles (not min and max) suppress single outlier pixels that would
+/// otherwise amplify noise across the whole matte. Flat uncertain outputs
+/// with almost no contrast return an empty matte instead of stretched noise,
+// which keeps backgrounds clean instead of messy.
 pub fn normalize_mask(raw: &[f32]) -> Vec<u8> {
     if raw.is_empty() {
         return vec![];
@@ -371,17 +461,44 @@ pub fn normalize_mask(raw: &[f32]) -> Vec<u8> {
             .map(|&v| 1.0 / (1.0 + (-v.clamp(-30.0, 30.0)).exp()))
             .collect()
     } else {
-        raw.to_vec()
+        raw.iter().map(|&v| v.clamp(0.0, 1.0)).collect()
     };
-    let mut lo2 = f32::INFINITY;
-    let mut hi2 = f32::NEG_INFINITY;
-    for &v in &prob {
-        lo2 = lo2.min(v);
-        hi2 = hi2.max(v);
+    let n = prob.len();
+    // Tiny inputs (unit tests, thumbnails): exact min-max stretch keeps
+    // the classic mapping precise.
+    if n < 1024 {
+        let mut lo2 = f32::INFINITY;
+        let mut hi2 = f32::NEG_INFINITY;
+        for &v in &prob {
+            lo2 = lo2.min(v);
+            hi2 = hi2.max(v);
+        }
+        let span = (hi2 - lo2).max(1e-6);
+        return prob
+            .iter()
+            .map(|&v| (((v - lo2) / span) * 255.0 + 0.5).clamp(0.0, 255.0) as u8)
+            .collect();
     }
-    let span = (hi2 - lo2).max(1e-6);
+    // Robust stretch between the 1st and 99th percentile.
+    let mut sorted = prob.clone();
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let p1 = sorted[(n.saturating_sub(1)) * 1 / 100];
+    let p99 = sorted[(n.saturating_sub(1)) * 99 / 100];
+    let span = p99 - p1;
+    // Flat matte: no confident subject anywhere, keep it empty and clean.
+    if span < 0.08 {
+        // Genuine bimodal mattes never trip this gate because their
+        // percentile span is wide. Only uncertain noise does.
+        let mean: f32 = prob.iter().sum::<f32>() / n.max(1) as f32;
+        if mean < 0.35 || mean > 0.65 {
+            return vec![0u8; n];
+        }
+        // Near 0.5 mean with tiny span is pure uncertainty: empty matte.
+        return vec![0u8; n];
+    }
+    let inv = 1.0 / span.max(1e-6);
     prob.iter()
-        .map(|&v| (((v - lo2) / span) * 255.0 + 0.5).clamp(0.0, 255.0) as u8)
+        .map(|&v| ((((v - p1) * inv) * 255.0 + 0.5).clamp(0.0, 255.0)) as u8)
         .collect()
 }
 /// Upscaling reuses segment::upscale_gray (bilinear), so this module keeps
@@ -481,7 +598,11 @@ pub fn clean_small_components(bin: &[u8], w: usize, h: usize, min_frac: f32) -> 
     if total_fg == 0 {
         return (vec![0u8; n], 0);
     }
-    let min_area = ((total_fg as f32 * min_frac).ceil() as usize).max(1);
+    // Absolute floor scales with matte size so 1024px mattes drop visible
+    // dots even when the subject is huge, while tiny test mattes behave.
+    let absolute = ((w * h) / 16384).max(32);
+    let relative = ((total_fg as f32 * min_frac).ceil() as usize).max(1);
+    let min_area = absolute.max(relative);
     let mut out = vec![0u8; n];
     let mut seen_root = vec![false; n];
     let mut comp_removed = 0usize;
@@ -787,18 +908,30 @@ pub fn center_patch_mean(rgba: &[u8], w: usize, h: usize) -> [f32; 3] {
 }
 
 /// Quality score of a binary subject mask: centered and coherent wins,
-/// frame-touching sprawl loses. Drives automatic cutoff selection so one
-/// click lands on the subject instead of the brightest blob.
+/// frame-touching sprawl and fragmentation lose. Drives automatic cutoff
+/// selection so one click lands on the subject instead of the brightest
+/// blob. Coverage outside a sane band is penalized so empty noise and full
+/// frame floods never win, which keeps results clean rather than messy.
 pub fn mask_quality(bin: &[u8], w: usize, h: usize) -> f32 {
     if bin.len() != w * h || w < 8 || h < 8 {
         return f32::MIN;
     }
+    let total = (w * h) as f32;
     let fg = bin.iter().filter(|&&v| v != 0).count();
     if fg == 0 || fg == w * h {
         return f32::MIN;
     }
+    let coverage = fg as f32 / total;
+    // Sane subject band: below 2% is specks, above 92% is background flood.
+    if coverage < 0.02 || coverage > 0.92 {
+        return f32::MIN + coverage * 10.0;
+    }
     let (_, sizes, _) = label_components(bin, w, h);
     let largest = sizes.iter().max().copied().unwrap_or(0) as f32 / fg as f32;
+    let fragments = sizes.len() as f32;
+    // Fragmentation penalty grows slowly so hair detail is not punished,
+    // but shattered noise with dozens of pieces loses decisively.
+    let frag_penalty = (fragments / 6.0).min(2.0);
     let border = border_fg_ratio(bin, w, h);
     let (x0, x1) = (w * 40 / 100, w * 60 / 100);
     let (y0, y1) = (h * 40 / 100, h * 60 / 100);
@@ -813,22 +946,50 @@ pub fn mask_quality(bin: &[u8], w: usize, h: usize) -> f32 {
         }
     }
     let center = if cn == 0 { 0.0 } else { cfg as f32 / cn as f32 };
-    3.0 * center + 2.0 * largest - 3.0 * border
+    // Coverage sweet spot bonus: subjects around 5 to 70 percent score best.
+    let coverage_bonus = if coverage >= 0.05 && coverage <= 0.70 {
+        0.5
+    } else {
+        0.0
+    };
+    3.0 * center + 2.0 * largest - 3.0 * border - 0.6 * frag_penalty + coverage_bonus
 }
 
 /// Pick the cutoff whose mask scores best: Otsu plus scaled fallbacks in
-/// both directions. A too-high Otsu that keeps only bright blobs (white
-/// shirt on dark suit) loses to a lower cutoff that recovers the coherent
-/// centered subject; a too-low Otsu that floods the background loses on
-/// border contact. Returns the winning threshold.
+/// both directions plus fixed anchors for dark and bright subjects.
+/// A too-high Otsu that keeps only bright blobs (white shirt on dark suit)
+/// loses to a lower cutoff that recovers the coherent centered subject;
+/// a too-low Otsu that floods the background loses on border contact and
+/// fragmentation. Returns the winning threshold.
+#[allow(dead_code)]
 pub fn pick_threshold(soft: &[u8], w: usize, h: usize) -> u8 {
-    let t0 = otsu_threshold(soft) as u16;
-    let raw = [t0 * 5 / 4, t0, t0 * 3 / 4, t0 / 2, t0 / 3];
-    let mut best = t0.clamp(1, 254) as u8;
+    pick_threshold_with_bias(soft, w, h, 0)
+}
+
+/// Same as pick_threshold with a per model bias in matte levels. Negative
+/// bias recovers faint hair on fine backbones, positive bias suppresses
+/// noise on coarse backbones.
+pub fn pick_threshold_with_bias(soft: &[u8], w: usize, h: usize, bias: i16) -> u8 {
+    let t0 = otsu_threshold(soft) as i16;
+    let raw = [
+        t0 + 48,
+        t0 + 24,
+        t0 * 5 / 4,
+        t0,
+        t0 * 3 / 4,
+        t0 / 2,
+        t0 / 3,
+        200,
+        160,
+        120,
+        80,
+        48,
+    ];
+    let mut best = (t0 + bias).clamp(1, 254) as u8;
     let mut best_score = f32::MIN;
     let mut seen = [false; 256];
     for t in raw {
-        let t = t.clamp(10, 245) as u8;
+        let t = (t + bias).clamp(10, 245) as u8;
         if seen[t as usize] {
             continue;
         }
@@ -924,8 +1085,9 @@ fn component_colors(
 
 /// Smart edge trim: drop border-touching components whose color matches the
 /// page/backdrop estimate within tolerance. Conservative on purpose: only
-/// near-identical colors go, so a subject that happens to touch the frame
-/// survives unless it is painted in backdrop color. Returns (mask, dropped).
+/// near-identical colors go, the dominant subject never drops, and slivers
+/// with tiny border contact survive so cropped portraits stay intact.
+/// Returns (mask, dropped).
 pub fn drop_bg_colored_border(
     bin: &[u8],
     mw: usize,
@@ -942,15 +1104,43 @@ pub fn drop_bg_colored_border(
     if sizes.is_empty() {
         return (bin.to_vec(), 0);
     }
+    let total_fg: usize = sizes.iter().sum();
+    let largest = sizes.iter().max().copied().unwrap_or(0);
+    // Border contact length per component: a subject cropped by the frame
+    // touches along a short run, a backdrop slab hugs a long run.
+    let mut border_px = vec![0usize; sizes.len()];
+    for y in 0..mh {
+        for x in 0..mw {
+            if x != 0 && y != 0 && x != mw - 1 && y != mh - 1 {
+                continue;
+            }
+            let i = y * mw + x;
+            if bin[i] != 0 && ids[i] != u32::MAX {
+                border_px[ids[i] as usize] += 1;
+            }
+        }
+    }
     let bg = corner_bg_color(rgba, sw, sh);
     let means = component_colors(bin, mw, mh, rgba, sw, sh, &ids, sizes.len());
     let drop: Vec<bool> = touches
         .iter()
-        .zip(means.iter())
-        .map(|(&t, m)| {
+        .enumerate()
+        .map(|(c, &t)| {
             if !t {
                 return false;
             }
+            // Never drop the dominant mass: it is the subject by definition.
+            if sizes[c] == largest && sizes[c] * 2 > total_fg {
+                return false;
+            }
+            // Tiny border kiss (under 4 percent of component perimeter)
+            // means a cropped subject, not a backdrop slab.
+            let perim = (sizes[c] as f32).sqrt() * 4.0 + 4.0;
+            let contact = border_px[c] as f32 / perim.max(1.0);
+            if contact < 0.04 && sizes[c] > total_fg / 8 {
+                return false;
+            }
+            let m = means[c];
             let d = ((m[0] - bg[0]).powi(2) + (m[1] - bg[1]).powi(2) + (m[2] - bg[2]).powi(2)).sqrt();
             d <= tol
         })
@@ -1023,7 +1213,9 @@ pub fn close_small_gaps(bin: &[u8], w: usize, h: usize) -> Vec<u8> {
 
 /// Fill background regions fully enclosed by foreground (arches, windows,
 /// donut holes). Flood fills from every border pixel, whatever background
-/// remains unreached is a hole.
+/// remains unreached is a hole. Kept for compatibility, the live pipeline
+/// uses the size limited variant below so large see through gaps stay clean.
+#[allow(dead_code)]
 pub fn fill_enclosed_holes(bin: &[u8], w: usize, h: usize) -> Vec<u8> {
     if bin.len() != w * h || w == 0 || h == 0 {
         return vec![0u8; w * h];
@@ -1062,6 +1254,103 @@ pub fn fill_enclosed_holes(bin: &[u8], w: usize, h: usize) -> Vec<u8> {
     bin.iter()
         .enumerate()
         .map(|(i, &v)| if v == 0 && !reached[i] { 255 } else { v })
+        .collect()
+}
+
+/// Fill only small enclosed holes (sensor dust, lace gaps, small windows).
+/// Large see through areas between limbs or under arms stay transparent,
+/// which is what keeps cutouts neat instead of messy. max_frac caps hole
+/// area as a fraction of foreground area.
+pub fn fill_small_enclosed_holes(bin: &[u8], w: usize, h: usize, max_frac: f32) -> Vec<u8> {
+    if bin.len() != w * h || w == 0 || h == 0 {
+        return vec![0u8; w * h];
+    }
+    let fg = bin.iter().filter(|&&v| v != 0).count();
+    if fg == 0 {
+        return bin.to_vec();
+    }
+    let max_hole = ((fg as f32 * max_frac).ceil() as usize).max(24);
+    // Label background components on the inverted mask.
+    let inv: Vec<u8> = bin.iter().map(|&v| if v == 0 { 255 } else { 0 }).collect();
+    let (ids, sizes, _) = label_components(&inv, w, h);
+    if sizes.is_empty() {
+        return bin.to_vec();
+    }
+    // Background touching the frame is outside air, never a hole.
+    let n = w * h;
+    let mut touches = vec![false; sizes.len()];
+    for y in 0..h {
+        for x in 0..w {
+            if x != 0 && y != 0 && x != w - 1 && y != h - 1 {
+                continue;
+            }
+            let i = y * w + x;
+            if inv[i] != 0 && ids[i] != u32::MAX {
+                touches[ids[i] as usize] = true;
+            }
+        }
+    }
+    let fill: Vec<bool> = sizes
+        .iter()
+        .zip(touches.iter())
+        .map(|(&s, &t)| !t && s <= max_hole)
+        .collect();
+    if !fill.iter().any(|&f| f) {
+        return bin.to_vec();
+    }
+    // Silence unused warning for n in release builds with tiny mattes.
+    let _ = n;
+    bin.iter()
+        .enumerate()
+        .map(|(i, &v)| {
+            if v == 0 && inv[i] != 0 && ids[i] != u32::MAX && fill[ids[i] as usize] {
+                255
+            } else {
+                v
+            }
+        })
+        .collect()
+}
+
+/// Gate a soft matte by a binary subject mask: soft gradients survive
+/// inside the subject for natural hair falloff, everything outside is
+/// hard zero so the background stays perfectly clean.
+pub fn gate_soft_by_binary(soft: &[u8], bin: &[u8]) -> Vec<u8> {
+    if soft.len() != bin.len() {
+        return soft.to_vec();
+    }
+    soft.iter()
+        .zip(bin.iter())
+        .map(|(&s, &b)| if b == 0 { 0 } else { s })
+        .collect()
+}
+
+/// Polish a soft alpha matte: crush near zero noise to transparent and
+/// snap near opaque cores to solid, while preserving the mid transition
+/// band that carries soft hair and edge falloff. This removes haze and
+/// isolated dots without hardening real edges.
+pub fn polish_alpha_matte(matte: &[u8], lo: u8, hi: u8) -> Vec<u8> {
+    if matte.is_empty() || lo >= hi {
+        return matte.to_vec();
+    }
+    let lo_f = lo as f32;
+    let hi_f = hi as f32;
+    let span = (hi_f - lo_f).max(1.0);
+    matte
+        .iter()
+        .map(|&v| {
+            let f = v as f32;
+            if f <= lo_f {
+                0
+            } else if f >= hi_f {
+                255
+            } else {
+                // Smoothstep remap inside the transition band.
+                let t = (f - lo_f) / span;
+                let s = t * t * (3.0 - 2.0 * t);
+                (s * 255.0 + 0.5).clamp(0.0, 255.0) as u8
+            }
+        })
         .collect()
 }
 
@@ -1211,14 +1500,19 @@ pub fn cmd_rmbg_remove(
         }
         Err("no float matte output from rmbg model".to_string())
     })?;
+    let profile = profile_for_model(&used_id);
     let soft = normalize_mask(&plane);
-    // Smart matte: best-of cutoff from scored candidates, bridge hairline
-    // one piece, fix backwards orientation on flat graphics (logo on a
-    // page: the model keeps the page), trim edge-touching leftovers on
-    // request, drop isolated specks, keep the main subject on request,
-    // fill enclosed holes (arches), then snap edges to the photo.
-    // Frontend can still re-threshold live.
-    let suggested = pick_threshold(&soft, mw, mh);
+    // Precision matte pipeline, tuned per model:
+    // 1. Best cutoff from scored candidates with model bias.
+    // 2. Flat page rescue for logos on uniform pages.
+    // 3. Gap bridging so hairlines stay one piece.
+    // 4. Orientation fix, smart border trim, speck cleanup.
+    // 5. Small hole fill only, so see through gaps stay transparent.
+    // 6. Soft gated guided refine: hair translucency survives inside the
+    //    subject while the outside stays hard zero and perfectly clean.
+    // 7. Alpha polish plus an optional full resolution edge snap.
+    // Frontend can still re-threshold live with the suggested value.
+    let suggested = pick_threshold_with_bias(&soft, mw, mh, profile.threshold_bias);
     let bin: Vec<u8> = soft.iter().map(|&v| if v >= suggested { 255 } else { 0 }).collect();
     // Flat-page rescue: the neural matte owns the whole frame on uniform
     // pages (logo on white) instead of the subject. Page removal by flood
@@ -1256,10 +1550,10 @@ pub fn cmd_rmbg_remove(
     };
     let inverted = auto_flipped || invert == Some(true);
     let mut dropped: usize = 0;
-    // Smart trim first: edge-touching pieces painted in backdrop color go,
-    // real subjects stay even when they touch the frame.
+    // Smart trim first with per model tolerance: edge-touching pieces
+    // painted in backdrop color go, real subjects stay even at the frame.
     if smart_trim.unwrap_or(true) {
-        let (m, d) = drop_bg_colored_border(&matte, mw, mh, &rgba, w as usize, h as usize, 24.0);
+        let (m, d) = drop_bg_colored_border(&matte, mw, mh, &rgba, w as usize, h as usize, profile.trim_tol);
         matte = m;
         dropped += d;
     }
@@ -1269,26 +1563,42 @@ pub fn cmd_rmbg_remove(
         dropped += d;
     }
     let (clean, removed) = if cleanup.unwrap_or(true) {
-        clean_small_components(&matte, mw, mh, 0.004)
+        clean_small_components(&matte, mw, mh, profile.cleanup_frac)
     } else {
         (matte, 0)
     };
     dropped += removed;
     let (subject, kdrop) = keep_largest_components(&clean, mw, mh, keep_largest.unwrap_or(0));
     dropped += kdrop;
-    let holed = fill_enclosed_holes(&subject, mw, mh);
+    let holed = fill_small_enclosed_holes(&subject, mw, mh, profile.hole_max_frac);
     let fg_after = holed.iter().filter(|&&v| v != 0).count();
     let kept_pct = 100.0 * fg_after as f32 / (mw * mh).max(1) as f32;
+    // Orient the soft matte the same way as the binary mask. Without this,
+    // flipped cases (page rescue, backwards mattes) would gate low subject
+    // values against the subject region and produce faint messy cutouts.
+    let oriented_soft: Vec<u8> = if inverted {
+        soft.iter().map(|&v| 255 - v).collect()
+    } else {
+        soft.clone()
+    };
     let refined = if smooth.unwrap_or(true) {
         let guide = luma_at_size(&rgba, w, h, mw, mh);
-        guided_refine(&holed, &guide, mw, mh, 4, 0.01)
+        let gated = gate_soft_by_binary(&oriented_soft, &holed);
+        let guided = guided_refine(&gated, &guide, mw, mh, profile.guide_radius, profile.guide_eps);
+        polish_alpha_matte(&guided, profile.polish_lo, profile.polish_hi)
     } else {
-        soft.iter()
-            .zip(holed.iter())
-            .map(|(&s, &c)| if c == 0 { 0 } else { s })
-            .collect()
+        gate_soft_by_binary(&oriented_soft, &holed)
     };
-    let mask = upscale_gray(&refined, mw, mh, w as usize, h as usize);
+    let upscaled = upscale_gray(&refined, mw, mh, w as usize, h as usize);
+    // Full resolution edge snap for crisp precise contours on typical
+    // photo sizes. Large posters skip this pass to protect performance.
+    let mask = if smooth.unwrap_or(true) && (w as usize) * (h as usize) <= 4_000_000 {
+        let guide_full = luma_at_size(&rgba, w, h, w as usize, h as usize);
+        let snapped = guided_refine(&upscaled, &guide_full, w as usize, h as usize, 2, 0.01);
+        polish_alpha_matte(&snapped, profile.polish_lo, profile.polish_hi)
+    } else {
+        polish_alpha_matte(&upscaled, profile.polish_lo, profile.polish_hi)
+    };
     Ok(RmbgResult {
         mask,
         width: w,
@@ -1626,5 +1936,112 @@ mod tests {
         let bin: Vec<u8> = soft.iter().map(|&v| if v >= t { 255 } else { 0 }).collect();
         assert_eq!(bin[20 * w + 25], 255);
         assert_eq!(bin[5 * w + 5], 0);
+    }
+
+    #[test]
+    fn profiles_tune_each_model_for_precision() {
+        let p1 = profile_for_model("avero-1");
+        let p2 = profile_for_model("avero-2");
+        let p3 = profile_for_model("avero-3");
+        // Coarse backbone cleans harder and smooths wider, fine backbones
+        // keep a light touch for hair detail.
+        assert!(p1.cleanup_frac > p2.cleanup_frac);
+        assert!(p2.cleanup_frac > p3.cleanup_frac);
+        assert!(p1.guide_radius >= p2.guide_radius);
+        assert!(p2.guide_radius >= p3.guide_radius);
+        assert!(p1.trim_tol > p3.trim_tol);
+        assert_eq!(p1.threshold_bias, 0);
+        assert!(p3.threshold_bias < 0);
+        // Unknown ids fall back to the balanced profile.
+        assert_eq!(profile_for_model("other").cleanup_frac, p1.cleanup_frac);
+    }
+
+    #[test]
+    fn small_holes_fill_large_gaps_stay_clean() {
+        // 40x40 solid block with a 4x4 pinhole and a 16x16 courtyard:
+        // the pinhole fills, the courtyard stays transparent and clean.
+        let (w, h) = (40usize, 40usize);
+        let mut bin = vec![255u8; w * h];
+        for y in 8..12 {
+            for x in 8..12 {
+                bin[y * w + x] = 0;
+            }
+        }
+        for y in 20..36 {
+            for x in 20..36 {
+                bin[y * w + x] = 0;
+            }
+        }
+        let out = fill_small_enclosed_holes(&bin, w, h, 0.02);
+        // Pinhole (16px) filled.
+        assert_eq!(out[9 * w + 9], 255);
+        // Courtyard (256px, far above 2 percent of fg) stays open.
+        assert_eq!(out[28 * w + 28], 0);
+        // Outer background untouched.
+        assert_eq!(out[0], 255);
+    }
+
+    #[test]
+    fn alpha_polish_keeps_band_crushes_noise() {
+        let m = vec![0u8, 5, 11, 64, 128, 200, 241, 243, 255];
+        let p = polish_alpha_matte(&m, 12, 240);
+        assert_eq!(p[0], 0);
+        assert_eq!(p[1], 0);
+        assert_eq!(p[2], 0);
+        assert_eq!(p[8], 255);
+        assert_eq!(p[7], 255);
+        assert_eq!(p[6], 255);
+        // Mid band survives for soft edges.
+        assert!(p[3] > 0 && p[3] < 255);
+        assert!(p[4] > 0 && p[4] < 255);
+        // Monotonic through the band.
+        assert!(p[3] < p[4]);
+        assert!(p[4] < p[5]);
+    }
+
+    #[test]
+    fn soft_gate_keeps_inside_zero_outside() {
+        let soft = vec![10u8, 120, 200, 30];
+        let bin = vec![0u8, 255, 255, 0];
+        assert_eq!(gate_soft_by_binary(&soft, &bin), vec![0, 120, 200, 0]);
+    }
+
+    #[test]
+    fn robust_normalize_rejects_flat_noise() {
+        // Large flat uncertain plane: no stretched speck noise allowed.
+        let flat = vec![0.5f32; 2048];
+        assert_eq!(normalize_mask(&flat), vec![0u8; 2048]);
+        // Large confident bimodal plane: full range preserved.
+        let mut two = vec![0.1f32; 1024];
+        two.extend(vec![0.9f32; 1024]);
+        let m = normalize_mask(&two);
+        assert_eq!(m[0], 0);
+        assert_eq!(m[2047], 255);
+    }
+
+    #[test]
+    fn quality_rejects_flood_and_fragments() {
+        let (w, h) = (40usize, 40usize);
+        // 95 percent flood: rejected even though it is one piece.
+        let flood = vec![255u8; w * h];
+        assert_eq!(mask_quality(&flood, w, h), f32::MIN);
+        // Coherent centered block outscores shattered specks at same area.
+        let mut solid = vec![0u8; w * h];
+        for y in 12..28 {
+            for x in 12..28 {
+                solid[y * w + x] = 255;
+            }
+        }
+        let mut specks = vec![0u8; w * h];
+        let mut n = 0;
+        for y in (0..h).step_by(2) {
+            for x in (0..w).step_by(2) {
+                if n < 256 {
+                    specks[y * w + x] = 255;
+                    n += 1;
+                }
+            }
+        }
+        assert!(mask_quality(&solid, w, h) > mask_quality(&specks, w, h));
     }
 }

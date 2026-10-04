@@ -106,7 +106,7 @@ const NAVIGATE_ALL = new Set<string>([
 ]);
 
 const MOVE_ALL = new Set<string>([
-  "move", "move-auto", "transform-free", "align-center", "path-select", "direct-select", "artboard",
+  "move", "move-auto", "transform-free", "align-center", "path-select", "direct-select", "artboard", "select-cursor",
 ]);
 
 const FILL_ALL = new Set<string>([
@@ -372,6 +372,7 @@ export const TOOL_HINT: Record<ToolId, string> = {
   "select-grow-8": "Click to grow the selection by 8px.",
   "select-border-4": "Click for a 4px border smooth.",
   "select-border-12": "Click for a 12px border smooth.",
+  "select-cursor": "Click any item or layer to select it for move, scale and rotate.",
   // Crop
   "crop": "Drag area. Enter applies, Esc cancels.",
   "perspective-crop": "Drag area, then drag corners for perspective fix.",

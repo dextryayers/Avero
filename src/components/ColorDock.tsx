@@ -7,11 +7,11 @@ import ColorPanel from "./ColorPanel";
 export type ColorDockTab = "colour" | "swatches" | "stroke" | "brushes" | "color";
 
 const DOCK_TABS = [
-  { id: "colour", label: "Colour", icon: Palette },
-  { id: "swatches", label: "Swatch", icon: LayoutGrid },
-  { id: "stroke", label: "Stroke", icon: PenLine },
-  { id: "brushes", label: "Brush", icon: Brush },
-  { id: "color", label: "Color", icon: Pipette },
+  { id: "colour", label: "Colour", icon: Palette, hint: "Colour studio. Pick and tune the working color." },
+  { id: "swatches", label: "Swatch", icon: LayoutGrid, hint: "Swatches. Save and reuse favorite colors." },
+  { id: "stroke", label: "Stroke", icon: PenLine, hint: "Stroke studio. Width and style for lines and shapes." },
+  { id: "brushes", label: "Brush", icon: Brush, hint: "Brushes. Presets with size, flow and blend options." },
+  { id: "color", label: "Color", icon: Pipette, hint: "Color picker. Sample values and set foreground color." },
 ] as const;
 
 // Front Color column of the dual column dock. It owns Colour, Swatches,
@@ -63,7 +63,7 @@ export default function ColorDock({ onToggle, width }: { onToggle: () => void; w
               role="tab"
               aria-selected={selected}
               onClick={() => setTab(t.id)}
-              title={`${t.label} panel`}
+              title={t.hint}
               className={clsx(
                 "avero-lift flex flex-col items-center gap-0.5 whitespace-nowrap border-b-2 px-1 pb-1.5 pt-2 text-[9px]",
                 selected

@@ -389,6 +389,7 @@ export type ToolId =
   | "select-grow-8"
   | "select-border-4"
   | "select-border-12"
+  | "select-cursor"
   | "lasso-straight"
   | "wand-flood"
   | "range-skin"

@@ -453,6 +453,7 @@ export default function CanvasArea() {
   const showTransformBox =
     (isMoveFamily ||
       tool === "direct-select" ||
+      tool === "select-cursor" ||
       isTextTool ||
       isSelectTool) &&
     !!activeLayerId &&
@@ -4460,7 +4461,7 @@ export default function CanvasArea() {
             directStart.current = { x: e.clientX, rotation: spec.rotation, layerId: id };
             return;
           }
-          if (tool === "move" || tool === "path-select" || tool === "move-auto" || tool === "transform-free" || tool === "align-center") {
+          if (tool === "move" || tool === "path-select" || tool === "move-auto" || tool === "transform-free" || tool === "align-center" || tool === "select-cursor") {
             if (tool === "align-center") {
               const st = useEditorStore.getState();
               const id = st.activeLayerId;
@@ -4482,7 +4483,7 @@ export default function CanvasArea() {
               bumpHistogram();
               return;
             }
-            if (tool === "move" || tool === "move-auto" || tool === "transform-free") {
+            if (tool === "move" || tool === "move-auto" || tool === "transform-free" || tool === "select-cursor") {
               // Canva style click to select: the topmost opaque image under the
               // cursor becomes the active layer. Clicking empty space keeps the
               // current layer so dragging still works.
@@ -6016,7 +6017,7 @@ export default function CanvasArea() {
                   ? "ew-resize"
                   : (TEXT_TOOLS as Set<string>).has(tool)
                     ? "text"
-                    : tool === "move" || tool === "path-select" || tool === "direct-select" || tool === "move-auto" || tool === "transform-free"
+                    : tool === "move" || tool === "path-select" || tool === "direct-select" || tool === "move-auto" || tool === "transform-free" || tool === "select-cursor"
                       ? "move"
                       : "crosshair",
           }}

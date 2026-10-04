@@ -189,7 +189,8 @@ describe("total usability lock (every tool one by one)", () => {
     const cases: [string, string][] = [
       ["dry-flat", "paint"], ["heal-mole", "retouch"], ["dodge-mid", "retouch"],
       ["blur-zoom", "retouch"], ["distort-bulge", "retouch"], ["crop-55", "crop"],
-      ["crop-thirds", "crop-overlay"], ["select-last", "select-click"],
+      ["crop-thirds", "crop-overlay"],       ["select-last", "select-click"],
+      ["select-cursor", "move"],
       ["wand-flood", "select-auto"], ["range-skin", "select-auto"],
       ["lasso-straight", "select-marquee"], ["gradient-conic", "gradient"],
       ["fill-foreground", "fill"], ["bucket-global", "fill"],
@@ -272,7 +273,7 @@ describe("total usability lock (every tool one by one)", () => {
     const { ok, dupes } = allIconsGloballyUnique();
     expect(dupes).toEqual([]);
     expect(ok).toBe(true);
-    // 18 family headers + 488 sub-tools = 506 distinct icon slots.
+    // 18 family headers + 489 sub-tools = 507 distinct icon slots.
     const headerIcons = TOOL_FAMILIES.map((f) => f.icon);
     const subIcons = TOOL_FAMILIES.flatMap((f) => f.tools.map((t) => t.icon));
     expect(headerIcons.length).toBe(18);

@@ -101,8 +101,12 @@ describe("plan4 dispatch audit: every sub-tool resolves", () => {
       "select-grow-2", "select-grow-8", "select-border-4", "select-border-12",
     ]);
     const fams = TOOL_FAMILIES.find((f) => f.id === "select")!;
-    expect(fams.tools.length).toBe(22);
+    expect(fams.tools.length).toBe(23);
     for (const t of fams.tools) {
+      if (t.id === "select-cursor") {
+        expect(dispatchKindOf(t.id as ToolId)).toBe("move");
+        continue;
+      }
       expect(dispatchKindOf(t.id as ToolId)).toBe(clickOps.has(t.id) ? "click" : "selection");
     }
   });
@@ -323,7 +327,7 @@ describe("plan4 dispatch audit: every sub-tool resolves", () => {
         switch (f.id) {
           case "move": expected = "move"; break;
           case "select":
-            expected = clickSel.has(t.id) ? "select-click" : marquee.has(t.id) ? "select-marquee" : "UNEXPECTED-TOOL";
+            expected = t.id === "select-cursor" ? "move" : clickSel.has(t.id) ? "select-click" : marquee.has(t.id) ? "select-marquee" : "UNEXPECTED-TOOL";
             break;
           case "lasso":
             expected = auto.has(t.id) ? "select-auto" : marquee.has(t.id) ? "select-marquee" : "UNEXPECTED-TOOL";

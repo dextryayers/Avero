@@ -32,6 +32,8 @@ import {
   Puzzle,
   Box,
   History,
+  X,
+  LocateFixed,
 } from "lucide-react";
 import { makeLayer, useEditorStore } from "../stores/useEditorStore";
 import { useShallow } from "zustand/shallow";
@@ -158,8 +160,48 @@ const tabs: { id: Tab; label: string; icon: any }[] = [
   { id: "objects", label: "Objects", icon: Box },
 ];
 
+// Premium tab bar: every tab carries a one line English guide so the panel
+// explains itself on hover. No emdash in any string.
+const TAB_HINTS: Record<Tab, string> = {
+  layers: "Layers panel. Click a row to select, Ctrl+click for multi-select, double-click to rename.",
+  select: "Selection panel. Feather, grow, shrink and invert the pixel selection.",
+  mask: "Mask panel. Feather and density for the active layer mask.",
+  adjust: "Adjustments panel. Tone layers with live preview.",
+  filter: "Filters panel. Apply and stack image filters.",
+  lab: "Memory lab panel. Scratch experiments and test tools.",
+  text: "Text panel. Fonts, FX and layout for text layers.",
+  color: "Color picker panel. Sample and set the working color.",
+  raw: "RAW developer panel. Develop raw photos before editing.",
+  batch: "Batch panel. Queue and run multi file jobs.",
+  art: "Artboards panel. Arrange artboards for export.",
+  plugin: "Plugins panel. SDK extensions and extra tools.",
+  mockup: "Mockup panel. Preview the design in scenes.",
+  history: "History panel. Step back through undo states.",
+  objects: "Objects panel. Auto detected segments as selectable layers.",
+};
+
 export default function RightPanel({ dual = false, onToggleLayers, width }: { dual?: boolean; onToggleLayers?: () => void; width?: number } = {}) {
-  const [tab, setTab] = useState<Tab>("layers");
+  const [tab, setTabState] = useState<Tab>(() => {
+    try {
+      const v = localStorage.getItem("avero:right-tab");
+      const ids: string[] = tabs.map((t) => t.id);
+      if (v && ids.includes(v)) return v as Tab;
+    } catch {
+      /* ignore */
+    }
+    return "layers";
+  });
+  function setTab(t: Tab | ((prev: Tab) => Tab)) {
+    setTabState((prev) => {
+      const next = typeof t === "function" ? (t as (p: Tab) => Tab)(prev) : t;
+      try {
+        localStorage.setItem("avero:right-tab", next);
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }
   const [query, setQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<"all" | "raster" | "text" | "shape" | "background">("all");
   const [showBrush, setShowBrush] = useState(true);
@@ -212,6 +254,25 @@ export default function RightPanel({ dual = false, onToggleLayers, width }: { du
       if (l.groupId === groupId) st.updateLayer(l.id, { groupId: null });
     }
     st.markDirty();
+  }
+
+  // Smart Layers search: reveal jumps to the active row. Filters clear first
+  // so a hidden active layer becomes visible, then the row scrolls into view.
+  function revealActiveLayer() {
+    const st = useEditorStore.getState();
+    const id = st.activeLayerId;
+    if (!id) return;
+    setQuery("");
+    setKindFilter("all");
+    setTab("layers");
+    setStudio(null);
+    requestAnimationFrame(() => {
+      try {
+        document.querySelector(`[data-layer-row="${id}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      } catch {
+        /* keep current scroll on query failure */
+      }
+    });
   }
   // Affinity-style studio strip: colour tools above the main tab system.
   // Selecting a main tab always returns to tab content.
@@ -427,7 +488,7 @@ export default function RightPanel({ dual = false, onToggleLayers, width }: { du
                 setTab(t.id);
                 setStudio(null);
               }}
-              title={`${t.label} panel`}
+              title={TAB_HINTS[t.id]}
               className={clsx(
                 "avero-lift flex shrink-0 flex-col items-center gap-0.5 whitespace-nowrap rounded-t-md border-b-2 px-2 pb-1.5 pt-2 transition-colors",
                 selected
@@ -568,25 +629,59 @@ export default function RightPanel({ dual = false, onToggleLayers, width }: { du
 
             <div className="border-b border-[#2c2c31] p-2">
               <div className="mb-1.5 flex gap-1">
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search layers..."
-                  className="h-7 min-w-0 flex-1 rounded-md border border-[#2c2c31] bg-[#101012] px-2 text-[11px] text-white outline-none placeholder:text-[#6e6e78] focus:border-[#2f7cf6]"
-                />
+                <div className="relative min-w-0 flex-1">
+                  <input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Search layers..."
+                    aria-label="Search layers"
+                    className="h-7 w-full min-w-0 rounded-md border border-[#2c2c31] bg-[#101012] px-2 pr-7 text-[11px] text-white outline-none placeholder:text-[#6e6e78] focus:border-[#2f7cf6]"
+                  />
+                  {query !== "" && (
+                    <button
+                      onClick={() => setQuery("")}
+                      title="Clear search"
+                      aria-label="Clear search"
+                      className="absolute right-1 top-1/2 grid h-5 w-5 -translate-y-1/2 place-items-center rounded text-[#6e6e78] hover:bg-white/5 hover:text-white"
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
                 <select
                   value={kindFilter}
                   onChange={(e) => setKindFilter(e.target.value as typeof kindFilter)}
                   title="Filter by kind"
                   className="h-7 rounded-md border border-[#2c2c31] bg-[#101012] px-1 text-[11px] text-white"
                 >
-                  <option value="all">All</option>
-                  <option value="raster">Raster</option>
-                  <option value="text">Text</option>
-                  <option value="shape">Shape</option>
-                  <option value="background">Bg</option>
+                  <option value="all">All ({layers.length})</option>
+                  <option value="raster">Raster ({layers.filter((l) => l.kind === "raster").length})</option>
+                  <option value="text">Text ({layers.filter((l) => l.kind === "text").length})</option>
+                  <option value="shape">Shape ({layers.filter((l) => l.kind === "shape").length})</option>
+                  <option value="background">Bg ({layers.filter((l) => l.kind === "background").length})</option>
                 </select>
+                <button
+                  onClick={revealActiveLayer}
+                  title="Reveal active layer: clear filters and scroll to it"
+                  aria-label="Reveal active layer"
+                  className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-[#2c2c31] text-[#a7a7b0] hover:border-[#2f7cf6]/60 hover:text-white"
+                >
+                  <LocateFixed size={13} />
+                </button>
               </div>
+              {(() => {
+                const q = query.trim().toLowerCase();
+                const shown = layers.filter(
+                  (l) =>
+                    (kindFilter === "all" || l.kind === kindFilter) &&
+                    (q === "" || l.name.toLowerCase().includes(q)),
+                ).length;
+                return (
+                  <div className="mb-1 px-0.5 font-mono text-[9px] tabular-nums text-[#6e6e78]">
+                    {shown} of {layers.length} shown
+                  </div>
+                );
+              })()}
               {(() => {
                 const al = layers.find((l) => l.id === activeLayerId);
                 if (!al) return null;
@@ -699,6 +794,7 @@ export default function RightPanel({ dual = false, onToggleLayers, width }: { du
                       )}
                       {!collapsed && (
                     <div
+                      data-layer-row={l.id}
                       onClick={(e) => {
                         if (e.ctrlKey || e.metaKey) {
                           toggleLayerSelect(l.id);

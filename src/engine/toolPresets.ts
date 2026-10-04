@@ -739,6 +739,7 @@ export const MOVE_TOOLS = new Set<ToolId>([
   "move-auto",
   "transform-free",
   "align-center",
+  "select-cursor",
   "pan",
   "hand",
   "rotate-view",

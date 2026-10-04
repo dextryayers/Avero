@@ -378,6 +378,7 @@ import {
   HandHelping,
   MousePointerClick,
   SquareMousePointer,
+  SquareDashedMousePointer,
   StretchVertical,
   MoveRight,
   UnfoldVertical,
@@ -658,6 +659,7 @@ export const TOOL_FAMILIES: ToolFamily[] = [
       { id: "select-grow-8", icon: TrendingUp, label: "Grow 8px", shortcut: "Y", description: "Grow selection by 8px.", usage: "Click to grow 8px." },
       { id: "select-border-4", icon: SquareBottomDashedScissors, label: "Border 4px", shortcut: "Y", description: "Tight 4px border smooth.", usage: "Click for 4px border." },
       { id: "select-border-12", icon: SquareDashedKanban, label: "Border 12px", shortcut: "Y", description: "Wide 12px border smooth.", usage: "Click for 12px border." },
+      { id: "select-cursor", icon: SquareDashedMousePointer, label: "Select Cursor", shortcut: "M", description: "Cursor for clicking items and layers.", usage: "Click any item or layer to select it, then drag to move and use handles to scale or rotate." },
     ],
   },
   {
